@@ -1,0 +1,15 @@
+{
+  "name": "swift-tui-examples-workspace",
+  "private": true,
+  "version": "0.1.0",
+  "license": "MIT",
+  "workspaces": [
+    "Examples/WebExample",
+    "../swift-tui-web/packages/web",
+    "../swift-tui-web/packages/build"
+  ],
+  "scripts": {
+    "check": "Scripts/check_examples.sh --skip-clean",
+    "build:webexample": "bun run --cwd Examples/WebExample build"
+  }
+}

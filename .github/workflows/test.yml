@@ -1,0 +1,40 @@
+name: Test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: macos-26
+    steps:
+      - name: Checkout examples
+        uses: actions/checkout@v6
+        with:
+          path: swift-tui-examples
+      - name: Checkout swift-tui
+        uses: actions/checkout@v6
+        with:
+          repository: SwiftTUI/swift-tui
+          path: swift-tui
+      - name: Checkout swift-tui-web
+        uses: actions/checkout@v6
+        with:
+          repository: SwiftTUI/swift-tui-web
+          path: swift-tui-web
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.13"
+      - name: Install swiftly and Swift toolchain
+        working-directory: swift-tui
+        run: |
+          curl -O https://download.swift.org/swiftly/darwin/swiftly.pkg
+          installer -pkg swiftly.pkg -target CurrentUserHomeDirectory
+          ~/.swiftly/bin/swiftly init --skip-install --quiet-shell-followup --assume-yes
+          . "${SWIFTLY_HOME_DIR:-$HOME/.swiftly}/env.sh"
+          swiftly install --use --assume-yes "$(tr -d '[:space:]' < .swift-version)"
+          echo "$HOME/.swiftly/bin" >> "$GITHUB_PATH"
+      - name: Run examples
+        working-directory: swift-tui-examples
+        run: Scripts/check_examples.sh --skip-clean
