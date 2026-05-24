@@ -115,17 +115,17 @@ if [ "$skip_clean" -eq 0 ]; then
     run_swift package clean
 
   for package_path in \
-    "Examples/argparse" \
-    "Examples/file-previewer" \
-    "Examples/gallery" \
-    "Examples/gifcat" \
-    "Examples/gifeditor" \
-    "Examples/gitviz" \
-    "Examples/terminal-workspace" \
-    "Examples/layouts" \
-    "Examples/SwiftUIExample/TerminalApp" \
-    "Examples/WebExample/TerminalApp" \
-    "Examples/WebHostExample"; do
+    "argparse" \
+    "file-previewer" \
+    "gallery" \
+    "gifcat" \
+    "gifeditor" \
+    "gitviz" \
+    "terminal-workspace" \
+    "layouts" \
+    "SwiftUIExample/TerminalApp" \
+    "WebExample/TerminalApp" \
+    "WebHostExample"; do
     run_step \
       "Clean $package_path" \
       "$repo_root" \
@@ -134,12 +134,12 @@ if [ "$skip_clean" -eq 0 ]; then
 fi
 
 for package_path in \
-  "Examples/argparse" \
-  "Examples/file-previewer" \
-  "Examples/gifcat" \
-  "Examples/gifeditor" \
-  "Examples/gitviz" \
-  "Examples/terminal-workspace"; do
+  "argparse" \
+  "file-previewer" \
+  "gifcat" \
+  "gifeditor" \
+  "gitviz" \
+  "terminal-workspace"; do
   run_step \
     "Build $package_path" \
     "$repo_root" \
@@ -152,58 +152,58 @@ for package_path in \
 done
 
 run_step \
-  "Build Examples/gallery" \
+  "Build gallery" \
   "$repo_root" \
-  run_swift build --package-path Examples/gallery
+  run_swift build --package-path gallery
 
 run_step \
-  "Build Examples/gallery (release)" \
+  "Build gallery (release)" \
   "$repo_root" \
-  run_swift build -c release --package-path Examples/gallery
+  run_swift build -c release --package-path gallery
 
 run_step \
-  "Stack safety Examples/gallery (debug)" \
+  "Stack safety gallery (debug)" \
   "$repo_root" \
   python3 Scripts/stack_safety_harness.py \
-    --binary Examples/gallery/.build/debug/gallery-demo \
+    --binary gallery/.build/debug/gallery-demo \
     --count 20
 
 run_step \
-  "Stack safety Examples/gallery (release)" \
+  "Stack safety gallery (release)" \
   "$repo_root" \
   python3 Scripts/stack_safety_harness.py \
-    --binary Examples/gallery/.build/release/gallery-demo \
+    --binary gallery/.build/release/gallery-demo \
     --count 20
 
 run_step \
-  "Build Examples/layouts" \
+  "Build layouts" \
   "$repo_root" \
-  run_swift build --package-path Examples/layouts
+  run_swift build --package-path layouts
 
 run_step \
-  "Build Examples/layouts (release)" \
+  "Build layouts (release)" \
   "$repo_root" \
-  run_swift build -c release --package-path Examples/layouts
+  run_swift build -c release --package-path layouts
 
 run_step \
-  "Build Examples/SwiftUIExample/TerminalApp" \
+  "Build SwiftUIExample/TerminalApp" \
   "$repo_root" \
-  run_swift build --package-path Examples/SwiftUIExample/TerminalApp
+  run_swift build --package-path SwiftUIExample/TerminalApp
 
 run_step \
-  "Build Examples/WebExample/TerminalApp" \
+  "Build WebExample/TerminalApp" \
   "$repo_root" \
-  run_swift build --package-path Examples/WebExample/TerminalApp
+  run_swift build --package-path WebExample/TerminalApp
 
 run_step \
-  "Build Examples/WebHostExample" \
+  "Build WebHostExample" \
   "$repo_root" \
-  run_swift build --package-path Examples/WebHostExample
+  run_swift build --package-path WebHostExample
 
 run_step \
-  "Test Examples/WebHostExample" \
+  "Test WebHostExample" \
   "$repo_root" \
-  run_swift test --package-path Examples/WebHostExample
+  run_swift test --package-path WebHostExample
 
 run_step \
   "Build SwiftTUIWebHost framework targets" \
@@ -217,20 +217,20 @@ run_step \
 
 if [ "$skip_clean" -eq 0 ]; then
   run_step \
-    "Build Examples/SwiftUIExample macOS app" \
+    "Build SwiftUIExample macOS app" \
     "$repo_root" \
     xcodebuild \
-      -project Examples/SwiftUIExample/SwiftUIExample.xcodeproj \
+      -project SwiftUIExample/SwiftUIExample.xcodeproj \
       -scheme SwiftUIExample \
       -configuration Debug \
       -destination generic/platform=macOS \
       clean build
 else
   run_step \
-    "Build Examples/SwiftUIExample macOS app" \
+    "Build SwiftUIExample macOS app" \
     "$repo_root" \
     xcodebuild \
-      -project Examples/SwiftUIExample/SwiftUIExample.xcodeproj \
+      -project SwiftUIExample/SwiftUIExample.xcodeproj \
       -scheme SwiftUIExample \
       -configuration Debug \
       -destination generic/platform=macOS \
@@ -238,14 +238,14 @@ else
 fi
 
 run_step \
-  "Build Examples/WebExample web demo" \
-  "$repo_root/Examples/WebExample" \
+  "Build WebExample web demo" \
+  "$repo_root/WebExample" \
   bun run build
 
 run_step \
   "Build swift-tui-web host with WebExampleApp" \
   "$web_root/packages/web" \
-  bun run build -- --package-path "$repo_root/Examples/WebExample/TerminalApp" --app WebExampleApp
+  bun run build -- --package-path "$repo_root/WebExample/TerminalApp" --app WebExampleApp
 
 echo ""
 if [ -z "$failures" ]; then
