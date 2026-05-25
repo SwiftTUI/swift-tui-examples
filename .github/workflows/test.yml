@@ -5,9 +5,21 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: examples-test-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BUN_VERSION: "1.3.13"
+
 jobs:
   test:
+    name: Examples repo gate
     runs-on: macos-26
+    timeout-minutes: 60
     steps:
       - name: Checkout examples
         uses: actions/checkout@v6
@@ -25,16 +37,34 @@ jobs:
           path: swift-tui-web
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.3.13"
+          bun-version: ${{ env.BUN_VERSION }}
       - name: Install swiftly and Swift toolchain
+        shell: bash
         working-directory: swift-tui
         run: |
+          set -euo pipefail
           curl -O https://download.swift.org/swiftly/darwin/swiftly.pkg
           installer -pkg swiftly.pkg -target CurrentUserHomeDirectory
           ~/.swiftly/bin/swiftly init --skip-install --quiet-shell-followup --assume-yes
           . "${SWIFTLY_HOME_DIR:-$HOME/.swiftly}/env.sh"
           swiftly install --use --assume-yes "$(tr -d '[:space:]' < .swift-version)"
+          swiftly run swift --version
           echo "$HOME/.swiftly/bin" >> "$GITHUB_PATH"
+          echo "SWIFTLY_HOME_DIR=$HOME/.swiftly" >> "$GITHUB_ENV"
+      - name: Install WebExample build dependencies
+        shell: bash
+        run: brew install binaryen
+      - name: Install wasm Swift SDK
+        shell: bash
+        working-directory: swift-tui
+        run: |
+          set -euo pipefail
+          if ! swiftly run swift sdk list | grep -q "swift-6.3.1-RELEASE_wasm"; then
+            swiftly run swift sdk install \
+              https://download.swift.org/swift-6.3.1-release/wasm-sdk/swift-6.3.1-RELEASE/swift-6.3.1-RELEASE_wasm.artifactbundle.tar.gz \
+              --checksum bd47baa20771f366d8beed7970afaa30742b2210097afd15f85427226d8f4cf2
+          fi
       - name: Run examples
+        shell: bash
         working-directory: swift-tui-examples
         run: Scripts/check_examples.sh --skip-clean

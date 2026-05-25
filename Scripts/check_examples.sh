@@ -108,6 +108,11 @@ if [ -f "$repo_root/package.json" ] && [ -f "$repo_root/bun.lock" ] && [ "$skip_
     bun install --frozen-lockfile
 fi
 
+run_step \
+  "Check examples CI workflow" \
+  "$repo_root" \
+  Scripts/check_examples_ci_workflow.sh
+
 if [ "$skip_clean" -eq 0 ]; then
   run_step \
     "Clean SwiftTUI framework package" \
