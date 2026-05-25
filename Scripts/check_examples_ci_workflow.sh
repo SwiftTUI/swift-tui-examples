@@ -27,6 +27,7 @@ require_text() {
 require_file "$workflow"
 require_text "repository: SwiftTUI/swift-tui" "$workflow"
 require_text "repository: SwiftTUI/swift-tui-web" "$workflow"
+require_text 'secrets.SWIFTTUI_CI_TOKEN || github.token' "$workflow"
 require_text "swift sdk install" "$workflow"
 require_text "swift-6.3.1-RELEASE_wasm.artifactbundle.tar.gz" "$workflow"
 require_text "binaryen" "$workflow"

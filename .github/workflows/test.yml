@@ -29,11 +29,13 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: SwiftTUI/swift-tui
+          token: ${{ secrets.SWIFTTUI_CI_TOKEN || github.token }}
           path: swift-tui
       - name: Checkout swift-tui-web
         uses: actions/checkout@v6
         with:
           repository: SwiftTUI/swift-tui-web
+          token: ${{ secrets.SWIFTTUI_CI_TOKEN || github.token }}
           path: swift-tui-web
       - uses: oven-sh/setup-bun@v2
         with:
