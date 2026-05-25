@@ -1,11 +1,11 @@
 import Dispatch
 @_spi(Runners) @_spi(Testing) import SwiftTUI
 @_spi(Testing) import SwiftTUITestSupport
-@testable import SwiftTUICore
-@testable import SwiftTUIRuntime
 import Testing
 
 @testable import GalleryDemoViews
+@testable import SwiftTUICore
+@testable import SwiftTUIRuntime
 
 #if canImport(Darwin)
   import Darwin
@@ -687,6 +687,67 @@ struct GalleryTabSwitchTests {
     #expect(
       paletteText.contains("Popovers"),
       "expected the gallery palette to include the popovers tab command; surface was:\n\(paletteText)"
+    )
+  }
+
+  @Test("gallery command palette focuses its filter after opening from shortcut")
+  func galleryCommandPaletteFocusesFilterAfterShortcutOpen() throws {
+    let terminalSize = CellSize(width: 80, height: 24)
+    let rootIdentity = Identity(components: [.named("GalleryCommandPaletteFilterFocus")])
+    let host = GalleryTabSwitchRecordingHost(size: terminalSize)
+    var environment = EnvironmentValues()
+    environment.terminalSize = terminalSize
+    environment.terminalAppearance = host.appearance
+    let scheduler = FrameScheduler()
+    let focusTracker = FocusTracker(invalidationIdentities: [rootIdentity])
+    let runLoop = RunLoop(
+      rootIdentity: rootIdentity,
+      presentationSurface: host,
+      terminalInputReader: GalleryTabSwitchScriptedInput(events: []),
+      signalReader: GalleryTabSwitchEmptySignals(),
+      scheduler: scheduler,
+      stateContainer: StateContainer(
+        initialState: 0,
+        invalidationIdentities: [rootIdentity]
+      ),
+      focusTracker: focusTracker,
+      environmentValues: environment,
+      proposal: .init(width: terminalSize.width, height: terminalSize.height),
+      viewBuilder: { _, _ in GalleryView() }
+    )
+    focusTracker.invalidator = scheduler
+
+    scheduler.requestInvalidation(of: [rootIdentity])
+    var rendered = 0
+    try runLoop.renderPendingFrames(renderedFrames: &rendered)
+
+    for _ in 0..<3 {
+      scheduler.requestInvalidation(of: [rootIdentity])
+      var settleFrames = 0
+      try runLoop.renderPendingFrames(renderedFrames: &settleFrames)
+    }
+
+    let openReason = runLoop.handle(
+      .input(.key(.character("k"), modifiers: .ctrl))
+    )
+    #expect(openReason == nil)
+
+    rendered = 0
+    try runLoop.renderPendingFrames(renderedFrames: &rendered)
+    let openPaletteText = try #require(host.lastPresentedSurface).lines.joined(separator: "\n")
+    #expect(openPaletteText.contains("Command palette"))
+
+    let typeReason = runLoop.handle(
+      .input(.key(.character("z"), modifiers: []))
+    )
+    #expect(typeReason == nil)
+
+    rendered = 0
+    try runLoop.renderPendingFrames(renderedFrames: &rendered)
+    let paletteText = try #require(host.lastPresentedSurface).lines.joined(separator: "\n")
+    #expect(
+      paletteText.contains("No matches."),
+      "expected typing immediately after ⌃K to edit the filter; surface was:\n\(paletteText)"
     )
   }
 
@@ -1819,7 +1880,8 @@ private final class GalleryTabSwitchRecordingHost: PresentationSurface {
   }
 }
 
-private final class GalleryDamageValidatingHost: PresentationSurface, DamageAwarePresentationSurface {
+private final class GalleryDamageValidatingHost: PresentationSurface, DamageAwarePresentationSurface
+{
   let surfaceSize: CellSize
   let capabilityProfile: TerminalCapabilityProfile = .previewUnicode
   let appearance: TerminalAppearance = .fallback

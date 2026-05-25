@@ -32,6 +32,7 @@ private struct CommandPaletteListBody: View {
 
   @State private var query = ""
   @FocusState private var isQueryFocused: Bool
+  @Namespace private var filterFocusNamespace
 
   private var matches: [(command: ActivePaletteCommand, score: Int)] {
     if query.isEmpty {
@@ -52,6 +53,7 @@ private struct CommandPaletteListBody: View {
       Divider()
       TextField("Filter commands…", text: $query)
         .focused($isQueryFocused)
+        .prefersDefaultFocus(in: filterFocusNamespace)
       Divider()
       matchList
       Divider()
@@ -59,9 +61,9 @@ private struct CommandPaletteListBody: View {
     }
     .padding(1)
     .frame(minWidth: 44, alignment: .leading)
+    .focusScope(filterFocusNamespace)
     .onAppear {
       query = ""
-      isQueryFocused = true
     }
   }
 
