@@ -140,7 +140,7 @@ public struct ColumnBrowser: View {
     let nextIndex = min(max(currentIndex + delta, 0), fileEntries.count - 1)
     let selected = fileEntries[nextIndex]
     selection[directory] = selected.url
-    advanceOrPreview(directory: directory, selected: selected.url)
+    revealOrPreview(directory: directory, selected: selected.url)
   }
 
   private func moveToParentColumn() {
@@ -156,6 +156,21 @@ public struct ColumnBrowser: View {
     directory: URL,
     selected: URL?
   ) {
+    handleSelection(directory: directory, selected: selected, activatesDirectory: true)
+  }
+
+  private func revealOrPreview(
+    directory: URL,
+    selected: URL?
+  ) {
+    handleSelection(directory: directory, selected: selected, activatesDirectory: false)
+  }
+
+  private func handleSelection(
+    directory: URL,
+    selected: URL?,
+    activatesDirectory: Bool
+  ) {
     guard let selected else {
       clearPreview()
       clearDescendants(after: directory)
@@ -167,7 +182,10 @@ public struct ColumnBrowser: View {
     if isDirectory {
       let prefix = pathPrefix(through: directory)
       path = prefix + [selected]
-      activeColumn = max(0, path.count - 1)
+      activeColumn =
+        activatesDirectory
+        ? max(0, path.count - 1)
+        : max(0, prefix.count - 1)
       entryCache.retainOnly(Set(path))
       clearPreview()
     } else {
