@@ -1,6 +1,8 @@
 import Dispatch
 @_spi(Runners) @_spi(Testing) import SwiftTUI
 @_spi(Testing) import SwiftTUITestSupport
+@testable import SwiftTUICore
+@testable import SwiftTUIRuntime
 import Testing
 
 @testable import GalleryDemoViews
@@ -688,6 +690,64 @@ struct GalleryTabSwitchTests {
     )
   }
 
+  @Test("default async palette open and dismiss publish valid shared raster damage")
+  func defaultAsyncPaletteOpenAndDismissPublishValidSharedRasterDamage() async throws {
+    let terminalSize = CellSize(width: 80, height: 24)
+    let rootIdentity = Identity(components: [.named("GalleryPaletteDamageContract")])
+    let view = GallerySelectionSeedHarness(initialSelection: .counter)
+    let host = GalleryDamageValidatingHost(size: terminalSize)
+
+    let result = try await Self.runHarness(
+      presentationSurface: host,
+      terminalInputReader: GalleryTabSwitchAwaitedInputReader(
+        frameSignal: host.frameSignal,
+        stageClock: host.stageClock,
+        steps: [
+          .awaitCondition {
+            host.lastPresentedSurface?.lines.joined(separator: "\n").contains("Counter") == true
+          },
+          .event(.key(KeyPress(.character("k"), modifiers: .ctrl))),
+          .awaitCondition {
+            host.lastPresentedSurface?.lines.joined(separator: "\n").contains("Command palette")
+              == true
+          },
+          .event(.key(KeyPress(.escape, modifiers: []))),
+          .awaitCondition {
+            guard let text = host.lastPresentedSurface?.lines.joined(separator: "\n") else {
+              return false
+            }
+            return !text.contains("Command palette") && !text.contains("Filter commands")
+          },
+          .event(.key(KeyPress(.character("d"), modifiers: .ctrl))),
+        ]),
+      terminalSize: terminalSize,
+      rootIdentity: rootIdentity,
+      renderMode: .async,
+      viewBuilder: { view }
+    )
+
+    #expect(result.exitReason == .userExit(KeyPress(.character("d"), modifiers: .ctrl)))
+    #expect(
+      host.surfaces.contains {
+        $0.lines.joined(separator: "\n").contains("Command palette")
+      },
+      "expected at least one recorded surface to contain the command palette"
+    )
+    #expect(
+      host.surfaces.last?.lines.joined(separator: "\n").contains("Command palette") == false,
+      "expected the final surface to dismiss the command palette"
+    )
+    #expect(
+      host.damages.contains { damage in
+        guard let damage else {
+          return true
+        }
+        return damage.textRows.count > 1
+      },
+      "expected at least one broad or nil damage frame during palette open/dismiss"
+    )
+  }
+
   @Test("scene-hosted gallery stays on Todo after deleting the top todo row")
   func sceneHostedGalleryDeletingTopTodoRowKeepsTodoVisible() async throws {
     let terminalSize = CellSize(width: 80, height: 24)
@@ -970,6 +1030,7 @@ struct GalleryTabSwitchTests {
     terminalSize: CellSize,
     events: [InputEvent],
     rootIdentity: Identity,
+    renderMode: RuntimeRenderMode = .sync,
     viewBuilder: @escaping () -> V
   ) async throws -> RunLoopResult<Int> {
     try await runHarness(
@@ -977,6 +1038,7 @@ struct GalleryTabSwitchTests {
       terminalInputReader: GalleryTabSwitchScriptedInput(events: events),
       terminalSize: terminalSize,
       rootIdentity: rootIdentity,
+      renderMode: renderMode,
       viewBuilder: viewBuilder
     )
   }
@@ -987,6 +1049,7 @@ struct GalleryTabSwitchTests {
     terminalInputReader: GalleryTabSwitchAwaitedInputReader,
     terminalSize: CellSize,
     rootIdentity: Identity,
+    renderMode: RuntimeRenderMode = .sync,
     viewBuilder: @escaping () -> V
   ) async throws -> RunLoopResult<Int> {
     let result = try await runHarness(
@@ -994,6 +1057,7 @@ struct GalleryTabSwitchTests {
       terminalInputReader: terminalInputReader as any TerminalInputReading,
       terminalSize: terminalSize,
       rootIdentity: rootIdentity,
+      renderMode: renderMode,
       viewBuilder: viewBuilder
     )
     try await terminalInputReader.requireNoWaitFailure()
@@ -1006,6 +1070,7 @@ struct GalleryTabSwitchTests {
     terminalInputReader: any TerminalInputReading,
     terminalSize: CellSize,
     rootIdentity: Identity,
+    renderMode: RuntimeRenderMode = .sync,
     viewBuilder: @escaping () -> V
   ) async throws -> RunLoopResult<Int> {
     var env = EnvironmentValues()
@@ -1030,7 +1095,7 @@ struct GalleryTabSwitchTests {
     // These gallery tests exercise tab, gesture, and scene composition. The
     // async frame-tail contract is covered separately, so keep this harness on
     // the deterministic sync path under Linux load.
-    runLoop.renderMode = .sync
+    runLoop.renderMode = renderMode
     return try await runLoop.run()
   }
 
@@ -1746,6 +1811,68 @@ private final class GalleryTabSwitchRecordingHost: PresentationSurface {
     // signal, and traps loudly rather than corrupting state if that ever
     // stops being true. Bind the (Sendable) signal to a local first so the
     // closure never has to capture the non-Sendable host itself.
+    let frameSignal = self.frameSignal
+    MainActor.assumeIsolated {
+      frameSignal.notify()
+    }
+    return .init(bytesWritten: 0, linesTouched: 0, cellsChanged: 0, strategy: .fullRepaint)
+  }
+}
+
+private final class GalleryDamageValidatingHost: PresentationSurface, DamageAwarePresentationSurface {
+  let surfaceSize: CellSize
+  let capabilityProfile: TerminalCapabilityProfile = .previewUnicode
+  let appearance: TerminalAppearance = .fallback
+  let stageClock = ManualStageClock()
+  private(set) var surfaces: [RasterSurface] = []
+  private(set) var damages: [PresentationDamage?] = []
+  private(set) var lastPresentedSurface: RasterSurface?
+  private var previousSurface: RasterSurface?
+
+  /// Notified after every `present`, so awaited input can observe async frame
+  /// commits without polling terminal output or host-specific escape streams.
+  let frameSignal = MainActorConditionSignal()
+
+  init(size: CellSize) {
+    surfaceSize = size
+  }
+
+  func enableRawMode() throws {}
+  func disableRawMode() throws {}
+  func write(_: String) throws {}
+  func clearScreen() throws {}
+  func moveCursor(to _: CellPoint) throws {}
+
+  @discardableResult
+  func present(_ surface: RasterSurface) throws -> TerminalPresentationMetrics {
+    try present(surface, damage: nil)
+  }
+
+  @discardableResult
+  func present(
+    _ surface: RasterSurface,
+    damage: PresentationDamage?
+  ) throws -> TerminalPresentationMetrics {
+    if let previousSurface {
+      let expected = RasterSurfaceDamageDiff.diff(
+        previous: previousSurface,
+        current: surface
+      )
+      if damage != expected {
+        Issue.record(
+          """
+          host-facing damage did not equal actual raster diff; \
+          expected \(String(describing: expected)), got \(String(describing: damage))
+          """
+        )
+      }
+    }
+
+    previousSurface = surface
+    surfaces.append(surface)
+    damages.append(damage)
+    lastPresentedSurface = surface
+    stageClock.advance()
     let frameSignal = self.frameSignal
     MainActor.assumeIsolated {
       frameSignal.notify()
