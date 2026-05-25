@@ -37,6 +37,7 @@ struct ActivityCommand: AsyncParsableCommand {
         days: days,
         range: start...end,
         weekStart: .monday,
+        calendar: calendar,
         showsMonthHeader: true,
         showsDayLabels: true,
         showsScaleLegend: true,
