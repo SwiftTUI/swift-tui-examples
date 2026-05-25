@@ -22,6 +22,7 @@ struct LifeGrid {
 
   /// Number of `step()` invocations since the last `clear()` or seed.
   private(set) var generation: Int = 0
+  private(set) var population: Int = 0
 
   init(width: Int = 96, height: Int = 32) {
     self.width = min(max(width, 1), Self.maxWidth)
@@ -43,8 +44,10 @@ struct LifeGrid {
     // previous size.
     for y in 0..<Self.maxHeight {
       for x in 0..<Self.maxWidth {
-        if x >= newWidth || y >= newHeight {
-          cells[y * Self.maxWidth + x] = false
+        let index = y * Self.maxWidth + x
+        if x >= newWidth || y >= newHeight, cells[index] {
+          cells[index] = false
+          population -= 1
         }
       }
     }
@@ -60,16 +63,22 @@ struct LifeGrid {
 
   mutating func set(_ x: Int, _ y: Int, _ value: Bool) {
     guard x >= 0, x < width, y >= 0, y < height else { return }
-    cells[y * Self.maxWidth + x] = value
+    let index = y * Self.maxWidth + x
+    guard cells[index] != value else { return }
+    cells[index] = value
+    population += value ? 1 : -1
   }
 
   mutating func toggle(_ x: Int, _ y: Int) {
     guard x >= 0, x < width, y >= 0, y < height else { return }
-    cells[y * Self.maxWidth + x].toggle()
+    let index = y * Self.maxWidth + x
+    cells[index].toggle()
+    population += cells[index] ? 1 : -1
   }
 
   mutating func clear() {
     for i in 0..<Self.capacity { cells[i] = false }
+    population = 0
     generation = 0
   }
 
@@ -78,10 +87,11 @@ struct LifeGrid {
     var rng: any RandomNumberGenerator =
       seed.map { SeededRNG(seed: $0) } ?? SystemRandomNumberGenerator()
     for i in 0..<Self.capacity { cells[i] = false }
+    population = 0
     for y in 0..<height {
       for x in 0..<width {
         if Double.random(in: 0..<1, using: &rng) < density {
-          cells[y * Self.maxWidth + x] = true
+          set(x, y, true)
         }
       }
     }
@@ -90,9 +100,15 @@ struct LifeGrid {
 
   /// Advance one generation using B3/S23 rules with toroidal wrap.
   mutating func step() {
+    if population * 18 < width * height {
+      stepSparse()
+      return
+    }
+
     let w = width
     let h = height
     let stride = Self.maxWidth
+    var nextPopulation = 0
 
     for y in 0..<h {
       let yUp = (y - 1 + h) % h
@@ -116,24 +132,83 @@ struct LifeGrid {
         if cells[rowDn + xRt] { n += 1 }
 
         let alive = cells[rowMid + x]
-        scratch[rowMid + x] = (alive && (n == 2 || n == 3)) || (!alive && n == 3)
+        let nextAlive = (alive && (n == 2 || n == 3)) || (!alive && n == 3)
+        scratch[rowMid + x] = nextAlive
+        if nextAlive {
+          nextPopulation += 1
+        }
       }
     }
 
     swap(&cells, &scratch)
+    population = nextPopulation
     generation += 1
   }
 
-  var population: Int {
-    var count = 0
+  private mutating func stepSparse() {
+    guard population > 0 else {
+      generation += 1
+      return
+    }
+
     let stride = Self.maxWidth
+    var liveCells: [Int] = []
+    liveCells.reserveCapacity(population)
+    var candidates = Set<Int>()
+    candidates.reserveCapacity(max(16, population * 9))
+
     for y in 0..<height {
       let row = y * stride
       for x in 0..<width where cells[row + x] {
-        count += 1
+        let index = row + x
+        liveCells.append(index)
+        for dy in -1...1 {
+          let neighborY = (y + dy + height) % height
+          for dx in -1...1 {
+            let neighborX = (x + dx + width) % width
+            candidates.insert(neighborY * stride + neighborX)
+          }
+        }
       }
     }
-    return count
+
+    var nextLiveCells: [Int] = []
+    nextLiveCells.reserveCapacity(candidates.count)
+    for index in candidates {
+      let y = index / stride
+      let x = index - y * stride
+      let yUp = (y - 1 + height) % height
+      let yDn = (y + 1) % height
+      let rowMid = y * stride
+      let rowUp = yUp * stride
+      let rowDn = yDn * stride
+      let xLt = (x - 1 + width) % width
+      let xRt = (x + 1) % width
+
+      var n = 0
+      if cells[rowUp + xLt] { n += 1 }
+      if cells[rowUp + x] { n += 1 }
+      if cells[rowUp + xRt] { n += 1 }
+      if cells[rowMid + xLt] { n += 1 }
+      if cells[rowMid + xRt] { n += 1 }
+      if cells[rowDn + xLt] { n += 1 }
+      if cells[rowDn + x] { n += 1 }
+      if cells[rowDn + xRt] { n += 1 }
+
+      let alive = cells[index]
+      if (alive && (n == 2 || n == 3)) || (!alive && n == 3) {
+        nextLiveCells.append(index)
+      }
+    }
+
+    for index in liveCells {
+      cells[index] = false
+    }
+    for index in nextLiveCells {
+      cells[index] = true
+    }
+    population = nextLiveCells.count
+    generation += 1
   }
 }
 

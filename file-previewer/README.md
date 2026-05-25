@@ -52,4 +52,6 @@ Run it from the directory you want to browse.
 swiftly run swift test --package-path file-previewer
 ```
 
-The tests cover preview-command lookup and Miller-column width allocation.
+The tests cover preview-command lookup, Miller-column width allocation,
+directory-listing caching, preview-session replacement, and large-column lazy
+rendering.

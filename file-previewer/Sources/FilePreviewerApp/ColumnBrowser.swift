@@ -6,21 +6,31 @@ public struct ColumnBrowser: View {
   @State private var path: [URL]
   @State private var selection: [URL: URL] = [:]
   @State private var activeColumn: Int = 0
-  @State private var previewSession: TerminalProcessSession?
+  @State private var previewSessions: PreviewSessionSlot<TerminalProcessSession>
   @State private var previewedURL: URL?
+  @State private var entryCache: DirectoryEntryCache
   @FocusState private var isFocused: Bool
 
   private let registry: PreviewerRegistry
 
   public init(
     path: [URL],
-    registry: PreviewerRegistry = .defaults
+    registry: PreviewerRegistry = .defaults,
+    entryCache: DirectoryEntryCache = DirectoryEntryCache()
   ) {
     let normalizedPath =
       path.isEmpty
       ? [URL(fileURLWithPath: FileManager.default.currentDirectoryPath)]
       : path
     _path = State(initialValue: normalizedPath)
+    _previewSessions = State(
+      initialValue: PreviewSessionSlot<TerminalProcessSession> { session in
+        Task {
+          await session.terminate()
+        }
+      }
+    )
+    _entryCache = State(initialValue: entryCache)
     self.registry = registry
   }
 
@@ -68,7 +78,7 @@ public struct ColumnBrowser: View {
 
   @ViewBuilder
   private var previewPane: some View {
-    if let previewSession {
+    if let previewSession = previewSessions.current {
       TerminalView(session: previewSession)
         .border(.separator)
     } else {
@@ -90,7 +100,7 @@ public struct ColumnBrowser: View {
   }
 
   private func entries(in directory: URL) -> [FileEntry] {
-    FileEntry.entries(in: directory)
+    entryCache.entries(in: directory)
   }
 
   private func handleKeyPress(_ keyPress: KeyPress) -> KeyPressResult {
@@ -117,6 +127,7 @@ public struct ColumnBrowser: View {
     let fileEntries = entries(in: directory)
     guard !fileEntries.isEmpty else {
       selection[directory] = nil
+      clearPreview()
       clearDescendants(after: directory)
       return
     }
@@ -138,8 +149,7 @@ public struct ColumnBrowser: View {
     }
     activeColumn -= 1
     clearDescendants(after: activeDirectory)
-    previewSession = nil
-    previewedURL = nil
+    clearPreview()
   }
 
   private func advanceOrPreview(
@@ -147,8 +157,7 @@ public struct ColumnBrowser: View {
     selected: URL?
   ) {
     guard let selected else {
-      previewSession = nil
-      previewedURL = nil
+      clearPreview()
       clearDescendants(after: directory)
       return
     }
@@ -159,18 +168,29 @@ public struct ColumnBrowser: View {
       let prefix = pathPrefix(through: directory)
       path = prefix + [selected]
       activeColumn = max(0, path.count - 1)
-      previewSession = nil
-      previewedURL = nil
+      entryCache.retainOnly(Set(path))
+      clearPreview()
     } else {
       clearDescendants(after: directory)
-      let command = registry.command(for: selected)
-      previewSession = TerminalProcessSession(
+      showPreview(for: selected)
+    }
+  }
+
+  private func clearPreview() {
+    previewSessions.clear()
+    previewedURL = nil
+  }
+
+  private func showPreview(for selected: URL) {
+    let command = registry.command(for: selected)
+    previewSessions.replace(
+      with: TerminalProcessSession(
         command: command.executable,
         arguments: command.arguments(selected),
         initialSize: CellSize(width: 80, height: 40)
       )
-      previewedURL = selected
-    }
+    )
+    previewedURL = selected
   }
 
   private func pathPrefix(through directory: URL) -> [URL] {
@@ -183,47 +203,6 @@ public struct ColumnBrowser: View {
   private func clearDescendants(after directory: URL) {
     path = pathPrefix(through: directory)
     activeColumn = min(activeColumn, max(0, path.count - 1))
-  }
-}
-
-private struct FileColumn: View {
-  var directory: URL
-  var entries: [FileEntry]
-  var selection: URL?
-  var isActive: Bool
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 0) {
-      Text(directory.lastPathComponent.isEmpty ? directory.path : directory.lastPathComponent)
-        .foregroundStyle(isActive ? .tint : .muted)
-        .lineLimit(1)
-        .truncationMode(.middle)
-      Divider()
-
-      if entries.isEmpty {
-        Text("(empty)")
-          .foregroundStyle(.separator)
-      } else {
-        ForEach(entries, id: \.url) { entry in
-          row(for: entry)
-        }
-      }
-
-      Spacer(minLength: 0)
-    }
-    .padding(1)
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    .border(isActive ? .tint : .separator)
-  }
-
-  private func row(for entry: FileEntry) -> some View {
-    HStack(spacing: 1) {
-      Text(entry.url == selection ? ">" : " ")
-        .foregroundStyle(.tint)
-      Text(entry.displayName)
-        .foregroundStyle(entry.url == selection ? .foreground : .separator)
-        .lineLimit(1)
-        .truncationMode(.middle)
-    }
+    entryCache.retainOnly(Set(path))
   }
 }
