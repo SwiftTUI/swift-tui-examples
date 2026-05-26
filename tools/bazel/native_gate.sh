@@ -14,4 +14,15 @@ if [[ -z "$repo_root" ]]; then
 fi
 
 cd "$repo_root"
-exec Scripts/check_examples.sh --skip-clean
+case "$(uname -s)" in
+  Darwin)
+    exec Scripts/check_examples.sh --skip-clean
+    ;;
+  Linux)
+    exec Scripts/check_examples_linux.sh --skip-clean
+    ;;
+  *)
+    printf 'unsupported examples native gate platform: %s\n' "$(uname -s)" >&2
+    exit 1
+    ;;
+esac

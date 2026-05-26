@@ -78,14 +78,14 @@ swiftly run swift test --package-path WebHostExample
 bun test --cwd WebExample
 ```
 
-Examples without focused test targets are still covered by
-`Scripts/check_examples.sh`: [minimal](minimal) builds, [argparse](argparse)
-builds, [LayoutsSwiftUI](LayoutsSwiftUI) builds on Apple platforms, and
-[SwiftUIExample](SwiftUIExample) builds its reusable scene package plus the
-Xcode host app on Apple platforms. The example repo gate is `bun run check`
-from the repo root.
+Examples without focused test targets are still covered by the repo gates.
+`bun run check:linux` runs the Linux-compatible SwiftPM builds serially,
+`bun run check:macos` runs the native Apple example lane, and
+`bun run check:web` runs the browser/WASI packaging lane. `bun run check` runs
+all lanes from one local macOS checkout.
 
 `SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH` can point the gate at one sequential shared
 SwiftPM scratch directory. This is useful for maintainers running the full
 matrix repeatedly; do not share the same scratch directory across parallel
-checks.
+checks. `SWIFTTUI_EXAMPLES_XCODE_DERIVED_DATA` can point the macOS lane at a
+reusable DerivedData directory for the Xcode app build.

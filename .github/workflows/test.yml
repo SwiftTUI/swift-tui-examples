@@ -14,10 +14,93 @@ concurrency:
 
 env:
   BUN_VERSION: "1.3.13"
+  SWIFTLY_VERSION: "1.1.1"
 
 jobs:
-  test:
-    name: Examples repo gate
+  linux-examples:
+    name: Linux examples
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    env:
+      SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH: ${{ github.workspace }}/swift-tui-examples/.build/shared-swiftpm-linux
+    steps:
+      - name: Checkout examples
+        uses: actions/checkout@v6
+        with:
+          path: swift-tui-examples
+      - name: Checkout swift-tui
+        uses: actions/checkout@v6
+        with:
+          repository: SwiftTUI/swift-tui
+          token: ${{ secrets.SWIFTTUI_CI_TOKEN || github.token }}
+          path: swift-tui
+      - name: Install Linux example dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ca-certificates \
+            curl \
+            git \
+            libcurl4-openssl-dev \
+            python3 \
+            unzip
+      - name: Cache Swiftly toolchain
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.local/share/swiftly
+            ~/.local/bin/swiftly
+          key: ${{ runner.os }}-swiftly-${{ env.SWIFTLY_VERSION }}-${{ hashFiles('swift-tui/.swift-version') }}
+          restore-keys: |
+            ${{ runner.os }}-swiftly-${{ env.SWIFTLY_VERSION }}-
+      - name: Install swiftly and Swift toolchain
+        shell: bash
+        working-directory: swift-tui
+        run: |
+          set -euo pipefail
+          export SWIFTLY_HOME_DIR="$HOME/.local/share/swiftly"
+          export SWIFTLY_BIN_DIR="$HOME/.local/bin"
+          mkdir -p "$SWIFTLY_BIN_DIR"
+          export PATH="$SWIFTLY_BIN_DIR:$PATH"
+
+          if ! command -v swiftly >/dev/null 2>&1 || [ ! -f "${SWIFTLY_HOME_DIR}/env.sh" ]; then
+            tmpdir="$(mktemp -d)"
+            trap 'rm -rf "$tmpdir"' EXIT
+            cd "$tmpdir"
+            swiftly_archive="swiftly-${SWIFTLY_VERSION}-$(uname -m).tar.gz"
+            curl -fsSLO "https://download.swift.org/swiftly/linux/${swiftly_archive}"
+            tar -zxf "$swiftly_archive"
+            ./swiftly init --skip-install --quiet-shell-followup --assume-yes
+          fi
+
+          . "${SWIFTLY_HOME_DIR}/env.sh"
+          hash -r
+          swift_version="$(tr -d '[:space:]' < .swift-version)"
+          swiftly install --use --assume-yes "$swift_version"
+          swiftly run swift --version
+          echo "$SWIFTLY_BIN_DIR" >> "$GITHUB_PATH"
+          echo "SWIFTLY_HOME_DIR=$SWIFTLY_HOME_DIR" >> "$GITHUB_ENV"
+          echo "SWIFTLY_BIN_DIR=$SWIFTLY_BIN_DIR" >> "$GITHUB_ENV"
+      - name: Cache SwiftPM
+        uses: actions/cache@v5
+        with:
+          path: |
+            swift-tui-examples/.build/shared-swiftpm-linux
+            ~/.cache/org.swift.swiftpm
+            ~/.swiftpm
+          key: ${{ runner.os }}-examples-linux-swiftpm-${{ hashFiles('swift-tui/Package.resolved', 'swift-tui-examples/**/Package.swift', 'swift-tui-examples/**/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-examples-linux-swiftpm-
+            ${{ runner.os }}-swiftpm-
+      - name: Run Linux examples
+        shell: bash
+        working-directory: swift-tui-examples
+        run: Scripts/check_examples_linux.sh --skip-clean
+
+  web-examples:
+    name: Web examples
     runs-on: macos-26
     timeout-minutes: 60
     steps:
@@ -37,25 +120,57 @@ jobs:
           repository: SwiftTUI/swift-tui-web
           token: ${{ secrets.SWIFTTUI_CI_TOKEN || github.token }}
           path: swift-tui-web
-      - uses: oven-sh/setup-bun@v2
+      - name: Cache Swiftly toolchain
+        uses: actions/cache@v5
         with:
-          bun-version: ${{ env.BUN_VERSION }}
+          path: ~/.swiftly
+          key: ${{ runner.os }}-swiftly-${{ env.SWIFTLY_VERSION }}-${{ hashFiles('swift-tui/.swift-version') }}
+          restore-keys: |
+            ${{ runner.os }}-swiftly-${{ env.SWIFTLY_VERSION }}-
       - name: Install swiftly and Swift toolchain
         shell: bash
         working-directory: swift-tui
         run: |
           set -euo pipefail
-          curl -O https://download.swift.org/swiftly/darwin/swiftly.pkg
-          installer -pkg swiftly.pkg -target CurrentUserHomeDirectory
-          ~/.swiftly/bin/swiftly init --skip-install --quiet-shell-followup --assume-yes
+          export PATH="$HOME/.swiftly/bin:$PATH"
+          if ! command -v swiftly >/dev/null 2>&1 || [ ! -f "${SWIFTLY_HOME_DIR:-$HOME/.swiftly}/env.sh" ]; then
+            curl -fsSLO https://download.swift.org/swiftly/darwin/swiftly.pkg
+            installer -pkg swiftly.pkg -target CurrentUserHomeDirectory
+            ~/.swiftly/bin/swiftly init --skip-install --quiet-shell-followup --assume-yes
+          fi
           . "${SWIFTLY_HOME_DIR:-$HOME/.swiftly}/env.sh"
-          swiftly install --use --assume-yes "$(tr -d '[:space:]' < .swift-version)"
+          hash -r
+          swift_version="$(tr -d '[:space:]' < .swift-version)"
+          swiftly install --use --assume-yes "$swift_version"
           swiftly run swift --version
           echo "$HOME/.swiftly/bin" >> "$GITHUB_PATH"
           echo "SWIFTLY_HOME_DIR=$HOME/.swiftly" >> "$GITHUB_ENV"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
       - name: Install WebExample build dependencies
         shell: bash
         run: brew install binaryen
+      - name: Cache web build products
+        uses: actions/cache@v5
+        with:
+          path: |
+            swift-tui-examples/WebExample/TerminalApp/.build
+            ~/.swiftpm
+            ~/Library/Caches/org.swift.swiftpm
+          key: ${{ runner.os }}-examples-web-swiftpm-${{ hashFiles('swift-tui/Package.resolved', 'swift-tui-examples/WebExample/TerminalApp/Package.swift', 'swift-tui-examples/WebExample/TerminalApp/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-examples-web-swiftpm-
+            ${{ runner.os }}-swiftpm-
+      - name: Cache Bun deps
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.bun/install/cache
+            swift-tui-examples/node_modules
+          key: ${{ runner.os }}-examples-bun-${{ hashFiles('swift-tui-examples/bun.lock', 'swift-tui-examples/package.json', 'swift-tui-examples/WebExample/package.json', 'swift-tui-web/packages/web/package.json', 'swift-tui-web/packages/build/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-examples-bun-
       - name: Install wasm Swift SDK
         shell: bash
         working-directory: swift-tui
@@ -66,7 +181,67 @@ jobs:
               https://download.swift.org/swift-6.3.1-release/wasm-sdk/swift-6.3.1-RELEASE/swift-6.3.1-RELEASE_wasm.artifactbundle.tar.gz \
               --checksum bd47baa20771f366d8beed7970afaa30742b2210097afd15f85427226d8f4cf2
           fi
-      - name: Run examples
+      - name: Run web examples
         shell: bash
         working-directory: swift-tui-examples
-        run: Scripts/check_examples.sh --skip-clean
+        run: Scripts/check_examples_web.sh --skip-clean
+
+  macos-examples:
+    name: macOS examples
+    runs-on: macos-26
+    timeout-minutes: 45
+    env:
+      SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH: ${{ github.workspace }}/swift-tui-examples/.build/shared-swiftpm-macos
+      SWIFTTUI_EXAMPLES_XCODE_DERIVED_DATA: ${{ github.workspace }}/swift-tui-examples/.build/xcode-derived-data
+    steps:
+      - name: Checkout examples
+        uses: actions/checkout@v6
+        with:
+          path: swift-tui-examples
+      - name: Checkout swift-tui
+        uses: actions/checkout@v6
+        with:
+          repository: SwiftTUI/swift-tui
+          token: ${{ secrets.SWIFTTUI_CI_TOKEN || github.token }}
+          path: swift-tui
+      - name: Cache Swiftly toolchain
+        uses: actions/cache@v5
+        with:
+          path: ~/.swiftly
+          key: ${{ runner.os }}-swiftly-${{ env.SWIFTLY_VERSION }}-${{ hashFiles('swift-tui/.swift-version') }}
+          restore-keys: |
+            ${{ runner.os }}-swiftly-${{ env.SWIFTLY_VERSION }}-
+      - name: Install swiftly and Swift toolchain
+        shell: bash
+        working-directory: swift-tui
+        run: |
+          set -euo pipefail
+          export PATH="$HOME/.swiftly/bin:$PATH"
+          if ! command -v swiftly >/dev/null 2>&1 || [ ! -f "${SWIFTLY_HOME_DIR:-$HOME/.swiftly}/env.sh" ]; then
+            curl -fsSLO https://download.swift.org/swiftly/darwin/swiftly.pkg
+            installer -pkg swiftly.pkg -target CurrentUserHomeDirectory
+            ~/.swiftly/bin/swiftly init --skip-install --quiet-shell-followup --assume-yes
+          fi
+          . "${SWIFTLY_HOME_DIR:-$HOME/.swiftly}/env.sh"
+          hash -r
+          swift_version="$(tr -d '[:space:]' < .swift-version)"
+          swiftly install --use --assume-yes "$swift_version"
+          swiftly run swift --version
+          echo "$HOME/.swiftly/bin" >> "$GITHUB_PATH"
+          echo "SWIFTLY_HOME_DIR=$HOME/.swiftly" >> "$GITHUB_ENV"
+      - name: Cache macOS build products
+        uses: actions/cache@v5
+        with:
+          path: |
+            swift-tui-examples/.build/shared-swiftpm-macos
+            swift-tui-examples/.build/xcode-derived-data
+            ~/Library/Caches/org.swift.swiftpm
+            ~/.swiftpm
+          key: ${{ runner.os }}-examples-macos-build-${{ hashFiles('swift-tui/Package.resolved', 'swift-tui-examples/**/Package.swift', 'swift-tui-examples/**/Package.resolved', 'swift-tui-examples/SwiftUIExample/SwiftUIExample.xcodeproj/project.pbxproj') }}
+          restore-keys: |
+            ${{ runner.os }}-examples-macos-build-
+            ${{ runner.os }}-swiftpm-
+      - name: Run macOS examples
+        shell: bash
+        working-directory: swift-tui-examples
+        run: Scripts/check_examples_macos.sh --skip-clean

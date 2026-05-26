@@ -6,14 +6,16 @@ repo_root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 framework_root=${SWIFTTUI_CHECKOUT:-"$repo_root/../swift-tui"}
 web_root=${SWIFTTUI_WEB_CHECKOUT:-"$repo_root/../swift-tui-web"}
 swiftpm_scratch=${SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH:-}
+xcode_derived_data=${SWIFTTUI_EXAMPLES_XCODE_DERIVED_DATA:-}
 
 skip_clean=0
 skip_bun_install=0
+suite=all
 failures=""
 
 usage() {
   cat <<'EOF'
-Usage: Scripts/check_examples.sh [--skip-clean] [--skip-bun-install]
+Usage: Scripts/check_examples.sh [--linux-only|--macos-only|--web-only] [--skip-clean] [--skip-bun-install]
 
 Builds and tests the SwiftTUI example packages from a sibling checkout layout:
   - swift-tui-examples: this repository
@@ -24,6 +26,8 @@ Set SWIFTTUI_CHECKOUT or SWIFTTUI_WEB_CHECKOUT to override the sibling paths.
 Set SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH to reuse one sequential SwiftPM scratch
 directory across the example package builds. Do not share that directory across
 parallel check runs.
+Set SWIFTTUI_EXAMPLES_XCODE_DERIVED_DATA to reuse an Xcode DerivedData path for
+the macOS app build.
 EOF
 }
 
@@ -45,6 +49,15 @@ for argument in "$@"; do
     --skip-bun-install)
       skip_bun_install=1
       ;;
+    --linux-only)
+      suite=linux
+      ;;
+    --macos-only|--mac-only)
+      suite=macos
+      ;;
+    --web-only)
+      suite=web
+      ;;
     -h|--help)
       usage
       exit 0
@@ -57,6 +70,18 @@ for argument in "$@"; do
       ;;
   esac
 done
+
+run_linux_suite() {
+  [ "$suite" = "all" ] || [ "$suite" = "linux" ]
+}
+
+run_macos_suite() {
+  [ "$suite" = "all" ] || [ "$suite" = "macos" ]
+}
+
+run_web_suite() {
+  [ "$suite" = "all" ] || [ "$suite" = "web" ]
+}
 
 require_command() {
   name=$1
@@ -76,11 +101,19 @@ require_checkout() {
 }
 
 require_command swiftly
-require_command bun
-require_command python3
-require_command xcodebuild
+if run_linux_suite; then
+  require_command python3
+fi
+if run_web_suite; then
+  require_command bun
+fi
+if run_macos_suite; then
+  require_command xcodebuild
+fi
 require_checkout "$framework_root" "swift-tui"
-require_checkout "$web_root" "swift-tui-web"
+if run_web_suite; then
+  require_checkout "$web_root" "swift-tui-web"
+fi
 
 run_swift() {
   if should_use_swiftpm_scratch "$@"; then
@@ -150,156 +183,190 @@ run_step() {
   fi
 }
 
-if [ -f "$repo_root/package.json" ] && [ -f "$repo_root/bun.lock" ] && [ "$skip_bun_install" -eq 0 ]; then
+run_xcodebuild_swiftui_example() {
+  set -- \
+    xcodebuild \
+    -project SwiftUIExample/SwiftUIExample.xcodeproj \
+    -scheme SwiftUIExample \
+    -configuration Debug \
+    -destination generic/platform=macOS
+
+  if [ -n "$xcode_derived_data" ]; then
+    set -- "$@" -derivedDataPath "$xcode_derived_data"
+  fi
+
+  set -- "$@" \
+    CODE_SIGNING_ALLOWED=NO \
+    CODE_SIGNING_REQUIRED=NO \
+    CODE_SIGN_IDENTITY=
+
+  if [ "$skip_clean" -eq 0 ]; then
+    set -- "$@" clean build
+  else
+    set -- "$@" build
+  fi
+
+  "$@"
+}
+
+run_linux_examples() {
+  if [ "$skip_clean" -eq 0 ]; then
+    run_step \
+      "Clean SwiftTUI framework package" \
+      "$framework_root" \
+      run_swift package clean
+
+    for package_path in \
+      "argparse" \
+      "file-previewer" \
+      "gallery" \
+      "gifcat" \
+      "gifeditor" \
+      "gitviz" \
+      "terminal-workspace" \
+      "layouts" \
+      "SwiftUIExample/TerminalApp" \
+      "WebExample/TerminalApp" \
+      "WebHostExample"; do
+      run_step \
+        "Clean $package_path" \
+        "$repo_root" \
+        run_swift package clean --package-path "$package_path"
+    done
+  fi
+
+  for package_path in \
+    "argparse" \
+    "file-previewer" \
+    "gifcat" \
+    "gifeditor" \
+    "gitviz" \
+    "terminal-workspace"; do
+    run_step \
+      "Build $package_path" \
+      "$repo_root" \
+      run_swift build --package-path "$package_path"
+
+    run_step \
+      "Build $package_path (release)" \
+      "$repo_root" \
+      run_swift build -c release --package-path "$package_path"
+  done
+
   run_step \
-    "Install Bun workspace dependencies" \
+    "Build gallery" \
     "$repo_root" \
-    bun install --frozen-lockfile
-fi
+    run_swift build --package-path gallery
+
+  run_step \
+    "Build gallery (release)" \
+    "$repo_root" \
+    run_swift build -c release --package-path gallery
+
+  run_step \
+    "Stack safety gallery (debug)" \
+    "$repo_root" \
+    python3 Scripts/stack_safety_harness.py \
+      --binary "$(swiftpm_binary_path gallery debug gallery-demo)" \
+      --count 20
+
+  run_step \
+    "Stack safety gallery (release)" \
+    "$repo_root" \
+    python3 Scripts/stack_safety_harness.py \
+      --binary "$(swiftpm_binary_path gallery release gallery-demo)" \
+      --count 20
+
+  run_step \
+    "Build layouts" \
+    "$repo_root" \
+    run_swift build --package-path layouts
+
+  run_step \
+    "Build layouts (release)" \
+    "$repo_root" \
+    run_swift build -c release --package-path layouts
+
+  run_step \
+    "Build SwiftUIExample/TerminalApp" \
+    "$repo_root" \
+    run_swift build --package-path SwiftUIExample/TerminalApp
+
+  run_step \
+    "Build WebExample/TerminalApp" \
+    "$repo_root" \
+    run_swift build --package-path WebExample/TerminalApp
+
+  run_step \
+    "Build WebHostExample" \
+    "$repo_root" \
+    run_swift build --package-path WebHostExample
+
+  run_step \
+    "Test WebHostExample" \
+    "$repo_root" \
+    run_swift test --package-path WebHostExample
+}
+
+run_macos_examples() {
+  if [ "$skip_clean" -eq 0 ]; then
+    run_step \
+      "Clean SwiftTUI framework package" \
+      "$framework_root" \
+      run_swift package clean
+
+    run_step \
+      "Clean SwiftUIExample/TerminalApp" \
+      "$repo_root" \
+      run_swift package clean --package-path SwiftUIExample/TerminalApp
+  fi
+
+  run_step \
+    "Build SwiftUIExample/TerminalApp" \
+    "$repo_root" \
+    run_swift build --package-path SwiftUIExample/TerminalApp
+
+  run_step \
+    "Build SwiftUIExample macOS app" \
+    "$repo_root" \
+    run_xcodebuild_swiftui_example
+}
+
+run_web_examples() {
+  if [ -f "$repo_root/package.json" ] && [ -f "$repo_root/bun.lock" ] && [ "$skip_bun_install" -eq 0 ]; then
+    run_step \
+      "Install Bun workspace dependencies" \
+      "$repo_root" \
+      bun install --frozen-lockfile
+  fi
+
+  run_step \
+    "Build WebExample web demo" \
+    "$repo_root/WebExample" \
+    bun run build
+
+  run_step \
+    "Build swift-tui-web host with WebExampleApp" \
+    "$web_root/packages/web" \
+    bun run build -- --package-path "$repo_root/WebExample/TerminalApp" --app WebExampleApp
+}
 
 run_step \
   "Check examples CI workflow" \
   "$repo_root" \
   Scripts/check_examples_ci_workflow.sh
 
-if [ "$skip_clean" -eq 0 ]; then
-  run_step \
-    "Clean SwiftTUI framework package" \
-    "$framework_root" \
-    run_swift package clean
-
-  for package_path in \
-    "argparse" \
-    "file-previewer" \
-    "gallery" \
-    "gifcat" \
-    "gifeditor" \
-    "gitviz" \
-    "terminal-workspace" \
-    "layouts" \
-    "SwiftUIExample/TerminalApp" \
-    "WebExample/TerminalApp" \
-    "WebHostExample"; do
-    run_step \
-      "Clean $package_path" \
-      "$repo_root" \
-      run_swift package clean --package-path "$package_path"
-  done
+if run_linux_suite; then
+  run_linux_examples
 fi
 
-for package_path in \
-  "argparse" \
-  "file-previewer" \
-  "gifcat" \
-  "gifeditor" \
-  "gitviz" \
-  "terminal-workspace"; do
-  run_step \
-    "Build $package_path" \
-    "$repo_root" \
-    run_swift build --package-path "$package_path"
-
-  run_step \
-    "Build $package_path (release)" \
-    "$repo_root" \
-    run_swift build -c release --package-path "$package_path"
-done
-
-run_step \
-  "Build gallery" \
-  "$repo_root" \
-  run_swift build --package-path gallery
-
-run_step \
-  "Build gallery (release)" \
-  "$repo_root" \
-  run_swift build -c release --package-path gallery
-
-run_step \
-  "Stack safety gallery (debug)" \
-  "$repo_root" \
-  python3 Scripts/stack_safety_harness.py \
-    --binary "$(swiftpm_binary_path gallery debug gallery-demo)" \
-    --count 20
-
-run_step \
-  "Stack safety gallery (release)" \
-  "$repo_root" \
-  python3 Scripts/stack_safety_harness.py \
-    --binary "$(swiftpm_binary_path gallery release gallery-demo)" \
-    --count 20
-
-run_step \
-  "Build layouts" \
-  "$repo_root" \
-  run_swift build --package-path layouts
-
-run_step \
-  "Build layouts (release)" \
-  "$repo_root" \
-  run_swift build -c release --package-path layouts
-
-run_step \
-  "Build SwiftUIExample/TerminalApp" \
-  "$repo_root" \
-  run_swift build --package-path SwiftUIExample/TerminalApp
-
-run_step \
-  "Build WebExample/TerminalApp" \
-  "$repo_root" \
-  run_swift build --package-path WebExample/TerminalApp
-
-run_step \
-  "Build WebHostExample" \
-  "$repo_root" \
-  run_swift build --package-path WebHostExample
-
-run_step \
-  "Test WebHostExample" \
-  "$repo_root" \
-  run_swift test --package-path WebHostExample
-
-run_step \
-  "Build SwiftTUIWebHost framework targets" \
-  "$framework_root" \
-  run_swift build --target SwiftTUIWebHost --target SwiftTUIWebHostCLI
-
-run_step \
-  "Build SwiftUIHost framework target" \
-  "$framework_root" \
-  run_swift build --target SwiftUIHost
-
-if [ "$skip_clean" -eq 0 ]; then
-  run_step \
-    "Build SwiftUIExample macOS app" \
-    "$repo_root" \
-    xcodebuild \
-      -project SwiftUIExample/SwiftUIExample.xcodeproj \
-      -scheme SwiftUIExample \
-      -configuration Debug \
-      -destination generic/platform=macOS \
-      clean build
-else
-  run_step \
-    "Build SwiftUIExample macOS app" \
-    "$repo_root" \
-    xcodebuild \
-      -project SwiftUIExample/SwiftUIExample.xcodeproj \
-      -scheme SwiftUIExample \
-      -configuration Debug \
-      -destination generic/platform=macOS \
-      build
+if run_macos_suite; then
+  run_macos_examples
 fi
 
-run_step \
-  "Build WebExample web demo" \
-  "$repo_root/WebExample" \
-  bun run build
-
-run_step \
-  "Build swift-tui-web host with WebExampleApp" \
-  "$web_root/packages/web" \
-  bun run build -- --package-path "$repo_root/WebExample/TerminalApp" --app WebExampleApp
+if run_web_suite; then
+  run_web_examples
+fi
 
 echo ""
 if [ -z "$failures" ]; then

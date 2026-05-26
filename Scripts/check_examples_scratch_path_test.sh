@@ -9,7 +9,9 @@ fake_bin="$tmpdir/bin"
 framework_root="$tmpdir/swift-tui"
 web_root="$tmpdir/swift-tui-web"
 swiftly_log="$tmpdir/swiftly.log"
+bun_log="$tmpdir/bun.log"
 python_log="$tmpdir/python.log"
+xcode_log="$tmpdir/xcodebuild.log"
 scratch_path="$tmpdir/shared-swiftpm"
 
 mkdir -p "$fake_bin" "$framework_root" "$web_root/packages/web"
@@ -21,6 +23,7 @@ EOF
 
 cat >"$fake_bin/bun" <<'EOF'
 #!/usr/bin/env bash
+printf '%s\n' "$*" >> "$SWIFTTUI_EXAMPLES_BUN_LOG"
 exit 0
 EOF
 
@@ -32,6 +35,7 @@ EOF
 
 cat >"$fake_bin/xcodebuild" <<'EOF'
 #!/usr/bin/env bash
+printf '%s\n' "$*" >> "$SWIFTTUI_EXAMPLES_XCODE_LOG"
 exit 0
 EOF
 
@@ -43,11 +47,15 @@ run_check() {
     SWIFTTUI_CHECKOUT="$framework_root" \
     SWIFTTUI_WEB_CHECKOUT="$web_root" \
     SWIFTTUI_EXAMPLES_SWIFTLY_LOG="$swiftly_log" \
+    SWIFTTUI_EXAMPLES_BUN_LOG="$bun_log" \
     SWIFTTUI_EXAMPLES_PYTHON_LOG="$python_log" \
+    SWIFTTUI_EXAMPLES_XCODE_LOG="$xcode_log" \
     "$repo_root/Scripts/check_examples.sh" --skip-bun-install >/dev/null
 }
 
+: >"$bun_log"
 : >"$python_log"
+: >"$xcode_log"
 run_check
 
 if grep -Fq -- "--scratch-path" "$swiftly_log"; then
@@ -61,7 +69,9 @@ PATH="$fake_bin:$PATH" \
   SWIFTTUI_CHECKOUT="$framework_root" \
   SWIFTTUI_WEB_CHECKOUT="$web_root" \
   SWIFTTUI_EXAMPLES_SWIFTLY_LOG="$swiftly_log" \
+  SWIFTTUI_EXAMPLES_BUN_LOG="$bun_log" \
   SWIFTTUI_EXAMPLES_PYTHON_LOG="$python_log" \
+  SWIFTTUI_EXAMPLES_XCODE_LOG="$xcode_log" \
   SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH="$scratch_path" \
   "$repo_root/Scripts/check_examples.sh" --skip-bun-install >/dev/null
 
@@ -91,6 +101,102 @@ fi
 if ! grep -Fq -- "--binary $scratch_path/release/gallery-demo" "$python_log"; then
   echo "Expected release stack-safety harness to use the shared scratch binary" >&2
   cat "$python_log" >&2
+  exit 1
+fi
+
+: >"$swiftly_log"
+: >"$bun_log"
+: >"$python_log"
+: >"$xcode_log"
+PATH="$fake_bin:$PATH" \
+  SWIFTTUI_CHECKOUT="$framework_root" \
+  SWIFTTUI_WEB_CHECKOUT="$web_root" \
+  SWIFTTUI_EXAMPLES_SWIFTLY_LOG="$swiftly_log" \
+  SWIFTTUI_EXAMPLES_BUN_LOG="$bun_log" \
+  SWIFTTUI_EXAMPLES_PYTHON_LOG="$python_log" \
+  SWIFTTUI_EXAMPLES_XCODE_LOG="$xcode_log" \
+  SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH="$scratch_path" \
+  "$repo_root/Scripts/check_examples_linux.sh" --skip-bun-install >/dev/null
+
+if [ -s "$xcode_log" ]; then
+  echo "Did not expect the Linux examples lane to invoke xcodebuild" >&2
+  cat "$xcode_log" >&2
+  exit 1
+fi
+
+if grep -Fq -- "build --target SwiftUIHost" "$swiftly_log"; then
+  echo "Did not expect the Linux examples lane to build SwiftUIHost" >&2
+  cat "$swiftly_log" >&2
+  exit 1
+fi
+
+if ! grep -Fq -- "build --package-path WebExample/TerminalApp" "$swiftly_log"; then
+  echo "Expected the Linux examples lane to build WebExample/TerminalApp" >&2
+  cat "$swiftly_log" >&2
+  exit 1
+fi
+
+: >"$swiftly_log"
+: >"$bun_log"
+: >"$python_log"
+: >"$xcode_log"
+PATH="$fake_bin:$PATH" \
+  SWIFTTUI_CHECKOUT="$framework_root" \
+  SWIFTTUI_WEB_CHECKOUT="$tmpdir/missing-swift-tui-web" \
+  SWIFTTUI_EXAMPLES_SWIFTLY_LOG="$swiftly_log" \
+  SWIFTTUI_EXAMPLES_BUN_LOG="$bun_log" \
+  SWIFTTUI_EXAMPLES_PYTHON_LOG="$python_log" \
+  SWIFTTUI_EXAMPLES_XCODE_LOG="$xcode_log" \
+  SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH="$scratch_path" \
+  "$repo_root/Scripts/check_examples_macos.sh" --skip-clean >/dev/null
+
+if [ -s "$bun_log" ]; then
+  echo "Did not expect the macOS examples lane to invoke bun" >&2
+  cat "$bun_log" >&2
+  exit 1
+fi
+
+if grep -Fq -- "WebExample" "$swiftly_log"; then
+  echo "Did not expect the macOS examples lane to build WebExample" >&2
+  cat "$swiftly_log" >&2
+  exit 1
+fi
+
+if grep -Fq -- "build --target SwiftUIHost" "$swiftly_log"; then
+  echo "Did not expect the macOS examples lane to run a framework-only SwiftUIHost build" >&2
+  cat "$swiftly_log" >&2
+  exit 1
+fi
+
+if ! grep -Fq -- "CODE_SIGNING_ALLOWED=NO" "$xcode_log"; then
+  echo "Expected the macOS app build to disable code signing in CI" >&2
+  cat "$xcode_log" >&2
+  exit 1
+fi
+
+: >"$swiftly_log"
+: >"$bun_log"
+: >"$python_log"
+: >"$xcode_log"
+PATH="$fake_bin:$PATH" \
+  SWIFTTUI_CHECKOUT="$framework_root" \
+  SWIFTTUI_WEB_CHECKOUT="$web_root" \
+  SWIFTTUI_EXAMPLES_SWIFTLY_LOG="$swiftly_log" \
+  SWIFTTUI_EXAMPLES_BUN_LOG="$bun_log" \
+  SWIFTTUI_EXAMPLES_PYTHON_LOG="$python_log" \
+  SWIFTTUI_EXAMPLES_XCODE_LOG="$xcode_log" \
+  SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH="$scratch_path" \
+  "$repo_root/Scripts/check_examples_web.sh" --skip-bun-install >/dev/null
+
+if [ -s "$xcode_log" ]; then
+  echo "Did not expect the web examples lane to invoke xcodebuild" >&2
+  cat "$xcode_log" >&2
+  exit 1
+fi
+
+if ! grep -Fq -- "run build" "$bun_log"; then
+  echo "Expected the web examples lane to run Bun builds" >&2
+  cat "$bun_log" >&2
   exit 1
 fi
 
