@@ -27,22 +27,27 @@ struct CommandPaletteList: View {
 }
 
 private struct CommandPaletteListBody: View {
+  private static let maximumVisibleRows = 12
+
   let commands: [ActivePaletteCommand]
   let dismiss: @MainActor @Sendable () -> Void
 
   @State private var query = ""
+  @State private var selectedCommandKey: CommandPaletteCommandKey?
   @FocusState private var isQueryFocused: Bool
   @Namespace private var filterFocusNamespace
 
-  private var matches: [(command: ActivePaletteCommand, score: Int)] {
+  private var matches: [CommandPaletteMatch] {
     if query.isEmpty {
-      return commands.enumerated().map { ($0.element, $0.offset) }
+      return commands.enumerated().map { offset, command in
+        CommandPaletteMatch(command: command, score: offset)
+      }
     }
     return
       commands
       .compactMap { command in
         fuzzyMatchScore(query: query, against: command.name)
-          .map { (command: command, score: $0) }
+          .map { CommandPaletteMatch(command: command, score: $0) }
       }
       .sorted { $0.score < $1.score }
   }
@@ -54,10 +59,9 @@ private struct CommandPaletteListBody: View {
       TextField("Filter commands…", text: $query)
         .focused($isQueryFocused)
         .prefersDefaultFocus(in: filterFocusNamespace)
+        .onKeyPress(perform: handleFilterKeyPress)
       Divider()
       matchList
-      Divider()
-      footer
     }
     .padding(1)
     .frame(minWidth: 44, alignment: .leading)
@@ -65,30 +69,15 @@ private struct CommandPaletteListBody: View {
     .onAppear {
       query = ""
     }
+    .onChange(of: matchKeys, initial: true) { _, newKeys in
+      reconcileSelection(for: newKeys)
+    }
   }
 
   private var header: some View {
     HStack(spacing: 2) {
       Text("Command palette").bold()
       Spacer()
-      Text("Tab + Enter to run")
-        .foregroundStyle(.separator)
-    }
-  }
-
-  // Footer with an explicit Close button. The framework's Esc-closes-
-  // presentation behavior was removed in Phase 0 of the ActionScopes
-  // rewrite and has not yet been reinstated (see
-  // Tests/SwiftTUITests/AppRuntimeTests.swift:225 — "Escape-owned
-  // presentation dismissal returns in Phase 3"). Until the framework
-  // gap closes, an explicit Cancel button is the reliable dismissal
-  // affordance.
-  private var footer: some View {
-    HStack(spacing: 2) {
-      Spacer()
-      Button("Cancel", role: .cancel) {
-        dismiss()
-      }
     }
   }
 
@@ -100,28 +89,155 @@ private struct CommandPaletteListBody: View {
         .foregroundStyle(.separator)
         .padding(.vertical, 1)
     } else {
+      let visibleRange = visibleRange(in: rows)
       VStack(alignment: .leading, spacing: 0) {
-        ForEach(0..<rows.count, id: \.self) { index in
-          row(for: rows[index].command)
+        ForEach(Array(visibleRange), id: \.self) { index in
+          let match = rows[index]
+          row(for: match.command, isSelected: index == effectiveSelectedIndex)
         }
       }
     }
   }
 
-  private func row(for command: ActivePaletteCommand) -> some View {
+  private var matchKeys: [CommandPaletteCommandKey] {
+    matches.map(\.key)
+  }
+
+  private var selectedIndex: Int? {
+    guard let selectedCommandKey else { return nil }
+    return matches.firstIndex { $0.key == selectedCommandKey }
+  }
+
+  private var effectiveSelectedIndex: Int? {
+    selectedIndex ?? (matches.isEmpty ? nil : 0)
+  }
+
+  private func visibleRange(in rows: [CommandPaletteMatch]) -> Range<Int> {
+    guard rows.count > Self.maximumVisibleRows else {
+      return 0..<rows.count
+    }
+
+    let selectedIndex = effectiveSelectedIndex ?? 0
+    let start = min(
+      max(0, selectedIndex - Self.maximumVisibleRows + 1),
+      rows.count - Self.maximumVisibleRows
+    )
+    return start..<(start + Self.maximumVisibleRows)
+  }
+
+  private func row(
+    for command: ActivePaletteCommand,
+    isSelected: Bool
+  ) -> some View {
     Button {
-      command.action()
-      dismiss()
+      perform(command)
     } label: {
-      HStack(spacing: 2) {
+      HStack(spacing: 1) {
+        Text(isSelected ? ">" : " ")
+          .foregroundStyle(isSelected ? .tint : .background)
         Text(command.name)
         if let description = command.description {
           Spacer()
           Text(description).foregroundStyle(.separator)
         }
       }
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background {
+        if isSelected {
+          Rectangle().fill(.selection)
+        }
+      }
+    }
+    .buttonStyle(.plain)
+    .focusable(false)
+    .onTapGesture {
+      perform(command)
     }
     .disabled(!command.isEnabled)
+  }
+
+  private func handleFilterKeyPress(_ keyPress: KeyPress) -> KeyPressResult {
+    if keyPress.modifiers == [] {
+      switch keyPress.key {
+      case .arrowDown, .tab:
+        moveSelection(by: 1)
+        return .handled
+      case .arrowUp:
+        moveSelection(by: -1)
+        return .handled
+      case .return:
+        openSelectedCommand()
+        return .handled
+      default:
+        return .ignored
+      }
+    }
+
+    if keyPress == KeyPress(.tab, modifiers: .shift) {
+      moveSelection(by: -1)
+      return .handled
+    }
+    return .ignored
+  }
+
+  private func moveSelection(by delta: Int) {
+    let rows = matches
+    guard !rows.isEmpty else {
+      selectedCommandKey = nil
+      return
+    }
+
+    let currentIndex = effectiveSelectedIndex ?? 0
+    let nextIndex = min(max(currentIndex + delta, 0), rows.count - 1)
+    selectedCommandKey = rows[nextIndex].key
+  }
+
+  private func openSelectedCommand() {
+    guard
+      let effectiveSelectedIndex,
+      matches.indices.contains(effectiveSelectedIndex)
+    else {
+      return
+    }
+
+    let command = matches[effectiveSelectedIndex].command
+    guard command.isEnabled else { return }
+    perform(command)
+  }
+
+  private func perform(_ command: ActivePaletteCommand) {
+    guard command.isEnabled else { return }
+    command.action()
+    dismiss()
+  }
+
+  private func reconcileSelection(for keys: [CommandPaletteCommandKey]) {
+    guard !keys.isEmpty else {
+      selectedCommandKey = nil
+      return
+    }
+
+    if let selectedCommandKey, keys.contains(selectedCommandKey) {
+      return
+    }
+    selectedCommandKey = keys.first
+  }
+}
+
+private struct CommandPaletteCommandKey: Equatable, Hashable {
+  var name: String
+  var description: String?
+}
+
+private struct CommandPaletteMatch {
+  let command: ActivePaletteCommand
+  let score: Int
+
+  var key: CommandPaletteCommandKey {
+    CommandPaletteCommandKey(
+      name: command.name,
+      description: command.description
+    )
   }
 }
 

@@ -690,6 +690,62 @@ struct GalleryTabSwitchTests {
     )
   }
 
+  @Test("gallery command palette omits the redundant cancel button")
+  func galleryCommandPaletteOmitsRedundantCancelButton() throws {
+    let terminalSize = CellSize(width: 80, height: 40)
+    let rootIdentity = Identity(components: [.named("GalleryCommandPaletteNoCancelButton")])
+    let host = GalleryTabSwitchRecordingHost(size: terminalSize)
+    var environment = EnvironmentValues()
+    environment.terminalSize = terminalSize
+    environment.terminalAppearance = host.appearance
+    let scheduler = FrameScheduler()
+    let focusTracker = FocusTracker(invalidationIdentities: [rootIdentity])
+    let runLoop = RunLoop(
+      rootIdentity: rootIdentity,
+      presentationSurface: host,
+      terminalInputReader: GalleryTabSwitchScriptedInput(events: []),
+      signalReader: GalleryTabSwitchEmptySignals(),
+      scheduler: scheduler,
+      stateContainer: StateContainer(
+        initialState: 0,
+        invalidationIdentities: [rootIdentity]
+      ),
+      focusTracker: focusTracker,
+      environmentValues: environment,
+      proposal: .init(width: terminalSize.width, height: terminalSize.height),
+      viewBuilder: { _, _ in GalleryView() }
+    )
+    focusTracker.invalidator = scheduler
+
+    func render() throws -> String {
+      var rendered = 0
+      try runLoop.renderPendingFrames(renderedFrames: &rendered)
+      return try #require(host.lastPresentedSurface).lines.joined(separator: "\n")
+    }
+
+    scheduler.requestInvalidation(of: [rootIdentity])
+    _ = try render()
+    for _ in 0..<3 {
+      scheduler.requestInvalidation(of: [rootIdentity])
+      _ = try render()
+    }
+
+    #expect(
+      runLoop.handle(.input(.key(.character("k"), modifiers: .ctrl))) == nil
+    )
+    let paletteText = try render()
+    #expect(paletteText.contains("Command palette"))
+    let focusRegionIdentities = runLoop.latestSemanticSnapshot.focusRegions.map(\.identity)
+    #expect(
+      focusRegionIdentities.count == 4,
+      "expected the palette to remove the redundant footer focus target; regions: \(focusRegionIdentities)"
+    )
+    #expect(
+      !paletteText.contains("Cancel"),
+      "expected the gallery palette not to render a redundant cancel button; surface was:\n\(paletteText)"
+    )
+  }
+
   @Test("gallery command palette focuses its filter after opening from shortcut")
   func galleryCommandPaletteFocusesFilterAfterShortcutOpen() throws {
     let terminalSize = CellSize(width: 80, height: 24)
@@ -748,6 +804,195 @@ struct GalleryTabSwitchTests {
     #expect(
       paletteText.contains("No matches."),
       "expected typing immediately after ⌃K to edit the filter; surface was:\n\(paletteText)"
+    )
+  }
+
+  @Test("gallery command palette uses local selection for keyboard navigation")
+  func galleryCommandPaletteUsesLocalSelectionForKeyboardNavigation() throws {
+    let terminalSize = CellSize(width: 80, height: 24)
+    let rootIdentity = Identity(components: [.named("GalleryCommandPaletteKeyboardSelection")])
+    let host = GalleryTabSwitchRecordingHost(size: terminalSize)
+    var environment = EnvironmentValues()
+    environment.terminalSize = terminalSize
+    environment.terminalAppearance = host.appearance
+    let scheduler = FrameScheduler()
+    let focusTracker = FocusTracker(invalidationIdentities: [rootIdentity])
+    let runLoop = RunLoop(
+      rootIdentity: rootIdentity,
+      presentationSurface: host,
+      terminalInputReader: GalleryTabSwitchScriptedInput(events: []),
+      signalReader: GalleryTabSwitchEmptySignals(),
+      scheduler: scheduler,
+      stateContainer: StateContainer(
+        initialState: 0,
+        invalidationIdentities: [rootIdentity]
+      ),
+      focusTracker: focusTracker,
+      environmentValues: environment,
+      proposal: .init(width: terminalSize.width, height: terminalSize.height),
+      viewBuilder: { _, _ in GalleryView() }
+    )
+    focusTracker.invalidator = scheduler
+
+    func render() throws -> String {
+      var rendered = 0
+      try runLoop.renderPendingFrames(renderedFrames: &rendered)
+      return try #require(host.lastPresentedSurface).lines.joined(separator: "\n")
+    }
+
+    scheduler.requestInvalidation(of: [rootIdentity])
+    _ = try render()
+    for _ in 0..<3 {
+      scheduler.requestInvalidation(of: [rootIdentity])
+      _ = try render()
+    }
+
+    #expect(
+      runLoop.handle(.input(.key(.character("k"), modifiers: .ctrl))) == nil
+    )
+    var paletteText = try render()
+    #expect(
+      paletteText.contains("> Counter"),
+      "expected top command to be selected after opening; surface was:\n\(paletteText)"
+    )
+    let filterFocusIdentity = try #require(focusTracker.currentFocusIdentity)
+
+    #expect(runLoop.handle(.input(.key(.arrowDown))) == nil)
+    paletteText = try render()
+    #expect(
+      paletteText.contains("> Life"),
+      "expected Down to move the local selection to the next command; surface was:\n\(paletteText)"
+    )
+    #expect(focusTracker.currentFocusIdentity == filterFocusIdentity)
+
+    #expect(runLoop.handle(.input(.key(.tab))) == nil)
+    paletteText = try render()
+    #expect(
+      paletteText.contains("> Todo"),
+      "expected Tab to move the local selection like Down; surface was:\n\(paletteText)"
+    )
+    #expect(focusTracker.currentFocusIdentity == filterFocusIdentity)
+
+    #expect(runLoop.handle(.input(.key(.tab, modifiers: .shift))) == nil)
+    paletteText = try render()
+    #expect(
+      paletteText.contains("> Life"),
+      "expected Back-Tab to move the local selection like Up; surface was:\n\(paletteText)"
+    )
+    #expect(focusTracker.currentFocusIdentity == filterFocusIdentity)
+
+    #expect(runLoop.handle(.input(.key(.character("l")))) == nil)
+    paletteText = try render()
+    #expect(
+      paletteText.contains("> Life"),
+      "expected typing to keep the valid selected command while filtering; surface was:\n\(paletteText)"
+    )
+    #expect(focusTracker.currentFocusIdentity == filterFocusIdentity)
+
+    #expect(runLoop.handle(.input(.key(.backspace))) == nil)
+    paletteText = try render()
+    #expect(
+      paletteText.contains("> Life"),
+      "expected deleting the query to keep the still-valid selected command; surface was:\n\(paletteText)"
+    )
+    #expect(focusTracker.currentFocusIdentity == filterFocusIdentity)
+
+    for _ in 0..<11 {
+      #expect(runLoop.handle(.input(.key(.arrowDown))) == nil)
+      _ = try render()
+    }
+    paletteText = try render()
+    #expect(
+      paletteText.contains("> Claude"),
+      "expected the selected row to stay visible as keyboard navigation moves beyond the first page; surface was:\n\(paletteText)"
+    )
+    #expect(focusTracker.currentFocusIdentity == filterFocusIdentity)
+
+    for character in "calc" {
+      #expect(runLoop.handle(.input(.key(.character(character)))) == nil)
+      _ = try render()
+    }
+    paletteText = try render()
+    #expect(
+      paletteText.contains("> Calculator"),
+      "expected filtering away the selected command to reset to the first match; surface was:\n\(paletteText)"
+    )
+    #expect(focusTracker.currentFocusIdentity == filterFocusIdentity)
+
+    #expect(runLoop.handle(.input(.key(.return))) == nil)
+    let openedText = try render()
+    #expect(!openedText.contains("Command palette"))
+    #expect(
+      openedText.contains("AC"),
+      "expected Return to open the selected Calculator command; surface was:\n\(openedText)"
+    )
+  }
+
+  @Test("gallery command palette rows stay clickable")
+  func galleryCommandPaletteRowsStayClickable() throws {
+    let terminalSize = CellSize(width: 80, height: 24)
+    let rootIdentity = Identity(components: [.named("GalleryCommandPaletteClickRows")])
+    let host = GalleryTabSwitchRecordingHost(size: terminalSize)
+    var environment = EnvironmentValues()
+    environment.terminalSize = terminalSize
+    environment.terminalAppearance = host.appearance
+    let scheduler = FrameScheduler()
+    let focusTracker = FocusTracker(invalidationIdentities: [rootIdentity])
+    let runLoop = RunLoop(
+      rootIdentity: rootIdentity,
+      presentationSurface: host,
+      terminalInputReader: GalleryTabSwitchScriptedInput(events: []),
+      signalReader: GalleryTabSwitchEmptySignals(),
+      scheduler: scheduler,
+      stateContainer: StateContainer(
+        initialState: 0,
+        invalidationIdentities: [rootIdentity]
+      ),
+      focusTracker: focusTracker,
+      environmentValues: environment,
+      proposal: .init(width: terminalSize.width, height: terminalSize.height),
+      viewBuilder: { _, _ in GalleryView() }
+    )
+    focusTracker.invalidator = scheduler
+
+    func render() throws -> String {
+      var rendered = 0
+      try runLoop.renderPendingFrames(renderedFrames: &rendered)
+      return try #require(host.lastPresentedSurface).lines.joined(separator: "\n")
+    }
+
+    scheduler.requestInvalidation(of: [rootIdentity])
+    _ = try render()
+    for _ in 0..<3 {
+      scheduler.requestInvalidation(of: [rootIdentity])
+      _ = try render()
+    }
+
+    #expect(
+      runLoop.handle(.input(.key(.character("k"), modifiers: .ctrl))) == nil
+    )
+    _ = try render()
+    let paletteSurface = try #require(host.lastPresentedSurface)
+    let click = try #require(
+      Self.centerOfText("Life", in: paletteSurface)
+    )
+
+    #expect(
+      runLoop.handle(
+        .input(.mouse(.init(kind: .down(.primary), location: click)))
+      ) == nil
+    )
+    #expect(
+      runLoop.handle(
+        .input(.mouse(.init(kind: .up(.primary), location: click)))
+      ) == nil
+    )
+
+    let openedText = try render()
+    #expect(!openedText.contains("Command palette"))
+    #expect(
+      openedText.contains("Conway's Life"),
+      "expected clicking a palette row to open that command; surface was:\n\(openedText)"
     )
   }
 
@@ -983,6 +1228,18 @@ struct GalleryTabSwitchTests {
       Self.boundsOfText(target, in: artifacts.placedTree, chooseTopMost: chooseTopMost)
     )
     return Self.centerPoint(of: bounds)
+  }
+
+  private static func centerOfText(
+    _ target: String,
+    in surface: RasterSurface
+  ) -> Point? {
+    for (row, line) in surface.lines.enumerated() {
+      guard let range = line.range(of: target) else { continue }
+      let column = line.distance(from: line.startIndex, to: range.lowerBound)
+      return Point(CellPoint(x: column + target.count / 2, y: row))
+    }
+    return nil
   }
 
   private static func collectBoundsOfText(
