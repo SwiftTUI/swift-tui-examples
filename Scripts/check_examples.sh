@@ -5,6 +5,7 @@ set -eu
 repo_root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 framework_root=${SWIFTTUI_CHECKOUT:-"$repo_root/../swift-tui"}
 web_root=${SWIFTTUI_WEB_CHECKOUT:-"$repo_root/../swift-tui-web"}
+swiftpm_scratch=${SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH:-}
 
 skip_clean=0
 skip_bun_install=0
@@ -20,6 +21,9 @@ Builds and tests the SwiftTUI example packages from a sibling checkout layout:
   - swift-tui-web: browser package checkout, default ../swift-tui-web
 
 Set SWIFTTUI_CHECKOUT or SWIFTTUI_WEB_CHECKOUT to override the sibling paths.
+Set SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH to reuse one sequential SwiftPM scratch
+directory across the example package builds. Do not share that directory across
+parallel check runs.
 EOF
 }
 
@@ -79,7 +83,52 @@ require_checkout "$framework_root" "swift-tui"
 require_checkout "$web_root" "swift-tui-web"
 
 run_swift() {
-  swiftly run swift "$@"
+  if should_use_swiftpm_scratch "$@"; then
+    swiftly run swift "$@" --scratch-path "$swiftpm_scratch"
+  else
+    swiftly run swift "$@"
+  fi
+}
+
+should_use_swiftpm_scratch() {
+  if [ -z "$swiftpm_scratch" ] || [ "$#" -eq 0 ]; then
+    return 1
+  fi
+
+  case "$1" in
+    build|test)
+      return 0
+      ;;
+    package)
+      shift
+      if [ "$#" -eq 0 ] || [ "$1" != "clean" ]; then
+        return 1
+      fi
+      shift
+      while [ "$#" -gt 0 ]; do
+        if [ "$1" = "--package-path" ]; then
+          return 0
+        fi
+        shift
+      done
+      return 1
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+swiftpm_binary_path() {
+  package_path=$1
+  configuration=$2
+  product=$3
+
+  if [ -n "$swiftpm_scratch" ]; then
+    printf '%s/%s/%s\n' "$swiftpm_scratch" "$configuration" "$product"
+  else
+    printf '%s/%s/.build/%s/%s\n' "$repo_root" "$package_path" "$configuration" "$product"
+  fi
 }
 
 run_step() {
@@ -170,14 +219,14 @@ run_step \
   "Stack safety gallery (debug)" \
   "$repo_root" \
   python3 Scripts/stack_safety_harness.py \
-    --binary gallery/.build/debug/gallery-demo \
+    --binary "$(swiftpm_binary_path gallery debug gallery-demo)" \
     --count 20
 
 run_step \
   "Stack safety gallery (release)" \
   "$repo_root" \
   python3 Scripts/stack_safety_harness.py \
-    --binary gallery/.build/release/gallery-demo \
+    --binary "$(swiftpm_binary_path gallery release gallery-demo)" \
     --count 20
 
 run_step \
