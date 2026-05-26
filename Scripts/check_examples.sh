@@ -352,6 +352,11 @@ run_web_examples() {
 }
 
 run_step \
+  "Check CI Swift toolchain setup" \
+  "$repo_root" \
+  Scripts/install_swift_toolchain_ci_test.sh
+
+run_step \
   "Check examples CI workflow" \
   "$repo_root" \
   Scripts/check_examples_ci_workflow.sh

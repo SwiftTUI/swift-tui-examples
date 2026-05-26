@@ -57,32 +57,7 @@ jobs:
             ${{ runner.os }}-swiftly-${{ env.SWIFTLY_VERSION }}-
       - name: Install swiftly and Swift toolchain
         shell: bash
-        working-directory: swift-tui
-        run: |
-          set -euo pipefail
-          export SWIFTLY_HOME_DIR="$HOME/.local/share/swiftly"
-          export SWIFTLY_BIN_DIR="$HOME/.local/bin"
-          mkdir -p "$SWIFTLY_BIN_DIR"
-          export PATH="$SWIFTLY_BIN_DIR:$PATH"
-
-          if ! command -v swiftly >/dev/null 2>&1 || [ ! -f "${SWIFTLY_HOME_DIR}/env.sh" ]; then
-            tmpdir="$(mktemp -d)"
-            trap 'rm -rf "$tmpdir"' EXIT
-            cd "$tmpdir"
-            swiftly_archive="swiftly-${SWIFTLY_VERSION}-$(uname -m).tar.gz"
-            curl -fsSLO "https://download.swift.org/swiftly/linux/${swiftly_archive}"
-            tar -zxf "$swiftly_archive"
-            ./swiftly init --skip-install --quiet-shell-followup --assume-yes
-          fi
-
-          . "${SWIFTLY_HOME_DIR}/env.sh"
-          hash -r
-          swift_version="$(tr -d '[:space:]' < .swift-version)"
-          swiftly install --use --assume-yes "$swift_version"
-          swiftly run swift --version
-          echo "$SWIFTLY_BIN_DIR" >> "$GITHUB_PATH"
-          echo "SWIFTLY_HOME_DIR=$SWIFTLY_HOME_DIR" >> "$GITHUB_ENV"
-          echo "SWIFTLY_BIN_DIR=$SWIFTLY_BIN_DIR" >> "$GITHUB_ENV"
+        run: swift-tui-examples/Scripts/install_swift_toolchain_ci.sh swift-tui/.swift-version
       - name: Cache SwiftPM
         uses: actions/cache@v5
         with:
@@ -129,22 +104,7 @@ jobs:
             ${{ runner.os }}-swiftly-${{ env.SWIFTLY_VERSION }}-
       - name: Install swiftly and Swift toolchain
         shell: bash
-        working-directory: swift-tui
-        run: |
-          set -euo pipefail
-          export PATH="$HOME/.swiftly/bin:$PATH"
-          if ! command -v swiftly >/dev/null 2>&1 || [ ! -f "${SWIFTLY_HOME_DIR:-$HOME/.swiftly}/env.sh" ]; then
-            curl -fsSLO https://download.swift.org/swiftly/darwin/swiftly.pkg
-            installer -pkg swiftly.pkg -target CurrentUserHomeDirectory
-            ~/.swiftly/bin/swiftly init --skip-install --quiet-shell-followup --assume-yes
-          fi
-          . "${SWIFTLY_HOME_DIR:-$HOME/.swiftly}/env.sh"
-          hash -r
-          swift_version="$(tr -d '[:space:]' < .swift-version)"
-          swiftly install --use --assume-yes "$swift_version"
-          swiftly run swift --version
-          echo "$HOME/.swiftly/bin" >> "$GITHUB_PATH"
-          echo "SWIFTLY_HOME_DIR=$HOME/.swiftly" >> "$GITHUB_ENV"
+        run: swift-tui-examples/Scripts/install_swift_toolchain_ci.sh swift-tui/.swift-version
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
@@ -213,22 +173,7 @@ jobs:
             ${{ runner.os }}-swiftly-${{ env.SWIFTLY_VERSION }}-
       - name: Install swiftly and Swift toolchain
         shell: bash
-        working-directory: swift-tui
-        run: |
-          set -euo pipefail
-          export PATH="$HOME/.swiftly/bin:$PATH"
-          if ! command -v swiftly >/dev/null 2>&1 || [ ! -f "${SWIFTLY_HOME_DIR:-$HOME/.swiftly}/env.sh" ]; then
-            curl -fsSLO https://download.swift.org/swiftly/darwin/swiftly.pkg
-            installer -pkg swiftly.pkg -target CurrentUserHomeDirectory
-            ~/.swiftly/bin/swiftly init --skip-install --quiet-shell-followup --assume-yes
-          fi
-          . "${SWIFTLY_HOME_DIR:-$HOME/.swiftly}/env.sh"
-          hash -r
-          swift_version="$(tr -d '[:space:]' < .swift-version)"
-          swiftly install --use --assume-yes "$swift_version"
-          swiftly run swift --version
-          echo "$HOME/.swiftly/bin" >> "$GITHUB_PATH"
-          echo "SWIFTLY_HOME_DIR=$HOME/.swiftly" >> "$GITHUB_ENV"
+        run: swift-tui-examples/Scripts/install_swift_toolchain_ci.sh swift-tui/.swift-version
       - name: Cache macOS build products
         uses: actions/cache@v5
         with:
