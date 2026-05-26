@@ -1,13 +1,35 @@
-# Examples
+# SwiftTUI Examples
 
-This repository keeps the maintained example apps and package shells at the
-root level. It is the canonical roster for runnable examples in this repo; if a
-new example is added, add it at the root and give the example directory its own
-README.
+Runnable examples for
+[`SwiftTUI`](https://github.com/SwiftTUI/swift-tui). Use this repo to find a
+complete sample for a product surface, execution mode, or host integration
+pattern.
 
 Use `swiftly run swift ...` for Swift packages so the examples use the repo's
 pinned Swift toolchain. Use the repo root for the commands below unless a local
 README says otherwise.
+
+## Quick Start
+
+```bash
+git clone https://github.com/SwiftTUI/swift-tui-examples.git
+cd swift-tui-examples
+swiftly run swift run --package-path argparse argparse-demo --help
+swiftly run swift run --package-path gallery gallery-demo
+```
+
+For the browser/WASI example:
+
+```bash
+bun install
+bun --cwd WebExample run build
+```
+
+Pre-public status: these examples still use source-checkout dependencies for
+active development. The public release cutover will switch the default manifests
+to tagged `https://github.com/SwiftTUI/swift-tui.git` SwiftPM dependencies and
+published `@swifttui/web` / `@swifttui/build` packages so a fresh clone builds
+without sibling checkouts.
 
 ## Roster
 
@@ -62,3 +84,8 @@ builds, [LayoutsSwiftUI](LayoutsSwiftUI) builds on Apple platforms, and
 [SwiftUIExample](SwiftUIExample) builds its reusable scene package plus the
 Xcode host app on Apple platforms. The example repo gate is `bun run check`
 from the repo root.
+
+`SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH` can point the gate at one sequential shared
+SwiftPM scratch directory. This is useful for maintainers running the full
+matrix repeatedly; do not share the same scratch directory across parallel
+checks.

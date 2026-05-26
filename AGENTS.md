@@ -6,11 +6,16 @@ update it there when adding an example.
 
 ## What this repo is
 
-The maintained roster of runnable SwiftTUI example apps, kept as sibling
-packages at the repo root (one directory + README per example). Examples
-exercise the public products (`SwiftTUI`, `SwiftTUIRuntime`, `SwiftTUICharts`,
-`SwiftUIHost`, `SwiftTUIWASI`, …). Use the README roster table for the exact
-run/test command per example.
+The maintained, consumer-facing roster of runnable SwiftTUI example apps (one
+directory + README per example). Examples exercise the public products
+(`SwiftTUI`, `SwiftTUIRuntime`, `SwiftTUICharts`, `SwiftUIHost`,
+`SwiftTUIWASI`, …). Use the README roster table for the exact run/test command
+per example.
+
+This repo is still pre-public. Until tag-aligned releases and web packages are
+published, source-checkout dependencies are expected. Do not add
+coordination-only pin files; the public cutover should use tagged HTTPS
+dependencies and released package artifacts.
 
 ## Toolchains
 

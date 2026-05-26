@@ -2,12 +2,10 @@
 
 The reference embedding pattern for SwiftTUI in a Bun-served browser
 app. A real SwiftTUI `App` is built for WASI and mounted onto a canvas
-via the [`Platforms/Web`](../../Platforms/Web) host — there is no
-terminal-emulator dependency.
+via `@swifttui/web` — there is no terminal-emulator dependency.
 
-The [top-level Website](../../Website) is the deployed stub that
-iframes this example. This package stays small and focused on the
-embedding contract.
+The public website builds this example as the live browser demo. This package
+stays small and focused on the embedding contract.
 
 ## What this is
 
@@ -49,7 +47,7 @@ The minimum a host needs:
 3. A host that serves `Cross-Origin-Opener-Policy: same-origin` and
    `Cross-Origin-Embedder-Policy: require-corp` so
    `SharedArrayBuffer`-backed stdin works.
-4. Workspace dependencies on `@swifttui/web` and `@swifttui/build`.
+4. Dependencies on `@swifttui/web` and `@swifttui/build`.
 5. The mount sequence from `src/frontend.ts:bootstrap()` —
    `createWebHostApp` + `createWasmSceneRuntimeFactory`.
 
@@ -67,8 +65,9 @@ The minimum a host needs:
   The build script captures the canonical command.
 - **Bun** for the web app, the bundler, and the test runner.
 
-See the repo-level [`docs/DEVELOPMENT.md`](../../docs/DEVELOPMENT.md) for
-the canonical environment story.
+See the SwiftTUI package
+[`docs/DEVELOPMENT.md`](https://github.com/SwiftTUI/swift-tui/blob/main/docs/DEVELOPMENT.md)
+for the canonical environment story.
 
 ## Setup
 
@@ -76,9 +75,9 @@ the canonical environment story.
 bun install
 ```
 
-`WebExample`, `Platforms/Web`, `Platforms/WebBuild`, and the top-level
-`Website` share the repo's Bun workspace. Running `bun install` from the repo
-root is preferred, but it also works from this directory.
+Pre-public status: this example currently uses source-workspace dependencies
+for `@swifttui/web` and `@swifttui/build`. After those packages are published,
+this package should install them from npm or public release tarballs.
 
 ## Development
 
@@ -101,10 +100,9 @@ bun run start
 ```
 
 `bun run build` produces `dist/` (web bundle) and `pages-dist/`
-(combined web bundle + `TerminalApp/dist/`). The repo's
-[`cloudflare-pages.yml`](../../.github/workflows/cloudflare-pages.yml)
-workflow ships `pages-dist/` to Cloudflare Pages under `/webexample/`
-so the top-level Website iframes it as the live demo.
+(combined web bundle + `TerminalApp/dist/`). The website repository deploys
+`pages-dist/` under `/webexample/` so the public site can iframe it as the live
+demo.
 
 ## File layout
 
@@ -130,15 +128,15 @@ WebExample/
 
 ## See also
 
-- [`Platforms/Web`](../../Platforms/Web) — the Bun browser-side workspace this
-  example consumes
-- [`Platforms/WebBuild`](../../Platforms/WebBuild) — the manifest and WASI
-  packaging workspace this example consumes
-- [`SwiftTUIWASI`](../../Platforms/WASI/Sources/SwiftTUIWASI) — the root package
-  product that provides the WASI runner this example builds against
-- [`WASISurfaceBridge`](../../Platforms/WASI/Sources/WASISurfaceBridge) — the
-  package-only transport target shared by the WASI runner and native WebHost
-- [`docs/HOSTS-AND-PLATFORMS.md`](../../docs/HOSTS-AND-PLATFORMS.md) — the root package
-  platform product model
-- [Top-level `Website/`](../../Website) — Astro stub that iframes
-  this example as the live demo
+- [`@swifttui/web`](https://github.com/SwiftTUI/swift-tui-web/tree/main/packages/web)
+  — browser runtime package
+- [`@swifttui/build`](https://github.com/SwiftTUI/swift-tui-web/tree/main/packages/build)
+  — manifest and WASI packaging package
+- [`SwiftTUIWASI`](https://github.com/SwiftTUI/swift-tui/tree/main/Platforms/WASI/Sources/SwiftTUIWASI)
+  — Swift package product that provides the WASI runner
+- [`WASISurfaceBridge`](https://github.com/SwiftTUI/swift-tui/tree/main/Platforms/WASI/Sources/WASISurfaceBridge)
+  — package-only transport target shared by the WASI runner and native WebHost
+- [`docs/HOSTS-AND-PLATFORMS.md`](https://github.com/SwiftTUI/swift-tui/blob/main/docs/HOSTS-AND-PLATFORMS.md)
+  — SwiftTUI platform product model
+- [`swift-tui-site`](https://github.com/SwiftTUI/swift-tui-site) — Astro site
+  that iframes this example as the live demo

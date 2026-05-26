@@ -6,10 +6,10 @@ Guidance for agentic assistants working in **WebExample**. Keep this concise;
 ## What this is
 
 The **reference embedding pattern** for SwiftTUI in a Bun-served browser app. A
-real SwiftTUI `App` is built for WASI and mounted onto a canvas via the
-[`Platforms/Web`](../../Platforms/Web) host — there is **no terminal-emulator
-dependency**. The top-level [`Website`](../../Website) iframes this as the live
-demo; keep this package small and focused on the embedding contract.
+real SwiftTUI `App` is built for WASI and mounted onto a canvas via
+`@swifttui/web` — there is **no terminal-emulator dependency**. The public
+website iframes this as the live demo; keep this package small and focused on
+the embedding contract.
 
 Two cooperating parts:
 
@@ -19,7 +19,9 @@ Two cooperating parts:
   with COOP/COEP headers, and mounts `WebHost`. The load-bearing bootstrap is
   ~60 lines in [`src/frontend.ts`](src/frontend.ts).
 
-Depends on `@swifttui/web` and `@swifttui/build` (workspace deps).
+Depends on `@swifttui/web` and `@swifttui/build`. Pre-public source checkouts
+may use workspace deps, but the public cutover should use npm versions or
+public release tarballs.
 
 ## Toolchains
 
@@ -55,5 +57,5 @@ bun run test:browser   # Playwright browser-integration specs (*.browser.ts)
 ## Conventions
 
 `AGENTS.md` is the real file; `CLAUDE.md` is a symlink to it. Edit `AGENTS.md`.
-See repo-level [`docs/DEVELOPMENT.md`](../../docs/DEVELOPMENT.md) for the full
+See the SwiftTUI package `docs/DEVELOPMENT.md` for the full
 toolchain/environment story.
