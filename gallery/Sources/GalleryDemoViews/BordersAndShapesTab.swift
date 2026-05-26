@@ -1,9 +1,8 @@
 import SwiftTUIRuntime
 
-/// Showcases the "Borders & Shapes" revamp landed across Milestones
-/// 1–7A of the 2026-04-11 pass.  Each panel exercises a distinct slice
-/// of the new API surface so the tab doubles as a visual smoke test
-/// for:
+/// Showcases the borders, shape, blend, and Canvas surface. Each panel
+/// exercises a distinct slice of the API surface so the tab doubles as a visual
+/// smoke test for:
 ///
 ///   1. A chasing-light perimeter gradient driven by an animated
 ///      ``BorderBlend`` phase via `withAnimation(.repeatForever)`.
@@ -270,14 +269,9 @@ private struct BordersAndShapesCurvedShapesSection: View {
           .fill(TileStyle(.heavyShade, foreground: .white))
           .frame(width: 16, height: 3)
       }
-      // PhaseAnimator-driven TileStyle with a linear-gradient
-      // foreground.  Pre-Animatable-protocol migration this row froze
-      // on phase 0 (gradients had no diff signal) or, post-stranded-
-      // completion fix, snapped between corners every 500 ms.  After
-      // the migration, the start and end points interpolate
-      // continuously across the 500 ms window so the diagonal sweep
-      // visibly rotates through topLeading → topTrailing →
-      // bottomTrailing → bottomLeading and back.
+      // PhaseAnimator-driven TileStyle with a linear-gradient foreground.
+      // The start and end points interpolate continuously so the diagonal
+      // sweep visibly rotates through all four corners.
       Text("Animated gradient tile style — rotates smoothly via PhaseAnimator")
         .foregroundStyle(.separator)
       HStack(spacing: 2) {

@@ -136,6 +136,18 @@ if ! grep -Fq -- "build --package-path WebExample/TerminalApp" "$swiftly_log"; t
   exit 1
 fi
 
+if ! grep -Fq -- "build --package-path minimal" "$swiftly_log"; then
+  echo "Expected the Linux examples lane to build minimal" >&2
+  cat "$swiftly_log" >&2
+  exit 1
+fi
+
+if ! grep -Fq -- "build --package-path terminal-runner" "$swiftly_log"; then
+  echo "Expected the Linux examples lane to build terminal-runner" >&2
+  cat "$swiftly_log" >&2
+  exit 1
+fi
+
 : >"$swiftly_log"
 : >"$bun_log"
 : >"$python_log"
@@ -168,6 +180,12 @@ if grep -Fq -- "build --target SwiftUIHost" "$swiftly_log"; then
   exit 1
 fi
 
+if ! grep -Fq -- "build --package-path LayoutsSwiftUI" "$swiftly_log"; then
+  echo "Expected the macOS examples lane to build LayoutsSwiftUI" >&2
+  cat "$swiftly_log" >&2
+  exit 1
+fi
+
 if ! grep -Fq -- "CODE_SIGNING_ALLOWED=NO" "$xcode_log"; then
   echo "Expected the macOS app build to disable code signing in CI" >&2
   cat "$xcode_log" >&2
@@ -196,6 +214,54 @@ fi
 
 if ! grep -Fq -- "run build" "$bun_log"; then
   echo "Expected the web examples lane to run Bun builds" >&2
+  cat "$bun_log" >&2
+  exit 1
+fi
+
+: >"$swiftly_log"
+: >"$bun_log"
+: >"$python_log"
+: >"$xcode_log"
+PATH="$fake_bin:$PATH" \
+  SWIFTTUI_CHECKOUT="$framework_root" \
+  SWIFTTUI_WEB_CHECKOUT="$web_root" \
+  SWIFTTUI_EXAMPLES_SWIFTLY_LOG="$swiftly_log" \
+  SWIFTTUI_EXAMPLES_BUN_LOG="$bun_log" \
+  SWIFTTUI_EXAMPLES_PYTHON_LOG="$python_log" \
+  SWIFTTUI_EXAMPLES_XCODE_LOG="$xcode_log" \
+  SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH="$scratch_path" \
+  "$repo_root/Scripts/check_examples_focused_tests.sh" --skip-bun-install >/dev/null
+
+if [ -s "$xcode_log" ]; then
+  echo "Did not expect the focused examples lane to invoke xcodebuild" >&2
+  cat "$xcode_log" >&2
+  exit 1
+fi
+
+missing_focused_scratch="$tmpdir/missing-focused-scratch.log"
+if ! awk -v scratch="$scratch_path" '
+  /run swift test/ && index($0, "--scratch-path " scratch) == 0 { print; bad = 1 }
+  END { exit bad }
+' "$swiftly_log" >"$missing_focused_scratch"; then
+  echo "Expected shared scratch path on every focused SwiftPM test:" >&2
+  cat "$missing_focused_scratch" >&2
+  exit 1
+fi
+
+if ! grep -Fq -- "run swift test --package-path gallery --scratch-path $scratch_path" "$swiftly_log"; then
+  echo "Expected the focused examples lane to test gallery through the shared scratch path" >&2
+  cat "$swiftly_log" >&2
+  exit 1
+fi
+
+if ! grep -Fq -- "run swift test --package-path terminal-runner --scratch-path $scratch_path" "$swiftly_log"; then
+  echo "Expected the focused examples lane to test terminal-runner through the shared scratch path" >&2
+  cat "$swiftly_log" >&2
+  exit 1
+fi
+
+if ! grep -Fq -- "test --cwd WebExample" "$bun_log"; then
+  echo "Expected the focused examples lane to run WebExample Bun tests" >&2
   cat "$bun_log" >&2
   exit 1
 fi

@@ -6,22 +6,22 @@ import Testing
 
 @MainActor
 @Suite
-struct ClaudeWorkingTabTests {
+struct TaskProgressTabTests {
   // A minimal state that exercises every visual branch:
   // completed (strikethrough + dim ✓), in-progress (bold ■),
   // pending (□), token direction, the yellow status tail, and the
   // hidden-item summary.
-  private static func sampleState() -> ClaudeWorkingState {
-    ClaudeWorkingState(
+  private static func sampleState() -> TaskProgressState {
+    TaskProgressState(
       title: "Write design doc",
       elapsedSeconds: 225,
       tokensThousands: 15.4,
       tokenDirection: .down,
       statusTail: .thinking(remaining: "almost done thinking…"),
       items: [
-        ClaudeWorkingItem(title: "Spec self-review and user review", state: .completed),
-        ClaudeWorkingItem(title: "Write design doc", state: .inProgress),
-        ClaudeWorkingItem(title: "Transition to implementation", state: .pending),
+        TaskProgressItem(title: "Spec self-review and user review", state: .completed),
+        TaskProgressItem(title: "Write design doc", state: .inProgress),
+        TaskProgressItem(title: "Transition to implementation", state: .pending),
       ],
       hiddenPendingCount: 1,
       hiddenCompletedCount: 4
@@ -29,7 +29,7 @@ struct ClaudeWorkingTabTests {
   }
 
   private func renderPanel(
-    _ state: ClaudeWorkingState,
+    _ state: TaskProgressState,
     width: Int = 90,
     height: Int = 20
   ) -> String {
@@ -38,9 +38,9 @@ struct ClaudeWorkingTabTests {
     env.terminalSize = terminalSize
 
     let artifacts = DefaultRenderer().render(
-      ClaudeWorkingPanel(state: state),
+      TaskProgressPanel(state: state),
       context: .init(
-        identity: Identity(components: [.named("ClaudeWorkingPanelTest")]),
+        identity: Identity(components: [.named("TaskProgressPanelTest")]),
         environmentValues: env
       ),
       proposal: .init(width: terminalSize.width, height: terminalSize.height)
@@ -134,16 +134,16 @@ struct ClaudeWorkingTabTests {
     #expect(surface.contains("thought for 2s"))
   }
 
-  @Test("ClaudeWorkingTab renders its panel surface within the gallery shell")
+  @Test("TaskProgressTab renders its panel surface within the gallery shell")
   func tabRendersInsideGalleryShell() {
     let terminalSize = CellSize(width: 100, height: 28)
     var env = EnvironmentValues()
     env.terminalSize = terminalSize
 
     let artifacts = DefaultRenderer().render(
-      ClaudeWorkingTab(),
+      TaskProgressTab(),
       context: .init(
-        identity: Identity(components: [.named("ClaudeWorkingTabSmoke")]),
+        identity: Identity(components: [.named("TaskProgressTabSmoke")]),
         environmentValues: env
       ),
       proposal: .init(width: terminalSize.width, height: terminalSize.height)
@@ -151,16 +151,16 @@ struct ClaudeWorkingTabTests {
 
     let surface = artifacts.rasterSurface.lines.joined(separator: "\n")
     #expect(artifacts.rasterSurface.cells.count > 0)
-    #expect(surface.contains("Claude working pane"))
+    #expect(surface.contains("Task progress pane"))
     #expect(surface.contains("Write design doc"))
   }
 
-  @Test("Gallery initial-tab aliases select the Claude working tab")
-  func galleryInitialTabAliasesIncludeClaudeWorking() {
-    #expect(GalleryView.GalleryTab(environmentName: "claude") == .claudeWorking)
-    #expect(GalleryView.GalleryTab(environmentName: "working") == .claudeWorking)
-    #expect(GalleryView.GalleryTab(environmentName: "claude-working") == .claudeWorking)
-    #expect(GalleryView.GalleryTab(environmentName: "todolist") == .claudeWorking)
-    #expect(GalleryView.GalleryTab(environmentName: "todo-list") == .claudeWorking)
+  @Test("Gallery initial-tab aliases select the task progress tab")
+  func galleryInitialTabAliasesIncludeTaskProgress() {
+    #expect(GalleryView.GalleryTab(environmentName: "progress") == .taskProgress)
+    #expect(GalleryView.GalleryTab(environmentName: "task-progress") == .taskProgress)
+    #expect(GalleryView.GalleryTab(environmentName: "working") == .taskProgress)
+    #expect(GalleryView.GalleryTab(environmentName: "todolist") == .taskProgress)
+    #expect(GalleryView.GalleryTab(environmentName: "todo-list") == .taskProgress)
   }
 }

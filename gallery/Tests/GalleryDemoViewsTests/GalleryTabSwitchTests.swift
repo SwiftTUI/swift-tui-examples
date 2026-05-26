@@ -681,12 +681,12 @@ struct GalleryTabSwitchTests {
       "expected gallery palette commands; surface was:\n\(paletteText)"
     )
     #expect(
-      paletteText.contains("File Drop"),
+      paletteText.contains("Forms & Containers"),
       "expected the gallery palette to include tab commands; surface was:\n\(paletteText)"
     )
     #expect(
-      paletteText.contains("Popovers"),
-      "expected the gallery palette to include the popovers tab command; surface was:\n\(paletteText)"
+      paletteText.contains("Presentation Lab"),
+      "expected the gallery palette to include descriptor-backed tab commands; surface was:\n\(paletteText)"
     )
   }
 
@@ -897,13 +897,13 @@ struct GalleryTabSwitchTests {
     )
     #expect(focusTracker.currentFocusIdentity == filterFocusIdentity)
 
-    for _ in 0..<11 {
+    for _ in 0..<(GalleryView.tabDescriptors.count - 2) {
       #expect(runLoop.handle(.input(.key(.arrowDown))) == nil)
       _ = try render()
     }
     paletteText = try render()
     #expect(
-      paletteText.contains("> Claude"),
+      paletteText.contains("> \(GalleryView.tabDescriptors.last?.title ?? "")"),
       "expected the selected row to stay visible as keyboard navigation moves beyond the first page; surface was:\n\(paletteText)"
     )
     #expect(focusTracker.currentFocusIdentity == filterFocusIdentity)

@@ -13,7 +13,8 @@ Two cooperating parts:
 
 - **`TerminalApp/`** — a Swift package with a reusable `WebExampleScenes`
   library target plus a thin `WebExampleApp` executable launcher. The
-  library is the same `App` declaration that ships in the SwiftUI demo;
+  library declares the app that runs in the browser and reuses
+  `GalleryDemoViews` scene building blocks plus the shared host details view;
   the launcher just calls `WASIRunner.run(WebExampleApp.self)`.
 - **`src/`** — a Bun host that:
   1. invokes the Swift WASI build to produce
@@ -35,6 +36,15 @@ Everything else in `src/frontend.ts` is page chrome (the scene picker around a
 viewport-sized mount). A host page that adopts this pattern can render whatever
 surrounding chrome it likes — only the `.terminal-shell` element + the `data-*`
 hooks consumed by WebHost are load-bearing.
+
+## Scene relationship to SwiftUIExample
+
+`WebExample` and `SwiftUIExample` intentionally do not share the same `App`
+declaration today. `SwiftUIExample` embeds the full component gallery plus a
+small details scene to prove native `SwiftUIHost` integration. `WebExample`
+keeps the browser deployment narrow: it reuses gallery view modules where useful
+but ships a small Game of Life scene and details scene so the WASI build, static
+manifest, and page host stay easy to inspect.
 
 ## What to copy when adopting this pattern
 
@@ -111,7 +121,7 @@ WebExample/
 ├── TerminalApp/
 │   ├── Package.swift
 │   └── Sources/
-│       ├── WebExampleScenes/      ← reusable App declaration
+│       ├── WebExampleScenes/      ← reusable browser App declaration
 │       └── TerminalApp/main.swift ← thin WASI launcher
 └── src/
     ├── index.html                 ← minimal page shell

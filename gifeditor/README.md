@@ -5,18 +5,32 @@ animated GIFs, edit them frame-by-frame on a color canvas where one GIF pixel
 maps to one terminal half-cell, and use a small toolbox of pen / eraser / fill /
 gradient / marquee tools with keyboard or pointer input.
 
+This is an advanced application and regression sample, not starter tutorial
+code. Copy the target boundaries and host pattern selectively rather than the
+whole editor.
+
 This example is intentionally split across four targets so it can grow into a
 multi-platform app later without restructuring:
 
 | Target           | Role                                         | Depends on             |
 | ---------------- | -------------------------------------------- | ---------------------- |
-| `GIFEditorCore`  | Pure model + GIF encoder/decoder bridge      | `GIF`, Foundation |
+| `GIFEditorCore`  | Pure model + GIF encoder/decoder bridge      | `EditorGIF`, Foundation |
 | `GIFEditorUI`    | Terminal `View` tree + view model            | `SwiftTUI`, `GIFEditorCore` |
 | `GIFEditor`      | Composition root (entry point factory)       | `GIFEditorUI`, `SwiftTUI` |
-| `gifeditor`      | Executable that hosts the terminal app       | `GIFEditor`, `SwiftTUICLI` |
+| `gifeditor`      | Executable that hosts the terminal/WebHost app | `GIFEditor`, `SwiftTUIWebHostCLI` |
 
 A future SwiftUI / UIKit port would reuse `GIFEditorCore` verbatim and add a
 parallel `GIFEditorUI_SwiftUI` target alongside `GIFEditorUI`.
+
+## What to copy
+
+- For reusable app code, copy the split between pure model code
+  (`GIFEditorCore`) and SwiftTUI-specific view code (`GIFEditorUI`).
+- For a terminal app with optional localhost browser hosting, copy the thin
+  executable shape that depends on `SwiftTUIWebHostCLI`.
+- For testable canvas behavior, copy the value-type document model and focused
+  model/UI tests. The menu layout, keybindings, and editor-specific command set
+  are application code, not required SwiftTUI structure.
 
 ## Run
 
@@ -31,99 +45,10 @@ After making edits, press `Ctrl+S` to save (back to the source path or to
 
 ## Keybindings
 
-Focused editor commands use bare keys where they map to ordinary pixel-editor
-actions.
-
-The bindings avoid terminal-ambiguous chords such as `Ctrl+Shift+letter`,
-`Ctrl+digit`, `Ctrl+[` / `Ctrl+]`, and `Alt+[`, because the current terminal
-input path does not receive those as distinct key presses. Press `?` in the
-editor to open the same shortcut reference in-app.
-
-### Tools
-
-| Shortcut      | Tool                                    |
-| ------------- | --------------------------------------- |
-| `p`           | **P**en — paint the primary color      |
-| `e`           | **E**raser — clear to transparent       |
-| `b`           | **B**ucket fill (4-connected)           |
-| `g`           | **G**radient between primary/secondary |
-| `m`           | **M**arquee — rectangular selection    |
-| `i`           | Eyedropper — pick color from cursor    |
-| `x`           | Swap primary and secondary color       |
-| `Space`       | Apply the current tool at the cursor    |
-| `Enter`       | Confirm marquee (commit selection rect) |
-| `Escape`      | Clear selection                         |
-| `?`           | Open keyboard help                      |
-
-The canvas also supports direct pointer editing. Drag with **Pen** or
-**Eraser** to paint connected strokes, drag with **Marquee** to select a
-rectangle, drag with **Gradient** to apply a gradient between the drag endpoints,
-and click with **Fill** or **Eyedropper** to target a single pixel. Hosts that
-report terminal-pixel pointer locations can address the top and bottom half of a
-cell independently; cell-only hosts fall back to the top half of each terminal
-cell.
-
-### Cursor (within the canvas)
-
-| Shortcut          | Action                                    |
-| ----------------- | ----------------------------------------- |
-| `←/→/↑/↓`         | Move cursor by 1 pixel                   |
-| `Ctrl+←/→/↑/↓`    | Move cursor by 8 pixels                  |
-| `h/j/k/l`         | Vi-style 1-pixel movement                |
-
-### Frames / timeline
-
-| Shortcut          | Action                                    |
-| ----------------- | ----------------------------------------- |
-| `Alt+,`           | Previous frame                           |
-| `Alt+.`           | Next frame                               |
-| `Ctrl+N`          | New blank frame after current            |
-| `Ctrl+D`          | Duplicate current frame after current    |
-| `Alt+D`           | Delete current frame                     |
-| `Alt+-`           | Decrease current frame delay (10 cs)     |
-| `Alt+=`           | Increase current frame delay (10 cs)     |
-| `Alt+0`           | Reset all frame delays to current value  |
-
-### Layers
-
-| Shortcut          | Action                                    |
-| ----------------- | ----------------------------------------- |
-| `Alt+N`           | New empty layer above current            |
-| `Alt+J`           | Select layer below                       |
-| `Alt+K`           | Select layer above                       |
-| `Alt+H`           | Toggle current layer visibility          |
-| `Alt+X`           | Delete current layer                     |
-
-### Clipboard
-
-| Shortcut          | Action                                    |
-| ----------------- | ----------------------------------------- |
-| `Ctrl+C`          | Copy selection (or whole layer if none)  |
-| `Ctrl+V`          | Paste at cursor                          |
-
-### History
-
-| Shortcut          | Action                                    |
-| ----------------- | ----------------------------------------- |
-| `Ctrl+Z`          | Undo last document edit                   |
-| `Ctrl+Y`          | Redo last undone edit                     |
-
-### Palette / colors
-
-| Shortcut          | Action                                    |
-| ----------------- | ----------------------------------------- |
-| `1`..`9`          | Pick palette slot 1..9 as primary        |
-| `Alt+1`..`Alt+9`  | Pick palette slot 1..9 as secondary      |
-
-### File / app
-
-| Shortcut          | Action                                    |
-| ----------------- | ----------------------------------------- |
-| `Ctrl+S`          | Save                                     |
-| `Alt+S`           | Save As (writes `./untitled.gif`)        |
-| `Ctrl+R`          | Resize canvas (cycles 16/24/32/48/64)    |
-| `Ctrl+Q`          | Quit                                     |
-| `?`               | Open keyboard help                       |
+Press `?` in the editor for the in-app shortcut reference, or read
+[docs/KEYBINDINGS.md](docs/KEYBINDINGS.md). The README keeps the copyable
+architecture and target-boundary guidance up front; the full shortcut table is
+editor-specific reference material.
 
 ## Editing model
 

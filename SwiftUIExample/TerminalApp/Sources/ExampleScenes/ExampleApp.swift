@@ -1,4 +1,5 @@
 import GalleryDemoViews
+import SharedHostScenes
 import SwiftTUI
 
 public struct ExampleApp: App {
@@ -9,14 +10,11 @@ public struct ExampleApp: App {
       GalleryView()
     }
     WindowGroup("Details", id: WindowIdentifier("details")) {
-      GeometryReader { geometry in
-        VStack(alignment: .leading, spacing: 1) {
-          Text("Details")
-          Divider()
-          Text("Reported terminal size: \(geometry.size.width)x\(geometry.size.height)")
-        }
-        .padding(1)
-      }
+      HostDetailsView(
+        title: "Details",
+        lines: [],
+        showsTerminalSizeInBody: true
+      )
     }
   }
 }

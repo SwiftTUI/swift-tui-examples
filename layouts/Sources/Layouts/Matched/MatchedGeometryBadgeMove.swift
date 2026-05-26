@@ -41,6 +41,11 @@ public struct MatchedGeometryBadgeMove: View {
         }
       }
       .border(.separator)
+      Button("swap") {
+        withAnimation {
+          isLeft.toggle()
+        }
+      }
     }
     .padding(1)
   }

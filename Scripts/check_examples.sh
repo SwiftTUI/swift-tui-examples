@@ -183,6 +183,11 @@ run_step() {
   fi
 }
 
+print_section() {
+  echo ""
+  echo "### $1"
+}
+
 run_xcodebuild_swiftui_example() {
   set -- \
     xcodebuild \
@@ -217,6 +222,8 @@ run_linux_examples() {
       run_swift package clean
 
     for package_path in \
+      "minimal" \
+      "terminal-runner" \
       "argparse" \
       "file-previewer" \
       "gallery" \
@@ -235,7 +242,11 @@ run_linux_examples() {
     done
   fi
 
+  print_section "Linux build-only coverage"
+
   for package_path in \
+    "minimal" \
+    "terminal-runner" \
     "argparse" \
     "file-previewer" \
     "gifcat" \
@@ -302,6 +313,8 @@ run_linux_examples() {
     "$repo_root" \
     run_swift build --package-path WebHostExample
 
+  print_section "Linux focused smoke tests"
+
   run_step \
     "Test WebHostExample" \
     "$repo_root" \
@@ -319,12 +332,24 @@ run_macos_examples() {
       "Clean SwiftUIExample/TerminalApp" \
       "$repo_root" \
       run_swift package clean --package-path SwiftUIExample/TerminalApp
+
+    run_step \
+      "Clean LayoutsSwiftUI" \
+      "$repo_root" \
+      run_swift package clean --package-path LayoutsSwiftUI
   fi
+
+  print_section "macOS build-only coverage"
 
   run_step \
     "Build SwiftUIExample/TerminalApp" \
     "$repo_root" \
     run_swift build --package-path SwiftUIExample/TerminalApp
+
+  run_step \
+    "Build LayoutsSwiftUI" \
+    "$repo_root" \
+    run_swift build --package-path LayoutsSwiftUI
 
   run_step \
     "Build SwiftUIExample macOS app" \
@@ -333,6 +358,8 @@ run_macos_examples() {
 }
 
 run_web_examples() {
+  print_section "Web build-only coverage"
+
   if [ -f "$repo_root/package.json" ] && [ -f "$repo_root/bun.lock" ] && [ "$skip_bun_install" -eq 0 ]; then
     run_step \
       "Install Bun workspace dependencies" \

@@ -1,12 +1,9 @@
-// Bare-mode rendering reference. This example deliberately does NOT use the
-// scene runtime, App protocol, or SwiftTUIArguments. It exercises the lowest
-// level of the rendering API (DefaultRenderer + TerminalSurfaceRenderer) so
-// readers can see the layer that everything else is built on. See
-// gallery for the SwiftTUICommand easy-mode pattern with argument
-// parsing, or argparse for a focused arg-parsing demo.
+// One-shot rendering reference. This example deliberately does NOT use the
+// scene runtime, App protocol, TerminalRunner, or SwiftTUICommand. It uses the
+// public RenderOnce helper so readers can copy the canonical path for printing
+// one SwiftTUI view tree and exiting.
 
-import Foundation
-import SwiftTUI
+import SwiftTUICLI
 
 struct BuildSummary: View {
   var body: some View {
@@ -22,19 +19,6 @@ struct BuildSummary: View {
   }
 }
 
-let output = await MainActor.run {
-  let renderer = DefaultRenderer()
-  let frame = renderer.render(
-    BuildSummary(),
-    proposal: .init(width: 40, height: 8)
-  )
-
-  // let profile: TerminalCapabilityProfile = TerminalHost().capabilityProfile
-  // let profile: TerminalCapabilityProfile = .detect(environment: ProcessInfo.processInfo.environment, isTTY: true)
-  let profile: TerminalCapabilityProfile = .ansi256
-
-  return TerminalSurfaceRenderer(capabilityProfile: profile)
-    .render(frame.rasterSurface)
+await MainActor.run {
+  RenderOnce.print(BuildSummary(), width: 40)
 }
-
-print(output)

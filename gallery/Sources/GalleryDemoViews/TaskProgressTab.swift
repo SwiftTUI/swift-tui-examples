@@ -3,27 +3,27 @@ import SwiftTUIRuntime
 
 // MARK: - Public state model
 //
-// `ClaudeWorkingPanel` is pure render — given a `ClaudeWorkingState` it
+// `TaskProgressPanel` is pure render — given a `TaskProgressState` it
 // draws one frame.  The Tab below owns a scripted state machine that
 // mutates the model over time so the panel animates.  This split keeps
 // the panel itself deterministic and snapshot-testable.
 
 /// One subtask shown under the agent's current working header.
-public enum ClaudeWorkingItemState: Sendable, Hashable {
+public enum TaskProgressItemState: Sendable, Hashable {
   case pending
   case inProgress
   case completed
 }
 
-public struct ClaudeWorkingItem: Identifiable, Sendable, Hashable {
+public struct TaskProgressItem: Identifiable, Sendable, Hashable {
   public let id: UUID
   public var title: String
-  public var state: ClaudeWorkingItemState
+  public var state: TaskProgressItemState
 
   public init(
     id: UUID = UUID(),
     title: String,
-    state: ClaudeWorkingItemState
+    state: TaskProgressItemState
   ) {
     self.id = id
     self.title = title
@@ -32,28 +32,28 @@ public struct ClaudeWorkingItem: Identifiable, Sendable, Hashable {
 }
 
 /// Direction of token usage shown in the header metadata.
-public enum ClaudeTokenDirection: Sendable, Hashable {
+public enum TaskProgressTokenDirection: Sendable, Hashable {
   case up
   case down
 }
 
 /// Optional trailing phrase printed in yellow after the metadata
 /// (e.g. "almost done thinking…" or "thought for 2s").
-public enum ClaudeStatusTail: Sendable, Hashable {
+public enum TaskProgressStatusTail: Sendable, Hashable {
   case thinking(remaining: String)
   case thoughtFor(seconds: Int)
 }
 
-public struct ClaudeWorkingState: Sendable, Hashable {
+public struct TaskProgressState: Sendable, Hashable {
   public var title: String
   public var elapsedSeconds: Int
   /// Token count in thousands; `15.4` renders as `15.4k`.
   public var tokensThousands: Double
-  public var tokenDirection: ClaudeTokenDirection
-  public var statusTail: ClaudeStatusTail?
+  public var tokenDirection: TaskProgressTokenDirection
+  public var statusTail: TaskProgressStatusTail?
   /// Subtasks the agent has chosen to surface.  Order matches the
   /// rendered order; the first row gets the `└` tree connector.
-  public var items: [ClaudeWorkingItem]
+  public var items: [TaskProgressItem]
   /// Hidden-item counters used by the summary line.  When both are
   /// zero the summary line is omitted.
   public var hiddenPendingCount: Int
@@ -63,9 +63,9 @@ public struct ClaudeWorkingState: Sendable, Hashable {
     title: String,
     elapsedSeconds: Int,
     tokensThousands: Double,
-    tokenDirection: ClaudeTokenDirection,
-    statusTail: ClaudeStatusTail? = nil,
-    items: [ClaudeWorkingItem],
+    tokenDirection: TaskProgressTokenDirection,
+    statusTail: TaskProgressStatusTail? = nil,
+    items: [TaskProgressItem],
     hiddenPendingCount: Int = 0,
     hiddenCompletedCount: Int = 0
   ) {
@@ -82,11 +82,11 @@ public struct ClaudeWorkingState: Sendable, Hashable {
 
 // MARK: - Panel — reusable display
 
-/// A faithful TUI reproduction of Claude Code's "working" pane:
-/// rotating spinner glyph, shimmering header title, subtask list with
-/// per-state markers and strikethrough, and an `… +N` summary line.
+/// A reusable task-progress pane: rotating spinner glyph, shimmering header
+/// title, subtask list with per-state markers and strikethrough, and an `… +N`
+/// summary line.
 ///
-/// The panel takes a frozen `ClaudeWorkingState`.  The two animations —
+/// The panel takes a frozen `TaskProgressState`.  The two animations —
 /// the spinner glyph rotation and the title shimmer — are driven by
 /// platform primitives:
 ///
@@ -100,10 +100,10 @@ public struct ClaudeWorkingState: Sendable, Hashable {
 /// Color interpolation between the base coral, mid, and peak shine
 /// tones uses `Color.interpolated(to:progress:method:)` from
 /// `SwiftTUICore`.
-public struct ClaudeWorkingPanel: View {
-  public let state: ClaudeWorkingState
+public struct TaskProgressPanel: View {
+  public let state: TaskProgressState
 
-  public init(state: ClaudeWorkingState) {
+  public init(state: TaskProgressState) {
     self.state = state
   }
 
@@ -181,7 +181,7 @@ public struct ClaudeWorkingPanel: View {
     return Text(label).foregroundStyle(.muted)
   }
 
-  private func statusTailText(_ tail: ClaudeStatusTail) -> some View {
+  private func statusTailText(_ tail: TaskProgressStatusTail) -> some View {
     let phrase: String =
       switch tail {
       case .thinking(let remaining):
@@ -194,7 +194,7 @@ public struct ClaudeWorkingPanel: View {
 
   // MARK: - Items
 
-  private func itemRow(item: ClaudeWorkingItem, isFirst: Bool) -> some View {
+  private func itemRow(item: TaskProgressItem, isFirst: Bool) -> some View {
     HStack(spacing: 1) {
       // Two-space indent under the spinner.  The first row also
       // shows the `└` tree connector hooking the list under the
@@ -207,7 +207,7 @@ public struct ClaudeWorkingPanel: View {
     }
   }
 
-  private func itemMarker(for state: ClaudeWorkingItemState) -> some View {
+  private func itemMarker(for state: TaskProgressItemState) -> some View {
     switch state {
     case .pending:
       Text("□").foregroundStyle(.foreground)
@@ -219,7 +219,7 @@ public struct ClaudeWorkingPanel: View {
   }
 
   @ViewBuilder
-  private func itemTitle(_ item: ClaudeWorkingItem) -> some View {
+  private func itemTitle(_ item: TaskProgressItem) -> some View {
     switch item.state {
     case .pending:
       Text(item.title).foregroundStyle(.foreground)
@@ -350,7 +350,7 @@ public struct ClaudeWorkingPanel: View {
 
 // MARK: - Gallery tab — scripts the demo
 
-struct ClaudeWorkingTab: View {
+struct TaskProgressTab: View {
   // Scenario the tab is currently playing.  Each scenario carries a
   // baked sequence of states; on tick the tab advances to the next
   // frame.
@@ -363,10 +363,10 @@ struct ClaudeWorkingTab: View {
   // before the tab moves on to the next step.
   private struct Step: Sendable {
     let holdTicks: Int
-    let state: ClaudeWorkingState
+    let state: TaskProgressState
   }
 
-  private static let script: [Step] = ClaudeWorkingTab.makeScript()
+  private static let script: [Step] = TaskProgressTab.makeScript()
 
   var body: some View {
     let current = currentState
@@ -376,14 +376,14 @@ struct ClaudeWorkingTab: View {
       // panel does not draw its own header outside of the working
       // line, so this keeps the gallery context visible.
       HStack(spacing: 1) {
-        Text("Claude working pane")
+        Text("Task progress pane")
           .foregroundStyle(.muted)
         Spacer(minLength: 0)
         Text(restartHint).foregroundStyle(.separator)
       }
       .padding(.bottom, 1)
 
-      ClaudeWorkingPanel(state: current)
+      TaskProgressPanel(state: current)
 
       Spacer(minLength: 0)
     }
@@ -419,7 +419,7 @@ struct ClaudeWorkingTab: View {
   // (rather than `Bool`) makes the intent explicit.
   private struct TabTickKey: Hashable, Sendable {}
 
-  private var currentState: ClaudeWorkingState {
+  private var currentState: TaskProgressState {
     let bounded = min(stepIndex, Self.script.count - 1)
     var state = Self.script[bounded].state
     // Replace the script's nominal elapsed value with one that
@@ -459,14 +459,14 @@ struct ClaudeWorkingTab: View {
     func item(
       _ id: UUID,
       _ title: String,
-      _ state: ClaudeWorkingItemState
-    ) -> ClaudeWorkingItem {
-      ClaudeWorkingItem(id: id, title: title, state: state)
+      _ state: TaskProgressItemState
+    ) -> TaskProgressItem {
+      TaskProgressItem(id: id, title: title, state: state)
     }
 
     // Step 1: write design doc is the active subtask, three hidden
     // completed items behind it.  Mirrors frame_0014.
-    let step1 = ClaudeWorkingState(
+    let step1 = TaskProgressState(
       title: "Write design doc",
       elapsedSeconds: 225,  // 3m 45s
       tokensThousands: 15.4,
@@ -485,7 +485,7 @@ struct ClaudeWorkingTab: View {
 
     // Step 2: implementation chunk 1 has started.  Mirrors
     // frame_0148.
-    let step2 = ClaudeWorkingState(
+    let step2 = TaskProgressState(
       title: "Write design doc",
       elapsedSeconds: 228,
       tokensThousands: 15.5,
@@ -503,7 +503,7 @@ struct ClaudeWorkingTab: View {
     )
 
     // Step 3: chunk 2 enqueued.  Mirrors frame_0174.
-    let step3 = ClaudeWorkingState(
+    let step3 = TaskProgressState(
       title: "Write design doc",
       elapsedSeconds: 228,
       tokensThousands: 15.5,
@@ -521,7 +521,7 @@ struct ClaudeWorkingTab: View {
     )
 
     // Step 4: chunk 3 enqueued.  Mirrors frame_0229.
-    let step4 = ClaudeWorkingState(
+    let step4 = TaskProgressState(
       title: "Write design doc",
       elapsedSeconds: 230,
       tokensThousands: 15.6,

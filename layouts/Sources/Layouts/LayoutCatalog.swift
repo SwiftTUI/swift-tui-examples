@@ -9,11 +9,9 @@ import SwiftTUIRuntime
 public enum LayoutCatalog {
   /// All 56 layouts, in picker display order.
   ///
-  /// Entries are appended as their underlying layout file lands;
-  /// the list is deliberately sparse during the mid-implementation
-  /// phase of the plan. `LayoutCatalog` is complete once 56 entries
-  /// are listed and `CatalogIntegrityTests.entries_coverAllCategories`
-  /// passes.
+  /// Entries are grouped by category and kept in picker display order.
+  /// `CatalogIntegrityTests.entries_coverAllCategories` protects the
+  /// category-level coverage contract.
   public static let all: [LayoutEntry] = [
     // AnyView policy: `makeView` is the single documented AnyView seam
     // for the heterogeneous catalog. Every concrete layout below is a

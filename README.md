@@ -35,7 +35,8 @@ without sibling checkouts.
 
 | Example | Surface | What it proves | Run |
 | --- | --- | --- | --- |
-| [minimal](minimal) | Snapshot renderer | Lowest public render path: `DefaultRenderer` to `TerminalSurfaceRenderer`, with no app runtime or argument parser | `swiftly run swift run --package-path minimal minimal` |
+| [minimal](minimal) | One-shot renderer | Smallest `RenderOnce.print(...)` path for report-like CLI output, with no app runtime or argument parser | `swiftly run swift run --package-path minimal minimal` |
+| [terminal-runner](terminal-runner) | Terminal-only runner | Explicit `TerminalRunner` launch with custom preflight policy that rejects `--web` | `swiftly run swift run --package-path terminal-runner terminal-runner` |
 | [argparse](argparse) | Terminal app CLI | `SwiftTUICommand`, consumer flags, standard SwiftTUI flags, and completions in one app type | `swiftly run swift run --package-path argparse argparse-demo --help` |
 | [gallery](gallery) | Terminal app plus optional WebHost | Primary component workbench for the public view surface: tabs, controls, palette, text input, scroll commands, charts, images, animated GIFs, file drop, popovers, and physics | `swiftly run swift run --package-path gallery gallery-demo` |
 | [layouts](layouts) | Terminal app | SwiftTUI layout catalog with behavior tests for stacks, frames, geometry, scrolling, overlays, shapes, matched geometry, and custom layouts | `swiftly run swift run --package-path layouts layouts-demo` |
@@ -54,7 +55,8 @@ without sibling checkouts.
 | Product or package | Examples |
 | --- | --- |
 | `SwiftTUI` convenience surface | [argparse](argparse), [gallery](gallery), [layouts](layouts), [file-previewer](file-previewer), [terminal-workspace](terminal-workspace), [gifcat](gifcat), [gifeditor](gifeditor), [WebHostExample](WebHostExample) |
-| `SwiftTUIRuntime` / low-level rendering | [minimal](minimal), [gallery](gallery), [WebExample](WebExample) |
+| `SwiftTUIRuntime` / host-managed scenes | [gallery](gallery), [WebExample](WebExample) |
+| `SwiftTUICLI` / one-shot rendering and terminal launch | [minimal](minimal), [terminal-runner](terminal-runner), [gitviz](gitviz) |
 | `SwiftTUIArguments` / `SwiftTUICommand` | [argparse](argparse), [gallery](gallery), [gifeditor](gifeditor), [gitviz](gitviz) |
 | `SwiftTUICharts` | [gitviz](gitviz), [gallery](gallery), [layouts](layouts) |
 | `SwiftTUIAnimatedImage` | Included by `SwiftTUI`; used directly by [gifcat](gifcat), [gallery](gallery) |
@@ -64,10 +66,22 @@ without sibling checkouts.
 | `SwiftTUIWebHostCLI` | Included by `SwiftTUI`; used directly by [gallery](gallery), [gifeditor](gifeditor) |
 | `SwiftTUIWASI`, `@swifttui/web`, `@swifttui/build` | [WebExample](WebExample) |
 
+The detailed coverage matrix, category definitions, gate contract, and new
+example checklist live in [docs/EXAMPLE-COVERAGE.md](docs/EXAMPLE-COVERAGE.md).
+
 ## Focused Tests
+
+Run the full focused behavior-test lane with:
+
+```bash
+bun run check:focused
+```
+
+Or run individual focused test suites directly:
 
 ```bash
 swiftly run swift test --package-path file-previewer
+swiftly run swift test --package-path terminal-runner
 swiftly run swift test --package-path gallery
 swiftly run swift test --package-path gifcat
 swiftly run swift test --package-path gifeditor

@@ -16,6 +16,13 @@ swiftly run swift run layouts-demo
 The app launches directly into the picker. `↑↓` move, `⏎` opens a
 layout, `esc` pops back, `⌃C` quits.
 
+## Scope
+
+Keep this example focused on layout behavior: measuring, placement, proposal
+handling, geometry, overlays, scrolling, shapes, matched geometry, and custom
+layouts. Component and workflow demonstrations belong in the gallery so this
+catalog stays useful as a focused layout reference.
+
 ## Test
 
 ```bash

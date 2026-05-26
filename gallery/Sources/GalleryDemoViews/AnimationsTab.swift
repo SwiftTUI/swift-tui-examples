@@ -1,10 +1,9 @@
 import SwiftTUIRuntime
 
-/// Showcases the animation features that landed in the 2026-04-10
-/// gap-closure pass.  Each section exercises a distinct capability
-/// — spring/bezier curves, transitions with different edges, frame
-/// animation, and withAnimation completion callbacks — so the
-/// gallery doubles as a visual smoke test.
+/// Showcases the public animation surface. Each section exercises a distinct
+/// capability — spring/bezier curves, transitions with different edges, frame
+/// animation, and withAnimation completion callbacks — so the gallery doubles
+/// as a visual smoke test.
 ///
 /// All durations are long (1000–2000 ms) so the interpolation is
 /// unmistakable on a 30fps terminal.  Elements are intentionally

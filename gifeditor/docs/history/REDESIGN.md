@@ -1,5 +1,9 @@
 # gifeditor — Photoshop-Style Redesign Spec
 
+Historical implementation note. This is kept for design context, but it is not
+the current tutorial documentation for `gifeditor`; use `../../README.md` for the
+maintained example contract.
+
 ## Goals
 
 1. **Photoshop-flavored chrome.** Menu bar on top, contextual options bar

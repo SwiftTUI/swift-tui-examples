@@ -21,12 +21,14 @@ let package = Package(
   dependencies: [
     .package(name: "swift-tui", path: "../../../swift-tui"),
     .package(path: "../../gallery"),
+    .package(name: "shared-host-scenes", path: "../../SharedHostScenes"),
   ],
   targets: [
     .target(
       name: "WebExampleScenes",
       dependencies: [
         .product(name: "GalleryDemoViews", package: "gallery"),
+        .product(name: "SharedHostScenes", package: "shared-host-scenes"),
         .product(name: "SwiftTUIRuntime", package: "swift-tui"),
       ],
       path: "Sources/WebExampleScenes"

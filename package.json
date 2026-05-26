@@ -13,6 +13,7 @@
     "check:linux": "Scripts/check_examples_linux.sh --skip-clean",
     "check:macos": "Scripts/check_examples_macos.sh --skip-clean",
     "check:web": "Scripts/check_examples_web.sh --skip-clean",
+    "check:focused": "Scripts/check_examples_focused_tests.sh",
     "build:webexample": "bun run --cwd WebExample build"
   }
 }
