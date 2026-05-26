@@ -29,14 +29,7 @@ private struct TUILayoutComparisonRoot: View {
   let entry: LayoutEntry
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 0) {
-      entry.makeView()
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-      Divider()
-      Text("SwiftTUI / \(entry.category.rawValue) / \(entry.title)")
-        .foregroundStyle(.muted)
-        .padding(.horizontal, 1)
-    }
-    .panel(id: "layouts.embedded.\(entry.id)")
+    entry.makeView()
+//      .panel(id: "layouts.embedded.\(entry.id)")
   }
 }

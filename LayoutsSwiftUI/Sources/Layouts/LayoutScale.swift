@@ -12,3 +12,25 @@ func cell(_ units: Int) -> CGFloat {
 func cellCount(_ points: CGFloat) -> Int {
   Int((points / 10).rounded())
 }
+
+extension CGFloat {
+  var cellWidth: CGFloat {
+    self * 8
+  }
+}
+extension Int {
+  var cellWidth: Int {
+    self * 8
+  }
+}
+
+extension CGFloat {
+  var cellHeight: CGFloat {
+    self * 10
+  }
+}
+extension Int {
+  var cellHeight: Int {
+    self * 10
+  }
+}

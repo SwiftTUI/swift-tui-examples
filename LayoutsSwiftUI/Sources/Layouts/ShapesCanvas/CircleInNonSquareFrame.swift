@@ -29,7 +29,7 @@ public struct CircleInNonSquareFrame: View {
       Text("Circle in non square frame").foregroundStyle(.secondary)
       Circle()
         .fill(Color.red)
-        .frame(width: cell(12), height: cell(5))
+        .frame(width: cell(40), height: cell(5))
         .border(Color.gray)
     }
     .padding(cell(1))

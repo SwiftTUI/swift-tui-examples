@@ -19,7 +19,7 @@ struct LayoutsRoot: SwiftUI::View {
   @SwiftUI.FocusState private var receivesLayoutNavigation: Bool
 
   var body: some SwiftUI::View {
-    SwiftUI.HStack(spacing: 0) {
+    SwiftUI.HStack(alignment: .top, spacing: 0) {
       LayoutSidebar(selectedID: $selectedID)
         .frame(minWidth: 260, idealWidth: 320, maxWidth: 360)
 
@@ -198,17 +198,19 @@ private struct LayoutComparisonDetail: SwiftUI::View {
 
       SwiftUI.Divider()
 
-      SwiftUI.HStack(spacing: 0) {
-        LayoutComparisonPane(title: "SwiftUI") {
-          entry.makeView()
-            .frame(width: 500, height: 500, alignment: .topLeading)
+
+      SwiftUI.HStack(alignment: .top, spacing: 2) {
+        Rectangle().fill(.clear).overlay(alignment: .topLeading) {
+          LayoutComparisonPane(title: "SwiftUI") {
+            entry.makeView()
+              .border(.red, width: 4)
+          }
         }
-
-        SwiftUI.Divider()
-
-        LayoutComparisonPane(title: "SwiftTUI") {
-          EmbeddedTUILayoutSurface(entryID: entry.id)
-            .frame(width: 500, height: 500)
+        Rectangle().fill(.clear).overlay(alignment: .topLeading) {
+          LayoutComparisonPane(title: "SwiftTUI") {
+            EmbeddedTUILayoutSurface(entryID: entry.id)
+              .border(.red, width: 4)
+          }
         }
       }
     }
@@ -230,13 +232,8 @@ private struct LayoutComparisonPane<Content: SwiftUI::View>: SwiftUI::View {
 
       SwiftUI.Divider()
 
-      SwiftUI.ScrollView([.horizontal, .vertical]) {
-        content()
-          .padding(16)
-      }
-      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+      content()
     }
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   }
 }
 
