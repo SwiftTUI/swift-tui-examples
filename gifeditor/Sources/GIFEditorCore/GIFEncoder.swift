@@ -1,4 +1,4 @@
-import GIF
+import EditorGIF
 
 /// Errors thrown while encoding a `GIFDocument` into GIF89a bytes.
 public typealias GIFEncoderError = GIF.EncodingError

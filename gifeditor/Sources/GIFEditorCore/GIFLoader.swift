@@ -1,5 +1,5 @@
 import Foundation
-import GIF
+import EditorGIF
 
 public enum GIFLoaderError: Error, Equatable {
   case unreadable(URL)

@@ -39,13 +39,28 @@ let package = Package(
   ],
   dependencies: [
     .package(name: "swift-tui", path: "../../swift-tui"),
-    .package(path: "../../swift-tui/Vendor/swift-gif"),
   ],
   targets: [
+    // Absorbed local copy of swift-gif. Wholesale-duplicated from swift-tui's
+    // Vendor/swift-gif at the absorption point so gifeditor stops reaching
+    // across the org root into swift-tui's internals. Renamed from `GIF` to
+    // `EditorGIF` because swift-tui's vendor-absorption commit promoted its
+    // own `GIF` into a first-class target inside swift-tui — SwiftPM requires
+    // target names to be unique across the package graph, so both can't be
+    // called `GIF`.
+    .target(
+      name: "EditorGIF",
+      path: "Vendor/swift-gif/Sources/GIF"
+    ),
+    .testTarget(
+      name: "EditorGIFTests",
+      dependencies: ["EditorGIF"],
+      path: "Vendor/swift-gif/Sources/GIFTests"
+    ),
     .target(
       name: "GIFEditorCore",
       dependencies: [
-        .product(name: "GIF", package: "swift-gif")
+        "EditorGIF"
       ]
     ),
     .target(
@@ -75,7 +90,7 @@ let package = Package(
       name: "GIFEditorCoreTests",
       dependencies: [
         "GIFEditorCore",
-        .product(name: "GIF", package: "swift-gif"),
+        "EditorGIF",
       ]
     ),
     .testTarget(
