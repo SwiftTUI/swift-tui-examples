@@ -22,22 +22,26 @@
 :root {
   color-scheme: dark;
 
-  /* Nothing palette (mirrored from the Website for visual continuity). */
-  --black: #000000;
+  /* Marketing palette — warm near-black surface, zinc text ramp, emerald accent.
+   * Matches Website/src/styles/site.css so the standalone URL and the marketing
+   * iframe embed are visually identical. */
+  --bg: #0a0a0a;
   --surface: #0a0a0a;
   --surface-raised: #141414;
   --border: #1c1c1c;
   --border-visible: #2e2e2e;
   --text-disabled: #555555;
-  --text-secondary: #8a8a8a;
-  --text-primary: #e8e8e8;
+  --text-secondary: #b8b8b8;
+  --text-primary: #ededed;
   --text-display: #ffffff;
-  --accent: #d71921;
-  --accent-subtle: rgba(215, 25, 33, 0.18);
+  --accent: #34d399;
+  --accent-subtle: rgba(52, 211, 153, 0.18);
+  --panel: rgba(255,255,255,0.02);
+  --line: rgba(255,255,255,0.06);
 
-  --font-display: "Doto", "Space Mono", "JetBrains Mono", monospace;
-  --font-body: "Space Grotesk", "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "Space Mono", "JetBrains Mono", "SF Mono", "IBM Plex Mono", monospace;
+  --font-display: "Geist Mono", "Doto", "Space Mono", "JetBrains Mono", monospace;
+  --font-body: "Geist Mono", "Space Grotesk", "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono", "Space Mono", "JetBrains Mono", "SF Mono", "IBM Plex Mono", monospace;
 
   --space-xs: 4px;
   --space-sm: 8px;
@@ -64,7 +68,7 @@ body {
 
 body {
   margin: 0;
-  background: var(--black);
+  background: var(--bg);
   color: var(--text-primary);
   font-family: var(--font-body);
   font-size: 16px;
@@ -361,7 +365,7 @@ button:focus-visible {
   overflow: hidden;
   box-sizing: border-box;
   border: 0;
-  background: var(--black);
+  background: var(--bg);
 }
 
 /* ---- WebHost scene mount ---- */
