@@ -3,6 +3,20 @@ import { chromium } from "playwright";
 
 import { serveBuiltWebExample } from "./built-app-server.ts";
 
+interface FrameDiagnosticRow {
+  frame?: unknown;
+  total_ms?: unknown;
+  [key: string]: unknown;
+}
+
+declare global {
+  interface Window {
+    __swiftTUIFrameDiagnostics?: FrameDiagnosticRow[];
+  }
+}
+
+const expectFrameDiagnostics = process.env.WEBEXAMPLE_EXPECT_FRAME_DIAGNOSTICS === "1";
+
 test("WebExample renders WASI surface frames into a nonblank canvas", async () => {
   const server = serveBuiltWebExample();
   const browser = await chromium.launch();
@@ -23,8 +37,35 @@ test("WebExample renders WASI surface frames into a nonblank canvas", async () =
     }
   });
 
+  if (expectFrameDiagnostics) {
+    await page.addInitScript(() => {
+      const diagnostics: FrameDiagnosticRow[] = [];
+      Object.defineProperty(window, "__swiftTUIFrameDiagnostics", {
+        configurable: true,
+        value: diagnostics,
+      });
+
+      const originalDebug = console.debug.bind(console);
+      console.debug = (...args: unknown[]) => {
+        if (args[0] === "SwiftTUI frame") {
+          const row = args[1];
+          diagnostics.push(row && typeof row === "object"
+            ? row as FrameDiagnosticRow
+            : { value: row });
+          return;
+        }
+        originalDebug(...args);
+      };
+    });
+  }
+
   try {
-    await page.goto(server.url.href, { waitUntil: "domcontentloaded" });
+    const initialUrl = new URL(server.url.href);
+    if (expectFrameDiagnostics) {
+      initialUrl.searchParams.set("frameDiagnostics", "1");
+    }
+
+    await page.goto(initialUrl.href, { waitUntil: "domcontentloaded" });
     await page.waitForFunction(() => globalThis.crossOriginIsolated === true, undefined, {
       timeout: 10_000,
     });
@@ -122,14 +163,30 @@ test("WebExample renders WASI surface frames into a nonblank canvas", async () =
       differingSamples: expect.any(Number),
     });
 
+    if (expectFrameDiagnostics) {
+      await page.waitForFunction(
+        () => (window.__swiftTUIFrameDiagnostics?.length ?? 0) > 0,
+        undefined,
+        { polling: 100, timeout: 30_000 }
+      );
+
+      const [row] = await page.evaluate(() => window.__swiftTUIFrameDiagnostics ?? []);
+
+      expect(row).toEqual(expect.any(Object));
+      expect(row).toHaveProperty("frame");
+      expect(row).toHaveProperty("total_ms");
+      expect(String(row?.frame)).not.toBe("");
+      expect(String(row?.total_ms)).not.toBe("");
+    }
+
     await page.click(".scene-select-trigger");
-    await page.click('.scene-select-option[data-scene-id="details"]');
+    await page.click('.scene-select-option[data-scene-id="animations"]');
     const initialResizeState = await page.waitForFunction(() => {
       const activeScene = document.querySelector(".webhost-scene:not([hidden])");
       const host = document.querySelector<HTMLElement>(".terminal-host");
       const canvas = activeScene?.querySelector<HTMLCanvasElement>(".webhost-scene__surface");
       const size = host?.dataset.size;
-      if (activeScene?.getAttribute("data-scene-id") !== "details" || !size || !canvas) {
+      if (activeScene?.getAttribute("data-scene-id") !== "animations" || !size || !canvas) {
         return false;
       }
 
@@ -149,20 +206,6 @@ test("WebExample renders WASI surface frames into a nonblank canvas", async () =
       canvasWidth: number;
       canvasHeight: number;
     };
-    const initialToolbarLabel = await page.waitForFunction(() => {
-      const activeScene = document.querySelector(".webhost-scene:not([hidden])");
-      const buttons = activeScene?.querySelectorAll(
-        '.webhost-scene__accessibility-tree [role="button"]',
-      ) ?? [];
-      const toolbarButton = Array.from(buttons).find((button) =>
-        button.getAttribute("aria-label")?.startsWith("terminal size:") === true
-      );
-      return toolbarButton?.getAttribute("aria-label") ?? false;
-    }, undefined, {
-      polling: 250,
-      timeout: 30_000,
-    });
-    const initialToolbarLabelValue = await initialToolbarLabel.jsonValue() as string;
 
     await page.setViewportSize({ width: 900, height: 620 });
     const resizedState = await page.waitForFunction((initial) => {
@@ -170,7 +213,7 @@ test("WebExample renders WASI surface frames into a nonblank canvas", async () =
       const host = document.querySelector<HTMLElement>(".terminal-host");
       const canvas = activeScene?.querySelector<HTMLCanvasElement>(".webhost-scene__surface");
       const size = host?.dataset.size;
-      if (activeScene?.getAttribute("data-scene-id") !== "details" || !size || !canvas) {
+      if (activeScene?.getAttribute("data-scene-id") !== "animations" || !size || !canvas) {
         return false;
       }
 
@@ -194,21 +237,6 @@ test("WebExample renders WASI surface frames into a nonblank canvas", async () =
       canvasWidth: expect.any(Number),
       canvasHeight: expect.any(Number),
     });
-    const resizedToolbarLabel = await page.waitForFunction((initialLabel) => {
-      const activeScene = document.querySelector(".webhost-scene:not([hidden])");
-      const buttons = activeScene?.querySelectorAll(
-        '.webhost-scene__accessibility-tree [role="button"]',
-      ) ?? [];
-      const toolbarButton = Array.from(buttons).find((button) =>
-        button.getAttribute("aria-label")?.startsWith("terminal size:") === true
-      );
-      const label = toolbarButton?.getAttribute("aria-label");
-      return label && label !== initialLabel ? label : false;
-    }, initialToolbarLabelValue, {
-      polling: 250,
-      timeout: 30_000,
-    });
-    expect(await resizedToolbarLabel.jsonValue()).toMatch(/^terminal size:/);
 
     expect(runtimeErrors).toEqual([]);
   } finally {

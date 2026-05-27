@@ -40,6 +40,16 @@ const isPassiveMarketingEmbed = new URLSearchParams(window.location.search).get(
   === "marketing";
 const activeStyle = isPassiveMarketingEmbed ? marketingStyle : defaultStyle;
 
+interface WebHostFrameDiagnosticRecord {
+  format: "swift-tui-frame-diagnostics-v1";
+  header: string[];
+  fields: string[];
+}
+
+type WebExampleSceneRuntimeOptions = WebHostSceneRuntimeOptions & {
+  onFrameDiagnostic?: (diagnostic: WebHostFrameDiagnosticRecord) => void;
+};
+
 try {
   await bootstrap();
 } catch (error: unknown) {
@@ -226,8 +236,9 @@ async function createController(
       initialSceneId: "main",
       environment: {
         TUIGUI_APP_NAME: "WebExample",
+        ...(frameDiagnosticsEnabled() ? { TUIGUI_FRAME_DIAGNOSTICS: "1" } : {}),
       },
-      sceneRuntimeFactory: (options) => wasmRuntimeFactory(passiveEmbedOptions(options)),
+      sceneRuntimeFactory: (options) => wasmRuntimeFactory(webExampleRuntimeOptions(options)),
     });
   } catch (error) {
     // eslint-disable-next-line no-console
@@ -237,9 +248,35 @@ async function createController(
       manifest: fallbackManifest,
       style: activeStyle,
       initialSceneId: fallbackManifest.defaultSceneId,
-      sceneRuntimeFactory: (options) => new WebHostSceneRuntime(passiveEmbedOptions(options)),
+      sceneRuntimeFactory: (options) => new WebHostSceneRuntime(webExampleRuntimeOptions(options)),
     });
   }
+}
+
+function frameDiagnosticsEnabled(): boolean {
+  const searchParams = new URLSearchParams(window.location.search);
+  if (
+    searchParams.get("frameDiagnostics") === "1" ||
+    searchParams.get("diagnostics") === "1"
+  ) {
+    return true;
+  }
+
+  try {
+    return localStorage.swiftTUIFrameDiagnostics === "1";
+  } catch {
+    return false;
+  }
+}
+
+function webExampleRuntimeOptions(
+  options: WebHostSceneRuntimeOptions
+): WebHostSceneRuntimeOptions {
+  const runtimeOptions: WebExampleSceneRuntimeOptions = {
+    ...passiveEmbedOptions(options),
+    onFrameDiagnostic: collectFrameDiagnostic,
+  };
+  return runtimeOptions;
 }
 
 function passiveEmbedOptions(
@@ -254,6 +291,14 @@ function passiveEmbedOptions(
     synchronizeAccessibilityFocus: false,
     captureWheelInput: false,
   };
+}
+
+function collectFrameDiagnostic(diagnostic: WebHostFrameDiagnosticRecord): void {
+  const row = Object.fromEntries(
+    diagnostic.header.map((key, index) => [key, diagnostic.fields[index] ?? ""]),
+  );
+  // eslint-disable-next-line no-console
+  console.debug("SwiftTUI frame", row);
 }
 
 function installShiftTabPassthrough(

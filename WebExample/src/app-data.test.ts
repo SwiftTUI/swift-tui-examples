@@ -2,6 +2,19 @@ import { expect, test } from "bun:test";
 
 import { defaultStyle, fallbackManifest, marketingStyle } from "./app-data.ts";
 
+test("frontend wires opt-in frame diagnostics without importing unreleased web types", async () => {
+  const source = await Bun.file(new URL("./frontend.ts", import.meta.url)).text();
+
+  expect(source).toContain("function frameDiagnosticsEnabled(");
+  expect(source).toContain('searchParams.get("frameDiagnostics") === "1"');
+  expect(source).toContain('searchParams.get("diagnostics") === "1"');
+  expect(source).toContain('localStorage.swiftTUIFrameDiagnostics === "1"');
+  expect(source).toContain('TUIGUI_FRAME_DIAGNOSTICS: "1"');
+  expect(source).toContain("onFrameDiagnostic");
+  expect(source).toContain('console.debug("SwiftTUI frame", row)');
+  expect(source).not.toContain("type WebHostFrameDiagnostic");
+});
+
 test("fallback manifest provides a default scene", () => {
   expect(fallbackManifest.defaultSceneId).toBe("main");
   expect(fallbackManifest.scenes).toHaveLength(2);
