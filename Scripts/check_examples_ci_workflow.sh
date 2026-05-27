@@ -24,6 +24,14 @@ require_text() {
   fi
 }
 
+forbid_text() {
+  needle=$1
+  path=$2
+  if grep -Fq -- "$needle" "$path"; then
+    fail "forbidden stale text in ${path#$repo_root/}: $needle"
+  fi
+}
+
 require_file "$workflow"
 require_text "Linux examples" "$workflow"
 require_text "runs-on: ubuntu-24.04" "$workflow"
@@ -33,11 +41,11 @@ require_text "runs-on: macos-26" "$workflow"
 require_text "Scripts/check_examples_macos.sh --skip-clean" "$workflow"
 require_text "Web examples" "$workflow"
 require_text "Scripts/check_examples_web.sh --skip-clean" "$workflow"
-require_text "repository: SwiftTUI/swift-tui" "$workflow"
-require_text "repository: SwiftTUI/swift-tui-web" "$workflow"
-require_text 'secrets.SWIFTTUI_CI_TOKEN || github.token' "$workflow"
+forbid_text "repository: SwiftTUI/swift-tui" "$workflow"
+forbid_text "repository: SwiftTUI/swift-tui-web" "$workflow"
+forbid_text 'secrets.SWIFTTUI_CI_TOKEN || github.token' "$workflow"
 require_text "actions/cache@v5" "$workflow"
-require_text "Scripts/install_swift_toolchain_ci.sh swift-tui/.swift-version" "$workflow"
+require_text "Scripts/install_swift_toolchain_ci.sh swift-tui-examples/.swift-version" "$workflow"
 require_text "SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH" "$workflow"
 require_text "SWIFTTUI_EXAMPLES_XCODE_DERIVED_DATA" "$workflow"
 require_text "swift sdk install" "$workflow"

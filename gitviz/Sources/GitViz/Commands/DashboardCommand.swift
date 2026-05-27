@@ -31,7 +31,7 @@ struct DashboardCommand: AsyncParsableCommand {
   private func runChild<C: AsyncParsableCommand>(
     _ mutate: (inout C) -> Void
   ) async throws {
-    guard var child = try C.parseAsRoot([]) as? C else { return }
+    guard var child = try await C.parseAsRoot([]) as? C else { return }
     mutate(&child)
     try await child.run()
   }

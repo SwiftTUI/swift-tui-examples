@@ -1,5 +1,5 @@
 {
-  "originHash" : "cdfaa577bb36d973fcdc31e7c011f9d533adad9622b359651830e11794c425e2",
+  "originHash" : "bc17c1b4ceb11315534f2bb8f164a28420b4eb7767b8b288ffd527ebf1120e3c",
   "pins" : [
     {
       "identity" : "flyingfox",
@@ -15,8 +15,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-argument-parser.git",
       "state" : {
-        "revision" : "626b5b7b2f45e1b0b1c6f4a309296d1d21d7311b",
-        "version" : "1.7.1"
+        "revision" : "5e0406d68a4937f21ae5f670b8f89dad1d156a1c",
+        "version" : "1.8.0"
       }
     },
     {
@@ -35,6 +35,15 @@
       "state" : {
         "revision" : "fea17c02d767f46b23070fdfdacc28a03a39232a",
         "version" : "1.5.1"
+      }
+    },
+    {
+      "identity" : "swift-tui",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/SwiftTUI/swift-tui.git",
+      "state" : {
+        "revision" : "f170f1ebac28ac2749d7e8ffcab1442632d6dba9",
+        "version" : "0.0.1"
       }
     },
     {

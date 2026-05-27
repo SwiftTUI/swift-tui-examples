@@ -3,8 +3,8 @@
 set -eu
 
 repo_root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
-framework_root=${SWIFTTUI_CHECKOUT:-"$repo_root/../swift-tui"}
-web_root=${SWIFTTUI_WEB_CHECKOUT:-"$repo_root/../swift-tui-web"}
+framework_root=${SWIFTTUI_CHECKOUT:-}
+web_root=${SWIFTTUI_WEB_CHECKOUT:-}
 swiftpm_scratch=${SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH:-}
 xcode_derived_data=${SWIFTTUI_EXAMPLES_XCODE_DERIVED_DATA:-}
 
@@ -17,12 +17,12 @@ usage() {
   cat <<'EOF'
 Usage: Scripts/check_examples.sh [--linux-only|--macos-only|--web-only] [--skip-clean] [--skip-bun-install]
 
-Builds and tests the SwiftTUI example packages from a sibling checkout layout:
-  - swift-tui-examples: this repository
-  - swift-tui: framework checkout, default ../swift-tui
-  - swift-tui-web: browser package checkout, default ../swift-tui-web
+Builds and tests the SwiftTUI example packages from this repository. By default
+the examples resolve public SwiftTUI release tags and web package release
+tarballs; no sibling checkouts are required.
 
-Set SWIFTTUI_CHECKOUT or SWIFTTUI_WEB_CHECKOUT to override the sibling paths.
+Set SWIFTTUI_CHECKOUT or SWIFTTUI_WEB_CHECKOUT only when deliberately testing
+against local sibling checkouts. The default public gate does not use them.
 Set SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH to reuse one sequential SwiftPM scratch
 directory across the example package builds. Do not share that directory across
 parallel check runs.
@@ -110,8 +110,10 @@ fi
 if run_macos_suite; then
   require_command xcodebuild
 fi
-require_checkout "$framework_root" "swift-tui"
-if run_web_suite; then
+if [ -n "$framework_root" ]; then
+  require_checkout "$framework_root" "swift-tui"
+fi
+if run_web_suite && [ -n "$web_root" ]; then
   require_checkout "$web_root" "swift-tui-web"
 fi
 
@@ -216,10 +218,12 @@ run_xcodebuild_swiftui_example() {
 
 run_linux_examples() {
   if [ "$skip_clean" -eq 0 ]; then
-    run_step \
-      "Clean SwiftTUI framework package" \
-      "$framework_root" \
-      run_swift package clean
+    if [ -n "$framework_root" ]; then
+      run_step \
+        "Clean SwiftTUI framework package" \
+        "$framework_root" \
+        run_swift package clean
+    fi
 
     for package_path in \
       "minimal" \
@@ -323,10 +327,12 @@ run_linux_examples() {
 
 run_macos_examples() {
   if [ "$skip_clean" -eq 0 ]; then
-    run_step \
-      "Clean SwiftTUI framework package" \
-      "$framework_root" \
-      run_swift package clean
+    if [ -n "$framework_root" ]; then
+      run_step \
+        "Clean SwiftTUI framework package" \
+        "$framework_root" \
+        run_swift package clean
+    fi
 
     run_step \
       "Clean SwiftUIExample/TerminalApp" \
@@ -372,10 +378,12 @@ run_web_examples() {
     "$repo_root/WebExample" \
     bun run build
 
-  run_step \
-    "Build swift-tui-web host with WebExampleApp" \
-    "$web_root/packages/web" \
-    bun run build -- --package-path "$repo_root/WebExample/TerminalApp" --app WebExampleApp
+  if [ -n "$web_root" ]; then
+    run_step \
+      "Build local swift-tui-web host with WebExampleApp" \
+      "$web_root/packages/web" \
+      bun run build -- --package-path "$repo_root/WebExample/TerminalApp" --app WebExampleApp
+  fi
 }
 
 run_step \

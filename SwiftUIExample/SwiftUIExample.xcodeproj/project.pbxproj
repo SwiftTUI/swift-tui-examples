@@ -104,7 +104,7 @@
 			mainGroup = F7FC7A712F7B19A400737CB1;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				F7FC7A882F7B19DE00737CB1 /* XCLocalSwiftPackageReference "../../swift-tui" */,
+				F7FC7A882F7B19DE00737CB1 /* XCRemoteSwiftPackageReference "swift-tui" */,
 				F79998F12F7D41B30067E544 /* XCLocalSwiftPackageReference "TerminalApp" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -374,11 +374,18 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = TerminalApp;
 		};
-		F7FC7A882F7B19DE00737CB1 /* XCLocalSwiftPackageReference "../../swift-tui" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = ../../swift-tui;
-		};
 /* End XCLocalSwiftPackageReference section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		F7FC7A882F7B19DE00737CB1 /* XCRemoteSwiftPackageReference "swift-tui" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/SwiftTUI/swift-tui.git";
+			requirement = {
+				kind = exactVersion;
+				version = 0.0.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
 		F79998F22F7D41B30067E544 /* ExampleScenes */ = {
@@ -387,6 +394,7 @@
 		};
 		F7FC7A892F7B19DE00737CB1 /* SwiftUIHost */ = {
 			isa = XCSwiftPackageProductDependency;
+			package = F7FC7A882F7B19DE00737CB1 /* XCRemoteSwiftPackageReference "swift-tui" */;
 			productName = SwiftUIHost;
 		};
 /* End XCSwiftPackageProductDependency section */

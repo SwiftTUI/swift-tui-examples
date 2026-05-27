@@ -12,10 +12,10 @@ directory + README per example). Examples exercise the public products
 `SwiftTUIWASI`, …). Use the README roster table for the exact run/test command
 per example.
 
-This repo is still pre-public. Until tag-aligned releases and web packages are
-published, source-checkout dependencies are expected. Do not add
-coordination-only pin files; the public cutover should use tagged HTTPS
-dependencies and released package artifacts.
+This repo is public pre-release. Default manifests must use tagged HTTPS
+SwiftPM dependencies and released package artifacts, not sibling source
+checkouts. Do not add coordination-only pin files; pre-tag integration belongs
+in `swift-tui-org`.
 
 ## Toolchains
 

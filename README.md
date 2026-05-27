@@ -25,11 +25,10 @@ bun install
 bun --cwd WebExample run build
 ```
 
-Pre-public status: these examples still use source-checkout dependencies for
-active development. The public release cutover will switch the default manifests
-to tagged `https://github.com/SwiftTUI/swift-tui.git` SwiftPM dependencies and
-published `@swifttui/web` / `@swifttui/build` packages so a fresh clone builds
-without sibling checkouts.
+The `0.0.1` public pre-release builds from a fresh clone: Swift packages resolve
+`https://github.com/SwiftTUI/swift-tui.git` at tag `0.0.1`, and WebExample uses
+the `swift-tui-web` `0.0.1` GitHub release tarballs for `@swifttui/web` and
+`@swifttui/build`.
 
 ## Roster
 
@@ -102,4 +101,6 @@ all lanes from one local macOS checkout.
 SwiftPM scratch directory. This is useful for maintainers running the full
 matrix repeatedly; do not share the same scratch directory across parallel
 checks. `SWIFTTUI_EXAMPLES_XCODE_DERIVED_DATA` can point the macOS lane at a
-reusable DerivedData directory for the Xcode app build.
+reusable DerivedData directory for the Xcode app build. Set `SWIFTTUI_CHECKOUT`
+or `SWIFTTUI_WEB_CHECKOUT` only when deliberately testing local unpublished
+checkouts; the public default does not require sibling repos.

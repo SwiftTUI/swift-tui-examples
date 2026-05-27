@@ -85,9 +85,9 @@ for the canonical environment story.
 bun install
 ```
 
-Pre-public status: this example currently uses source-workspace dependencies
-for `@swifttui/web` and `@swifttui/build`. After those packages are published,
-this package should install them from npm or public release tarballs.
+The `0.0.1` pre-release installs `@swifttui/web` and `@swifttui/build` from the
+`swift-tui-web` GitHub release tarballs. When npm publication is enabled, those
+dependencies can move to package versions without changing the host code.
 
 ## Development
 

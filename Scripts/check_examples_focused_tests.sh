@@ -3,7 +3,6 @@
 set -eu
 
 repo_root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
-framework_root=${SWIFTTUI_CHECKOUT:-"$repo_root/../swift-tui"}
 swiftpm_scratch=${SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH:-}
 skip_bun_install=0
 failures=""
@@ -58,18 +57,8 @@ require_command() {
   fi
 }
 
-require_checkout() {
-  path=$1
-  label=$2
-  if [ ! -d "$path" ]; then
-    >&2 echo "Missing $label checkout: $path"
-    exit 1
-  fi
-}
-
 require_command swiftly
 require_command bun
-require_checkout "$framework_root" "swift-tui"
 
 run_swift() {
   if [ -n "$swiftpm_scratch" ]; then

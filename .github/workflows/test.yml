@@ -28,12 +28,6 @@ jobs:
         uses: actions/checkout@v6
         with:
           path: swift-tui-examples
-      - name: Checkout swift-tui
-        uses: actions/checkout@v6
-        with:
-          repository: SwiftTUI/swift-tui
-          token: ${{ secrets.SWIFTTUI_CI_TOKEN || github.token }}
-          path: swift-tui
       - name: Install Linux example dependencies
         shell: bash
         run: |
@@ -52,12 +46,12 @@ jobs:
           path: |
             ~/.local/share/swiftly
             ~/.local/bin/swiftly
-          key: ${{ runner.os }}-swiftly-${{ env.SWIFTLY_VERSION }}-${{ hashFiles('swift-tui/.swift-version') }}
+          key: ${{ runner.os }}-swiftly-${{ env.SWIFTLY_VERSION }}-${{ hashFiles('swift-tui-examples/.swift-version') }}
           restore-keys: |
             ${{ runner.os }}-swiftly-${{ env.SWIFTLY_VERSION }}-
       - name: Install swiftly and Swift toolchain
         shell: bash
-        run: swift-tui-examples/Scripts/install_swift_toolchain_ci.sh swift-tui/.swift-version
+        run: swift-tui-examples/Scripts/install_swift_toolchain_ci.sh swift-tui-examples/.swift-version
       - name: Cache SwiftPM
         uses: actions/cache@v5
         with:
@@ -65,7 +59,7 @@ jobs:
             swift-tui-examples/.build/shared-swiftpm-linux
             ~/.cache/org.swift.swiftpm
             ~/.swiftpm
-          key: ${{ runner.os }}-examples-linux-swiftpm-${{ hashFiles('swift-tui/Package.resolved', 'swift-tui-examples/**/Package.swift', 'swift-tui-examples/**/Package.resolved') }}
+          key: ${{ runner.os }}-examples-linux-swiftpm-${{ hashFiles('swift-tui-examples/**/Package.swift', 'swift-tui-examples/**/Package.resolved') }}
           restore-keys: |
             ${{ runner.os }}-examples-linux-swiftpm-
             ${{ runner.os }}-swiftpm-
@@ -83,28 +77,16 @@ jobs:
         uses: actions/checkout@v6
         with:
           path: swift-tui-examples
-      - name: Checkout swift-tui
-        uses: actions/checkout@v6
-        with:
-          repository: SwiftTUI/swift-tui
-          token: ${{ secrets.SWIFTTUI_CI_TOKEN || github.token }}
-          path: swift-tui
-      - name: Checkout swift-tui-web
-        uses: actions/checkout@v6
-        with:
-          repository: SwiftTUI/swift-tui-web
-          token: ${{ secrets.SWIFTTUI_CI_TOKEN || github.token }}
-          path: swift-tui-web
       - name: Cache Swiftly toolchain
         uses: actions/cache@v5
         with:
           path: ~/.swiftly
-          key: ${{ runner.os }}-swiftly-${{ env.SWIFTLY_VERSION }}-${{ hashFiles('swift-tui/.swift-version') }}
+          key: ${{ runner.os }}-swiftly-${{ env.SWIFTLY_VERSION }}-${{ hashFiles('swift-tui-examples/.swift-version') }}
           restore-keys: |
             ${{ runner.os }}-swiftly-${{ env.SWIFTLY_VERSION }}-
       - name: Install swiftly and Swift toolchain
         shell: bash
-        run: swift-tui-examples/Scripts/install_swift_toolchain_ci.sh swift-tui/.swift-version
+        run: swift-tui-examples/Scripts/install_swift_toolchain_ci.sh swift-tui-examples/.swift-version
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
@@ -118,7 +100,7 @@ jobs:
             swift-tui-examples/WebExample/TerminalApp/.build
             ~/.swiftpm
             ~/Library/Caches/org.swift.swiftpm
-          key: ${{ runner.os }}-examples-web-swiftpm-${{ hashFiles('swift-tui/Package.resolved', 'swift-tui-examples/WebExample/TerminalApp/Package.swift', 'swift-tui-examples/WebExample/TerminalApp/Package.resolved') }}
+          key: ${{ runner.os }}-examples-web-swiftpm-${{ hashFiles('swift-tui-examples/WebExample/TerminalApp/Package.swift', 'swift-tui-examples/WebExample/TerminalApp/Package.resolved') }}
           restore-keys: |
             ${{ runner.os }}-examples-web-swiftpm-
             ${{ runner.os }}-swiftpm-
@@ -128,12 +110,11 @@ jobs:
           path: |
             ~/.bun/install/cache
             swift-tui-examples/node_modules
-          key: ${{ runner.os }}-examples-bun-${{ hashFiles('swift-tui-examples/bun.lock', 'swift-tui-examples/package.json', 'swift-tui-examples/WebExample/package.json', 'swift-tui-web/packages/web/package.json', 'swift-tui-web/packages/build/package.json') }}
+          key: ${{ runner.os }}-examples-bun-${{ hashFiles('swift-tui-examples/bun.lock', 'swift-tui-examples/package.json', 'swift-tui-examples/WebExample/package.json') }}
           restore-keys: |
             ${{ runner.os }}-examples-bun-
       - name: Install wasm Swift SDK
         shell: bash
-        working-directory: swift-tui
         run: |
           set -euo pipefail
           if ! swiftly run swift sdk list | grep -q "swift-6.3.1-RELEASE_wasm"; then
@@ -158,22 +139,16 @@ jobs:
         uses: actions/checkout@v6
         with:
           path: swift-tui-examples
-      - name: Checkout swift-tui
-        uses: actions/checkout@v6
-        with:
-          repository: SwiftTUI/swift-tui
-          token: ${{ secrets.SWIFTTUI_CI_TOKEN || github.token }}
-          path: swift-tui
       - name: Cache Swiftly toolchain
         uses: actions/cache@v5
         with:
           path: ~/.swiftly
-          key: ${{ runner.os }}-swiftly-${{ env.SWIFTLY_VERSION }}-${{ hashFiles('swift-tui/.swift-version') }}
+          key: ${{ runner.os }}-swiftly-${{ env.SWIFTLY_VERSION }}-${{ hashFiles('swift-tui-examples/.swift-version') }}
           restore-keys: |
             ${{ runner.os }}-swiftly-${{ env.SWIFTLY_VERSION }}-
       - name: Install swiftly and Swift toolchain
         shell: bash
-        run: swift-tui-examples/Scripts/install_swift_toolchain_ci.sh swift-tui/.swift-version
+        run: swift-tui-examples/Scripts/install_swift_toolchain_ci.sh swift-tui-examples/.swift-version
       - name: Cache macOS build products
         uses: actions/cache@v5
         with:
@@ -182,7 +157,7 @@ jobs:
             swift-tui-examples/.build/xcode-derived-data
             ~/Library/Caches/org.swift.swiftpm
             ~/.swiftpm
-          key: ${{ runner.os }}-examples-macos-build-${{ hashFiles('swift-tui/Package.resolved', 'swift-tui-examples/**/Package.swift', 'swift-tui-examples/**/Package.resolved', 'swift-tui-examples/SwiftUIExample/SwiftUIExample.xcodeproj/project.pbxproj') }}
+          key: ${{ runner.os }}-examples-macos-build-${{ hashFiles('swift-tui-examples/**/Package.swift', 'swift-tui-examples/**/Package.resolved', 'swift-tui-examples/SwiftUIExample/SwiftUIExample.xcodeproj/project.pbxproj') }}
           restore-keys: |
             ${{ runner.os }}-examples-macos-build-
             ${{ runner.os }}-swiftpm-
