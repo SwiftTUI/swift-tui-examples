@@ -141,6 +141,11 @@ async function bootstrap(): Promise<void> {
     dataset: { terminalFrame: "true" },
     children: [terminalHost],
   });
+  const terminalLabel = el("span", { class: "terminal-label" });
+  const terminalCaption = el("span", {
+    class: "terminal-caption",
+    text: "A SwiftTUI app. Running in the Platforms/Web host.",
+  });
 
   const shell = el("div", {
     class: "example-shell",
@@ -156,13 +161,7 @@ async function bootstrap(): Promise<void> {
                 children: [
                   el("div", {
                     class: "terminal-topline-copy",
-                    children: [
-                      el("span", { class: "terminal-label", text: "Conway's Game of Life" }),
-                      el("span", {
-                        class: "terminal-caption",
-                        text: "A SwiftTUI app. Running in the Platforms/Web host.",
-                      }),
-                    ],
+                    children: [terminalLabel, terminalCaption],
                   }),
                   scenes,
                 ],
@@ -192,6 +191,7 @@ async function bootstrap(): Promise<void> {
     terminalHost.dataset.sceneId = controller.selectedSceneId;
     terminalHost.dataset.sceneTitle = activeLabel;
     terminalHost.dataset.size = sizeLabel ?? "";
+    terminalLabel.textContent = activeLabel;
   };
 
   controller = await createController(
