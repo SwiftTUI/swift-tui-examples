@@ -36,9 +36,10 @@
   --text-display: #ffffff;
   --accent: #34d399;
   --accent-subtle: rgba(52, 211, 153, 0.18);
-  --panel: rgba(255,255,255,0.02);
-  --line: rgba(255,255,255,0.06);
+  --panel: rgba(255,255,255,0.02);    /* matches site palette; reserved for future card/surface tokens */
+  --line: rgba(255,255,255,0.06);     /* matches site palette; reserved for future divider tokens */
 
+  /* Geist Mono prepended to all stacks for TUI grid-aligned visual identity */
   --font-display: "Geist Mono", "Doto", "Space Mono", "JetBrains Mono", monospace;
   --font-body: "Geist Mono", "Space Grotesk", "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "Geist Mono", "Space Mono", "JetBrains Mono", "SF Mono", "IBM Plex Mono", monospace;
