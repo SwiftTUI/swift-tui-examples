@@ -9,7 +9,8 @@ import SwiftTUIRuntime
 /// unmistakable on a 30fps terminal.  Elements are intentionally
 /// large (full-block text, big ASCII figures) so the visual change
 /// cannot be missed.
-struct AnimationsTab: View {
+public struct AnimationsTab: View {
+  public init() {}
   // Color demo: high-contrast red↔blue toggle.  Direct field
   // mutation inside the withAnimation closure — no mutating method
   // indirection.
@@ -45,7 +46,7 @@ struct AnimationsTab: View {
   @State private var completionRuns: Int = 0
   @State private var completionAccent: Bool = false
 
-  var body: some View {
+  public var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 1) {
         header

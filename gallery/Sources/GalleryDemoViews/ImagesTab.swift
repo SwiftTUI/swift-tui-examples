@@ -12,10 +12,11 @@ import SwiftTUIRuntime
 /// ``Self/pngBytes``. Feeding those bytes into `Image(data:)` exercises
 /// the `.data` path of ``ImageSource`` — the same path the renderer takes
 /// for attachments that need to survive without filesystem access.
-struct ImagesTab: View {
+public struct ImagesTab: View {
+  public init() {}
   private static let animatedGIFSequence = try? AnimatedGIF.decode(data: ImagesTab.gifBytes)
 
-  var body: some View {
+  public var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 1) {
         ImagesHeader()

@@ -26,7 +26,8 @@ enum CalculatorOp: Hashable {
   }
 }
 
-struct CalculatorTab: View {
+public struct CalculatorTab: View {
+  public init() {}
 
   @State private var display: String?
   @State private var accumulator: Double?
@@ -35,7 +36,7 @@ struct CalculatorTab: View {
     accumulator?.isFinite == false || displayValue.isFinite == false
   }
 
-  var body: some View {
+  public var body: some View {
     VStack(spacing: 1) {
       Rectangle().fill(Color.clear).overlay(alignment: .bottomTrailing) {
         VStack {

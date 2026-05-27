@@ -41,6 +41,10 @@ let package = Package(
       ],
       path: "Sources/TerminalApp"
     ),
+    .testTarget(
+      name: "WebExampleScenesTests",
+      dependencies: ["WebExampleScenes"]
+    ),
   ],
   swiftLanguageModes: [.v6]
 )
