@@ -415,6 +415,84 @@ struct GalleryTabSwitchTests {
     )
   }
 
+  @Test("expanded overflow menu stays visible across animated gallery frames")
+  func expandedOverflowMenuStaysVisibleAcrossAnimatedGalleryFrames() async throws {
+    let terminalSize = CellSize(width: 80, height: 24)
+    let rootIdentity = Identity(components: [.named("GalleryAnimatedOverflowMenuContinuity")])
+    let view = GallerySelectionSeedHarness(initialSelection: .physics)
+    let overflowTriggerCenter = try Self.centerOfText(
+      "▼",
+      in: view,
+      terminalSize: terminalSize,
+      rootIdentity: Identity(components: [
+        .named("GalleryAnimatedOverflowMenuContinuity.BoundsProbe")
+      ])
+    )
+    let host = GalleryTabSwitchRecordingHost(size: terminalSize)
+    var surfaceCountAtTrigger = 0
+    var expandedSurfaceCount = 0
+
+    let result = try await Self.runHarness(
+      presentationSurface: host,
+      terminalInputReader: GalleryTabSwitchAwaitedInputReader(
+        frameSignal: host.frameSignal,
+        stageClock: host.stageClock,
+        steps: [
+          .awaitCondition {
+            let surfaces = deduplicated(host.surfaces)
+            guard surfaces.count >= 4, let surface = surfaces.last else {
+              return false
+            }
+            return Self.containsBrailleDrawing(surface)
+          },
+          .eventFrom {
+            surfaceCountAtTrigger = deduplicated(host.surfaces).count
+            return .mouse(.init(kind: .down(.primary), location: overflowTriggerCenter))
+          },
+          .event(.mouse(.init(kind: .up(.primary), location: overflowTriggerCenter))),
+          .awaitCondition {
+            let surfaces = deduplicated(host.surfaces)
+            guard surfaces.count >= surfaceCountAtTrigger + 4,
+              let surface = surfaces.last
+            else {
+              return false
+            }
+            let text = surface.lines.joined(separator: "\n")
+            guard text.contains("▲"), text.contains("Full Screen") else {
+              return false
+            }
+            expandedSurfaceCount = surfaces.count
+            return true
+          },
+          .awaitCondition {
+            deduplicated(host.surfaces).count >= expandedSurfaceCount + 3
+          },
+          .event(.key(KeyPress(.character("d"), modifiers: .ctrl))),
+        ]),
+      terminalSize: terminalSize,
+      rootIdentity: rootIdentity,
+      renderMode: .async,
+      viewBuilder: { view }
+    )
+
+    #expect(result.exitReason == .userExit(KeyPress(.character("d"), modifiers: .ctrl)))
+
+    let surfacesAfterTrigger = Array(deduplicated(host.surfaces).dropFirst(surfaceCountAtTrigger))
+    let missingMenuSurfaces = surfacesAfterTrigger.filter { surface in
+      let text = surface.lines.joined(separator: "\n")
+      return !text.contains("▲") || !text.contains("Full Screen")
+    }
+
+    #expect(
+      missingMenuSurfaces.isEmpty,
+      """
+      Expected every frame after opening the overflow menu on an animated tab \
+      to keep the expanded tab-items box visible. Missing frames: \
+      \(missingMenuSurfaces.map { $0.lines.joined(separator: "\n") })
+      """
+    )
+  }
+
   @Test("gallery physics tab keeps advancing after a drag release")
   func physicsTabKeepsAdvancingAfterDragRelease() async throws {
     let terminalSize = CellSize(width: 80, height: 24)
