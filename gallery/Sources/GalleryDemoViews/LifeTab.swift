@@ -104,10 +104,8 @@ public struct LifeTab: View {
             }
         )
         .onAppearOnce(once: $didSeedDefault) {
-          var resized = grid
-          resized.resize(width: dims.width, height: dims.height)
-          resized.seedDefault()
-          grid = resized
+          grid.resize(width: dims.width, height: dims.height)
+          grid.seedDefault()
           lastFitWidth = dims.width
           lastFitHeight = dims.height
         }
@@ -115,9 +113,7 @@ public struct LifeTab: View {
           width: dims.width, height: dims.height, lastWidth: $lastFitWidth,
           lastHeight: $lastFitHeight
         ) {
-          var resized = grid
-          resized.resize(width: dims.width, height: dims.height)
-          grid = resized
+          grid.resize(width: dims.width, height: dims.height)
         }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -133,22 +129,16 @@ public struct LifeTab: View {
       .buttonStyle(.borderedProminent)
 
       Button("Step") {
-        var next = grid
-        next.step()
-        grid = next
+        grid.step()
       }
       .disabled(isRunning)
 
       Button("Random") {
-        var next = grid
-        next.randomize()
-        grid = next
+        grid.randomize()
       }
 
       Button("Clear") {
-        var next = grid
-        next.clear()
-        grid = next
+        grid.clear()
       }
 
       Spacer()
@@ -180,9 +170,7 @@ public struct LifeTab: View {
     stampedCells.insert(index)
 
     if let mode = paintMode {
-      var next = grid
-      next.set(cell.x, cell.y, mode)
-      grid = next
+      grid.set(cell.x, cell.y, mode)
     }
   }
 
@@ -195,9 +183,7 @@ public struct LifeTab: View {
     while !Task.isCancelled, isRunning {
       try? await Task.sleep(nanoseconds: intervalNs)
       guard !Task.isCancelled, isRunning else { return }
-      var next = grid
-      next.step()
-      grid = next
+      grid.step()
     }
   }
 }
