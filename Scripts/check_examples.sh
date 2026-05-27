@@ -235,6 +235,7 @@ run_linux_examples() {
       "gifeditor" \
       "gitviz" \
       "terminal-workspace" \
+      "three-hosts-demo" \
       "layouts" \
       "SwiftUIExample/TerminalApp" \
       "WebExample/TerminalApp" \
@@ -256,7 +257,8 @@ run_linux_examples() {
     "gifcat" \
     "gifeditor" \
     "gitviz" \
-    "terminal-workspace"; do
+    "terminal-workspace" \
+    "three-hosts-demo"; do
     run_step \
       "Build $package_path" \
       "$repo_root" \
@@ -323,6 +325,11 @@ run_linux_examples() {
     "Test WebHostExample" \
     "$repo_root" \
     run_swift test --package-path WebHostExample
+
+  run_step \
+    "Test three-hosts-demo" \
+    "$repo_root" \
+    run_swift test --package-path three-hosts-demo
 }
 
 run_macos_examples() {
