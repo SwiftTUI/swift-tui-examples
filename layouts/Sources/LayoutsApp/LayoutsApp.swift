@@ -2,7 +2,7 @@ import Layouts
 import SwiftTUI
 
 @main
-struct LayoutsApp: App, SwiftTUICommand {
+struct LayoutsApp: App {
   @OptionGroup(title: "SwiftTUI Options")
   var swiftTUIOptions: SwiftTUIOptions
 

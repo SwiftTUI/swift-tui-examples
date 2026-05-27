@@ -2,8 +2,8 @@ import Foundation
 import Testing
 
 struct GalleryWebHostCompositionTests {
-  @Test("gallery executable imports the WebHost runner without direct terminal CLI ownership")
-  func galleryExecutableImportsWebHostRunnerWithoutDirectTerminalCLIOwnership() throws {
+  @Test("gallery executable uses batteries-included SwiftTUI without direct WebHostCLI ownership")
+  func galleryExecutableUsesBatteriesIncludedSwiftTUIWithoutDirectWebHostCLIOwnership() throws {
     let packageRoot = URL(fileURLWithPath: #filePath)
       .deletingLastPathComponent()
       .deletingLastPathComponent()
@@ -18,13 +18,17 @@ struct GalleryWebHostCompositionTests {
       encoding: .utf8
     )
 
-    #expect(source.contains("import SwiftTUIWebHostCLI"))
-    #expect(source.contains("WebHostCLIRunner.run("))
-    #expect(source.contains("struct GalleryDemoOptions: ParsableArguments"))
-    #expect(!source.contains("import SwiftTUI\n"))
+    #expect(source.contains("import SwiftTUI\n"))
+    #expect(source.contains("struct GalleryDemoApp: App"))
+    #expect(source.contains("var swiftTUIOptions: SwiftTUIOptions"))
+    #expect(source.contains("CommandConfiguration("))
+    #expect(!source.contains("import SwiftTUIWebHostCLI"))
+    #expect(!source.contains("WebHostCLIRunner.run("))
+    #expect(!source.contains("struct GalleryDemoOptions"))
     #expect(!source.contains("import SwiftTUICLI"))
 
-    #expect(manifest.contains("SwiftTUIWebHostCLI"))
+    #expect(manifest.contains(".product(name: \"SwiftTUI\", package: \"swift-tui\")"))
+    #expect(!manifest.contains("SwiftTUIWebHostCLI"))
     #expect(!manifest.contains("SwiftTUIArguments"))
     #expect(!manifest.contains("SwiftTUICLI"))
   }

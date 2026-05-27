@@ -1,6 +1,7 @@
 # argparse
 
-Focused command-line integration example for `SwiftTUICommand`.
+Focused command-line integration example for the command-enabled `SwiftTUI.App`
+surface.
 
 The app shows how a SwiftTUI `App` can own consumer-specific flags while also
 exposing the framework's standard runtime options through `SwiftTUIOptions`.
@@ -8,7 +9,7 @@ It is intentionally small so the argument-parsing shape is easy to copy.
 
 ## Demonstrates
 
-- `App` plus `SwiftTUICommand` in the same type.
+- `SwiftTUI.App` command conformance through `import SwiftTUI`.
 - Consumer flags such as `--widgets` and `--show-ids`.
 - Standard SwiftTUI flags such as `--no-color`, `--ascii`, `--reduce-motion`,
   `--debug`, `--json`, and accessibility options.

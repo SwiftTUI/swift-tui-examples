@@ -16,7 +16,7 @@ composition.
 swiftly run swift run --package-path gallery gallery-demo
 ```
 
-Run the same gallery through the opt-in embedded WebHost runner:
+Run the same gallery through the batteries-included WebHost mode:
 
 ```bash
 swiftly run swift run --package-path gallery gallery-demo --web

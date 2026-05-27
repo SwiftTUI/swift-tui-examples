@@ -37,8 +37,8 @@ without sibling checkouts.
 | --- | --- | --- | --- |
 | [minimal](minimal) | One-shot renderer | Smallest `RenderOnce.print(...)` path for report-like CLI output, with no app runtime or argument parser | `swiftly run swift run --package-path minimal minimal` |
 | [terminal-runner](terminal-runner) | Terminal-only runner | Explicit `TerminalRunner` launch with custom preflight policy that rejects `--web` | `swiftly run swift run --package-path terminal-runner terminal-runner` |
-| [argparse](argparse) | Terminal app CLI | `SwiftTUICommand`, consumer flags, standard SwiftTUI flags, and completions in one app type | `swiftly run swift run --package-path argparse argparse-demo --help` |
-| [gallery](gallery) | Terminal app plus optional WebHost | Primary component workbench for the public view surface: tabs, controls, palette, text input, scroll commands, charts, images, animated GIFs, file drop, popovers, and physics | `swiftly run swift run --package-path gallery gallery-demo` |
+| [argparse](argparse) | Terminal app CLI | `SwiftTUI.App` command conformance, consumer flags, standard SwiftTUI flags, and completions in one app type | `swiftly run swift run --package-path argparse argparse-demo --help` |
+| [gallery](gallery) | Batteries-included terminal app plus optional WebHost | Primary component workbench for the public view surface: tabs, controls, palette, text input, scroll commands, charts, images, animated GIFs, file drop, popovers, and physics | `swiftly run swift run --package-path gallery gallery-demo` |
 | [layouts](layouts) | Terminal app | SwiftTUI layout catalog with behavior tests for stacks, frames, geometry, scrolling, overlays, shapes, matched geometry, and custom layouts | `swiftly run swift run --package-path layouts layouts-demo` |
 | [LayoutsSwiftUI](LayoutsSwiftUI) | SwiftUI comparison app | Native SwiftUI layout catalog beside the embedded SwiftTUI catalog through `SwiftUIHost` | `swiftly run swift run --package-path LayoutsSwiftUI layouts-swiftui-demo` |
 | [file-previewer](file-previewer) | Terminal app plus embedded processes | Miller-column browser and file previews through `SwiftTUITerminal` / `TerminalProcessSession` | `swiftly run swift run --package-path file-previewer FilePreviewerApp` |
@@ -63,7 +63,7 @@ without sibling checkouts.
 | `SwiftTUITerminal` | [file-previewer](file-previewer) |
 | `SwiftTUITerminalWorkspace` | [terminal-workspace](terminal-workspace) |
 | `SwiftUIHost` | [SwiftUIExample](SwiftUIExample) |
-| `SwiftTUIWebHostCLI` | Included by `SwiftTUI`; used directly by [gallery](gallery), [gifeditor](gifeditor) |
+| `SwiftTUIWebHostCLI` | Included by `SwiftTUI`; used directly by [gifeditor](gifeditor) |
 | `SwiftTUIWASI`, `@swifttui/web`, `@swifttui/build` | [WebExample](WebExample) |
 
 The detailed coverage matrix, category definitions, gate contract, and new

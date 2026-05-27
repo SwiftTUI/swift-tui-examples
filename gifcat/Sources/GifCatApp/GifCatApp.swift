@@ -2,7 +2,7 @@ import GifCat
 import SwiftTUI
 
 @main
-struct GifCatApp: App, SwiftTUICommand {
+struct GifCatApp: App {
   nonisolated static let configuration = CommandConfiguration(
     commandName: "gifcat",
     abstract: "Display one or more GIFs in a grid in the terminal."

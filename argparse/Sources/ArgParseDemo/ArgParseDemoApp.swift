@@ -1,7 +1,7 @@
 import SwiftTUI
 
 @main
-struct ArgParseDemoApp: App, SwiftTUICommand {
+struct ArgParseDemoApp: App {
   nonisolated static let configuration = CommandConfiguration(
     commandName: "argparse-demo",
     abstract: "Demonstrates consumer flags + SwiftTUI framework flags coexisting.",
