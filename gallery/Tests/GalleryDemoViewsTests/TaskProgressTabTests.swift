@@ -155,12 +155,8 @@ struct TaskProgressTabTests {
     #expect(surface.contains("Write design doc"))
   }
 
-  @Test("Gallery initial-tab aliases select the task progress tab")
-  func galleryInitialTabAliasesIncludeTaskProgress() {
-    #expect(GalleryView.GalleryTab(environmentName: "progress") == .taskProgress)
-    #expect(GalleryView.GalleryTab(environmentName: "task-progress") == .taskProgress)
-    #expect(GalleryView.GalleryTab(environmentName: "working") == .taskProgress)
-    #expect(GalleryView.GalleryTab(environmentName: "todolist") == .taskProgress)
-    #expect(GalleryView.GalleryTab(environmentName: "todo-list") == .taskProgress)
+  @Test("Gallery --tab key selects the task progress tab")
+  func galleryTabKeySelectsTaskProgress() {
+    #expect(GalleryView.GalleryTab(key: "task-progress") == .taskProgress)
   }
 }

@@ -35,12 +35,20 @@ struct GalleryMetadataTests {
     #expect(descriptors.allSatisfy { !$0.coverageTags.isEmpty })
   }
 
-  @Test("Every gallery alias resolves through descriptor metadata")
-  func aliasesResolveThroughDescriptorMetadata() {
+  @Test("Each tab has one non-empty, unique command-line key")
+  func eachTabHasOneUniqueKey() {
+    let descriptors = GalleryView.tabDescriptors
+
+    #expect(descriptors.allSatisfy { !$0.key.isEmpty })
+    #expect(Set(descriptors.map(\.key)).count == descriptors.count)
+  }
+
+  @Test("Tab keys round-trip through GalleryTab")
+  func tabKeysRoundTrip() {
     for descriptor in GalleryView.tabDescriptors {
-      for alias in descriptor.aliases {
-        #expect(GalleryView.GalleryTab(environmentName: alias) == descriptor.value)
-      }
+      #expect(descriptor.value.key == descriptor.key)
+      #expect(GalleryView.GalleryTab(key: descriptor.key) == descriptor.value)
     }
+    #expect(GalleryView.GalleryTab(key: "not-a-tab") == nil)
   }
 }

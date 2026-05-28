@@ -11,9 +11,22 @@ struct GalleryDemoApp: App {
   @OptionGroup(title: "SwiftTUI Options")
   var swiftTUIOptions: SwiftTUIOptions
 
+  @Option(help: "Open the gallery on a specific tab.")
+  var tab: GalleryView.GalleryTab?
+
   var body: some Scene {
     WindowGroup {
-      GalleryView()
+      GalleryView(initialTab: tab)
     }
+  }
+}
+
+extension GalleryView.GalleryTab: ExpressibleByArgument {
+  public init?(argument: String) {
+    self.init(key: argument)
+  }
+
+  public static var allValueStrings: [String] {
+    allCases.map(\.key)
   }
 }

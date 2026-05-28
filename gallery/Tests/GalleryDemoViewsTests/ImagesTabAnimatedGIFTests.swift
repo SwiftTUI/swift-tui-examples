@@ -38,10 +38,8 @@ struct ImagesTabAnimatedGIFTests {
     #expect(!surface.contains("GIF (frame 0)"))
   }
 
-  @Test("Gallery initial-tab aliases select Images for animated GIF coverage")
-  func galleryInitialTabAliasesSelectImagesForAnimatedGIFCoverage() throws {
-    #expect(GalleryView.GalleryTab(environmentName: "gif") == .images)
-    #expect(GalleryView.GalleryTab(environmentName: "animated-gif") == .images)
-    #expect(GalleryView.GalleryTab(environmentName: "animated-image") == .images)
+  @Test("Gallery --tab key selects the images tab")
+  func galleryTabKeySelectsImages() throws {
+    #expect(GalleryView.GalleryTab(key: "images") == .images)
   }
 }

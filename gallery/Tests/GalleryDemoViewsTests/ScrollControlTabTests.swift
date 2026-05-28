@@ -29,10 +29,8 @@ struct ScrollControlTabTests {
     #expect(surface.contains("Errors"))
   }
 
-  @Test("Gallery initial-tab aliases select the scroll control tab")
-  func galleryInitialTabAliasesIncludeScrollControl() {
-    #expect(GalleryView.GalleryTab(environmentName: "scroll") == .scrollControl)
-    #expect(GalleryView.GalleryTab(environmentName: "scroll-control") == .scrollControl)
-    #expect(GalleryView.GalleryTab(environmentName: "scrolling") == .scrollControl)
+  @Test("Gallery --tab key selects the scroll control tab")
+  func galleryTabKeySelectsScrollControl() {
+    #expect(GalleryView.GalleryTab(key: "scroll-control") == .scrollControl)
   }
 }

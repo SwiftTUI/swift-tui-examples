@@ -30,10 +30,8 @@ struct PopoverTabTests {
     #expect(surface.contains("TipKit-inspired tip"))
   }
 
-  @Test("Gallery initial-tab aliases select the popovers tab")
-  func galleryInitialTabAliasesIncludePopovers() {
-    #expect(GalleryView.GalleryTab(environmentName: "popover") == .popovers)
-    #expect(GalleryView.GalleryTab(environmentName: "popovers") == .popovers)
-    #expect(GalleryView.GalleryTab(environmentName: "tips") == .popovers)
+  @Test("Gallery --tab key selects the popovers tab")
+  func galleryTabKeySelectsPopovers() {
+    #expect(GalleryView.GalleryTab(key: "popovers") == .popovers)
   }
 }

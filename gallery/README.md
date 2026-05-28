@@ -22,8 +22,9 @@ Run the same gallery through the batteries-included WebHost mode:
 swiftly run swift run --package-path gallery gallery-demo --web
 ```
 
-Set `GALLERY_INITIAL_TAB` to land on a specific tab for screenshots or manual
-checks, for example `GALLERY_INITIAL_TAB=images`.
+Pass `--tab <key>` to land on a specific tab for screenshots or manual checks,
+for example `--tab images`. Run `gallery-demo --help` for the full list of tab
+keys.
 
 ## Tabs
 

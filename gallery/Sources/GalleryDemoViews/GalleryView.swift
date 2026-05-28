@@ -1,14 +1,12 @@
-import Foundation
 import SwiftTUIRuntime
 
 public struct GalleryView: View {
-  public init() {}
-
-  // The initial tab honors `GALLERY_INITIAL_TAB` (e.g. "images") so
-  // verification scripts and screenshot harnesses can land on a
-  // specific tab without driving the command palette.
-  @State private var selection: GalleryTab = GalleryView.initialTabFromEnvironment()
+  @State private var selection: GalleryTab
   @State private var showPalette: Bool = false
+
+  public init(initialTab: GalleryTab? = nil) {
+    _selection = State(initialValue: initialTab ?? .counter)
+  }
 
   public var body: some View {
     TabView(selection: $selection) {
@@ -110,7 +108,7 @@ public struct GalleryView: View {
 }
 
 extension GalleryView {
-  enum GalleryTab: Hashable {
+  public enum GalleryTab: Hashable, CaseIterable, Sendable {
     case life
     case counter
     case todo
@@ -130,12 +128,15 @@ extension GalleryView {
     case physics
     case taskProgress
 
-    @MainActor
-    init?(environmentName: String) {
-      let normalized = environmentName.lowercased()
-      guard let descriptor = GalleryView.tabDescriptors.first(where: {
-        $0.aliases.contains(normalized)
-      }) else {
+    /// The stable command-line key for this tab. One key per case.
+    public var key: String {
+      GalleryView.descriptor(for: self).key
+    }
+
+    /// Resolves a tab from its command-line key, or `nil` when unknown.
+    public init?(key: String) {
+      guard let descriptor = GalleryView.tabDescriptors.first(where: { $0.key == key })
+      else {
         return nil
       }
       self = descriptor.value
@@ -145,7 +146,7 @@ extension GalleryView {
   struct GalleryTabDescriptor: Identifiable, Sendable {
     let value: GalleryTab
     let title: String
-    let aliases: [String]
+    let key: String
     let coverageTags: [String]
 
     var id: GalleryTab { value }
@@ -193,31 +194,29 @@ extension GalleryView {
     }
   }
 
-  static let tabDescriptors: [GalleryTabDescriptor] = [
+  nonisolated static let tabDescriptors: [GalleryTabDescriptor] = [
     .init(
       value: .counter,
       title: "Counter",
-      aliases: ["counter"],
+      key: "counter",
       coverageTags: ["state", "buttons"]
     ),
     .init(
       value: .life,
       title: "Life",
-      aliases: ["life", "conway"],
+      key: "life",
       coverageTags: ["custom-rendering", "simulation"]
     ),
     .init(
       value: .todo,
       title: "Todo",
-      aliases: ["todo"],
+      key: "todo",
       coverageTags: ["lists", "editing", "selection"]
     ),
     .init(
       value: .formsAndContainers,
       title: "Forms & Containers",
-      aliases: [
-        "forms", "forms and containers", "forms-containers", "formsandcontainers", "containers",
-      ],
+      key: "forms-and-containers",
       coverageTags: [
         "group-box", "control-group", "disclosure-group", "link", "picker-style",
         "button-style", "text-field-style", "disabled", "accessibility",
@@ -226,31 +225,31 @@ extension GalleryView {
     .init(
       value: .textInput,
       title: "Text Input",
-      aliases: ["text input", "text", "input", "inputs", "textinput", "text-input", "text-inputs"],
+      key: "text-input",
       coverageTags: ["text-field", "text-editor", "focus", "paste"]
     ),
     .init(
       value: .scrollControl,
       title: "Scroll Control",
-      aliases: ["scroll control", "scroll", "scrollcontrol", "scroll-control", "scrolling"],
+      key: "scroll-control",
       coverageTags: ["scrolling", "scroll-position"]
     ),
     .init(
       value: .calculator,
       title: "Calculator",
-      aliases: ["calculator", "calc"],
+      key: "calculator",
       coverageTags: ["click-targets", "compact-controls"]
     ),
     .init(
       value: .bordersAndShapes,
       title: "Borders & Shapes",
-      aliases: ["borders & shapes", "borders", "bordersandshapes", "borders-and-shapes", "shapes"],
+      key: "borders-and-shapes",
       coverageTags: ["borders", "shapes", "blend-modes", "canvas"]
     ),
     .init(
       value: .presentationLab,
       title: "Presentation Lab",
-      aliases: ["presentation", "presentation lab", "presentation-lab", "presentations"],
+      key: "presentation-lab",
       coverageTags: [
         "alert", "confirmation-dialog", "sheet", "toast", "popover", "popover-tip",
         "palette-sheet",
@@ -259,10 +258,7 @@ extension GalleryView {
     .init(
       value: .navigationCollections,
       title: "Navigation & Collections",
-      aliases: [
-        "navigation", "collections", "navigation collections", "navigation-collections",
-        "nav", "outline", "table",
-      ],
+      key: "navigation-collections",
       coverageTags: [
         "navigation-stack", "navigation-destination", "outline-group", "lazy-stack",
         "list-selection", "table-selection",
@@ -271,31 +267,31 @@ extension GalleryView {
     .init(
       value: .images,
       title: "Images",
-      aliases: ["images", "image", "animatedgif", "animated-gif", "gif", "animatedimage", "animated-image"],
+      key: "images",
       coverageTags: ["image-attachments", "animated-gif"]
     ),
     .init(
       value: .animations,
       title: "Animations",
-      aliases: ["animations", "animation"],
+      key: "animations",
       coverageTags: ["with-animation", "transitions", "phase-animator"]
     ),
     .init(
       value: .fileDrop,
       title: "File Drop",
-      aliases: ["file drop", "filedrop", "file-drop", "files"],
+      key: "file-drop",
       coverageTags: ["file-drop"]
     ),
     .init(
       value: .popovers,
       title: "Popovers",
-      aliases: ["popover", "popovers", "tips"],
+      key: "popovers",
       coverageTags: ["popover", "popover-tip", "palette-sheet"]
     ),
     .init(
       value: .pointerLab,
       title: "Pointer Lab",
-      aliases: ["pointer", "pointer lab", "pointer-lab", "gestures"],
+      key: "pointer-lab",
       coverageTags: [
         "spatial-tap", "drag-gesture", "long-press", "content-shape",
         "coordinate-space",
@@ -304,34 +300,25 @@ extension GalleryView {
     .init(
       value: .focusContext,
       title: "Focus Context",
-      aliases: ["focus", "focus context", "focus-context", "focused-values"],
+      key: "focus-context",
       coverageTags: ["focused-value", "focused-binding", "toolbar"]
     ),
     .init(
       value: .physics,
       title: "Physics",
-      aliases: ["physics"],
+      key: "physics",
       coverageTags: ["gestures", "fullscreen"]
     ),
     .init(
       value: .taskProgress,
       title: "Progress",
-      aliases: ["progress", "taskprogress", "task-progress", "working", "todolist", "todo-list"],
+      key: "task-progress",
       coverageTags: ["spinner", "timeline-view", "task-status"]
     ),
   ]
 
-  static func descriptor(for tab: GalleryTab) -> GalleryTabDescriptor {
+  nonisolated static func descriptor(for tab: GalleryTab) -> GalleryTabDescriptor {
     tabDescriptors.first { $0.value == tab }!
-  }
-
-  fileprivate static func initialTabFromEnvironment() -> GalleryTab {
-    guard let raw = ProcessInfo.processInfo.environment["GALLERY_INITIAL_TAB"],
-      let tab = GalleryTab(environmentName: raw)
-    else {
-      return .counter
-    }
-    return tab
   }
 }
 
