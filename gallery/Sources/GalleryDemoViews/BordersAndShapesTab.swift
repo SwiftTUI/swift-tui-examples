@@ -6,7 +6,10 @@ import SwiftTUIRuntime
 ///
 ///   1. A chasing-light perimeter gradient driven by an animated
 ///      ``BorderBlend`` phase via `withAnimation(.repeatForever)`.
-///   2. View-level ``BlendMode`` compositing over varied backdrop cells.
+///   2. Interactive view-level ``BlendMode`` compositing — a flat
+///      yellow circle (R) overlapping a true-color blue-gradient
+///      circle (L), with a ``Picker`` menu selecting R's blend mode,
+///      plus two `compositingGroup` effect-ordering cards.
 ///   3. The built-in ``BorderSet`` catalog — a grid of small bordered
 ///      cards, one per built-in set, so every glyph family is visible.
 ///   4. Per-side ``BorderEdgeStyle`` foregrounds — a traffic-light card
@@ -86,20 +89,29 @@ private struct BordersAndShapesHeader: View {
 }
 
 private struct BordersAndShapesBlendModesSection: View {
+  // Width:height of 2:1 reads as a round circle in a terminal's tall cells.
+  private static let circleWidth = 14
+  private static let circleHeight = 7
+
+  // The six built-in BlendMode cases; the enum isn't CaseIterable, so the
+  // Picker drives this hand-listed set via `id: \.self`.
+  private static let blendModes: [BlendMode] = [
+    .normal, .multiply, .screen, .overlay, .darken, .lighten,
+  ]
+
+  @State private var blendMode: BlendMode = .multiply
+
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
-      Text("2. Blend Modes — cell compositing over gradient backdrops")
+      Text("2. Blend Modes — flat yellow R composited over true-color blue L")
         .foregroundStyle(.muted)
-      HStack(spacing: 2) {
-        blendCard("normal", mode: .normal, tint: .yellow)
-        blendCard("multiply", mode: .multiply, tint: .yellow)
-        blendCard("screen", mode: .screen, tint: .cyan)
+      overlappingCircles
+      Picker("R blend mode", selection: $blendMode) {
+        ForEach(Self.blendModes, id: \.self) { mode in
+          Text(mode.rawValue).tag(mode)
+        }
       }
-      HStack(spacing: 2) {
-        blendCard("overlay", mode: .overlay, tint: .magenta)
-        blendCard("darken", mode: .darken, tint: .green)
-        blendCard("lighten", mode: .lighten, tint: .blue)
-      }
+      .pickerStyle(.menu)
       HStack(spacing: 2) {
         effectOrderCard("blend then group", groupBeforeBlend: false)
         effectOrderCard("group then blend", groupBeforeBlend: true)
@@ -107,29 +119,37 @@ private struct BordersAndShapesBlendModesSection: View {
     }
   }
 
-  private func blendCard(
-    _ label: String,
-    mode: BlendMode,
-    tint: Color
-  ) -> some View {
-    VStack(alignment: .leading, spacing: 0) {
-      ZStack {
-        Rectangle()
-          .fill(
-            LinearGradient(
-              colors: [.blue, .red],
-              startPoint: .leading,
-              endPoint: .trailing
-            )
+  // L sits at the ZStack's top-leading origin; R is the same size but
+  // offset right by half a circle so its leading edge lands on L's
+  // center point, occluding L's right half. The outer frame is widened
+  // to hold the offset circle and kept top-leading so it isn't recentred
+  // (which would clip R). R draws last, so `.blendMode` composites flat
+  // yellow over both the blue gradient and the transparent backdrop.
+  private var overlappingCircles: some View {
+    ZStack(alignment: .topLeading) {
+      Circle()
+        .fill(
+          LinearGradient(
+            colors: [
+              Color(red: 0.04, green: 0.10, blue: 0.45),
+              Color(red: 0.45, green: 0.80, blue: 1.0),
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
           )
-        Rectangle()
-          .fill(tint.opacity(0.75))
-          .blendMode(mode)
-      }
-      .frame(width: 10, height: 2)
-      .border(set: .single)
-      Text(label).foregroundStyle(.separator)
+        )
+        .frame(width: Self.circleWidth, height: Self.circleHeight)
+      Circle()
+        .fill(Color.yellow)
+        .blendMode(blendMode)
+        .frame(width: Self.circleWidth, height: Self.circleHeight)
+        .offset(x: Self.circleWidth / 2)
     }
+    .frame(
+      width: Self.circleWidth + Self.circleWidth / 2,
+      height: Self.circleHeight,
+      alignment: .topLeading
+    )
   }
 
   private func effectOrderCard(
