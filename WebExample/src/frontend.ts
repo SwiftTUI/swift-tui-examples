@@ -18,6 +18,7 @@ import {
   WebHostSceneRuntime,
   type WebHostAppController,
   type WebHostSceneRuntimeOptions,
+  type WebHostTerminalStyle,
 } from "@swifttui/web";
 import "./index.css";
 import {
@@ -39,6 +40,56 @@ const backtabSequence = new TextEncoder().encode("[Z");
 const isPassiveMarketingEmbed = new URLSearchParams(window.location.search).get("embed")
   === "marketing";
 const activeStyle = isPassiveMarketingEmbed ? marketingStyle : defaultStyle;
+
+// Responsive font sizing.
+//
+// The WebHost derives the terminal column count from `mountWidth / cellWidth`,
+// and `cellWidth` scales with `fontSize`. At the default font size a narrow
+// phone viewport only yields a few dozen columns — too few for this app's full
+// control row, which then clips at the terminal's right edge. Shrink the font
+// on narrow viewports so the terminal keeps enough columns for the layout,
+// floored at a still-legible size. Wide viewports are unaffected.
+const DEFAULT_FONT_SIZE = 15;
+const MIN_FONT_SIZE = 8;
+const TARGET_COLUMNS = 72;
+// Approximate monospace advance width as a fraction of the font size; matches
+// the WebHost's own fallback ratio in WebHostSceneRuntime.measureCells.
+const CELL_WIDTH_RATIO = 0.62;
+
+function viewportWidth(): number {
+  return window.innerWidth || document.documentElement.clientWidth || 0;
+}
+
+function responsiveFontSize(baseFontSize: number): number {
+  const width = viewportWidth();
+  if (!width) return baseFontSize;
+  const fit = Math.round(width / (TARGET_COLUMNS * CELL_WIDTH_RATIO));
+  return Math.max(MIN_FONT_SIZE, Math.min(baseFontSize, fit));
+}
+
+function withResponsiveFontSize(style: WebHostTerminalStyle): WebHostTerminalStyle {
+  return { ...style, fontSize: responsiveFontSize(style.fontSize ?? DEFAULT_FONT_SIZE) };
+}
+
+function installResponsiveFontSize(
+  controller: WebHostAppController,
+  baseStyle: WebHostTerminalStyle,
+): void {
+  const baseFontSize = baseStyle.fontSize ?? DEFAULT_FONT_SIZE;
+  let current = responsiveFontSize(baseFontSize);
+  let pending = 0;
+  window.addEventListener("resize", () => {
+    if (pending) cancelAnimationFrame(pending);
+    pending = requestAnimationFrame(() => {
+      pending = 0;
+      const next = responsiveFontSize(baseFontSize);
+      if (next !== current) {
+        current = next;
+        controller.setStyle({ fontSize: next });
+      }
+    });
+  });
+}
 
 interface WebHostFrameDiagnosticRecord {
   format: "swift-tui-frame-diagnostics-v1";
@@ -205,6 +256,7 @@ async function bootstrap(): Promise<void> {
     },
   );
   installShiftTabPassthrough(terminalHost, () => controller, sceneRuntimes);
+  installResponsiveFontSize(controller, activeStyle);
   const defaultScene =
     controller.scenes.find((scene) => scene.isDefault)?.id ?? controller.selectedSceneId;
   await controller.switchScene(defaultScene);
@@ -232,7 +284,7 @@ async function createController(
     return await createWebHostApp({
       mount,
       manifestUrl: terminalAppManifestUrl,
-      style: activeStyle,
+      style: withResponsiveFontSize(activeStyle),
       initialSceneId: "main",
       environment: {
         TUIGUI_APP_NAME: "WebExample",
@@ -246,7 +298,7 @@ async function createController(
     return await createWebHostApp({
       mount,
       manifest: fallbackManifest,
-      style: activeStyle,
+      style: withResponsiveFontSize(activeStyle),
       initialSceneId: fallbackManifest.defaultSceneId,
       sceneRuntimeFactory: (options) => new WebHostSceneRuntime(webExampleRuntimeOptions(options)),
     });
