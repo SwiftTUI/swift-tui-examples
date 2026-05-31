@@ -35,6 +35,13 @@ var targets: [Target] = [
       .product(name: "SwiftTUIWASI", package: "swift-tui"),
     ]
   ),
+  // Host-neutral core tests. The test bundle lives under
+  // Tests/ThreeHostsDemoCoreTests; declaring the target here lets
+  // `swift test` discover it (the examples gate runs it explicitly).
+  .testTarget(
+    name: "ThreeHostsDemoCoreTests",
+    dependencies: ["ThreeHostsDemoCore"]
+  ),
 ]
 var products: [Product] = [
   .executable(
@@ -67,7 +74,7 @@ let package = Package(
   platforms: platforms,
   products: products,
   dependencies: [
-    .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.0.6")
+    .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.0.7")
   ],
   targets: targets,
   swiftLanguageModes: [.v6]
