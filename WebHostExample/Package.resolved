@@ -42,8 +42,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/SwiftTUI/swift-tui.git",
       "state" : {
-        "revision" : "397ce91673effb05ac5795c59b38cbbe8baf31eb",
-        "version" : "0.0.5"
+        "revision" : "4413bcfc332a4a6fcaee3bd0017f7abea840e803",
+        "version" : "0.0.6"
       }
     },
     {
