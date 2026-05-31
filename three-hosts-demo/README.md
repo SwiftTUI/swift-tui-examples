@@ -49,7 +49,7 @@ swiftly run swift build \
 The resulting `.wasm` artifact can be served by the same Bun-driven host shell
 used by [`../WebExample/`](../WebExample/). The required `-Osize` plus
 `-disable-llvm-merge-functions-pass` flags are documented in
-`../WebExample/CLAUDE.md`.
+`../WebExample/AGENTS.md`.
 
 ## Tests
 
