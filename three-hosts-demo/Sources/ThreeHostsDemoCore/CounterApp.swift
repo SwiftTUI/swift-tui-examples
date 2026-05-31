@@ -1,4 +1,4 @@
-public import SwiftTUI
+public import SwiftTUIRuntime
 
 /// The visible piece of the demo: a focused counter with one increment button.
 ///
