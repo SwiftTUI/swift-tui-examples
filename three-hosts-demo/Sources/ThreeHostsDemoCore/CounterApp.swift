@@ -2,8 +2,7 @@ public import SwiftTUI
 
 /// The visible piece of the demo: a focused counter with one increment button.
 ///
-/// `CounterView` is intentionally minimal so that the same source can drive
-/// every host without per-host conditionals. It is the exact snippet shown in
+/// `CounterView` is the exact snippet shown in
 /// the `AuthoringSnippet` block on the marketing site.
 public struct CounterView: View {
   @State private var count = 0
@@ -22,9 +21,6 @@ public struct CounterView: View {
   }
 }
 
-/// The App that drives `CounterView`. The same value runs as a terminal
-/// executable, as a static WASI bundle in the browser, and embedded in a
-/// native SwiftUI surface through `SwiftUIHostAppState(app: CounterApp())`.
 public struct CounterApp: App {
   public init() {}
 
