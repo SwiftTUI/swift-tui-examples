@@ -10,7 +10,7 @@ per-target source forks.
 | Path | Role |
 | --- | --- |
 | [`Sources/ThreeHostsDemoCore/CounterApp.swift`](Sources/ThreeHostsDemoCore/CounterApp.swift) | The shared `CounterView` + `CounterApp` consumed by every host |
-| [`Sources/three-hosts-demo/main.swift`](Sources/three-hosts-demo/main.swift) | Terminal entry point — three lines, no host-specific code |
+| [`Sources/three-hosts-demo/CounterAppTerminalHost.swift`](Sources/three-hosts-demo/CounterAppTerminalHost.swift) | Terminal + WASI entry point — a thin `@main` wrapper that reuses the shared `CounterApp` scene |
 | [`Tests/ThreeHostsDemoCoreTests/`](Tests/ThreeHostsDemoCoreTests/) | Smoke tests asserting trivial instantiability from any host target |
 | [`SwiftUIHost/`](SwiftUIHost/) | Stub source for the native SwiftUI host — see its README for Xcode setup |
 

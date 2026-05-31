@@ -1,3 +1,0 @@
-import ThreeHostsDemoCore
-
-CounterApp.main()
