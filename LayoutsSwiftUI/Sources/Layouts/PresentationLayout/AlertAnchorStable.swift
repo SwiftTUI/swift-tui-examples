@@ -8,11 +8,12 @@ import SwiftUI
 /// Layout shape: a `VStack(alignment: .leading)` of:
 ///   1. a header marker `Text("Alert anchor stable")`,
 ///   2. a `Text("[FIRST CELL]")` whose row/column is the test anchor,
-///   3. five rows of `Text("body row \(i)")`.
+///   3. five rows of `Text("body row \(i)")`,
+///   4. a `Button("show alert")` that toggles the alert binding.
 /// The whole stack is `.padding(1)`'d and carries
 /// `.alert("Title", isPresented:)` whose actions builder returns a
 /// trivial `Text("OK")` — the alert is bound to a `@State Bool` that
-/// the smoke render leaves at `false`.
+/// starts at `false`.
 ///
 /// The behaviour test renders TWO sibling variants — one with the
 /// alert hidden, one with the alert open — and asserts the column AND
@@ -30,6 +31,9 @@ public struct AlertAnchorStable: View {
       Text("[FIRST CELL]")
       ForEach(0..<5, id: \.self) { i in
         Text("body row \(i)")
+      }
+      Button("show alert") {
+        isShowingAlert.toggle()
       }
     }
     .padding(cell(1))

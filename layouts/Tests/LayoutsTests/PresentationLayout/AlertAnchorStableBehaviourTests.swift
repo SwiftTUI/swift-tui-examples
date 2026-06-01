@@ -109,6 +109,9 @@ private struct _AlertOpenVariant: View {
       ForEach(0..<5, id: \.self) { i in
         Text("body row \(i)")
       }
+      Button("show alert") {
+        alwaysShowing.toggle()
+      }
     }
     .padding(1)
     .alert(

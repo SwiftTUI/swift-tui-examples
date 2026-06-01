@@ -7,8 +7,9 @@ import SwiftTUIRuntime
 /// presented in the smoke render).
 ///
 /// Layout shape: a header marker `Text` over a `ScrollView` of 10 rows
-/// constrained to `.frame(height: 8)` and bordered with `.separator`.
-/// The whole stack is `.padding(1)`'d and carries a
+/// constrained to `.frame(height: 8)` and bordered with `.separator`,
+/// followed by a `Button("show sheet")` that toggles the sheet
+/// binding. The whole stack is `.padding(1)`'d and carries a
 /// `.sheet(isPresented:)` modifier bound to a `@State Bool`.
 ///
 /// The smoke test (parameterised over `LayoutCatalog.all`) asserts only
@@ -33,6 +34,9 @@ public struct SheetOverScrollLayout: View {
       }
       .frame(height: 8)
       .border(.separator)
+      Button("show sheet") {
+        isShowingSheet.toggle()
+      }
     }
     .padding(1)
     .sheet(isPresented: $isShowingSheet) {
