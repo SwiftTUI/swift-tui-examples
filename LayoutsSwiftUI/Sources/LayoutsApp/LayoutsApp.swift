@@ -1,4 +1,5 @@
 import Layouts
+import Splash
 import SwiftUI
 import SwiftUIHost
 import SwiftUILayouts
@@ -186,6 +187,12 @@ private struct LayoutSidebarRow: SwiftUI::View {
 private struct LayoutComparisonDetail: SwiftUI::View {
   let entry: NativeLayoutEntry
 
+  @SwiftUI::State private var codeSectionHeight: CGFloat = Self.defaultCodeSectionHeight
+
+  private static let defaultCodeSectionHeight: CGFloat = 260
+  private static let minimumCodeSectionHeight: CGFloat = 160
+  private static let minimumPreviewHeight: CGFloat = 220
+
   var body: some SwiftUI::View {
     SwiftUI.VStack(alignment: .leading, spacing: 0) {
       SwiftUI.VStack(alignment: .leading, spacing: 4) {
@@ -199,23 +206,33 @@ private struct LayoutComparisonDetail: SwiftUI::View {
 
       SwiftUI.Divider()
 
-      SwiftUI.HStack(alignment: .top, spacing: 2) {
-        Rectangle().fill(.clear).overlay(alignment: .topLeading) {
-          LayoutComparisonPane(
-            title: "SwiftUI",
-            source: SwiftUILayouts.LayoutSourceSnippets.byID[entry.id]
-          ) {
-            entry.makeView()
-              .border(.red, width: 4)
+      SwiftUI.GeometryReader { proxy in
+        let maximumCodeSectionHeight = Self.maximumCodeSectionHeight(in: proxy.size)
+
+        SwiftUI.HStack(alignment: .top, spacing: 2) {
+          Rectangle().fill(.clear).overlay(alignment: .topLeading) {
+            LayoutComparisonPane(
+              title: "SwiftUI",
+              source: SwiftUILayouts.LayoutSourceSnippets.byID[entry.id],
+              codeSectionHeight: codeSectionHeightBinding(maximum: maximumCodeSectionHeight),
+              minimumCodeSectionHeight: Self.minimumCodeSectionHeight,
+              maximumCodeSectionHeight: maximumCodeSectionHeight
+            ) {
+              entry.makeView()
+                .border(.red, width: 4)
+            }
           }
-        }
-        Rectangle().fill(.clear).overlay(alignment: .topLeading) {
-          LayoutComparisonPane(
-            title: "SwiftTUI",
-            source: Layouts.LayoutSourceSnippets.byID[entry.id]
-          ) {
-            EmbeddedTUILayoutSurface(entryID: entry.id)
-              .border(.red, width: 4)
+          Rectangle().fill(.clear).overlay(alignment: .topLeading) {
+            LayoutComparisonPane(
+              title: "SwiftTUI",
+              source: Layouts.LayoutSourceSnippets.byID[entry.id],
+              codeSectionHeight: codeSectionHeightBinding(maximum: maximumCodeSectionHeight),
+              minimumCodeSectionHeight: Self.minimumCodeSectionHeight,
+              maximumCodeSectionHeight: maximumCodeSectionHeight
+            ) {
+              EmbeddedTUILayoutSurface(entryID: entry.id)
+                .border(.red, width: 4)
+            }
           }
         }
       }
@@ -223,11 +240,39 @@ private struct LayoutComparisonDetail: SwiftUI::View {
     .id(entry.id)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   }
+
+  private static func maximumCodeSectionHeight(in size: CGSize) -> CGFloat {
+    max(
+      minimumCodeSectionHeight,
+      size.height - minimumPreviewHeight
+    )
+  }
+
+  private func codeSectionHeightBinding(maximum: CGFloat) -> SwiftUI.Binding<CGFloat> {
+    SwiftUI.Binding(
+      get: {
+        clampedCodeSectionHeight(codeSectionHeight, maximum: maximum)
+      },
+      set: { newValue in
+        codeSectionHeight = clampedCodeSectionHeight(newValue, maximum: maximum)
+      }
+    )
+  }
+
+  private func clampedCodeSectionHeight(_ value: CGFloat, maximum: CGFloat) -> CGFloat {
+    min(
+      max(value, Self.minimumCodeSectionHeight),
+      maximum
+    )
+  }
 }
 
 private struct LayoutComparisonPane<Content: SwiftUI::View>: SwiftUI::View {
   let title: String
   let source: String?
+  @SwiftUI::Binding var codeSectionHeight: CGFloat
+  let minimumCodeSectionHeight: CGFloat
+  let maximumCodeSectionHeight: CGFloat
   @SwiftUI::ViewBuilder var content: () -> Content
 
   var body: some SwiftUI::View {
@@ -241,32 +286,101 @@ private struct LayoutComparisonPane<Content: SwiftUI::View>: SwiftUI::View {
 
       SwiftUI.VStack(alignment: .leading, spacing: 0) {
         content()
-          .frame(maxWidth: .infinity, minHeight: 260, alignment: .topLeading)
+          .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
           .layoutPriority(1)
+          .clipped()
 
-        SwiftUI.Divider()
+        CodeSectionResizeHandle(
+          codeSectionHeight: $codeSectionHeight,
+          minimumHeight: minimumCodeSectionHeight,
+          maximumHeight: maximumCodeSectionHeight
+        )
 
         LayoutSourceCodeView(source: source)
-          .frame(minHeight: 180, idealHeight: 260, maxHeight: .infinity)
+          .frame(height: codeSectionHeight)
       }
     }
   }
 }
 
 private struct LayoutSourceCodeView: SwiftUI::View {
-  let source: String?
+  private let sourceText: String
+
+  @SwiftUI::State private var highlightedSource: AttributedString
+
+  init(source: String?) {
+    let sourceText = source ?? "Source unavailable"
+    self.sourceText = sourceText
+    _highlightedSource = SwiftUI.State(initialValue: CodeHighlighter.highlight(sourceText))
+  }
 
   var body: some SwiftUI::View {
     SwiftUI.ScrollView([.vertical, .horizontal]) {
-      SwiftUI.Text(source ?? "Source unavailable")
-        .font(.system(.caption, design: .monospaced))
-        .foregroundStyle(.primary)
+      SwiftUI.Text(highlightedSource)
         .textSelection(.enabled)
         .padding(12)
         .fixedSize(horizontal: true, vertical: true)
         .frame(maxWidth: .infinity, alignment: .topLeading)
     }
-    .background(SwiftUI.Color.primary.opacity(0.04))
+    .background(CodeHighlighter.backgroundColor)
+    .onChange(of: sourceText) { _, newValue in
+      highlightedSource = CodeHighlighter.highlight(newValue)
+    }
+  }
+}
+
+private struct CodeSectionResizeHandle: SwiftUI::View {
+  @SwiftUI::Binding var codeSectionHeight: CGFloat
+  let minimumHeight: CGFloat
+  let maximumHeight: CGFloat
+
+  @SwiftUI::State private var dragStartHeight: CGFloat?
+  @SwiftUI::State private var isHovering = false
+
+  var body: some SwiftUI::View {
+    SwiftUI.ZStack {
+      SwiftUI.Divider()
+      SwiftUI.Rectangle()
+        .fill(isHovering ? SwiftUI.Color.accentColor.opacity(0.45) : SwiftUI.Color.clear)
+        .frame(height: 6)
+    }
+    .frame(height: 8)
+    .contentShape(SwiftUI.Rectangle())
+    .onHover { hovering in
+      isHovering = hovering
+    }
+    .gesture(
+      SwiftUI.DragGesture(minimumDistance: 0)
+        .onChanged { value in
+          let startHeight = dragStartHeight ?? codeSectionHeight
+          dragStartHeight = startHeight
+          codeSectionHeight = clamped(startHeight - value.translation.height)
+        }
+        .onEnded { _ in
+          dragStartHeight = nil
+        }
+    )
+  }
+
+  private func clamped(_ value: CGFloat) -> CGFloat {
+    min(
+      max(value, minimumHeight),
+      maximumHeight
+    )
+  }
+}
+
+private enum CodeHighlighter {
+  static var backgroundColor: SwiftUI.Color {
+    SwiftUI.Color(red: 0.163, green: 0.163, blue: 0.182)
+  }
+
+  static func highlight(_ source: String) -> AttributedString {
+    let theme = Splash.Theme.wwdc18(withFont: Splash.Font(size: 12))
+    let highlighter = Splash.SyntaxHighlighter(
+      format: Splash.AttributedStringOutputFormat(theme: theme)
+    )
+    return AttributedString(highlighter.highlight(source))
   }
 }
 
