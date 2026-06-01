@@ -43,7 +43,10 @@ let package = Package(
     .target(
       name: "SwiftUILayouts",
       dependencies: [],
-      path: "Sources/Layouts"
+      path: "Sources/Layouts",
+      plugins: [
+        .plugin(name: "LayoutSourceSnippetPlugin", package: "layouts-demo")
+      ]
     ),
   ]
 )

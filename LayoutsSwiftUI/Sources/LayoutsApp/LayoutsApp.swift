@@ -1,3 +1,4 @@
+import Layouts
 import SwiftUI
 import SwiftUIHost
 import SwiftUILayouts
@@ -198,16 +199,21 @@ private struct LayoutComparisonDetail: SwiftUI::View {
 
       SwiftUI.Divider()
 
-
       SwiftUI.HStack(alignment: .top, spacing: 2) {
         Rectangle().fill(.clear).overlay(alignment: .topLeading) {
-          LayoutComparisonPane(title: "SwiftUI") {
+          LayoutComparisonPane(
+            title: "SwiftUI",
+            source: SwiftUILayouts.LayoutSourceSnippets.byID[entry.id]
+          ) {
             entry.makeView()
               .border(.red, width: 4)
           }
         }
         Rectangle().fill(.clear).overlay(alignment: .topLeading) {
-          LayoutComparisonPane(title: "SwiftTUI") {
+          LayoutComparisonPane(
+            title: "SwiftTUI",
+            source: Layouts.LayoutSourceSnippets.byID[entry.id]
+          ) {
             EmbeddedTUILayoutSurface(entryID: entry.id)
               .border(.red, width: 4)
           }
@@ -221,6 +227,7 @@ private struct LayoutComparisonDetail: SwiftUI::View {
 
 private struct LayoutComparisonPane<Content: SwiftUI::View>: SwiftUI::View {
   let title: String
+  let source: String?
   @SwiftUI::ViewBuilder var content: () -> Content
 
   var body: some SwiftUI::View {
@@ -232,8 +239,34 @@ private struct LayoutComparisonPane<Content: SwiftUI::View>: SwiftUI::View {
 
       SwiftUI.Divider()
 
-      content()
+      SwiftUI.VStack(alignment: .leading, spacing: 0) {
+        content()
+          .frame(maxWidth: .infinity, minHeight: 260, alignment: .topLeading)
+          .layoutPriority(1)
+
+        SwiftUI.Divider()
+
+        LayoutSourceCodeView(source: source)
+          .frame(minHeight: 180, idealHeight: 260, maxHeight: .infinity)
+      }
     }
+  }
+}
+
+private struct LayoutSourceCodeView: SwiftUI::View {
+  let source: String?
+
+  var body: some SwiftUI::View {
+    SwiftUI.ScrollView([.vertical, .horizontal]) {
+      SwiftUI.Text(source ?? "Source unavailable")
+        .font(.system(.caption, design: .monospaced))
+        .foregroundStyle(.primary)
+        .textSelection(.enabled)
+        .padding(12)
+        .fixedSize(horizontal: true, vertical: true)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+    .background(SwiftUI.Color.primary.opacity(0.04))
   }
 }
 

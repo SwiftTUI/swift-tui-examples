@@ -38,4 +38,13 @@ struct CatalogIntegrityTests {
     #expect(LayoutCatalog.entry(id: first.id)?.id == first.id)
     #expect(LayoutCatalog.entry(id: "::not-a-real-id::") == nil)
   }
+
+  @Test("Generated source snippets cover every catalog entry")
+  func sourceSnippets_coverCatalog() {
+    for entry in LayoutCatalog.all {
+      let snippet = LayoutSourceSnippets.byID[entry.id]
+      #expect(snippet != nil, "entry \(entry.id) has no generated source snippet")
+      #expect(snippet?.contains("public struct") == true)
+    }
+  }
 }

@@ -17,9 +17,14 @@ let package = Package(
       name: "Layouts",
       targets: ["Layouts"]
     ),
+    .plugin(
+      name: "LayoutSourceSnippetPlugin",
+      targets: ["LayoutSourceSnippetPlugin"]
+    ),
   ],
   dependencies: [
-    .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.0.7")
+    .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.0.7"),
+    .package(url: "https://github.com/swiftlang/swift-syntax.git", exact: "603.0.1"),
   ],
   targets: [
     .executableTarget(
@@ -34,6 +39,9 @@ let package = Package(
       dependencies: [
         .product(name: "SwiftTUIRuntime", package: "swift-tui"),
         .product(name: "SwiftTUICharts", package: "swift-tui"),
+      ],
+      plugins: [
+        .plugin(name: "LayoutSourceSnippetPlugin")
       ]
     ),
     .testTarget(
@@ -42,6 +50,22 @@ let package = Package(
         "Layouts",
         .product(name: "SwiftTUI", package: "swift-tui"),
       ]
+    ),
+    .plugin(
+      name: "LayoutSourceSnippetPlugin",
+      capability: .buildTool(),
+      dependencies: [
+        "LayoutSnippetGenerator"
+      ],
+      path: "Plugins/LayoutSourceSnippetPlugin"
+    ),
+    .executableTarget(
+      name: "LayoutSnippetGenerator",
+      dependencies: [
+        .product(name: "SwiftParser", package: "swift-syntax"),
+        .product(name: "SwiftSyntax", package: "swift-syntax"),
+      ],
+      path: "Plugins/LayoutSnippetGenerator"
     ),
   ]
 )
