@@ -27,7 +27,7 @@ let package = Package(
   ],
   dependencies: [
     .package(url: "https://github.com/JohnSundell/Splash.git", exact: "0.16.0"),
-    .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.0.8"),
+    .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.0.9"),
     .package(name: "layouts-demo", path: "../layouts"),
   ],
   targets: [
