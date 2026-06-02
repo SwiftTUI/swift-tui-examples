@@ -25,9 +25,9 @@ bun install
 bun --cwd WebExample run build
 ```
 
-The `0.0.9` public pre-release builds from a fresh clone: Swift packages resolve
-`https://github.com/SwiftTUI/swift-tui.git` at tag `0.0.9`, and WebExample uses
-the `swift-tui-web` `0.0.9` GitHub release tarballs for `@swifttui/web` and
+The `0.0.10` public pre-release builds from a fresh clone: Swift packages resolve
+`https://github.com/SwiftTUI/swift-tui.git` at tag `0.0.10`, and WebExample uses
+the `swift-tui-web` `0.0.10` GitHub release tarballs for `@swifttui/web` and
 `@swifttui/build`.
 
 ## Roster
