@@ -5,11 +5,14 @@ public struct GalleryView: View {
   @State private var showPalette: Bool = false
 
   public init(initialTab: GalleryTab? = nil) {
-    _selection = State(initialValue: initialTab ?? .counter)
+    _selection = State(initialValue: initialTab ?? .logo)
   }
 
   public var body: some View {
     TabView(selection: $selection) {
+      Tab(Self.descriptor(for: .logo).title, value: GalleryTab.logo) {
+        LogoTab()
+      }
       Tab(Self.descriptor(for: .counter).title, value: GalleryTab.counter) {
         CounterTab()
       }
@@ -79,6 +82,7 @@ public struct GalleryView: View {
       modifiers: .ctrl,
       action: { showPalette = true }
     )
+    .galleryTabPaletteCommand(.logo, selection: $selection)
     .galleryTabPaletteCommand(.counter, selection: $selection)
     .galleryTabPaletteCommand(.life, selection: $selection)
     .galleryTabPaletteCommand(.todo, selection: $selection)
@@ -109,6 +113,7 @@ public struct GalleryView: View {
 
 extension GalleryView {
   public enum GalleryTab: Hashable, CaseIterable, Sendable {
+    case logo
     case life
     case counter
     case todo
@@ -154,6 +159,8 @@ extension GalleryView {
     @MainActor @ViewBuilder
     var content: some View {
       switch value {
+      case .logo:
+        LogoTab()
       case .counter:
         CounterTab()
       case .life:
@@ -195,6 +202,12 @@ extension GalleryView {
   }
 
   nonisolated static let tabDescriptors: [GalleryTabDescriptor] = [
+    .init(
+      value: .logo,
+      title: "Logo",
+      key: "logo",
+      coverageTags: ["canvas", "pixel-grid", "truecolor"]
+    ),
     .init(
       value: .counter,
       title: "Counter",

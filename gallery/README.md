@@ -30,6 +30,7 @@ keys.
 
 | Tab | Coverage |
 | --- | --- |
+| Logo | Truecolor `Canvas` pixel grid (the SwiftTUI mark, half-block packed) |
 | Counter | Basic state mutation and button input |
 | Life | Custom rendering and simulation state |
 | Todo | Lists, editing, deletion, and selection |

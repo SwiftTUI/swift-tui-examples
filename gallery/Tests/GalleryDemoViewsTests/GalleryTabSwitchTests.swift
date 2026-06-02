@@ -930,7 +930,7 @@ struct GalleryTabSwitchTests {
     )
     var paletteText = try render()
     #expect(
-      paletteText.contains("> Counter"),
+      paletteText.contains("> Logo"),
       "expected top command to be selected after opening; surface was:\n\(paletteText)"
     )
     let filterFocusIdentity = try #require(focusTracker.currentFocusIdentity)
@@ -938,7 +938,7 @@ struct GalleryTabSwitchTests {
     #expect(runLoop.handle(.input(.key(.arrowDown))) == nil)
     paletteText = try render()
     #expect(
-      paletteText.contains("> Life"),
+      paletteText.contains("> Counter"),
       "expected Down to move the local selection to the next command; surface was:\n\(paletteText)"
     )
     #expect(focusTracker.currentFocusIdentity == filterFocusIdentity)
@@ -946,7 +946,7 @@ struct GalleryTabSwitchTests {
     #expect(runLoop.handle(.input(.key(.tab))) == nil)
     paletteText = try render()
     #expect(
-      paletteText.contains("> Todo"),
+      paletteText.contains("> Life"),
       "expected Tab to move the local selection like Down; surface was:\n\(paletteText)"
     )
     #expect(focusTracker.currentFocusIdentity == filterFocusIdentity)
@@ -954,15 +954,15 @@ struct GalleryTabSwitchTests {
     #expect(runLoop.handle(.input(.key(.tab, modifiers: .shift))) == nil)
     paletteText = try render()
     #expect(
-      paletteText.contains("> Life"),
+      paletteText.contains("> Counter"),
       "expected Back-Tab to move the local selection like Up; surface was:\n\(paletteText)"
     )
     #expect(focusTracker.currentFocusIdentity == filterFocusIdentity)
 
-    #expect(runLoop.handle(.input(.key(.character("l")))) == nil)
+    #expect(runLoop.handle(.input(.key(.character("o")))) == nil)
     paletteText = try render()
     #expect(
-      paletteText.contains("> Life"),
+      paletteText.contains("> Counter"),
       "expected typing to keep the valid selected command while filtering; surface was:\n\(paletteText)"
     )
     #expect(focusTracker.currentFocusIdentity == filterFocusIdentity)
@@ -970,7 +970,7 @@ struct GalleryTabSwitchTests {
     #expect(runLoop.handle(.input(.key(.backspace))) == nil)
     paletteText = try render()
     #expect(
-      paletteText.contains("> Life"),
+      paletteText.contains("> Counter"),
       "expected deleting the query to keep the still-valid selected command; surface was:\n\(paletteText)"
     )
     #expect(focusTracker.currentFocusIdentity == filterFocusIdentity)

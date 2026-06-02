@@ -11,6 +11,7 @@ struct GalleryMetadataTests {
 
     #expect(
       descriptors.map(\.title) == [
+        "Logo",
         "Counter",
         "Life",
         "Todo",
