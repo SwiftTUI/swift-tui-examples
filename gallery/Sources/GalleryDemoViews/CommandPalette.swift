@@ -83,17 +83,23 @@ private struct CommandPaletteListBody: View {
 
   @ViewBuilder
   private var matchList: some View {
+    // `matches` runs the full fuzzy filter + sort over every command, so it is
+    // computed exactly once here and the selected index is derived from that
+    // same array — rather than recomputing it per row (via the old computed
+    // `effectiveSelectedIndex`), which made the body O(visibleRows × commands)
+    // on every keystroke.
     let rows = matches
     if rows.isEmpty {
       Text(commands.isEmpty ? "No commands in the current scope." : "No matches.")
         .foregroundStyle(.separator)
         .padding(.vertical, 1)
     } else {
-      let visibleRange = visibleRange(in: rows)
+      let selected = effectiveSelectedIndex(in: rows)
+      let visibleRange = visibleRange(in: rows, selectedIndex: selected ?? 0)
       VStack(alignment: .leading, spacing: 0) {
         ForEach(Array(visibleRange), id: \.self) { index in
           let match = rows[index]
-          row(for: match.command, isSelected: index == effectiveSelectedIndex)
+          row(for: match.command, isSelected: index == selected)
         }
       }
     }
@@ -103,21 +109,23 @@ private struct CommandPaletteListBody: View {
     matches.map(\.key)
   }
 
-  private var selectedIndex: Int? {
+  private func selectedIndex(in rows: [CommandPaletteMatch]) -> Int? {
     guard let selectedCommandKey else { return nil }
-    return matches.firstIndex { $0.key == selectedCommandKey }
+    return rows.firstIndex { $0.key == selectedCommandKey }
   }
 
-  private var effectiveSelectedIndex: Int? {
-    selectedIndex ?? (matches.isEmpty ? nil : 0)
+  private func effectiveSelectedIndex(in rows: [CommandPaletteMatch]) -> Int? {
+    selectedIndex(in: rows) ?? (rows.isEmpty ? nil : 0)
   }
 
-  private func visibleRange(in rows: [CommandPaletteMatch]) -> Range<Int> {
+  private func visibleRange(
+    in rows: [CommandPaletteMatch],
+    selectedIndex: Int
+  ) -> Range<Int> {
     guard rows.count > Self.maximumVisibleRows else {
       return 0..<rows.count
     }
 
-    let selectedIndex = effectiveSelectedIndex ?? 0
     let start = min(
       max(0, selectedIndex - Self.maximumVisibleRows + 1),
       rows.count - Self.maximumVisibleRows
@@ -187,20 +195,21 @@ private struct CommandPaletteListBody: View {
       return
     }
 
-    let currentIndex = effectiveSelectedIndex ?? 0
+    let currentIndex = effectiveSelectedIndex(in: rows) ?? 0
     let nextIndex = min(max(currentIndex + delta, 0), rows.count - 1)
     selectedCommandKey = rows[nextIndex].key
   }
 
   private func openSelectedCommand() {
+    let rows = matches
     guard
-      let effectiveSelectedIndex,
-      matches.indices.contains(effectiveSelectedIndex)
+      let selected = effectiveSelectedIndex(in: rows),
+      rows.indices.contains(selected)
     else {
       return
     }
 
-    let command = matches[effectiveSelectedIndex].command
+    let command = rows[selected].command
     guard command.isEnabled else { return }
     perform(command)
   }
