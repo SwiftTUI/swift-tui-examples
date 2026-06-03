@@ -1,5 +1,5 @@
 {
-  "originHash" : "80276ac2be174df16bddc83c240cf7b1ccd15e7bbc3454a7a497a7f0e973b56a",
+  "originHash" : "8135b9c23f97b09508c3961463912a83bcc76e283502b2010ce42d5697d5b08b",
   "pins" : [
     {
       "identity" : "flyingfox",
@@ -42,8 +42,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/SwiftTUI/swift-tui.git",
       "state" : {
-        "revision" : "96ee6ab9353d58ee7437f5e44f32073ea135d074",
-        "version" : "0.0.10"
+        "revision" : "e6f39d83cfcf1881a87b7a5da44391918fae36aa",
+        "version" : "0.0.11"
       }
     },
     {
