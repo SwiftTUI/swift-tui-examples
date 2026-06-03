@@ -1,4 +1,6 @@
 import Foundation
+@_spi(Runners) import SwiftTUIProfiling
+@_spi(Runners) import SwiftTUIRuntime
 @_spi(Testing) import SwiftTUI
 @_spi(Testing) import SwiftTUITestSupport
 import Testing
@@ -80,7 +82,8 @@ struct AnimationRegressionTests {
     async throws
   {
     let terminalSize = CellSize(width: 96, height: 60)
-    let rootIdentity = Identity(components: [.named("AnimationsTabOffsetDiagnostics")])
+    let sceneID = "AnimationsTabOffsetDiagnostics"
+    let rootIdentity = Self.sceneRootIdentity(sceneID)
     let buttonLocation = try Self.centerOfText(
       "right",
       in: AnimationsTab(),
@@ -97,10 +100,10 @@ struct AnimationRegressionTests {
     var framesBeforeToggle = 0
     var markerColumnsAfterToggle: [Int] = []
 
-    let result = try await Self.runHarness(
+    let result = try await Self.runDiagnosticsSceneHarness(
       host: host,
       terminalSize: terminalSize,
-      rootIdentity: rootIdentity,
+      sceneID: sceneID,
       inputReader: AnimationRegressionAwaitedInputReader(
         frameSignal: host.frameSignal,
         steps: [
@@ -236,6 +239,10 @@ struct AnimationRegressionTests {
     return nil
   }
 
+  private static func sceneRootIdentity(_ sceneID: String) -> Identity {
+    Identity(components: ["App", WindowIdentifier(sceneID).rawValue])
+  }
+
   private static func slideMarkerColumns(
     in surfaces: [RasterSurface]
   ) -> [Int] {
@@ -252,7 +259,6 @@ struct AnimationRegressionTests {
     terminalSize: CellSize,
     rootIdentity: Identity,
     inputReader: any TerminalInputReading,
-    diagnosticsPath: String? = nil,
     viewBuilder: @escaping () -> V
   ) async throws -> RunLoopResult<Int> {
     var env = EnvironmentValues()
@@ -273,11 +279,41 @@ struct AnimationRegressionTests {
       proposal: .init(width: terminalSize.width, height: terminalSize.height),
       viewBuilder: { _, _ in viewBuilder() }
     )
-    if let diagnosticsPath {
-      let diagnosticsLogger = try #require(FrameDiagnosticsLogger(path: diagnosticsPath))
-      runLoop.diagnosticsLogger = diagnosticsLogger
-    }
     return try await runLoop.run()
+  }
+
+  private static func runDiagnosticsSceneHarness<V: View>(
+    host: AnimationRegressionRecordingHost,
+    terminalSize _: CellSize,
+    sceneID: String,
+    inputReader: any TerminalInputReading,
+    diagnosticsPath: String,
+    viewBuilder: @escaping () -> V
+  ) async throws -> RunLoopResult<SceneSessionState> {
+    let scene = WindowGroup(id: WindowIdentifier(sceneID)) {
+      viewBuilder()
+    }
+    let selections = collectWindowSceneSelections(from: scene)
+    let selection = try #require(selections.first)
+    #expect(selections.count == 1)
+
+    let frameSink = try #require(TSVFileSink(path: diagnosticsPath))
+    return try await selection.run(
+      sessionName: "AnimationRegressionTests.\(sceneID)",
+      resources: SceneSessionResources(
+        presentationSurface: host,
+        terminalInputReader: inputReader,
+        signalReader: AnimationRegressionEmptySignals(),
+        scheduler: FrameScheduler(),
+        frameSink: frameSink,
+        renderMode: .sync
+      ),
+      stateContainer: StateContainer(
+        initialState: SceneSessionState(),
+        invalidationIdentities: [selection.rootIdentity]
+      ),
+      focusTracker: FocusTracker(invalidationIdentities: [selection.rootIdentity])
+    )
   }
 
   private static func diagnosticRows(_ text: String) -> [[String: String]] {

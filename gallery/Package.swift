@@ -19,7 +19,7 @@ let package = Package(
     ),
   ],
   dependencies: [
-    .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.0.12")
+    .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.0.13")
   ],
   targets: [
     .executableTarget(
@@ -43,6 +43,8 @@ let package = Package(
         "GalleryDemoViews",
         .product(name: "SwiftTUI", package: "swift-tui"),
         .product(name: "SwiftTUIAnimatedImage", package: "swift-tui"),
+        .product(name: "SwiftTUIProfiling", package: "swift-tui"),
+        .product(name: "SwiftTUIRuntime", package: "swift-tui"),
         .product(name: "SwiftTUITestSupport", package: "swift-tui"),
       ]
     ),

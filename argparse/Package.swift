@@ -9,7 +9,7 @@ let package = Package(
     .executable(name: "argparse-demo", targets: ["ArgParseDemo"])
   ],
   dependencies: [
-    .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.0.12")
+    .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.0.13")
   ],
   targets: [
     .executableTarget(
