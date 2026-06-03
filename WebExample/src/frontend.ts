@@ -341,7 +341,11 @@ function passiveEmbedOptions(
   return {
     ...options,
     synchronizeAccessibilityFocus: false,
-    captureWheelInput: false,
+    // Scroll-chaining: the embedded view captures the wheel only while a
+    // scrollable region under the pointer can still scroll in that direction;
+    // at its edge (or over non-scrollable content) the wheel falls through and
+    // the host page scrolls. Scenes with no ScrollView stay fully passive.
+    wheelMode: "chain",
   };
 }
 
