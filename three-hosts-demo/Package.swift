@@ -74,7 +74,7 @@ let package = Package(
   platforms: platforms,
   products: products,
   dependencies: [
-    .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.0.13")
+    .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.0.14")
   ],
   targets: targets,
   swiftLanguageModes: [.v6]
