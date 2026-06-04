@@ -80,7 +80,7 @@ struct ScrollControlTab: View {
         }
       }
     }
-    .frame(width: 72, height: 11, alignment: .topLeading)
+    .frame(width: 72, height: 8, alignment: .topLeading)
     .border(set: .rounded)
   }
 

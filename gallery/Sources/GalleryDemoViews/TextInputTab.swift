@@ -2,7 +2,7 @@ import SwiftTUIRuntime
 
 struct TextInputTab: View {
   @State private var searchText = "SwiftTUI"
-  @State private var ownerName = "Ada Lovelace"
+  @State private var ownerName = ""
   @State private var emailAddress = ""
   @State private var accessToken = "secret"
   @State private var plainField = "plain style"
@@ -10,7 +10,6 @@ struct TextInputTab: View {
   @State private var disabledField = "read-only"
   @State private var notes =
     """
-    TextEditor uses the same reducer-backed text model as TextField.
     Try arrow keys, return, backspace, and bracketed paste here.
     """
 

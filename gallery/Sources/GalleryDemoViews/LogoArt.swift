@@ -1,25 +1,10 @@
 import SwiftTUIRuntime
 
-/// Pixel-art source for the SwiftTUI mark, rasterized from the org root's
-/// `logo.svg` to an exact 32×32 grid.
-///
-/// The artwork is stored as a compact palette plus a character bitmap rather
-/// than a 1024-entry color array: each glyph in ``bitmap`` indexes ``palette``
-/// via ``alphabet``, and a space marks a transparent pixel (the rounded
-/// corners). ``pixels`` decodes that once into the row-major `[Color?]` a
-/// ``Canvas`` pixel grid consumes, where `nil` lets the terminal background
-/// show through.
+
 enum LogoArt {
-  /// Logical pixel width of the source artwork.
   static let width = 32
-
-  /// Logical pixel height of the source artwork.
   static let height = 32
-
-  /// Glyph alphabet: position `i` is the bitmap character for ``palette`` `i`.
   private static let alphabet = Array("0123456789ABCDEFGHIJKLMNOPQRSTUV")
-
-  /// The 32 distinct truecolors in the artwork, indexed by ``alphabet``.
   private static let palette: [Color] = [
     Color(hexRGB: 0x00FFFF),  // 0
     Color(hexRGB: 0x00EAEA),  // 1
@@ -54,8 +39,6 @@ enum LogoArt {
     Color(hexRGB: 0x00D580),  // U
     Color(hexRGB: 0x00AA95),  // V
   ]
-
-  /// Row-major glyphs, one character per pixel; a space marks transparency.
   private static let bitmap: [String] = [
     "     0111111112022220020003     ",
     "   01444455555422222222220003   ",
@@ -90,8 +73,6 @@ enum LogoArt {
     "   GFFFFFFFFFFFFFFFFFFFFFFFGJ   ",
     "     GGFFFFFFFFFFFFFFFFGGGO     ",
   ]
-
-  /// Row-major resolved pixels (`nil` = transparent) for a `Canvas` pixel grid.
   static let pixels: [Color?] = {
     let indexByGlyph = Dictionary(
       uniqueKeysWithValues: alphabet.enumerated().map { ($1, $0) }
