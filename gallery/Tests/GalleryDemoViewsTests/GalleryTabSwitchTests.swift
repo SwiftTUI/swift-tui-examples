@@ -255,7 +255,7 @@ struct GalleryTabSwitchTests {
           .event(.key(KeyPress(.character("k"), modifiers: .ctrl))),
           .awaitCondition {
             let text = host.lastPresentedSurface?.lines.joined(separator: "\n") ?? ""
-            return text.contains("Command palette")
+            return containsSeedHarnessPaletteSurface(text)
           },
           .event(.key(KeyPress(.escape, modifiers: []))),
           .awaitCondition {
@@ -263,7 +263,7 @@ struct GalleryTabSwitchTests {
               return false
             }
             let text = surface.lines.joined(separator: "\n")
-            guard !text.contains("Command palette"), !text.contains("palette sheet") else {
+            guard !containsSeedHarnessPaletteSurface(text), !text.contains("palette sheet") else {
               return false
             }
             capture.postDismissSurface = surface
@@ -738,7 +738,7 @@ struct GalleryTabSwitchTests {
               return false
             }
             let text = surface.lines.joined(separator: "\n")
-            guard text.contains("Command palette") else {
+            guard text.contains("Presentation Lab") else {
               return false
             }
             capture.paletteSurface = surface
@@ -812,10 +812,10 @@ struct GalleryTabSwitchTests {
       runLoop.handle(.input(.key(.character("k"), modifiers: .ctrl))) == nil
     )
     let paletteText = try render()
-    #expect(paletteText.contains("Command palette"))
+    #expect(paletteText.contains("Presentation Lab"))
     let focusRegionIdentities = runLoop.latestSemanticSnapshot.focusRegions.map(\.identity)
     #expect(
-      focusRegionIdentities.count == 4,
+      focusRegionIdentities.count == 3,
       "expected the palette to remove the redundant footer focus target; regions: \(focusRegionIdentities)"
     )
     #expect(
@@ -869,7 +869,7 @@ struct GalleryTabSwitchTests {
     rendered = 0
     try runLoop.renderPendingFrames(renderedFrames: &rendered)
     let openPaletteText = try #require(host.lastPresentedSurface).lines.joined(separator: "\n")
-    #expect(openPaletteText.contains("Command palette"))
+    #expect(openPaletteText.contains("Presentation Lab"))
 
     let typeReason = runLoop.handle(
       .input(.key(.character("z"), modifiers: []))
@@ -999,7 +999,7 @@ struct GalleryTabSwitchTests {
 
     #expect(runLoop.handle(.input(.key(.return))) == nil)
     let openedText = try render()
-    #expect(!openedText.contains("Command palette"))
+    #expect(!openedText.contains("Presentation Lab"))
     #expect(
       openedText.contains("AC"),
       "expected Return to open the selected Calculator command; surface was:\n\(openedText)"
@@ -1067,7 +1067,7 @@ struct GalleryTabSwitchTests {
     )
 
     let openedText = try render()
-    #expect(!openedText.contains("Command palette"))
+    #expect(!openedText.contains("Presentation Lab"))
     #expect(
       openedText.contains("Conway's Life"),
       "expected clicking a palette row to open that command; surface was:\n\(openedText)"
@@ -1092,15 +1092,17 @@ struct GalleryTabSwitchTests {
           },
           .event(.key(KeyPress(.character("k"), modifiers: .ctrl))),
           .awaitCondition {
-            host.lastPresentedSurface?.lines.joined(separator: "\n").contains("Command palette")
-              == true
+            guard let text = host.lastPresentedSurface?.lines.joined(separator: "\n") else {
+              return false
+            }
+            return containsSeedHarnessPaletteSurface(text)
           },
           .event(.key(KeyPress(.escape, modifiers: []))),
           .awaitCondition {
             guard let text = host.lastPresentedSurface?.lines.joined(separator: "\n") else {
               return false
             }
-            return !text.contains("Command palette") && !text.contains("Filter commands")
+            return !containsSeedHarnessPaletteSurface(text)
           },
           .event(.key(KeyPress(.character("d"), modifiers: .ctrl))),
         ]),
@@ -1113,12 +1115,13 @@ struct GalleryTabSwitchTests {
     #expect(result.exitReason == .userExit(KeyPress(.character("d"), modifiers: .ctrl)))
     #expect(
       host.surfaces.contains {
-        $0.lines.joined(separator: "\n").contains("Command palette")
+        containsSeedHarnessPaletteSurface($0.lines.joined(separator: "\n"))
       },
       "expected at least one recorded surface to contain the command palette"
     )
     #expect(
-      host.surfaces.last?.lines.joined(separator: "\n").contains("Command palette") == false,
+      host.surfaces.last.map { containsSeedHarnessPaletteSurface($0.lines.joined(separator: "\n")) }
+        == false,
       "expected the final surface to dismiss the command palette"
     )
     #expect(
@@ -2301,6 +2304,12 @@ private final class GalleryPhysicsSelectionCapture {
 @MainActor
 private final class GalleryCommandPaletteCapture {
   var paletteSurface: RasterSurface?
+}
+
+private func containsSeedHarnessPaletteSurface(_ text: String) -> Bool {
+  text.contains("Switch to Full Screen")
+    || text.contains("No commands in the current scope.")
+    || text.contains("Command palette")
 }
 
 private func deduplicated(

@@ -54,8 +54,6 @@ private struct CommandPaletteListBody: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
-      header
-      Divider()
       TextField("Filter commands…", text: $query)
         .focused($isQueryFocused)
         .prefersDefaultFocus(in: filterFocusNamespace)
@@ -71,13 +69,6 @@ private struct CommandPaletteListBody: View {
     }
     .onChange(of: matchKeys, initial: true) { _, newKeys in
       reconcileSelection(for: newKeys)
-    }
-  }
-
-  private var header: some View {
-    HStack(spacing: 2) {
-      Text("Command palette").bold()
-      Spacer()
     }
   }
 
