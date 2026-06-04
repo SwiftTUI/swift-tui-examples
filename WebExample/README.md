@@ -85,7 +85,7 @@ for the canonical environment story.
 bun install
 ```
 
-The `0.0.14` pre-release installs `@swifttui/web` and `@swifttui/build` from the
+The `0.0.16` pre-release installs `@swifttui/web` and `@swifttui/build` from the
 `swift-tui-web` GitHub release tarballs. When npm publication is enabled, those
 dependencies can move to package versions without changing the host code.
 
