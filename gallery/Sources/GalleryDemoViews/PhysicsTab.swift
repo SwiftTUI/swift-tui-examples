@@ -39,7 +39,7 @@ struct PhysicsTab: View {
         size: CellSize(width: FullScreenToyPhysics.diameter, height: height)
       )
 
-      Canvas(grid: .braille2x4, drawing)
+      Canvas(drawing, grid: .braille2x4)
         .foregroundStyle(.cyan)
         .frame(width: bounds.width, height: bounds.height, alignment: .topLeading)
         .background(Color.black)

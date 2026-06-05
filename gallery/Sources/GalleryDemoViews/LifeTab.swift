@@ -84,7 +84,7 @@ public struct LifeTab: View {
         zoom: zoom
       )
 
-      Canvas(grid: zoom.canvasGrid, drawing)
+      Canvas(drawing, grid: zoom.canvasGrid)
         .foregroundStyle(.tint)
         .frame(width: termSize.width, height: termSize.height, alignment: .topLeading)
         .contentShape(

@@ -106,13 +106,12 @@ struct TimelineView: View {
       model.selectFrame(at: index)
       refresh()
     } label: {
-      Canvas(
-        pixelGridWidth: frame.thumbnail.width,
+      Canvas.pixelGrid(
+        width: frame.thumbnail.width,
         height: frame.thumbnail.height,
         pixels: pixels,
         mode: .verticalHalfBlock
       )
-      .frame(width: frame.thumbnail.width, height: frame.thumbnail.height / 2)
       .border(active ? .tint : .separator, set: .rounded)
       // .overlay(alignment: .bottomTrailing) {
       //   Text(active ? "[\(index + 1)]" : "\(index + 1)")

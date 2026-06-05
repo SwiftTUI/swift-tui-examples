@@ -45,13 +45,12 @@ private struct CanvasSurfaceView: View {
 
   var body: some View {
     ZStack(alignment: .topLeading) {
-      Canvas(
-        pixelGridWidth: size.width,
+      Canvas.pixelGrid(
+        width: size.width,
         height: size.height,
         pixels: resolvedPixels,
         mode: mode
       )
-      .frame(width: size.width, height: mode.cellHeight(for: size.height))
 
       Canvas(
         CanvasOverlayDrawing(
@@ -152,8 +151,7 @@ private struct CanvasOverlayDrawing: CanvasDrawing, Equatable {
     let cell = cellPoint(for: point)
     let style = kind.style(for: point, mode: mode)
     context.setCell(
-      x: cell.x,
-      y: cell.y,
+      at: CellPoint(x: cell.x, y: cell.y),
       character: style.character,
       foreground: style.color,
       background: backgroundColor(behind: point)

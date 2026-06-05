@@ -48,7 +48,7 @@ struct LifeDrawing: CanvasDrawing, Equatable {
       for y in 0..<height {
         let row = y * width
         for x in 0..<width where cells[row + x] {
-          context.setPixel(x: x, y: y)
+          context.setSample(GridSample(x: x, y: y))
         }
       }
 
@@ -59,8 +59,8 @@ struct LifeDrawing: CanvasDrawing, Equatable {
       for y in 0..<height {
         let row = y * width
         for x in 0..<width where cells[row + x] {
-          context.setPixel(x: 2 * x, y: y)
-          context.setPixel(x: 2 * x + 1, y: y)
+          context.setSample(GridSample(x: 2 * x, y: y))
+          context.setSample(GridSample(x: 2 * x + 1, y: y))
         }
       }
     }

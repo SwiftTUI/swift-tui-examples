@@ -9,10 +9,6 @@ import SwiftTUIRuntime
 /// terminal cell aspect reads as square. Transparent pixels (`nil`, the rounded
 /// corners) leave the terminal background showing through.
 struct LogoTab: View {
-  private static let cellWidth = LogoArt.width
-  private static let cellHeight = CanvasPixelGridMode.verticalHalfBlock
-    .cellHeight(for: LogoArt.height)
-
   var body: some View {
     VStack(spacing: 1) {
       logo
@@ -25,12 +21,11 @@ struct LogoTab: View {
   }
 
   private var logo: some View {
-    Canvas(
-      pixelGridWidth: LogoArt.width,
+    Canvas.pixelGrid(
+      width: LogoArt.width,
       height: LogoArt.height,
       pixels: LogoArt.pixels,
       mode: .verticalHalfBlock
     )
-    .frame(width: Self.cellWidth, height: Self.cellHeight)
   }
 }
