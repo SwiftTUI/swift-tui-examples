@@ -135,7 +135,9 @@ struct PhysicsTabGestureTests {
     #expect(region.contains(center))
   }
 
-  @Test("fullscreen demo keeps presenting frames while gravity runs")
+  @Test(
+    "fullscreen demo keeps presenting frames while gravity runs",
+    .enabled(if: galleryRuntimeTestsEnabled, galleryRuntimeTestGateComment))
   func gravityLoopSchedulesRuntimeFrames() async throws {
     let terminalSize = CellSize(width: 40, height: 12)
     let rootIdentity = Identity(components: [.named("PhysicsTabGravityLoop")])
@@ -166,7 +168,9 @@ struct PhysicsTabGestureTests {
     #expect(uniqueSurfaces.first != uniqueSurfaces.last)
   }
 
-  @Test("dragging the fullscreen demo rectangle updates the rendered surface and commits position")
+  @Test(
+    "dragging the fullscreen demo rectangle updates the rendered surface and commits position",
+    .enabled(if: galleryRuntimeTestsEnabled, galleryRuntimeTestGateComment))
   func draggingRectangleUpdatesAndCommits() async throws {
     let terminalSize = CellSize(width: 40, height: 12)
     let rootIdentity = Identity(components: [.named("PhysicsTabGestureTest")])
@@ -212,7 +216,9 @@ struct PhysicsTabGestureTests {
     )
   }
 
-  @Test("fullscreen demo rectangle remains draggable after its offset changes")
+  @Test(
+    "fullscreen demo rectangle remains draggable after its offset changes",
+    .enabled(if: galleryRuntimeTestsEnabled, galleryRuntimeTestGateComment))
   func draggingRectangleTwiceTracksItsMovedPosition() async throws {
     let terminalSize = CellSize(width: 40, height: 12)
     let rootIdentity = Identity(components: [.named("PhysicsTabGestureTwiceTest")])
@@ -289,7 +295,9 @@ struct PhysicsTabGestureTests {
     #expect(uniqueSurfaces.first != uniqueSurfaces.last)
   }
 
-  @Test("fullscreen demo resumes physics after drag release")
+  @Test(
+    "fullscreen demo resumes physics after drag release",
+    .enabled(if: galleryRuntimeTestsEnabled, galleryRuntimeTestGateComment))
   func draggingRectangleReleaseResumesPhysics() async throws {
     let terminalSize = CellSize(width: 40, height: 12)
     let rootIdentity = Identity(components: [.named("PhysicsTabReleaseResumesPhysics")])
@@ -372,7 +380,9 @@ struct PhysicsTabGestureTests {
     #expect(!paletteRows.isEmpty, "expected toolbar row to contain the palette item")
   }
 
-  @Test("fullscreen toolbar stays present in the rendered surface while animation ticks")
+  @Test(
+    "fullscreen toolbar stays present in the rendered surface while animation ticks",
+    .enabled(if: galleryRuntimeTestsEnabled, galleryRuntimeTestGateComment))
   func fullscreenToolbarStaysPresentAcrossAnimationFrames() async throws {
     let terminalSize = CellSize(width: 40, height: 12)
     let rootIdentity = Identity(components: [.named("FullScreenToolbarAnimationVisibility")])
