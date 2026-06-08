@@ -5,9 +5,17 @@ Runnable examples for
 complete sample for a product surface, execution mode, or host integration
 pattern.
 
-Use `swiftly run swift ...` for Swift packages so the examples use the repo's
-pinned Swift toolchain. Use the repo root for the commands below unless a local
-README says otherwise.
+## Prerequisites
+
+- **Swift 6.3.x** (`.swift-version` pins 6.3.1) and, for the browser/WASI
+  example, **[Bun](https://bun.sh)**.
+- The commands below use **[`swiftly`](https://swiftly.dev)** so every example
+  builds against the repo's pinned toolchain. If you have not installed swiftly,
+  install it from <https://swiftly.dev> — or, if you already have Swift 6.3.x
+  active (for example via Xcode 26 or a toolchain on `PATH`), drop the
+  `swiftly run` prefix and run the bare `swift ...` command instead.
+
+Use the repo root for the commands below unless a local README says otherwise.
 
 ## Quick Start
 
@@ -105,3 +113,7 @@ checks. `SWIFTTUI_EXAMPLES_XCODE_DERIVED_DATA` can point the macOS lane at a
 reusable DerivedData directory for the Xcode app build. Set `SWIFTTUI_CHECKOUT`
 or `SWIFTTUI_WEB_CHECKOUT` only when deliberately testing local unpublished
 checkouts; the public default does not require sibling repos.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
