@@ -6,15 +6,14 @@ import SwiftTUI
 /// state (brush size for pen/eraser, primary chip + selection toggle
 /// for bucket, gradient endpoints + selection toggle for gradient,
 /// selection rect + Confirm/Clear for marquee, picked color readout
-/// for eyedropper). The trailing half holds the global affordances
-/// (`⇄` swap and `[?]` help) so they're always one click away
-/// regardless of which tool is active.
+/// for eyedropper). The trailing half holds the global color-swap
+/// affordance so it is always one click away regardless of which tool
+/// is active.
 ///
 /// Every clickable target inside the bar mirrors a keyboard shortcut,
 /// so the bar can be driven entirely by mouse or entirely by keyboard.
 struct ToolOptionsBar: View {
   let model: EditorViewModel
-  @Binding var isHelpPresented: Bool
   let refresh: @MainActor @Sendable () -> Void
 
   var body: some View {
@@ -24,7 +23,6 @@ struct ToolOptionsBar: View {
       contextualOptions
       Spacer(minLength: 1)
       swapButton
-      helpButton
     }
     .padding(.horizontal, 1)
     .frame(maxWidth: .infinity, alignment: .leading)
@@ -170,16 +168,6 @@ struct ToolOptionsBar: View {
       refresh()
     } label: {
       Text("⇄ swap").foregroundStyle(.muted)
-    }
-    .buttonStyle(.plain)
-  }
-
-  private var helpButton: some View {
-    Button {
-      isHelpPresented = true
-      refresh()
-    } label: {
-      Text("[?]").foregroundStyle(.muted)
     }
     .buttonStyle(.plain)
   }

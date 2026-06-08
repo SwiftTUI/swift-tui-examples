@@ -5,8 +5,7 @@ actions.
 
 The bindings avoid terminal-ambiguous chords such as `Ctrl+Shift+letter`,
 `Ctrl+digit`, `Ctrl+[` / `Ctrl+]`, and `Alt+[`, because the current terminal
-input path does not receive those as distinct key presses. Press `?` in the
-editor to open the same shortcut reference in-app.
+input path does not receive those as distinct key presses.
 
 ## Tools
 
@@ -22,7 +21,6 @@ editor to open the same shortcut reference in-app.
 | `Space`       | Apply the current tool at the cursor    |
 | `Enter`       | Confirm marquee (commit selection rect) |
 | `Escape`      | Clear selection                         |
-| `?`           | Open keyboard help                      |
 
 The canvas also supports direct pointer editing. Drag with **Pen** or
 **Eraser** to paint connected strokes, drag with **Marquee** to select a
@@ -52,6 +50,7 @@ cell.
 | `Alt+-`           | Decrease current frame delay (10 cs)     |
 | `Alt+=`           | Increase current frame delay (10 cs)     |
 | `Alt+0`           | Reset all frame delays to current value  |
+| `Alt+P`           | Toggle playback                          |
 
 ## Layers
 
@@ -88,8 +87,7 @@ cell.
 
 | Shortcut          | Action                                 |
 | ----------------- | -------------------------------------- |
-| `Ctrl+S`          | Save                                   |
-| `Alt+S`           | Save As (writes `./untitled.gif`)      |
+| `Ctrl+S`          | Open save sheet                       |
+| `Alt+S`           | Open save sheet                       |
 | `Ctrl+R`          | Resize canvas (cycles 16/24/32/48/64) |
 | `Ctrl+Q`          | Quit                                   |
-| `?`               | Open keyboard help                     |

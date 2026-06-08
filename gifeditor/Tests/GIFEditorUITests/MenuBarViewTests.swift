@@ -19,12 +19,12 @@ struct MenuBarViewTests {
           MenuBarView(
             openMenu: openMenu,
             model: model,
-            isHelpPresented: .constant(false),
             showsToolDock: .constant(true),
             showsRightPanel: .constant(true),
             showsTimeline: .constant(true),
             pixelGridMode: .constant(.verticalHalfBlock),
             isResizeSheetPresented: .constant(false),
+            presentSaveSheet: {},
             refresh: {}
           )
           Text("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
@@ -37,12 +37,12 @@ struct MenuBarViewTests {
           menu: .file,
           openMenu: openMenu,
           model: model,
-          isHelpPresented: .constant(false),
           showsToolDock: .constant(true),
           showsRightPanel: .constant(true),
           showsTimeline: .constant(true),
           pixelGridMode: .constant(.verticalHalfBlock),
           isResizeSheetPresented: .constant(false),
+          presentSaveSheet: {},
           refresh: {}
         )
         .offset(x: MenuBarMenu.file.dropdownOffset + 1, y: 1)
@@ -53,8 +53,8 @@ struct MenuBarViewTests {
 
     let lines = rendered.rasterSurface.lines
     #expect(lines[1].contains("Save"))
-    #expect(lines[2].contains("Save As"))
-    #expect(lines[4].contains("Resize Canvas"))
+    #expect(!rendered.rasterSurface.lines.joined(separator: "\n").contains("Save As"))
+    #expect(lines[3].contains("Resize Canvas"))
   }
 }
 

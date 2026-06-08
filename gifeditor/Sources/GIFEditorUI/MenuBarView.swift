@@ -1,8 +1,8 @@
 import GIFEditorCore
 import SwiftTUI
 
-/// Top-row menu bar — File / Edit / Layer / Select / Frame / View /
-/// Help. Each dropdown opens from the editor-root overlay so opening or
+/// Top-row menu bar — File / Edit / Layer / Select / Frame / View.
+/// Each dropdown opens from the editor-root overlay so opening or
 /// closing a menu does not reflow the canvas, panels, or timeline.
 /// Every menu item is a clickable `Button` that calls the same model
 /// method as its keybinding.
@@ -14,12 +14,12 @@ import SwiftTUI
 struct MenuBarView: View {
   @Binding var openMenu: MenuBarMenu?
   let model: EditorViewModel
-  @Binding var isHelpPresented: Bool
   @Binding var showsToolDock: Bool
   @Binding var showsRightPanel: Bool
   @Binding var showsTimeline: Bool
   @Binding var pixelGridMode: CanvasPixelGridMode
   @Binding var isResizeSheetPresented: Bool
+  let presentSaveSheet: @MainActor @Sendable () -> Void
   let refresh: @MainActor @Sendable () -> Void
 
   var body: some View {
@@ -30,7 +30,6 @@ struct MenuBarView: View {
       menuTrigger(.select)
       menuTrigger(.frame)
       menuTrigger(.view)
-      menuTrigger(.help)
       Spacer(minLength: 1)
       Text(documentLabel).foregroundStyle(.muted)
       Text(model.isDirty ? "●" : "✓")
@@ -62,20 +61,22 @@ struct MenuBarDropdownView: View {
   let menu: MenuBarMenu
   @Binding var openMenu: MenuBarMenu?
   let model: EditorViewModel
-  @Binding var isHelpPresented: Bool
   @Binding var showsToolDock: Bool
   @Binding var showsRightPanel: Bool
   @Binding var showsTimeline: Bool
   @Binding var pixelGridMode: CanvasPixelGridMode
   @Binding var isResizeSheetPresented: Bool
+  let presentSaveSheet: @MainActor @Sendable () -> Void
   let refresh: @MainActor @Sendable () -> Void
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
       switch menu {
       case .file:
-        menuItem("Save", action: refreshAfter(model.save))
-        menuItem("Save As…", action: refreshAfter(model.saveAs))
+        menuItem("Save…") {
+          presentSaveSheet()
+          refresh()
+        }
         menuGap
         menuItem("Resize Canvas…") {
           isResizeSheetPresented = true
@@ -114,6 +115,11 @@ struct MenuBarDropdownView: View {
         menuItem("New Frame", action: refreshAfter(model.insertBlankFrameAfterCurrent))
         menuItem("Duplicate Frame", action: refreshAfter(model.duplicateCurrentFrame))
         menuItem("Delete Frame", action: refreshAfter(model.deleteCurrentFrame))
+        menuGap
+        menuItem(model.isPlaybackActive ? "Pause Playback" : "Play Playback") {
+          model.togglePlayback()
+          refresh()
+        }
         menuGap
         menuItem("Previous Frame", action: refreshAfter(model.previousFrame))
         menuItem("Next Frame", action: refreshAfter(model.nextFrame))
@@ -157,11 +163,6 @@ struct MenuBarDropdownView: View {
         menuItem("Increase Brush Size", action: refreshAfter(model.increaseBrushSize))
         menuItem("Decrease Brush Size", action: refreshAfter(model.decreaseBrushSize))
         menuItem("Swap Primary/Secondary", action: refreshAfter(model.swapPrimaryAndSecondary))
-      case .help:
-        menuItem("Keyboard Shortcuts…") {
-          isHelpPresented = true
-          refresh()
-        }
       }
     }
     .background {
@@ -217,7 +218,6 @@ enum MenuBarMenu: CaseIterable, Equatable, Sendable {
   case select
   case frame
   case view
-  case help
 
   var title: String {
     switch self {
@@ -227,7 +227,6 @@ enum MenuBarMenu: CaseIterable, Equatable, Sendable {
     case .select: "Select"
     case .frame: "Frame"
     case .view: "View"
-    case .help: "Help"
     }
   }
 

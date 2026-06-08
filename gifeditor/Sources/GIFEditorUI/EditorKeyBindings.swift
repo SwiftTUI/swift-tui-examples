@@ -4,7 +4,6 @@ import SwiftTUI
 extension View {
   func applyFocusedEditorBindings(
     model: EditorViewModel,
-    isHelpPresented: Binding<Bool>,
     refresh: @escaping @MainActor @Sendable () -> Void
   ) -> ModifiedContent<Self, KeyPressModifier> {
     onKeyPress(.any) { keyPress in
@@ -15,8 +14,7 @@ extension View {
       guard
         handleFocusedEditorKey(
           keyPress.key,
-          model: model,
-          isHelpPresented: isHelpPresented
+          model: model
         )
       else {
         return .ignored
@@ -97,6 +95,10 @@ extension View where Self: ActionScope & Sendable {
       }
       .keyCommand("Equalize delays", key: .character("0"), modifiers: .alt) {
         model.setAllFrameDelaysToCurrent()
+        refresh()
+      }
+      .keyCommand("Toggle playback", key: .character("p"), modifiers: .alt) {
+        model.togglePlayback()
         refresh()
       }
   }
@@ -202,20 +204,20 @@ extension View where Self: ActionScope & Sendable {
   }
 
   func applyFileBindings(
-    model: EditorViewModel,
     isResizeSheetPresented: Binding<Bool>,
+    presentSaveSheet: @escaping @MainActor @Sendable () -> Void,
     refresh: @escaping @MainActor @Sendable () -> Void
   ) -> some View & ActionScope & Sendable {
     self
       .keyCommand("Save", key: .character("s"), modifiers: .ctrl) {
-        model.save()
+        presentSaveSheet()
         refresh()
       }
       .keyCommand(
-        "Save As", key: .character("s"),
+        "Save", key: .character("s"),
         modifiers: .alt
       ) {
-        model.saveAs()
+        presentSaveSheet()
         refresh()
       }
       .keyCommand("Resize canvas", key: .character("r"), modifiers: .ctrl) {
@@ -226,12 +228,18 @@ extension View where Self: ActionScope & Sendable {
 
   func applyTerminationHandling(
     model: EditorViewModel,
+    presentSaveSheet: @escaping @MainActor @Sendable () -> Void,
     refresh: @escaping @MainActor @Sendable () -> Void
   ) -> some View & ActionScope & Sendable {
-    onTerminationRequest { _ in
+    onTerminationRequest { request in
       if model.isDirty {
-        model.save()
+        guard request != .inputEnded else {
+          return .allow
+        }
+        presentSaveSheet()
+        model.statusMessage = "Save or cancel changes before quitting"
         refresh()
+        return .cancel
       }
       return .allow
     }
@@ -241,12 +249,9 @@ extension View where Self: ActionScope & Sendable {
 @MainActor
 private func handleFocusedEditorKey(
   _ key: KeyEvent,
-  model: EditorViewModel,
-  isHelpPresented: Binding<Bool>
+  model: EditorViewModel
 ) -> Bool {
   switch key {
-  case .character("?"):
-    isHelpPresented.wrappedValue = true
   case .character("p"):
     model.selectTool(.pen)
   case .character("e"):

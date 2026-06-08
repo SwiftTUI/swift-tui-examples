@@ -40,15 +40,15 @@ swiftly run swift run gifeditor                       # launch with a fresh 32x3
 swiftly run swift run gifeditor ../../nyan.gif        # launch editing a real GIF
 ```
 
-After making edits, press `Ctrl+S` to save (back to the source path or to
-`./untitled.gif` for new documents). Use `Alt+S` to save-as a new path.
+After making edits, press `Ctrl+S` or `Alt+S` to open the save sheet. The sheet
+previews the encoded GIF that will be written, lets you adjust the destination
+path, and requires explicit confirmation before overwriting an existing file.
 
 ## Keybindings
 
-Press `?` in the editor for the in-app shortcut reference, or read
-[docs/KEYBINDINGS.md](docs/KEYBINDINGS.md). The README keeps the copyable
-architecture and target-boundary guidance up front; the full shortcut table is
-editor-specific reference material.
+Read [docs/KEYBINDINGS.md](docs/KEYBINDINGS.md) for the full shortcut table.
+The README keeps the copyable architecture and target-boundary guidance up
+front; the full shortcut table is editor-specific reference material.
 
 ## Editing model
 

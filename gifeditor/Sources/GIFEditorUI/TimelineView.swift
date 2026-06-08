@@ -1,8 +1,8 @@
 import GIFEditorCore
 import SwiftTUI
 
-/// Bottom-strip timeline. Renders the navigation cluster
-/// (`◀◀ ◀ ▶ ▶▶`), a horizontally-scrolling row of clickable frame
+/// Bottom-strip timeline. Renders the playback / navigation cluster,
+/// a horizontally-scrolling row of clickable frame
 /// thumbnails (the active frame is wrapped in `[ ]` and tinted),
 /// frame operations (`＋ ⎘ ✕`), and a delay readout / stepper
 /// (`⊖ ⊕`) plus an `=all` equalize button.
@@ -46,11 +46,24 @@ struct TimelineView: View {
 
   private var navigationCluster: some View {
     HStack(spacing: 1) {
+      playbackButton
       navButton("◀◀", action: model.goToFirstFrame)
       navButton("◀", action: model.previousFrame)
       navButton("▶", action: model.nextFrame)
       navButton("▶▶", action: model.goToLastFrame)
     }
+  }
+
+  private var playbackButton: some View {
+    Button {
+      model.togglePlayback()
+      refresh()
+    } label: {
+      Text(model.isPlaybackActive ? "pause" : "play")
+        .foregroundStyle(model.isPlaybackActive ? .tint : .muted)
+    }
+    .buttonStyle(.plain)
+    .disabled(frames.count < 2)
   }
 
   private func navButton(

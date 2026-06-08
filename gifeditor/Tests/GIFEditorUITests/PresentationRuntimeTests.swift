@@ -8,28 +8,100 @@ import Testing
 @MainActor
 @Suite("GIF editor presentation runtime")
 struct PresentationRuntimeTests {
-  @Test("help sheet spinner advances and editor responds after dismissal")
-  func helpSheetSpinnerAdvancesAndEditorRespondsAfterDismissal() async throws {
+  @Test("Ctrl+S opens the unified save sheet with encoded preview")
+  func ctrlSOpensUnifiedSaveSheetWithEncodedPreview() async throws {
     let terminal = GIFEditorPresentationRecordingTerminalHost(
       surfaceSize: .init(width: 80, height: 24)
     )
-    let rootIdentity = Identity(components: ["gifeditor.presentation-runtime"])
-    let advancedGlyphs = Set(["⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"])
+    let rootIdentity = Identity(components: ["gifeditor.presentation-runtime.save-sheet"])
+
+    let inputReader = GIFEditorPresentationInputReader(
+      frameSignal: terminal.frameSignal,
+      steps: [
+        .press(KeyPress(.character("s"), modifiers: .ctrl)),
+        .awaitCondition {
+          terminal.latestFrame?.contains("Save GIF") == true
+            && terminal.latestFrame?.contains("Encoded preview") == true
+            && terminal.latestFrame?.contains("Destination") == true
+        },
+      ])
+
+    let result = try await RunLoop(
+      rootIdentity: rootIdentity,
+      presentationSurface: terminal,
+      terminalInputReader: inputReader,
+      signalReader: GIFEditorPresentationEmptySignalReader(),
+      stateContainer: StateContainer(
+        initialState: 0,
+        invalidationIdentities: [rootIdentity]
+      ),
+      focusTracker: FocusTracker(invalidationIdentities: [rootIdentity]),
+      proposal: .init(width: 80, height: 24),
+      viewBuilder: { _, _ in
+        EditorView(document: GIFDocument.blank(size: .init(width: 16, height: 16)))
+      }
+    ).run()
+
+    #expect(result.exitReason == .inputEnded)
+    #expect(terminal.frames.contains { $0.contains("Save GIF") })
+    #expect(!terminal.frames.contains { $0.contains("Save As") })
+  }
+
+  @Test("Alt+P toggles playback mode")
+  func altPTogglesPlaybackMode() async throws {
+    let terminal = GIFEditorPresentationRecordingTerminalHost(
+      surfaceSize: .init(width: 80, height: 24)
+    )
+    let rootIdentity = Identity(components: ["gifeditor.presentation-runtime.playback"])
+
+    let inputReader = GIFEditorPresentationInputReader(
+      frameSignal: terminal.frameSignal,
+      steps: [
+        .press(KeyPress(.character("p"), modifiers: .alt)),
+        .awaitCondition {
+          terminal.latestFrame?.contains("Playback started") == true
+            && terminal.latestFrame?.contains("PLAY") == true
+        },
+        .press(KeyPress(.character("p"), modifiers: .alt)),
+        .awaitCondition {
+          terminal.latestFrame?.contains("Playback paused") == true
+            && terminal.latestFrame?.contains("PLAY") == false
+        },
+      ])
+
+    let result = try await RunLoop(
+      rootIdentity: rootIdentity,
+      presentationSurface: terminal,
+      terminalInputReader: inputReader,
+      signalReader: GIFEditorPresentationEmptySignalReader(),
+      stateContainer: StateContainer(
+        initialState: 0,
+        invalidationIdentities: [rootIdentity]
+      ),
+      focusTracker: FocusTracker(invalidationIdentities: [rootIdentity]),
+      proposal: .init(width: 80, height: 24),
+      viewBuilder: { _, _ in
+        EditorView(document: playbackDocument())
+      }
+    ).run()
+
+    #expect(result.exitReason == .inputEnded)
+    #expect(terminal.frames.contains { $0.contains("Playback started") })
+    #expect(terminal.latestFrame?.contains("Playback paused") == true)
+    #expect(!terminal.frames.contains { $0.contains("Keyboard help") })
+  }
+
+  @Test("question mark no longer opens keyboard help")
+  func questionMarkNoLongerOpensKeyboardHelp() async throws {
+    let terminal = GIFEditorPresentationRecordingTerminalHost(
+      surfaceSize: .init(width: 80, height: 24)
+    )
+    let rootIdentity = Identity(components: ["gifeditor.presentation-runtime.no-help"])
 
     let inputReader = GIFEditorPresentationInputReader(
       frameSignal: terminal.frameSignal,
       steps: [
         .press(KeyPress(.character("?"), modifiers: [])),
-        .awaitCondition {
-          terminal.frames.contains { $0.contains("Keyboard help") && $0.contains("⠋") }
-            && terminal.frames.contains { frame in
-              advancedGlyphs.contains { frame.contains($0) }
-            }
-        },
-        .press(KeyPress(.escape, modifiers: [])),
-        .awaitCondition {
-          terminal.latestFrame?.contains("Keyboard help") == false
-        },
         .press(KeyPress(.character("]"), modifiers: [])),
         .awaitCondition {
           terminal.frames.contains { $0.contains("B2") }
@@ -53,115 +125,23 @@ struct PresentationRuntimeTests {
     ).run()
 
     #expect(result.exitReason == .inputEnded)
-    #expect(terminal.frames.contains { $0.contains("Keyboard help") })
-    #expect(
-      terminal.frames.contains { frame in
-        advancedGlyphs.contains { frame.contains($0) }
-      })
+    #expect(!terminal.frames.contains { $0.contains("Keyboard help") })
     #expect(terminal.frames.contains { $0.contains("B2") })
   }
 
-  @Test("help sheet spinner remains dismissible through the close button")
-  func helpSheetSpinnerRemainsDismissibleThroughTheCloseButton() async throws {
-    let terminal = GIFEditorPresentationRecordingTerminalHost(
-      surfaceSize: .init(width: 80, height: 24)
-    )
-    let rootIdentity = Identity(components: ["gifeditor.presentation-runtime.close-button"])
-    let advancedGlyphs = Set(["⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"])
+}
 
-    let inputReader = GIFEditorPresentationInputReader(
-      frameSignal: terminal.frameSignal,
-      steps: [
-        .press(KeyPress(.character("?"), modifiers: [])),
-        .awaitCondition {
-          terminal.frames.contains { $0.contains("Keyboard help") && $0.contains("⠋") }
-            && terminal.frames.contains { frame in
-              advancedGlyphs.contains { frame.contains($0) }
-            }
-        },
-        .click(.init(x: 76, y: 2)),
-        .awaitCondition {
-          terminal.latestFrame?.contains("Keyboard help") == false
-        },
-        .press(KeyPress(.character("]"), modifiers: [])),
-        .awaitCondition {
-          terminal.frames.contains { $0.contains("B2") }
-        },
-      ])
-
-    let result = try await RunLoop(
-      rootIdentity: rootIdentity,
-      presentationSurface: terminal,
-      terminalInputReader: inputReader,
-      signalReader: GIFEditorPresentationEmptySignalReader(),
-      stateContainer: StateContainer(
-        initialState: 0,
-        invalidationIdentities: [rootIdentity]
-      ),
-      focusTracker: FocusTracker(invalidationIdentities: [rootIdentity]),
-      proposal: .init(width: 80, height: 24),
-      viewBuilder: { _, _ in
-        EditorView(document: GIFDocument.blank(size: .init(width: 16, height: 16)))
-      }
-    ).run()
-
-    #expect(result.exitReason == .inputEnded)
-    #expect(terminal.frames.contains { $0.contains("Keyboard help") })
-    #expect(
-      terminal.frames.contains { frame in
-        advancedGlyphs.contains { frame.contains($0) }
-      })
-    #expect(terminal.latestFrame?.contains("Keyboard help") == false)
-    #expect(terminal.frames.contains { $0.contains("B2") })
-  }
-
-  @Test("help sheet spinner does not block the configured exit key")
-  func helpSheetSpinnerDoesNotBlockTheConfiguredExitKey() async throws {
-    let terminal = GIFEditorPresentationRecordingTerminalHost(
-      surfaceSize: .init(width: 80, height: 24)
-    )
-    let rootIdentity = Identity(components: ["gifeditor.presentation-runtime.exit-key"])
-    let exitKey = KeyPress(.character("q"), modifiers: .ctrl)
-    let advancedGlyphs = Set(["⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"])
-
-    let inputReader = GIFEditorPresentationInputReader(
-      frameSignal: terminal.frameSignal,
-      steps: [
-        .press(KeyPress(.character("?"), modifiers: [])),
-        .awaitCondition {
-          terminal.frames.contains { $0.contains("Keyboard help") && $0.contains("⠋") }
-            && terminal.frames.contains { frame in
-              advancedGlyphs.contains { frame.contains($0) }
-            }
-        },
-        .press(exitKey),
-      ])
-
-    let result = try await RunLoop(
-      rootIdentity: rootIdentity,
-      presentationSurface: terminal,
-      terminalInputReader: inputReader,
-      signalReader: GIFEditorPresentationEmptySignalReader(),
-      stateContainer: StateContainer(
-        initialState: 0,
-        invalidationIdentities: [rootIdentity]
-      ),
-      focusTracker: FocusTracker(invalidationIdentities: [rootIdentity]),
-      proposal: .init(width: 80, height: 24),
-      exitKeyBindings: ExitKeyBindings([exitKey]),
-      viewBuilder: { _, _ in
-        EditorView(document: GIFDocument.blank(size: .init(width: 16, height: 16)))
-      }
-    ).run()
-
-    #expect(result.exitReason == .userExit(exitKey))
-    #expect(terminal.frames.contains { $0.contains("Keyboard help") })
-    #expect(
-      terminal.frames.contains { frame in
-        advancedGlyphs.contains { frame.contains($0) }
-      })
-  }
-
+private func playbackDocument() -> GIFDocument {
+  let size = GIFEditorCore.PixelSize(width: 4, height: 4)
+  let first = EditorFrame(
+    layers: [EditorLayer(name: "Frame 1", pixels: PixelBuffer(size: size, fill: 1))],
+    delayCentiseconds: 1
+  )
+  let second = EditorFrame(
+    layers: [EditorLayer(name: "Frame 2", pixels: PixelBuffer(size: size, fill: 2))],
+    delayCentiseconds: 1
+  )
+  return GIFDocument(size: size, frames: [first, second])
 }
 
 private final class GIFEditorPresentationRecordingTerminalHost: PresentationSurface {

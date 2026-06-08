@@ -35,12 +35,15 @@ public struct EditorView: View {
   // framework treats this view as having local-owned state.
   @State private var model: EditorViewModel
   @State private var revision: Int = 0
-  @State private var isHelpPresented = false
   @State private var showsToolDock = true
   @State private var showsRightPanel = true
   @State private var showsTimeline = true
   @State private var pixelGridMode: CanvasPixelGridMode = .verticalHalfBlock
   @State private var isResizeSheetPresented = false
+  @State private var isSaveSheetPresented = false
+  @State private var savePathText = ""
+  @State private var overwriteSaveConfirmed = false
+  @State private var savePreview: SaveGIFPreview?
   @State private var openMenu: MenuBarMenu?
 
   /// Fixed width of the right inspector column. Pinning it (rather than
@@ -61,6 +64,13 @@ public struct EditorView: View {
     _ = revision
     let model = self.model
     let refresh: @MainActor @Sendable () -> Void = { revision &+= 1 }
+    let presentSaveSheet: @MainActor @Sendable () -> Void = {
+      savePathText = model.defaultSaveURL.path
+      overwriteSaveConfirmed = false
+      savePreview = SaveGIFPreview.make(from: model.document)
+      isSaveSheetPresented = true
+      openMenu = nil
+    }
     let frameColors = model.document.flattenedColors(frameIndex: model.currentFrameIndex)
     let timelineFrames = (0..<model.document.frames.count).map { index in
       TimelineFrame(
@@ -76,17 +86,16 @@ public struct EditorView: View {
         MenuBarView(
           openMenu: $openMenu,
           model: model,
-          isHelpPresented: $isHelpPresented,
           showsToolDock: $showsToolDock,
           showsRightPanel: $showsRightPanel,
           showsTimeline: $showsTimeline,
           pixelGridMode: $pixelGridMode,
           isResizeSheetPresented: $isResizeSheetPresented,
+          presentSaveSheet: presentSaveSheet,
           refresh: refresh
         )
         ToolOptionsBar(
           model: model,
-          isHelpPresented: $isHelpPresented,
           refresh: refresh
         )
         HStack(alignment: .top, spacing: 1) {
@@ -111,7 +120,6 @@ public struct EditorView: View {
             )
             .applyFocusedEditorBindings(
               model: model,
-              isHelpPresented: $isHelpPresented,
               refresh: refresh
             )
           }
@@ -165,12 +173,12 @@ public struct EditorView: View {
           menu: openMenu,
           openMenu: $openMenu,
           model: model,
-          isHelpPresented: $isHelpPresented,
           showsToolDock: $showsToolDock,
           showsRightPanel: $showsRightPanel,
           showsTimeline: $showsTimeline,
           pixelGridMode: $pixelGridMode,
           isResizeSheetPresented: $isResizeSheetPresented,
+          presentSaveSheet: presentSaveSheet,
           refresh: refresh
         )
         .offset(x: openMenu.dropdownOffset + 1, y: 1)
@@ -179,7 +187,6 @@ public struct EditorView: View {
     .panel(id: "gifeditor")
     .applyFocusedEditorBindings(
       model: model,
-      isHelpPresented: $isHelpPresented,
       refresh: refresh
     )
     .applyCursorBindings(model: model, refresh: refresh)
@@ -189,14 +196,31 @@ public struct EditorView: View {
     .applyHistoryBindings(model: model, refresh: refresh)
     .applyPaletteBindings(model: model, refresh: refresh)
     .applyFileBindings(
-      model: model,
       isResizeSheetPresented: $isResizeSheetPresented,
+      presentSaveSheet: presentSaveSheet,
       refresh: refresh
     )
-    .applyTerminationHandling(model: model, refresh: refresh)
-    .sheet("Keyboard help", isPresented: $isHelpPresented) {
-      Spinner()
-      // EditorHelpView()
+    .applyTerminationHandling(
+      model: model,
+      presentSaveSheet: presentSaveSheet,
+      refresh: refresh
+    )
+    .sheet("Save GIF", isPresented: $isSaveSheetPresented) {
+      SaveGIFSheetView(
+        preview: savePreview ?? SaveGIFPreview.make(from: model.document),
+        pathText: $savePathText,
+        overwriteConfirmed: $overwriteSaveConfirmed,
+        onSave: { target, overwriteExisting in
+          if model.save(to: target, overwriteExisting: overwriteExisting) {
+            isSaveSheetPresented = false
+          }
+          refresh()
+        },
+        onCancel: {
+          isSaveSheetPresented = false
+          overwriteSaveConfirmed = false
+        }
+      )
     }
     .sheet("Resize canvas", isPresented: $isResizeSheetPresented) {
       ResizeCanvasSheetView(
@@ -211,6 +235,9 @@ public struct EditorView: View {
         }
       )
     }
+    .task(id: model.isPlaybackActive) { @MainActor in
+      await playFrames(model: model, refresh: refresh)
+    }
   }
 
   /// Single-row status strip at the bottom of the editor. Holds the
@@ -220,17 +247,37 @@ public struct EditorView: View {
   /// trailing slot instead.
   private var footer: some View {
     HStack(spacing: 2) {
-      Text(model.statusMessage.isEmpty ? "Press ? for help" : model.statusMessage)
+      Text(model.statusMessage.isEmpty ? "Ready" : model.statusMessage)
         .foregroundStyle(.muted)
       Spacer(minLength: 1)
       Text(
-        "[\(model.cursor.x),\(model.cursor.y)]  "
+        playbackLabel
+          + "F\(model.currentFrameIndex + 1)/\(model.document.frames.count)  "
+          + "[\(model.cursor.x),\(model.cursor.y)]  "
           + "L\(model.currentLayerIndex + 1)/\(model.currentFrame.layers.count)  "
           + "B\(model.brushSize)  \(gridModeLabel)"
       )
       .foregroundStyle(.separator)
     }
     .padding(.horizontal, 1)
+  }
+
+  private var playbackLabel: String {
+    model.isPlaybackActive ? "PLAY  " : ""
+  }
+
+  @MainActor
+  private func playFrames(
+    model: EditorViewModel,
+    refresh: @escaping @MainActor @Sendable () -> Void
+  ) async {
+    while model.isPlaybackActive && !Task.isCancelled {
+      try? await Task.sleep(for: model.currentPlaybackDelay)
+      guard !Task.isCancelled else { return }
+      let didAdvance = model.advancePlaybackFrame()
+      refresh()
+      guard didAdvance else { return }
+    }
   }
 
   /// Short label for the active canvas pixel-grid mode, shown in the

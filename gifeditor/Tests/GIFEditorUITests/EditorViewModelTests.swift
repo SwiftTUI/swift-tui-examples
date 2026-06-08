@@ -212,6 +212,37 @@ struct EditorViewModelTests {
     #expect(model.brushSize == 8)
   }
 
+  @Test("Playback advances frames without dirtying the document")
+  func playbackAdvancesFramesWithoutDirtyingDocument() {
+    let size = GIFEditorCore.PixelSize(width: 2, height: 2)
+    let first = EditorFrame(
+      layers: [EditorLayer(name: "Frame 1", pixels: PixelBuffer(size: size, fill: 1))],
+      delayCentiseconds: 1
+    )
+    let second = EditorFrame(
+      layers: [EditorLayer(name: "Frame 2", pixels: PixelBuffer(size: size, fill: 2))],
+      delayCentiseconds: 2
+    )
+    let model = EditorViewModel(document: GIFDocument(size: size, frames: [first, second]))
+
+    model.startPlayback()
+
+    #expect(model.isPlaybackActive)
+    #expect(!model.isDirty)
+    #expect(model.currentPlaybackDelay == .milliseconds(10))
+    #expect(model.advancePlaybackFrame())
+    #expect(model.currentFrameIndex == 1)
+    #expect(model.currentPlaybackDelay == .milliseconds(20))
+    #expect(!model.isDirty)
+    #expect(model.advancePlaybackFrame())
+    #expect(model.currentFrameIndex == 0)
+
+    model.stopPlayback()
+
+    #expect(!model.isPlaybackActive)
+    #expect(model.statusMessage == "Playback paused")
+  }
+
   @Test("Thick pen click stamps a centered square")
   func thickPenClickStampsCenteredSquare() {
     let model = EditorViewModel(
@@ -403,13 +434,35 @@ struct EditorViewModelTests {
     model.applyToolAtCursor()
     #expect(model.isDirty)
 
-    model.save()
+    model.save(to: url, overwriteExisting: false)
     #expect(!model.isDirty)
 
     model.undo()
     #expect(model.isDirty)
 
     model.redo()
+    #expect(!model.isDirty)
+  }
+
+  @Test("Saving to an existing file requires overwrite confirmation")
+  func saveToExistingFileRequiresOverwriteConfirmation() throws {
+    let url = FileManager.default.temporaryDirectory
+      .appendingPathComponent("gifeditor-overwrite-\(UUID().uuidString).gif")
+    try Data("existing".utf8).write(to: url)
+    defer {
+      try? FileManager.default.removeItem(at: url)
+    }
+
+    let model = EditorViewModel(
+      document: GIFDocument.blank(size: GIFEditorCore.PixelSize(width: 2, height: 2))
+    )
+
+    #expect(!model.save(to: url, overwriteExisting: false))
+    #expect(try Data(contentsOf: url) == Data("existing".utf8))
+    #expect(model.statusMessage == "Confirm overwrite before saving")
+
+    #expect(model.save(to: url, overwriteExisting: true))
+    #expect(try Data(contentsOf: url) != Data("existing".utf8))
     #expect(!model.isDirty)
   }
 }

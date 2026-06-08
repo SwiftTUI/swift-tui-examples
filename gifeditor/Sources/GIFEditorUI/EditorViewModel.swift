@@ -116,6 +116,7 @@ public final class EditorViewModel {
   }
   public var selection: Selection? = nil
   public var clipboard: PixelBuffer? = nil
+  public private(set) var isPlaybackActive: Bool = false
 
   // MARK: - Pending interactions
 
@@ -514,6 +515,49 @@ public final class EditorViewModel {
     announce("All frame delays = \(target)cs")
   }
 
+  // MARK: - Playback
+
+  public var currentPlaybackDelay: Duration {
+    .milliseconds(max(1, currentFrame.delayCentiseconds) * 10)
+  }
+
+  public func togglePlayback() {
+    if isPlaybackActive {
+      stopPlayback()
+    } else {
+      startPlayback()
+    }
+  }
+
+  public func startPlayback() {
+    guard document.frames.count > 1 else {
+      isPlaybackActive = false
+      announce("Playback needs at least two frames")
+      return
+    }
+    isPlaybackActive = true
+    announce("Playback started")
+  }
+
+  public func stopPlayback() {
+    guard isPlaybackActive else { return }
+    isPlaybackActive = false
+    announce("Playback paused")
+  }
+
+  @discardableResult
+  public func advancePlaybackFrame() -> Bool {
+    guard isPlaybackActive else { return false }
+    guard document.frames.count > 1 else {
+      isPlaybackActive = false
+      announce("Playback stopped")
+      return false
+    }
+    currentFrameIndex = (currentFrameIndex + 1) % document.frames.count
+    announce("Playing frame \(currentFrameIndex + 1)/\(document.frames.count)")
+    return true
+  }
+
   // MARK: - Layers
 
   public func addLayer() {
@@ -654,28 +698,42 @@ public final class EditorViewModel {
 
   // MARK: - Save / load
 
-  public func save() {
-    let target =
-      document.path
+  public var defaultSaveURL: URL {
+    document.path
       ?? URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-      .appendingPathComponent("untitled.gif")
+        .appendingPathComponent("untitled.gif")
+  }
+
+  public static func saveURL(from pathText: String) -> URL? {
+    let trimmed = pathText.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return nil }
+
+    let expanded = (trimmed as NSString).expandingTildeInPath
+    if expanded.hasPrefix("/") {
+      return URL(fileURLWithPath: expanded)
+    }
+    return URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+      .appendingPathComponent(expanded)
+  }
+
+  @discardableResult
+  public func save(to target: URL, overwriteExisting: Bool) -> Bool {
+    if FileManager.default.fileExists(atPath: target.path) && !overwriteExisting {
+      announce("Confirm overwrite before saving")
+      return false
+    }
+
     do {
       let bytes = try GIFEncoder.encode(document: document)
       try Data(bytes).write(to: target, options: .atomic)
       document.path = target
       cleanHistoryGeneration = currentHistoryGeneration
       announce("Saved to \(target.path)")
+      return true
     } catch {
       announce("Save failed: \(error)")
+      return false
     }
-  }
-
-  public func saveAs() {
-    let url =
-      URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-      .appendingPathComponent("untitled.gif")
-    document.path = url
-    save()
   }
 
   // MARK: - Helpers
