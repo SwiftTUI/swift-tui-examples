@@ -27,8 +27,7 @@ struct LayerListView: View {
       Divider()
       newLayerButton
     }
-    .padding(1)
-    .border(.separator, set: .single)
+    .padding(.horizontal, 1)
   }
 
   private func row(layer: EditorLayer, index: Int, isSelected: Bool) -> some View {

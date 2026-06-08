@@ -31,12 +31,14 @@ struct TimelineView: View {
         }
       }
       .focusable(false)
+      .frame(maxWidth: .infinity, alignment: .leading)
       VStack {
         frameOperations
         delayCluster
       }
     }
     .padding(.horizontal, 1)
+    .frame(maxWidth: .infinity, alignment: .leading)
     .border(.separator, set: .single)
   }
 

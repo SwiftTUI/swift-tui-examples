@@ -5,16 +5,19 @@ import SwiftTUI
 /// document's lifetime; everything below it renders from that model
 /// and forwards user input back through it.
 ///
-/// Phase 1 of the Photoshop redesign (see `REDESIGN.md`) lays out the
-/// editor in a 3-region body sandwiched between a timeline strip and
-/// a status strip:
+/// The editor stacks a menu bar and a full-width tool-options bar over a
+/// 3-region body (tool dock / canvas / right inspector), then a timeline
+/// strip and a status strip:
 ///
 /// ```
-/// ┌──┬───────────────────────┬────────┐
+/// ┌───────────────────────────────────┐
+/// │ menu bar                          │
+/// ├───────────────────────────────────┤
+/// │ tool options bar                  │
+/// ├──┬───────────────────────┬────────┤
 /// │T │                       │ Color  │
 /// │o │       canvas          │ Palette│
-/// │o │                       │ Layers │
-/// │l │                       │        │
+/// │l │                       │ Layers │
 /// ├──┴───────────────────────┴────────┤
 /// │ timeline                          │
 /// ├───────────────────────────────────┤
@@ -22,8 +25,9 @@ import SwiftTUI
 /// └───────────────────────────────────┘
 /// ```
 ///
-/// The menu bar (Phase 2) and contextual options bar (Phase 4) land
-/// above the body in subsequent phases.
+/// The options bar is full-width top chrome — not nested in the right
+/// inspector — so its tool-contextual controls never widen the side
+/// column or reflow the canvas when the active tool changes.
 public struct EditorView: View {
   // The view-model is a reference type, so we just hold it as an
   // @State (the Reference Box pattern). Mutating @MainActor methods on
@@ -38,6 +42,12 @@ public struct EditorView: View {
   @State private var pixelGridMode: CanvasPixelGridMode = .verticalHalfBlock
   @State private var isResizeSheetPresented = false
   @State private var openMenu: MenuBarMenu?
+
+  /// Fixed width of the right inspector column. Pinning it (rather than
+  /// `.fixedSize`) keeps the canvas the sole flexible child of the body
+  /// row, so reclaimed horizontal space flows to the canvas instead of
+  /// pooling as dead margin to the right of the panel.
+  private static let rightPanelWidth = 28
 
   public init(document: GIFDocument) {
     _model = State(initialValue: EditorViewModel(document: document))
@@ -74,6 +84,11 @@ public struct EditorView: View {
           isResizeSheetPresented: $isResizeSheetPresented,
           refresh: refresh
         )
+        ToolOptionsBar(
+          model: model,
+          isHelpPresented: $isHelpPresented,
+          refresh: refresh
+        )
         HStack(alignment: .top, spacing: 1) {
           if showsToolDock {
             ToolboxView(
@@ -100,21 +115,16 @@ public struct EditorView: View {
               refresh: refresh
             )
           }
-          .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
           .border(.separator, set: .single)
+          .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
           if showsRightPanel {
             VStack(alignment: .leading, spacing: 0) {
-              ToolOptionsBar(
-                model: model,
-                isHelpPresented: $isHelpPresented,
-                refresh: refresh
-              )
-              .frame(maxWidth: .infinity, alignment: .leading)
               ColorPanelView(
                 primaryColor: primaryColor,
                 secondaryColor: secondaryColor
               )
               .frame(maxWidth: .infinity, alignment: .leading)
+              Divider()
               PaletteView(
                 palette: model.document.palette,
                 primaryIndex: model.primaryColorIndex,
@@ -123,6 +133,7 @@ public struct EditorView: View {
                 refresh: refresh
               )
               .frame(maxWidth: .infinity, alignment: .leading)
+              Divider()
               LayerListView(
                 layers: model.currentFrame.layers,
                 selectedIndex: model.currentLayerIndex,
@@ -131,11 +142,12 @@ public struct EditorView: View {
               )
               .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .border(.separator, set: .single)
+            .frame(width: Self.rightPanelWidth)
             .frame(maxHeight: .infinity, alignment: .top)
-            .fixedSize(horizontal: true, vertical: false)
-            // .background(.black.opacity(0.1))
           }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         if showsTimeline {
           TimelineView(
             frames: timelineFrames,
@@ -214,11 +226,20 @@ public struct EditorView: View {
       Text(
         "[\(model.cursor.x),\(model.cursor.y)]  "
           + "L\(model.currentLayerIndex + 1)/\(model.currentFrame.layers.count)  "
-          + "B\(model.brushSize)  half-cell"
+          + "B\(model.brushSize)  \(gridModeLabel)"
       )
       .foregroundStyle(.separator)
     }
     .padding(.horizontal, 1)
+  }
+
+  /// Short label for the active canvas pixel-grid mode, shown in the
+  /// status strip's render-mode readout.
+  private var gridModeLabel: String {
+    switch pixelGridMode {
+    case .verticalHalfBlock: "half-cell"
+    case .fullCell: "full-cell"
+    }
   }
 
   /// 8-cell-wide thumbnail per frame, sampled with nearest-neighbor.

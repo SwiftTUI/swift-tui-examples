@@ -10,8 +10,8 @@ import SwiftTUI
 /// (`⇄` swap and `[?]` help) so they're always one click away
 /// regardless of which tool is active.
 ///
-/// Every clickable target inside the bar mirrors a keyboard shortcut
-/// — see `REDESIGN.md` § "Mouse-parity matrix".
+/// Every clickable target inside the bar mirrors a keyboard shortcut,
+/// so the bar can be driven entirely by mouse or entirely by keyboard.
 struct ToolOptionsBar: View {
   let model: EditorViewModel
   @Binding var isHelpPresented: Bool
@@ -27,6 +27,7 @@ struct ToolOptionsBar: View {
       helpButton
     }
     .padding(.horizontal, 1)
+    .frame(maxWidth: .infinity, alignment: .leading)
     .border(.separator, set: .single)
   }
 

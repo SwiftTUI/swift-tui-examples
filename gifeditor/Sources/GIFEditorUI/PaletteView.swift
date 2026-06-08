@@ -11,9 +11,8 @@ import SwiftTUI
 /// pointer model exposes shift-click cleanly).
 ///
 /// Users editing a loaded GIF still have access to the full 256 slots
-/// via the eyedropper. Phase 5 of the redesign adds a `▼ More…`
-/// disclosure that opens an overflow grid when the document uses
-/// indices ≥ 32.
+/// via the eyedropper; this grid surfaces the first 32 as quick-pick
+/// swatches.
 struct PaletteView: View {
   let palette: ColorPalette
   let primaryIndex: PaletteIndex
@@ -36,8 +35,8 @@ struct PaletteView: View {
         }
       }
     }
+    .padding(.horizontal, 1)
     .frame(maxWidth: .infinity, alignment: .leading)
-    .border(.separator, set: .single)
   }
 
   private func swatch(for index: PaletteIndex) -> some View {
