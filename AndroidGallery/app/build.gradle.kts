@@ -1,3 +1,4 @@
+import java.io.File
 import java.nio.file.Files
 
 plugins {
@@ -8,6 +9,7 @@ plugins {
 val swiftSdkName = "aarch64-unknown-linux-android28"
 val swiftToolchainVersion = "+6.3.1"
 val swiftSdkArtifactName = "swift-6.3.2-RELEASE_android"
+val swiftTuiDependencyUrl = "https://github.com/SwiftTUI/swift-tui.git"
 val swiftPackageDir = layout.projectDirectory.dir("../SwiftPackage")
 val swiftBuildOutputDir = swiftPackageDir.dir(".build/$swiftSdkName/debug")
 val generatedJniLibsDir = layout.buildDirectory.dir("generated/swiftJniLibs")
@@ -18,6 +20,8 @@ val defaultSwiftSdkBundleDir =
   "$userHome/Library/org.swift.swiftpm/swift-sdks/$swiftSdkArtifactName.artifactbundle"
 val swiftSdkBundleDir = providers.environmentVariable("SWIFT_ANDROID_SDK_BUNDLE")
   .orElse(defaultSwiftSdkBundleDir)
+val swiftTuiCheckoutDir = providers.environmentVariable("SWIFTTUI_CHECKOUT")
+  .orElse(layout.projectDirectory.dir("../../../swift-tui").asFile.absolutePath)
 val defaultSwiftAndroidRoot = swiftSdkBundleDir.map { "$it/swift-android" }
 val defaultAndroidNdkDir =
   "$userHome/Library/org.swift.swiftpm/swift-sdks/swift-6.3-RELEASE_android.artifactbundle/swift-android/android-ndk-r27d"
@@ -40,6 +44,22 @@ val ndkHostTag = providers.provider {
 }
 val ndkCxxSharedLib = swiftAndroidNdkDir.zip(ndkHostTag) { ndkDir, hostTag ->
   file("$ndkDir/toolchains/llvm/prebuilt/$hostTag/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so")
+}
+
+fun swiftPackageMirrorUrl(checkout: File): String {
+  val dotGit = checkout.resolve(".git")
+  if (!dotGit.isFile) {
+    return checkout.canonicalFile.toPath().toUri().toString()
+  }
+
+  val marker = "gitdir:"
+  val pointer = dotGit.readText().trim()
+  if (!pointer.startsWith(marker)) {
+    return checkout.canonicalFile.toPath().toUri().toString()
+  }
+
+  val gitDir = pointer.removePrefix(marker).trim()
+  return checkout.resolve(gitDir).canonicalFile.toPath().toUri().toString()
 }
 
 val prepareSwiftSdkSearchPath = tasks.register("prepareSwiftSdkSearchPath") {
@@ -104,10 +124,40 @@ android {
   }
 }
 
+val configureSwiftPackageMirrors = tasks.register<Exec>("configureSwiftPackageMirrors") {
+  description = "Mirrors the public SwiftTUI dependency to a local checkout when available."
+  group = "build"
+
+  onlyIf {
+    val checkout = file(swiftTuiCheckoutDir.get())
+    if (!checkout.isDirectory) {
+      logger.lifecycle("No local SwiftTUI checkout found at $checkout; using public dependency.")
+      false
+    } else {
+      true
+    }
+  }
+
+  commandLine(
+    "swiftly",
+    "run",
+    "swift",
+    "package",
+    "--package-path",
+    swiftPackageDir.asFile.absolutePath,
+    "config",
+    "set-mirror",
+    "--original",
+    swiftTuiDependencyUrl,
+    "--mirror",
+    swiftPackageMirrorUrl(file(swiftTuiCheckoutDir.get()))
+  )
+}
+
 val buildSwiftAndroid = tasks.register<Exec>("buildSwiftAndroid") {
   description = "Builds the Swift gallery host as an Android arm64 dynamic library."
   group = "build"
-  dependsOn(prepareSwiftSdkSearchPath)
+  dependsOn(configureSwiftPackageMirrors, prepareSwiftSdkSearchPath)
 
   inputs.files(fileTree(swiftPackageDir) {
     include("Package.swift")

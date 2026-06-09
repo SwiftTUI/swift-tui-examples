@@ -17,7 +17,10 @@ let package = Package(
   ],
   dependencies: [
     .package(path: "../../gallery"),
-    .package(path: "../../../swift-tui"),
+    .package(
+      url: "https://github.com/SwiftTUI/swift-tui.git",
+      revision: "08ba535e59dca67d163e9d128ac0c41f2899e36b"
+    ),
   ],
   targets: [
     .target(

@@ -40,6 +40,11 @@ contains only the configured `swift-6.3.2-RELEASE_android` bundle before calling
 SwiftPM. If the bundle is not in the default SwiftPM SDK directory, set
 `SWIFT_ANDROID_SDK_BUNDLE` to the `.artifactbundle` path.
 
+The Swift package manifest uses a public HTTPS SwiftTUI dependency. During
+org-root development, Gradle mirrors that URL to `SWIFTTUI_CHECKOUT` or the
+default sibling checkout at `../../../swift-tui` so pre-release Android host
+changes build against the pinned local checkout.
+
 The local command verified on 2026-06-09 was:
 
 ```bash
@@ -59,10 +64,9 @@ completed successfully.
 
 The latest local runtime smoke test used an attached `arm64-v8a` emulator
 (`sdk_gphone64_arm64`). Install and launch succeeded, the process stayed alive,
-and logcat showed `libswift_tui_jni.so` loading. The first rendered screen still
-remained on the startup placeholder, `Starting SwiftTUI gallery...`, rather than
-painting a SwiftTUI gallery frame.
+logcat showed `libswift_tui_jni.so` loading, and the first screen painted the
+hosted SwiftTUI gallery (`Logo`, `Counter`, `Life`, `Todo`, and the SwiftTUI
+logo art) instead of the startup placeholder.
 
-Before treating the demo as runnable, verify that it opens, paints nonblank
-gallery content, accepts basic input, and survives switching across gallery
-tabs.
+Before treating the demo as complete, verify that it accepts basic input and
+survives switching across gallery tabs.
