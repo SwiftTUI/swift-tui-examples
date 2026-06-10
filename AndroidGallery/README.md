@@ -13,10 +13,18 @@ APK. The first screen is a Compose `SwiftTUIHostView` backed by a native Swift
 host handle. Compose measures the available pixels, converts them to a terminal
 cell grid, and publishes resize information back to SwiftTUI.
 
-The renderer is intentionally minimal in this first pass: it parses the
-versioned JSON frame snapshot and paints text rows on an Android Canvas. Style
-runs, image attachments, animated images, pointer/touch input, IME composition,
-clipboard, links, and accessibility projection are not implemented yet.
+The Android host frame parser consumes the versioned JSON snapshot emitted by
+`SwiftTUIAndroidHost`. The current schema carries terminal colors, raster cells,
+cell styles, ranged damage metadata, image attachments, accessibility nodes,
+accessibility announcements, focus presentation, and preferred layout size. The
+Compose renderer paints styled cells, cell backgrounds, text decorations, and
+embedded image payloads on an Android Canvas, with a transparent semantics
+overlay above the canvas for Android accessibility.
+
+Hardware keyboard input and basic touch activation are bridged back to
+SwiftTUI. IME composition, clipboard, link opening, Android accessibility focus
+synchronization, Android content URI import, and retained bitmap damage caches
+remain follow-up work.
 
 ## Build
 
@@ -45,7 +53,7 @@ org-root development, Gradle mirrors that URL to `SWIFTTUI_CHECKOUT` or the
 default sibling checkout at `../../../swift-tui` so pre-release Android host
 changes build against the pinned local checkout.
 
-The local command verified on 2026-06-09 was:
+The local command verified on 2026-06-10 was:
 
 ```bash
 JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" \
@@ -56,17 +64,24 @@ SWIFT_ANDROID_ROOT="$HOME/Library/org.swift.swiftpm/swift-sdks/swift-6.3.2-RELEA
 gradle :app:assembleDebug
 ```
 
-The Gradle wrapper is committed. In the latest local run on 2026-06-09, both
-the system Gradle 9.5.1 command above and `./gradlew :app:assembleDebug`
-completed successfully.
+The Gradle wrapper is committed. In the latest local run on 2026-06-10,
+`./gradlew :app:assembleDebug` completed successfully.
 
 ## Runtime
 
-The latest local runtime smoke test used an attached `arm64-v8a` emulator
-(`sdk_gphone64_arm64`). Install and launch succeeded, the process stayed alive,
-logcat showed `libswift_tui_jni.so` loading, and the first screen painted the
-hosted SwiftTUI gallery (`Logo`, `Counter`, `Life`, `Todo`, and the SwiftTUI
-logo art) instead of the startup placeholder.
+The latest local runtime smoke used the installed
+`system-images;android-35;google_apis;arm64-v8a` image with a medium-phone AVD
+named `SwiftTUI_AndroidGallery_api35_medium_arm64`. Keep the emulator running as
+a foreground long-lived process while issuing `adb` commands from another shell;
+launching it as a background job from a short-lived shell can tear it down just
+after boot.
+
+With that lane, `adb` reported `emulator-5554 booted`, APK install returned
+`Success`, launching `org.swifttui.gallery.android/.MainActivity` returned
+`Status: ok`, the process stayed alive, and
+`/tmp/swifttui-androidgallery-api35-medium.png` showed the hosted SwiftTUI
+gallery (`Logo`, `Counter`, `Life`, `Todo`, and the SwiftTUI logo art) instead
+of the startup placeholder.
 
 Before treating the demo as complete, verify that it accepts basic input and
 survives switching across gallery tabs.

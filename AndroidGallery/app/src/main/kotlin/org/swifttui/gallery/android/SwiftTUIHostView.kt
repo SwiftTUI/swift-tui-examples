@@ -2,7 +2,9 @@ package org.swifttui.gallery.android
 
 import android.view.KeyEvent as AndroidKeyEvent
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -14,12 +16,14 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.KeyEvent as ComposeKeyEvent
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -77,6 +81,15 @@ fun SwiftTUIHostView(
     modifier = modifier
       .focusRequester(focusRequester)
       .focusable()
+      .pointerInput(style) {
+        detectTapGestures(
+          onPress = { offset ->
+            state.sendInput(offset.toSgrMouseBytes(style, MousePress.Down))
+            tryAwaitRelease()
+            state.sendInput(offset.toSgrMouseBytes(style, MousePress.Up))
+          }
+        )
+      }
       .onKeyEvent { event ->
         val bytes = event.toSwiftTUIInputBytes()
         if (bytes == null) {
@@ -90,12 +103,19 @@ fun SwiftTUIHostView(
         measuredSize = size
       },
     content = {
-      Canvas(modifier = Modifier.fillMaxSize()) {
-        SwiftTUIRenderer.drawFrame(
-          drawScope = this,
+      Box(modifier = Modifier.fillMaxSize()) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+          SwiftTUIRenderer.drawFrame(
+            drawScope = this,
+            frame = frame,
+            style = style,
+            lastError = state.lastError
+          )
+        }
+        SwiftTUIAccessibilityOverlay(
           frame = frame,
           style = style,
-          lastError = state.lastError
+          modifier = Modifier.fillMaxSize()
         )
       }
     }
@@ -148,4 +168,22 @@ private fun ComposeKeyEvent.toSwiftTUIInputBytes(): ByteArray? {
     return null
   }
   return String(Character.toChars(unicodeChar)).encodeToByteArray()
+}
+
+private enum class MousePress {
+  Down,
+  Up
+}
+
+private fun Offset.toSgrMouseBytes(
+  style: SwiftTUIAndroidStyle,
+  press: MousePress
+): ByteArray {
+  val column = floor(x / style.cellWidthPx).toInt().coerceAtLeast(0) + 1
+  val row = floor(y / style.cellHeightPx).toInt().coerceAtLeast(0) + 1
+  val suffix = when (press) {
+    MousePress.Down -> "M"
+    MousePress.Up -> "m"
+  }
+  return "\u001B[<0;$column;$row$suffix".encodeToByteArray()
 }

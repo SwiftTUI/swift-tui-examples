@@ -48,6 +48,7 @@ the `swift-tui-web` `0.0.18` GitHub release tarballs for `@swifttui/web` and
 | [gallery](gallery) | Batteries-included terminal app plus optional WebHost | Primary component workbench for the public view surface: tabs, controls, palette, text input, scroll commands, charts, images, animated GIFs, file drop, popovers, and physics | `swiftly run swift run --package-path gallery gallery-demo` |
 | [layouts](layouts) | Terminal app | SwiftTUI layout catalog with behavior tests for stacks, frames, geometry, scrolling, overlays, shapes, matched geometry, and custom layouts | `swiftly run swift run --package-path layouts layouts-demo` |
 | [LayoutsSwiftUI](LayoutsSwiftUI) | SwiftUI comparison app | Native SwiftUI layout catalog beside the embedded SwiftTUI catalog through `SwiftUIHost` | `swiftly run swift run --package-path LayoutsSwiftUI layouts-swiftui-demo` |
+| [AndroidGallery](AndroidGallery) | Native Android app | Compose host app embedding the SwiftTUI gallery through `SwiftTUIAndroidHost` and the Swift Android SDK | `./gradlew -p AndroidGallery :app:assembleDebug` |
 | [file-previewer](file-previewer) | Terminal app plus embedded processes | Miller-column browser and file previews through `SwiftTUITerminal` / `TerminalProcessSession` | `swiftly run swift run --package-path file-previewer FilePreviewerApp` |
 | [terminal-workspace](terminal-workspace) | Terminal workspace | First-party `SwiftTUITerminalWorkspace` surface: tabs, splits, retained sessions, command palette actions, and persisted layout metadata | `swiftly run swift run --package-path terminal-workspace terminal-workspace` |
 | [gitviz](gitviz) | Non-interactive CLI | `SwiftTUICharts` over real git data, with one or more commands for every chart primitive | `swiftly run swift run --package-path gitviz gitviz dashboard --path .` |
@@ -71,6 +72,7 @@ the `swift-tui-web` `0.0.18` GitHub release tarballs for `@swifttui/web` and
 | `SwiftTUITerminal` | [file-previewer](file-previewer) |
 | `SwiftTUITerminalWorkspace` | [terminal-workspace](terminal-workspace) |
 | `SwiftUIHost` | [SwiftUIExample](SwiftUIExample), [three-hosts-demo](three-hosts-demo) |
+| `SwiftTUIAndroidHost` | [AndroidGallery](AndroidGallery) |
 | `SwiftTUIWebHostCLI` | Included by `SwiftTUI`; used directly by [gifeditor](gifeditor) |
 | `SwiftTUIWASI`, `@swifttui/web`, `@swifttui/build` | [WebExample](WebExample) |
 
