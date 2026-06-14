@@ -17,6 +17,7 @@ internal object SwiftTUIJni {
     cellPixelHeight: Double
   )
   external fun copyLatestFrame(handle: Long, outBuffer: ByteArray?, capacity: Int): Int
+  external fun copyClipboardText(handle: Long, outBuffer: ByteArray?, capacity: Int): Int
   external fun sendInput(handle: Long, input: ByteArray, count: Int)
 }
 

@@ -143,6 +143,26 @@ data class SwiftTUIFrame(
   val requiresFullTextRepaint: Boolean,
   val requiresFullGraphicsReplay: Boolean
 ) {
+  /**
+   * The rendered cell covering a 1-based terminal [column]/[row], or `null` if
+   * none. Spans are resolved to their lead cell so a tap anywhere inside a
+   * wide glyph (or a hyperlink run) resolves to the owning cell. Pure, so it is
+   * unit-testable without Android.
+   */
+  fun cellAt(column: Int, row: Int): SwiftTUICell? {
+    val x = column - 1
+    val y = row - 1
+    if (x < 0 || y < 0) {
+      return null
+    }
+    return cells.firstOrNull { cell ->
+      !cell.isContinuation &&
+        cell.y == y &&
+        x >= cell.x &&
+        x < cell.x + cell.spanWidth.coerceAtLeast(1)
+    }
+  }
+
   companion object {
     fun parse(json: String): SwiftTUIFrame {
       val objectValue = JSONObject(json)

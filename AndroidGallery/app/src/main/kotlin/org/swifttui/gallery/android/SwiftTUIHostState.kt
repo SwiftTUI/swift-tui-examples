@@ -8,6 +8,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -20,7 +21,8 @@ private data class HostResize(
 )
 
 class SwiftTUIHostState internal constructor(
-  private val createHost: () -> Long
+  private val createHost: () -> Long,
+  private val clipboard: SwiftTUIClipboard? = null
 ) {
   var frame by mutableStateOf<SwiftTUIFrame?>(null)
     private set
@@ -96,10 +98,37 @@ class SwiftTUIHostState internal constructor(
     }
   }
 
+  /** Reads the system clipboard and delivers it to the app as a bracketed paste. */
+  fun paste() {
+    val text = clipboard?.read() ?: return
+    sendInput(SwiftTUIInput.bracketedPaste(text))
+  }
+
   suspend fun pollFrames() {
     while (currentCoroutineContext().isActive) {
       pollFrameOnce()
+      drainClipboardWrite()
       delay(33L)
+    }
+  }
+
+  /** Forwards any app-requested copy to the system clipboard, draining it once. */
+  private fun drainClipboardWrite() {
+    val currentHandle = handle
+    val clipboard = clipboard ?: return
+    if (currentHandle == 0L) {
+      return
+    }
+
+    val needed = SwiftTUIJni.copyClipboardText(currentHandle, null, 0)
+    if (needed <= 0) {
+      return
+    }
+
+    val bytes = ByteArray(needed)
+    val copied = SwiftTUIJni.copyClipboardText(currentHandle, bytes, bytes.size)
+    if (copied in 1..bytes.size) {
+      clipboard.write(bytes.decodeToString(0, copied))
     }
   }
 
@@ -134,10 +163,12 @@ class SwiftTUIHostState internal constructor(
 
 @Composable
 fun rememberSwiftTUIHostState(): SwiftTUIHostState {
+  val context = LocalContext.current
   val state = remember {
-    SwiftTUIHostState {
-      SwiftTUIJni.createGalleryHost()
-    }
+    SwiftTUIHostState(
+      createHost = { SwiftTUIJni.createGalleryHost() },
+      clipboard = AndroidSystemClipboard(context)
+    )
   }
 
   DisposableEffect(state) {

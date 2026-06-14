@@ -81,6 +81,13 @@ val prepareSwiftSdkSearchPath = tasks.register("prepareSwiftSdkSearchPath") {
   }
 }
 
+// True only when both the Android NDK and the Swift Android SDK bundle are
+// present. When false the native Swift/JNI build is skipped so a JVM-only
+// `testDebugUnitTest` gate can configure and run without them.
+val swiftAndroidToolingAvailable = providers.provider {
+  file(swiftAndroidNdkDir.get()).exists() && file(swiftSdkBundleDir.get()).exists()
+}
+
 android {
   namespace = "org.swifttui.gallery.android"
 
@@ -90,8 +97,10 @@ android {
     }
   }
 
-  ndkVersion = "27.3.13750724"
-  ndkPath = swiftAndroidNdkDir.get()
+  if (swiftAndroidToolingAvailable.get()) {
+    ndkVersion = "27.3.13750724"
+    ndkPath = swiftAndroidNdkDir.get()
+  }
 
   defaultConfig {
     applicationId = "org.swifttui.gallery.android"
@@ -105,9 +114,11 @@ android {
     }
   }
 
-  externalNativeBuild {
-    ndkBuild {
-      path = file("src/main/jni/Android.mk")
+  if (swiftAndroidToolingAvailable.get()) {
+    externalNativeBuild {
+      ndkBuild {
+        path = file("src/main/jni/Android.mk")
+      }
     }
   }
 
@@ -120,6 +131,12 @@ android {
   packaging {
     jniLibs {
       useLegacyPackaging = true
+    }
+  }
+
+  testOptions {
+    unitTests {
+      isIncludeAndroidResources = false
     }
   }
 }
@@ -157,6 +174,18 @@ val configureSwiftPackageMirrors = tasks.register<Exec>("configureSwiftPackageMi
 val buildSwiftAndroid = tasks.register<Exec>("buildSwiftAndroid") {
   description = "Builds the Swift gallery host as an Android arm64 dynamic library."
   group = "build"
+  // Skip (rather than fail) when the Android NDK or Swift Android SDK bundle is
+  // absent, so a JVM-only `testDebugUnitTest` gate can run without them.
+  onlyIf {
+    val available = swiftAndroidToolingAvailable.get()
+    if (!available) {
+      logger.lifecycle(
+        "Skipping Swift Android build: NDK or Swift Android SDK bundle not found. " +
+          "The APK will lack libGalleryAndroidHost.so; unit tests are unaffected."
+      )
+    }
+    available
+  }
   dependsOn(configureSwiftPackageMirrors, prepareSwiftSdkSearchPath)
 
   inputs.files(fileTree(swiftPackageDir) {
@@ -197,6 +226,7 @@ val buildSwiftAndroid = tasks.register<Exec>("buildSwiftAndroid") {
 val copySwiftAndroidLibraries = tasks.register<Copy>("copySwiftAndroidLibraries") {
   description = "Copies the Swift gallery host and Swift Android runtime libraries into jniLibs."
   group = "build"
+  onlyIf { swiftAndroidToolingAvailable.get() }
   dependsOn(buildSwiftAndroid)
 
   from(swiftBuildOutputDir) {
@@ -224,4 +254,9 @@ dependencies {
   implementation("androidx.compose.ui:ui-tooling-preview")
 
   debugImplementation("androidx.compose.ui:ui-tooling")
+
+  testImplementation("junit:junit:4.13.2")
+  // The real org.json, shadowing the stubbed android.jar copy so the frame
+  // parser can be exercised in plain JVM unit tests.
+  testImplementation("org.json:json:20231013")
 }

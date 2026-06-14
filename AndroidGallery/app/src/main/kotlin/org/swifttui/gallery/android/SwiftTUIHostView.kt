@@ -1,37 +1,52 @@
 package org.swifttui.gallery.android
 
-import android.view.KeyEvent as AndroidKeyEvent
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isAltPressed
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.KeyEvent as ComposeKeyEvent
+import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import kotlin.math.floor
 import kotlin.math.max
+import kotlin.math.roundToInt
 
 data class SwiftTUIAndroidStyle(
   val cellWidthPx: Float,
@@ -57,11 +72,32 @@ fun SwiftTUIHostView(
   style: SwiftTUIAndroidStyle = SwiftTUIAndroidStyle.default()
 ) {
   val focusRequester = remember { FocusRequester() }
+  val imeFocusRequester = remember { FocusRequester() }
   var measuredSize by remember { mutableStateOf(IntSize.Zero) }
   val frame = state.frame
+  val currentFrame by rememberUpdatedState(frame)
+  val currentStyle by rememberUpdatedState(style)
+  val uriHandler = LocalUriHandler.current
+  val keyboardController = LocalSoftwareKeyboardController.current
+  var imeValue by remember { mutableStateOf(TextFieldValue("")) }
+
+  val prefersTextInput = frame?.focusPresentation?.prefersTextInput == true
 
   LaunchedEffect(Unit) {
     focusRequester.requestFocus()
+  }
+
+  // Show the soft keyboard whenever the focused view wants text input, and put
+  // focus on the invisible IME sink so committed text reaches the runtime.
+  LaunchedEffect(prefersTextInput) {
+    if (prefersTextInput) {
+      imeValue = TextFieldValue("")
+      imeFocusRequester.requestFocus()
+      keyboardController?.show()
+    } else {
+      focusRequester.requestFocus()
+      keyboardController?.hide()
+    }
   }
 
   LaunchedEffect(measuredSize, style) {
@@ -81,22 +117,96 @@ fun SwiftTUIHostView(
     modifier = modifier
       .focusRequester(focusRequester)
       .focusable()
-      .pointerInput(style) {
-        detectTapGestures(
-          onPress = { offset ->
-            state.sendInput(offset.toSgrMouseBytes(style, MousePress.Down))
-            tryAwaitRelease()
-            state.sendInput(offset.toSgrMouseBytes(style, MousePress.Up))
+      // Press / drag / release: a tap is down+up (a click); finger movement
+      // becomes SGR motion drags, matching the SwiftUI host's touchesMoved ->
+      // .dragged mapping. A tap on a hyperlink cell opens the destination.
+      // Keyed on Unit (not style) so a style change mid-gesture cannot cancel
+      // the coroutine and drop the release; the latest metrics are read through
+      // `currentStyle`.
+      .pointerInput(Unit) {
+        awaitEachGesture {
+          val down = awaitFirstDown(requireUnconsumed = false)
+          val downColumn = SwiftTUIInput.cellColumn(down.position.x, currentStyle.cellWidthPx)
+          val downRow = SwiftTUIInput.cellRow(down.position.y, currentStyle.cellHeightPx)
+          state.sendInput(SwiftTUIInput.mouseDown(downColumn, downRow))
+          // The down is left unconsumed so `focusable()` can claim focus on tap;
+          // drag moves and the release are consumed to own the gesture.
+
+          var lastColumn = downColumn
+          var lastRow = downRow
+          var moved = false
+
+          while (true) {
+            val event = awaitPointerEvent()
+            // Skip events that don't carry our pointer (e.g. a concurrent mouse
+            // scroll) rather than ending the drag with a spurious release.
+            val change = event.changes.firstOrNull { it.id == down.id } ?: continue
+            if (change.pressed) {
+              val column = SwiftTUIInput.cellColumn(change.position.x, currentStyle.cellWidthPx)
+              val row = SwiftTUIInput.cellRow(change.position.y, currentStyle.cellHeightPx)
+              if (column != lastColumn || row != lastRow) {
+                moved = true
+                lastColumn = column
+                lastRow = row
+                state.sendInput(SwiftTUIInput.mouseDrag(column, row))
+              }
+              change.consume()
+            } else {
+              state.sendInput(SwiftTUIInput.mouseUp(lastColumn, lastRow))
+              change.consume()
+              if (!moved) {
+                val link = currentFrame?.cellAt(downColumn, downRow)?.hyperlink
+                if (!link.isNullOrBlank()) {
+                  runCatching { uriHandler.openUri(link) }
+                }
+              }
+              break
+            }
           }
-        )
+        }
+      }
+      // Mouse-wheel / trackpad scroll -> SGR wheel notches.
+      .pointerInput(Unit) {
+        awaitPointerEventScope {
+          while (true) {
+            val event = awaitPointerEvent()
+            if (event.type != PointerEventType.Scroll) {
+              continue
+            }
+            val change = event.changes.firstOrNull() ?: continue
+            val column = SwiftTUIInput.cellColumn(change.position.x, currentStyle.cellWidthPx)
+            val row = SwiftTUIInput.cellRow(change.position.y, currentStyle.cellHeightPx)
+            // Compose scrollDelta: +y scrolls down. verticalScroll treats a
+            // positive deltaLines as wheel-up, so negate.
+            val bytes = SwiftTUIInput.verticalScroll(
+              column = column,
+              row = row,
+              deltaLines = -change.scrollDelta.y.roundToInt()
+            )
+            if (bytes.isNotEmpty()) {
+              state.sendInput(bytes)
+              change.consume()
+            }
+          }
+        }
       }
       .onKeyEvent { event ->
-        val bytes = event.toSwiftTUIInputBytes()
-        if (bytes == null) {
-          false
-        } else {
-          state.sendInput(bytes)
-          true
+        when {
+          event.isPasteShortcut() -> {
+            if (event.type == KeyEventType.KeyDown) {
+              state.paste()
+            }
+            true
+          }
+          else -> {
+            val bytes = event.toSwiftTUIInputBytes()
+            if (bytes == null) {
+              false
+            } else {
+              state.sendInput(bytes)
+              true
+            }
+          }
         }
       }
       .onSizeChanged { size ->
@@ -112,6 +222,30 @@ fun SwiftTUIHostView(
             lastError = state.lastError
           )
         }
+        // Invisible IME sink: gives the soft keyboard a target and forwards
+        // committed text as input bytes. Autocorrect/suggestions are disabled
+        // so the terminal sees exactly what was typed.
+        BasicTextField(
+          value = imeValue,
+          onValueChange = { newValue ->
+            val bytes = SwiftTUIIme.bytesForEdit(imeValue.text, newValue.text)
+            if (bytes.isNotEmpty()) {
+              state.sendInput(bytes)
+            }
+            imeValue = newValue
+          },
+          enabled = prefersTextInput,
+          keyboardOptions = KeyboardOptions(
+            capitalization = KeyboardCapitalization.None,
+            autoCorrectEnabled = false,
+            keyboardType = KeyboardType.Ascii,
+            imeAction = ImeAction.Default
+          ),
+          modifier = Modifier
+            .size(1.dp)
+            .alpha(0f)
+            .focusRequester(imeFocusRequester)
+        )
         SwiftTUIAccessibilityOverlay(
           frame = frame,
           style = style,
@@ -143,20 +277,31 @@ fun SwiftTUIHostView(
   }
 }
 
+// Ctrl+V or Shift+Insert pastes the system clipboard as a bracketed paste,
+// rather than sending the raw Ctrl-V control byte.
+private fun ComposeKeyEvent.isPasteShortcut(): Boolean =
+  (isCtrlPressed && key == Key.V) || (isShiftPressed && key == Key.Insert)
+
 private fun ComposeKeyEvent.toSwiftTUIInputBytes(): ByteArray? {
   if (type != KeyEventType.KeyDown) {
     return null
   }
 
   val escapeSequence = when (key) {
-    Key.Enter -> "\n"
-    Key.Backspace -> "\u007F"
-    Key.Tab -> "\t"
-    Key.DirectionUp -> "\u001B[A"
-    Key.DirectionDown -> "\u001B[B"
-    Key.DirectionRight -> "\u001B[C"
-    Key.DirectionLeft -> "\u001B[D"
-    Key.Escape -> "\u001B"
+    Key.Enter, Key.NumPadEnter -> "\r"
+    Key.Backspace -> ""
+    Key.Tab -> if (isShiftPressed) "[Z" else "\t"
+    Key.DirectionUp -> "[A"
+    Key.DirectionDown -> "[B"
+    Key.DirectionRight -> "[C"
+    Key.DirectionLeft -> "[D"
+    Key.MoveHome -> "[H"
+    Key.MoveEnd -> "[F"
+    Key.PageUp -> "[5~"
+    Key.PageDown -> "[6~"
+    Key.Delete -> "[3~"
+    Key.Insert -> "[2~"
+    Key.Escape -> ""
     else -> null
   }
   if (escapeSequence != null) {
@@ -164,26 +309,23 @@ private fun ComposeKeyEvent.toSwiftTUIInputBytes(): ByteArray? {
   }
 
   val unicodeChar = nativeKeyEvent.unicodeChar
-  if (unicodeChar == 0 || nativeKeyEvent.action != AndroidKeyEvent.ACTION_DOWN) {
+  if (unicodeChar == 0) {
     return null
   }
-  return String(Character.toChars(unicodeChar)).encodeToByteArray()
-}
 
-private enum class MousePress {
-  Down,
-  Up
-}
-
-private fun Offset.toSgrMouseBytes(
-  style: SwiftTUIAndroidStyle,
-  press: MousePress
-): ByteArray {
-  val column = floor(x / style.cellWidthPx).toInt().coerceAtLeast(0) + 1
-  val row = floor(y / style.cellHeightPx).toInt().coerceAtLeast(0) + 1
-  val suffix = when (press) {
-    MousePress.Down -> "M"
-    MousePress.Up -> "m"
+  // Ctrl+<letter> -> ASCII control byte (Ctrl-A == 0x01), matching terminals.
+  if (isCtrlPressed && !isAltPressed) {
+    val lower = unicodeChar.toChar().lowercaseChar()
+    if (lower in 'a'..'z') {
+      return byteArrayOf((lower.code - 'a'.code + 1).toByte())
+    }
   }
-  return "\u001B[<0;$column;$row$suffix".encodeToByteArray()
+
+  val text = String(Character.toChars(unicodeChar))
+  // Alt acts as Meta: prefix the character with ESC.
+  return if (isAltPressed) {
+    ("" + text).encodeToByteArray()
+  } else {
+    text.encodeToByteArray()
+  }
 }

@@ -2,15 +2,19 @@ package org.swifttui.gallery.android
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.PorterDuff
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.util.Base64
+import android.util.LruCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
+import kotlin.math.max
 import kotlin.math.roundToInt
 
 object SwiftTUIRenderer {
@@ -20,11 +24,36 @@ object SwiftTUIRenderer {
   private val backgroundPaint = Paint()
   private val linePaint = Paint(Paint.ANTI_ALIAS_FLAG)
   private val imagePaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+  private val clearPaint = Paint()
   private val mutedPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
     color = android.graphics.Color.rgb(151, 162, 178)
     typeface = Typeface.MONOSPACE
   }
-  private val bitmapCache = mutableMapOf<String, Bitmap>()
+  // Decoded image-attachment bitmaps, bounded so cycling through image-heavy
+  // demos cannot leak for the process lifetime; evicted bitmaps are recycled.
+  private val bitmapCache = object : LruCache<String, Bitmap>(8 * 1024 * 1024) {
+    override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
+
+    override fun entryRemoved(
+      evicted: Boolean,
+      key: String,
+      oldValue: Bitmap,
+      newValue: Bitmap?
+    ) {
+      if (oldValue != newValue && !oldValue.isRecycled) {
+        oldValue.recycle()
+      }
+    }
+  }
+
+  // Retained grid surface. Cells are painted once and only the damaged rows are
+  // repainted on subsequent frames, so a typing/cursor/animation update no
+  // longer re-runs drawText for the whole grid.
+  private var cacheBitmap: Bitmap? = null
+  private var cacheCanvas: Canvas? = null
+  private var cacheWidth = 0
+  private var cacheHeight = 0
+  private var lastRenderedSequence = -1L
 
   fun drawFrame(
     drawScope: DrawScope,
@@ -38,30 +67,28 @@ object SwiftTUIRenderer {
     val textSize = style.cellHeightPx * 0.78f
     textPaint.textSize = textSize
     mutedPaint.textSize = textSize
+    val baselineOffset =
+      (style.cellHeightPx - textPaint.fontMetrics.bottom - textPaint.fontMetrics.top) / 2f
 
-    drawScope.drawIntoCanvas { canvas ->
-      val nativeCanvas = canvas.nativeCanvas
-      val baselineOffset = (style.cellHeightPx - textPaint.fontMetrics.bottom - textPaint.fontMetrics.top) / 2f
-
-      if (frame == null) {
-        nativeCanvas.drawText(
+    if (frame == null) {
+      drawScope.drawIntoCanvas { canvas ->
+        canvas.nativeCanvas.drawText(
           lastError ?: "Starting SwiftTUI gallery...",
           0f,
           baselineOffset,
           mutedPaint
         )
-        return@drawIntoCanvas
       }
+      return
+    }
 
-      if (frame.cells.isEmpty()) {
-        drawLegacyRows(nativeCanvas, frame, terminalStyle, style, baselineOffset)
-      } else {
-        drawCells(nativeCanvas, frame, terminalStyle, style, baselineOffset)
-      }
-      drawImages(nativeCanvas, frame, style)
+    renderGridToCache(frame, terminalStyle, style, baselineOffset)
+
+    drawScope.drawIntoCanvas { canvas ->
+      cacheBitmap?.let { canvas.nativeCanvas.drawBitmap(it, 0f, 0f, null) }
 
       if (lastError != null) {
-        nativeCanvas.drawText(
+        canvas.nativeCanvas.drawText(
           lastError,
           0f,
           drawScope.size.height - style.cellHeightPx,
@@ -70,8 +97,8 @@ object SwiftTUIRenderer {
       }
     }
 
-    val focusColor = frame?.terminalStyle?.tintColor?.toComposeColor() ?: Color(0xFF56B6C2)
-    if (frame?.focusPresentation?.hasFocusedRegion == true) {
+    val focusColor = frame.terminalStyle.tintColor.toComposeColor()
+    if (frame.focusPresentation.hasFocusedRegion) {
       drawScope.drawLine(
         color = focusColor,
         start = Offset(0f, drawScope.size.height - 1f),
@@ -81,8 +108,67 @@ object SwiftTUIRenderer {
     }
   }
 
+  private fun renderGridToCache(
+    frame: SwiftTUIFrame,
+    terminalStyle: SwiftTUITerminalStyle,
+    style: SwiftTUIAndroidStyle,
+    baselineOffset: Float
+  ) {
+    val gridWidthPx = max(1, (frame.gridWidth * style.cellWidthPx).roundToInt())
+    val gridHeightPx = max(1, (frame.gridHeight * style.cellHeightPx).roundToInt())
+    val resized = cacheBitmap == null || cacheWidth != gridWidthPx || cacheHeight != gridHeightPx
+    if (resized) {
+      cacheBitmap?.recycle()
+      val bitmap = Bitmap.createBitmap(gridWidthPx, gridHeightPx, Bitmap.Config.ARGB_8888)
+      cacheBitmap = bitmap
+      cacheCanvas = Canvas(bitmap)
+      cacheWidth = gridWidthPx
+      cacheHeight = gridHeightPx
+    }
+    val canvas = cacheCanvas ?: return
+    val backgroundArgb = terminalStyle.backgroundColor.toArgb()
+
+    val plan = SwiftTUIDamagePlan.plan(
+      frame = frame,
+      previousSequence = lastRenderedSequence,
+      sizeChanged = resized
+    )
+
+    if (plan.fullRepaint) {
+      canvas.drawColor(backgroundArgb, PorterDuff.Mode.SRC)
+      if (frame.cells.isEmpty()) {
+        drawLegacyRows(canvas, frame, terminalStyle, style, baselineOffset)
+      } else {
+        drawCells(canvas, frame.cells, terminalStyle, style, baselineOffset)
+      }
+      drawImages(canvas, frame, style)
+    } else {
+      clearPaint.color = backgroundArgb
+      val damagedCells = ArrayList<SwiftTUICell>()
+      for (rowDamage in plan.rows) {
+        val top = rowDamage.row * style.cellHeightPx
+        val bottom = top + style.cellHeightPx
+        for (range in rowDamage.columnRanges) {
+          val left = range.first * style.cellWidthPx
+          val right = (range.last + 1) * style.cellWidthPx
+          canvas.drawRect(left, top, right, bottom, clearPaint)
+        }
+        for (cell in frame.cells) {
+          if (cell.y == rowDamage.row && !cell.isContinuation &&
+            rowDamage.intersects(cell.x, cell.x + cell.spanWidth.coerceAtLeast(1))
+          ) {
+            damagedCells.add(cell)
+          }
+        }
+      }
+      drawCells(canvas, damagedCells, terminalStyle, style, baselineOffset)
+    }
+
+    lastRenderedSequence = frame.sequence
+  }
+
   private fun drawLegacyRows(
-    nativeCanvas: android.graphics.Canvas,
+    canvas: Canvas,
     frame: SwiftTUIFrame,
     terminalStyle: SwiftTUITerminalStyle,
     style: SwiftTUIAndroidStyle,
@@ -94,7 +180,7 @@ object SwiftTUIRenderer {
     textPaint.isStrikeThruText = false
 
     frame.rows.forEachIndexed { index, row ->
-      nativeCanvas.drawText(
+      canvas.drawText(
         row,
         0f,
         index * style.cellHeightPx + baselineOffset,
@@ -104,13 +190,13 @@ object SwiftTUIRenderer {
   }
 
   private fun drawCells(
-    nativeCanvas: android.graphics.Canvas,
-    frame: SwiftTUIFrame,
+    canvas: Canvas,
+    cells: List<SwiftTUICell>,
     terminalStyle: SwiftTUITerminalStyle,
     style: SwiftTUIAndroidStyle,
     baselineOffset: Float
   ) {
-    frame.cells.forEach { cell ->
+    cells.forEach { cell ->
       if (cell.isContinuation) {
         return@forEach
       }
@@ -131,24 +217,35 @@ object SwiftTUIRenderer {
 
       if (background != null) {
         backgroundPaint.color = background.toArgb(textStyle?.opacity ?: 1.0)
-        nativeCanvas.drawRect(rect, backgroundPaint)
+        canvas.drawRect(rect, backgroundPaint)
       }
 
-      if (cell.character != " ") {
-        configureTextPaint(
-          foreground = foreground,
-          style = textStyle
+      if (cell.character != " " && cell.character.isNotEmpty()) {
+        val foregroundArgb = foreground.toArgb(
+          opacity = textStyle?.opacity ?: 1.0,
+          faint = textStyle?.emphasis?.contains("faint") == true
         )
-        nativeCanvas.drawText(
-          cell.character,
-          rect.left,
-          rect.top + baselineOffset,
-          textPaint
-        )
+        // Box-drawing / block / braille glyphs are painted procedurally so they
+        // tile seamlessly between cells instead of leaving font gaps.
+        val codePoint = cell.character.codePointAt(0)
+        val drawnProcedurally =
+          cell.character.codePointCount(0, cell.character.length) == 1 &&
+            SwiftTUIBoxDrawing.canRender(codePoint) &&
+            SwiftTUIBoxDrawing.draw(canvas, codePoint, rect, foregroundArgb)
+
+        if (!drawnProcedurally) {
+          configureTextPaint(foregroundArgb = foregroundArgb, style = textStyle)
+          canvas.drawText(
+            cell.character,
+            rect.left,
+            rect.top + baselineOffset,
+            textPaint
+          )
+        }
       }
 
       drawLineDecoration(
-        nativeCanvas = nativeCanvas,
+        canvas = canvas,
         rect = rect,
         style = textStyle?.underlineStyle,
         fallbackColor = foreground,
@@ -156,7 +253,7 @@ object SwiftTUIRenderer {
         y = rect.bottom - 2f
       )
       drawLineDecoration(
-        nativeCanvas = nativeCanvas,
+        canvas = canvas,
         rect = rect,
         style = textStyle?.strikethroughStyle,
         fallbackColor = foreground,
@@ -167,7 +264,7 @@ object SwiftTUIRenderer {
   }
 
   private fun drawImages(
-    nativeCanvas: android.graphics.Canvas,
+    canvas: Canvas,
     frame: SwiftTUIFrame,
     style: SwiftTUIAndroidStyle
   ) {
@@ -184,22 +281,22 @@ object SwiftTUIRenderer {
         (bounds.x + bounds.width) * style.cellWidthPx,
         (bounds.y + bounds.height) * style.cellHeightPx
       )
-      nativeCanvas.drawBitmap(bitmap, null, rect, imagePaint)
+      canvas.drawBitmap(bitmap, null, rect, imagePaint)
     }
   }
 
   private fun configureTextPaint(
-    foreground: SwiftTUIColor,
+    foregroundArgb: Int,
     style: SwiftTUITextStyle?
   ) {
-    textPaint.color = foreground.toArgb(style?.opacity ?: 1.0, faint = style?.emphasis?.contains("faint") == true)
+    textPaint.color = foregroundArgb
     textPaint.typeface = typeface(style?.emphasis.orEmpty())
     textPaint.isUnderlineText = false
     textPaint.isStrikeThruText = false
   }
 
   private fun drawLineDecoration(
-    nativeCanvas: android.graphics.Canvas,
+    canvas: Canvas,
     rect: RectF,
     style: SwiftTUITextLineStyle?,
     fallbackColor: SwiftTUIColor,
@@ -212,7 +309,7 @@ object SwiftTUIRenderer {
 
     linePaint.color = (style.color ?: fallbackColor).toArgb(opacity)
     linePaint.strokeWidth = if (style.pattern == "double") 2f else 1f
-    nativeCanvas.drawLine(rect.left, y, rect.right, y, linePaint)
+    canvas.drawLine(rect.left, y, rect.right, y, linePaint)
   }
 
   private fun cellRect(
@@ -242,7 +339,7 @@ object SwiftTUIRenderer {
     attachment: SwiftTUIImageAttachment
   ): Bitmap? {
     val cacheKey = "${attachment.id}:${attachment.payloadByteCount ?: 0}"
-    bitmapCache[cacheKey]?.let {
+    bitmapCache.get(cacheKey)?.let {
       return it
     }
 
@@ -251,7 +348,7 @@ object SwiftTUIRenderer {
       Base64.decode(payload, Base64.DEFAULT)
     }.getOrNull() ?: return null
     val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
-    bitmapCache[cacheKey] = bitmap
+    bitmapCache.put(cacheKey, bitmap)
     return bitmap
   }
 }

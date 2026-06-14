@@ -12,6 +12,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.unit.Dp
@@ -57,11 +58,42 @@ fun SwiftTUIAccessibilityOverlay(
             node.liveRegion.toLiveRegionMode()?.let {
               liveRegion = it
             }
+            if (node.isFocused) {
+              selected = true
+            }
             testTag = node.id
           }
       )
     }
+
+    SwiftTUIAnnouncer(announcement = frame?.accessibilityAnnouncements?.lastOrNull())
   }
+}
+
+/**
+ * Speaks runtime accessibility announcements through TalkBack. The announcement
+ * rides an invisible live-region node; Compose re-announces only when the text
+ * changes, so a persisting message is not repeated every polled frame.
+ */
+@Composable
+private fun SwiftTUIAnnouncer(
+  announcement: SwiftTUIAccessibilityAnnouncement?
+) {
+  if (announcement == null || announcement.message.isBlank()) {
+    return
+  }
+  Box(
+    modifier = Modifier
+      .size(Dp.Hairline)
+      .clearAndSetSemantics {
+        liveRegion = if (announcement.politeness == "assertive") {
+          LiveRegionMode.Assertive
+        } else {
+          LiveRegionMode.Polite
+        }
+        contentDescription = announcement.message
+      }
+  )
 }
 
 private fun String.toComposeRole(): Role? =

@@ -15,6 +15,7 @@ using HandleFunction = void (*)(int64_t);
 using ResizeFunction = void (*)(int64_t, int32_t, int32_t, double, double);
 using SendInputFunction = void (*)(int64_t, const uint8_t*, int32_t);
 using CopyLatestFrameFunction = int32_t (*)(int64_t, uint8_t*, int32_t);
+using CopyClipboardTextFunction = int32_t (*)(int64_t, uint8_t*, int32_t);
 
 std::once_flag gLoadOnce;
 void* gGalleryHandle = nullptr;
@@ -160,6 +161,41 @@ Java_org_swifttui_gallery_android_SwiftTUIJni_copyLatestFrame(
   }
 
   jint needed = copyLatestFrame(
+    static_cast<int64_t>(handle),
+    reinterpret_cast<uint8_t*>(bytes),
+    static_cast<int32_t>(boundedCapacity)
+  );
+  env->ReleaseByteArrayElements(outBuffer, bytes, 0);
+  return needed;
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_org_swifttui_gallery_android_SwiftTUIJni_copyClipboardText(
+  JNIEnv* env,
+  jobject,
+  jlong handle,
+  jbyteArray outBuffer,
+  jint capacity
+) {
+  auto copyClipboardText = swiftSymbol<CopyClipboardTextFunction>(
+    "swift_tui_android_copy_clipboard_text"
+  );
+  if (copyClipboardText == nullptr) {
+    return 0;
+  }
+
+  if (outBuffer == nullptr || capacity <= 0) {
+    return copyClipboardText(static_cast<int64_t>(handle), nullptr, 0);
+  }
+
+  jsize arrayLength = env->GetArrayLength(outBuffer);
+  jint boundedCapacity = capacity < arrayLength ? capacity : arrayLength;
+  jbyte* bytes = env->GetByteArrayElements(outBuffer, nullptr);
+  if (bytes == nullptr) {
+    return 0;
+  }
+
+  jint needed = copyClipboardText(
     static_cast<int64_t>(handle),
     reinterpret_cast<uint8_t*>(bytes),
     static_cast<int32_t>(boundedCapacity)
