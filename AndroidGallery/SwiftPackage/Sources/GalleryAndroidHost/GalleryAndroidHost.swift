@@ -10,8 +10,8 @@ private struct GalleryAndroidApp: App {
   }
 }
 
-@_cdecl("swift_tui_android_create_gallery_host")
-public func swift_tui_android_create_gallery_host() -> Int64 {
+@_cdecl("swift_tui_android_create_host")
+public func swift_tui_android_create_host() -> Int64 {
   MainActor.assumeIsolated {
     do {
       let host = try AndroidHostSceneHost(app: GalleryAndroidApp())

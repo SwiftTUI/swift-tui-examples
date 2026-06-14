@@ -1,4 +1,5 @@
 pluginManagement {
+  includeBuild("build-logic")
   repositories {
     google()
     mavenCentral()
@@ -16,4 +17,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "SwiftTUIGalleryAndroid"
 include(":app")
+include(":swift-tui-host")
 
