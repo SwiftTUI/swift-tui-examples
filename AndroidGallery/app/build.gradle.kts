@@ -110,6 +110,16 @@ android {
     versionName = "0.1.0"
 
     ndk {
+      // arm64-v8a only — a deliberate scope choice, not a framework limitation.
+      // The framework and its image path (swift-png/JPEG) also cross-compile for
+      // x86_64-unknown-linux-android28, so this is not the old swift-png SIMD
+      // blocker. arm64 is the only ABI worth packaging here because (a) the
+      // local/CI verification lane runs the emulator on Apple Silicon, where
+      // arm64 system images are hardware-accelerated and x86_64 would be slow
+      // CPU-emulated, and (b) real Android devices are arm64. To add an x86_64
+      // lane (e.g. for an x86_64 CI emulator), add the ABI here AND in
+      // src/main/jni/Application.mk, and give buildSwiftAndroid a second
+      // --swift-sdk cross-build + per-ABI jniLibs copy.
       abiFilters += "arm64-v8a"
     }
   }

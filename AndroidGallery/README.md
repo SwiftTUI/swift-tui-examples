@@ -6,6 +6,16 @@ The app builds the Swift gallery host package as an `arm64-v8a` Android dynamic
 library, copies the Swift Android runtime libraries into generated `jniLibs`,
 and uses a small JNI shim to drive the `SwiftTUIAndroidHost` C ABI from Kotlin.
 
+`arm64-v8a` is the only packaged ABI by deliberate choice, not a framework
+limitation: the framework and its image path (`swift-png`/`JPEG`) also
+cross-compile for `x86_64-unknown-linux-android28`. arm64 is preferred here
+because the verification lane runs the emulator on Apple Silicon (where arm64
+system images are hardware-accelerated and `x86_64` would be slow CPU-emulated)
+and because real Android devices are arm64. Adding an `x86_64` lane — most
+likely wanted for an `x86_64` CI emulator on Linux runners — is a packaging
+change: add the ABI in `app/build.gradle.kts` and `app/src/main/jni/Application.mk`,
+and extend the Swift cross-build to emit that ABI too.
+
 ## Current State
 
 The app currently assembles and packages the Swift gallery host into the debug
