@@ -1,9 +1,11 @@
 pluginManagement {
-  includeBuild("build-logic")
   repositories {
     google()
     mavenCentral()
     gradlePluginPortal()
+    // The sh.swifttui.android plugin — served from GitHub Pages until the
+    // Gradle Plugin Portal graduation.
+    maven { url = uri("https://swifttui.github.io/swift-tui-android") }
   }
 }
 
@@ -12,10 +14,12 @@ dependencyResolutionManagement {
   repositories {
     google()
     mavenCentral()
+    // The sh.swifttui:android-host AAR — served from GitHub Pages until the
+    // Maven Central graduation.
+    maven { url = uri("https://swifttui.github.io/swift-tui-android") }
   }
 }
 
 rootProject.name = "SwiftTUIGalleryAndroid"
 include(":app")
-include(":swift-tui-host")
 
