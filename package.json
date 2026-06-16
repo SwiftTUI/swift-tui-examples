@@ -1,13 +1,13 @@
 {
   "name": "swift-tui-examples-workspace",
   "private": true,
-  "version": "0.0.19",
+  "version": "0.0.20",
   "license": "MIT",
   "workspaces": [
     "WebExample"
   ],
   "overrides": {
-    "@swifttui/web": "https://github.com/SwiftTUI/swift-tui-web/releases/download/0.0.19/swifttui-web-0.0.19.tgz"
+    "@swifttui/web": "https://github.com/SwiftTUI/swift-tui-web/releases/download/0.0.20/swifttui-web-0.0.20.tgz"
   },
   "scripts": {
     "check": "Scripts/check_examples.sh --skip-clean",
