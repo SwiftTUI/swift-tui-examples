@@ -330,6 +330,16 @@ run_linux_examples() {
     "Test three-hosts-demo" \
     "$repo_root" \
     run_swift test --package-path three-hosts-demo
+
+  # The gallery exercises the full app shell (lazy-tab capture-host seam,
+  # toolbar strip, command palette). Its test suite is the only coverage of
+  # seam-hosted interactivity end to end; build-only checks cannot catch a
+  # stranded action handler. The default suite is deterministic
+  # (GALLERY_RUNTIME_TESTS-gated PTY/timing tests stay opt-in).
+  run_step \
+    "Test gallery" \
+    "$repo_root" \
+    run_swift test --package-path gallery
 }
 
 run_macos_examples() {
