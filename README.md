@@ -33,9 +33,9 @@ bun install
 bun --cwd WebExample run build
 ```
 
-The `0.0.20` public pre-release builds from a fresh clone: Swift packages resolve
-`https://github.com/SwiftTUI/swift-tui.git` at tag `0.0.20`, and WebExample uses
-the `swift-tui-web` `0.0.20` GitHub release tarballs for `@swifttui/web` and
+The `0.0.21` public pre-release builds from a fresh clone: Swift packages resolve
+`https://github.com/SwiftTUI/swift-tui.git` at tag `0.0.21`, and WebExample uses
+the `swift-tui-web` `0.0.21` GitHub release tarballs for `@swifttui/web` and
 `@swifttui/build`.
 
 ## Roster
@@ -43,6 +43,7 @@ the `swift-tui-web` `0.0.20` GitHub release tarballs for `@swifttui/web` and
 | Example | Surface | What it proves | Run |
 | --- | --- | --- | --- |
 | [minimal](minimal) | One-shot renderer | Smallest `RenderOnce.print(...)` path for report-like CLI output, with no app runtime or argument parser | `swiftly run swift run --package-path minimal minimal` |
+| [equatable-demo](equatable-demo) | Terminal app | Smallest `View.equatable()` usage: a stable panel is memoized (reused across frames) while a counter updates | `swiftly run swift run --package-path equatable-demo equatable-demo` |
 | [terminal-runner](terminal-runner) | Terminal-only runner | Explicit `TerminalRunner` launch with custom preflight policy that rejects `--web` | `swiftly run swift run --package-path terminal-runner terminal-runner` |
 | [argparse](argparse) | Terminal app CLI | `SwiftTUI.App` command conformance, consumer flags, standard SwiftTUI flags, and completions in one app type | `swiftly run swift run --package-path argparse argparse-demo --help` |
 | [gallery](gallery) | Batteries-included terminal app plus optional WebHost | Primary component workbench for the public view surface: tabs, controls, palette, text input, scroll commands, charts, images, animated GIFs, file drop, popovers, and physics | `swiftly run swift run --package-path gallery gallery-demo` |

@@ -3,28 +3,18 @@
 import PackageDescription
 
 let package = Package(
-  name: "terminal-runner",
+  name: "equatable-demo",
   platforms: [
     .macOS(.v15)
-  ],
-  products: [
-    .executable(
-      name: "terminal-runner",
-      targets: ["TerminalRunnerExample"]
-    )
   ],
   dependencies: [
     .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.0.21")
   ],
   targets: [
     .executableTarget(
-      name: "TerminalRunnerExample",
+      name: "EquatableDemo",
       dependencies: [.product(name: "SwiftTUICLI", package: "swift-tui")]
-    ),
-    .testTarget(
-      name: "TerminalRunnerExampleTests",
-      dependencies: []
-    ),
+    )
   ],
   swiftLanguageModes: [.v6]
 )

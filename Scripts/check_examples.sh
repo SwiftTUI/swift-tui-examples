@@ -227,6 +227,7 @@ run_linux_examples() {
 
     for package_path in \
       "minimal" \
+      "equatable-demo" \
       "terminal-runner" \
       "argparse" \
       "file-previewer" \
@@ -251,6 +252,7 @@ run_linux_examples() {
 
   for package_path in \
     "minimal" \
+    "equatable-demo" \
     "terminal-runner" \
     "argparse" \
     "file-previewer" \
