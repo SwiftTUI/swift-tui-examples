@@ -27,7 +27,8 @@ let package = Package(
   ],
   dependencies: [
     .package(url: "https://github.com/JohnSundell/Splash.git", exact: "0.16.0"),
-    .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.0.21"),
+    .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.0.22"),
+    .package(url: "https://github.com/SwiftTUI/swift-tui-swiftui.git", exact: "0.0.22"),
     .package(name: "layouts-demo", path: "../layouts"),
   ],
   targets: [
@@ -38,7 +39,7 @@ let package = Package(
         .product(name: "Splash", package: "Splash"),
         .product(name: "Layouts", package: "layouts-demo"),
         .product(name: "SwiftTUIRuntime", package: "swift-tui"),
-        .product(name: "SwiftUIHost", package: "swift-tui"),
+        .product(name: "SwiftUIHost", package: "swift-tui-swiftui"),
       ],
       path: "Sources/LayoutsApp"
     ),

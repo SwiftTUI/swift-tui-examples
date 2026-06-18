@@ -60,7 +60,7 @@ var products: [Product] = [
       name: "ThreeHostsSwiftUI",
       dependencies: [
         "ThreeHostsDemoCore",
-        .product(name: "SwiftUIHost", package: "swift-tui"),
+        .product(name: "SwiftUIHost", package: "swift-tui-swiftui"),
       ]
     )
   ]
@@ -74,7 +74,8 @@ let package = Package(
   platforms: platforms,
   products: products,
   dependencies: [
-    .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.0.21")
+    .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.0.22"),
+    .package(url: "https://github.com/SwiftTUI/swift-tui-swiftui.git", exact: "0.0.22"),
   ],
   targets: targets,
   swiftLanguageModes: [.v6]

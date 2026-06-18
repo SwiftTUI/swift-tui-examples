@@ -28,5 +28,5 @@ swiftly run swift build --package-path SwiftUIExample/TerminalApp
 ```
 
 This example currently has no test target. The shared gallery views are tested
-by `gallery`, and the host product is tested in the `swift-tui` package's
+by `gallery`, and the host product is tested in the `swift-tui-swiftui` package's
 `SwiftUIHost` suite.
