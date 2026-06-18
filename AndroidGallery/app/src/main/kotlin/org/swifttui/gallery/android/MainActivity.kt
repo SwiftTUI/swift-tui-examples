@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -29,10 +30,16 @@ private fun GalleryScreen() {
       .fillMaxSize()
       .background(Color(0xFF101318))
   ) {
-    SwiftTUIHostView(
-      state = hostState,
-      modifier = Modifier.fillMaxSize()
-    )
+    Box(
+      modifier = Modifier
+        .fillMaxSize()
+        .safeDrawingPadding()
+    ) {
+      SwiftTUIHostView(
+        state = hostState,
+        modifier = Modifier.fillMaxSize()
+      )
+    }
   }
 }
 
