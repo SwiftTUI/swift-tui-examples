@@ -6,15 +6,9 @@ The app builds the Swift gallery host package as an `arm64-v8a` Android dynamic
 library, copies the Swift Android runtime libraries into generated `jniLibs`,
 and uses a small JNI shim to drive the `SwiftTUIAndroidHost` C ABI from Kotlin.
 
-`arm64-v8a` is the only packaged ABI by deliberate choice, not a framework
-limitation: the framework and its image path (`swift-png`/`JPEG`) also
-cross-compile for `x86_64-unknown-linux-android28`. arm64 is preferred here
-because the verification lane runs the emulator on Apple Silicon (where arm64
-system images are hardware-accelerated and `x86_64` would be slow CPU-emulated)
-and because real Android devices are arm64. Adding an `x86_64` lane — most
-likely wanted for an `x86_64` CI emulator on Linux runners — is a packaging
-change: add the ABI in `app/build.gradle.kts` and `app/src/main/jni/Application.mk`,
-and extend the Swift cross-build to emit that ABI too.
+The demo is packaged only for `arm64-v8a` but the framework supports `x86_64`.
+See `app/build.gradle.kts`, `app/src/main/jni/Application.mk` and the Swift 
+cross-build.
 
 ## Current State
 
@@ -76,22 +70,3 @@ gradle :app:assembleDebug
 
 The Gradle wrapper is committed. In the latest local run on 2026-06-10,
 `./gradlew :app:assembleDebug` completed successfully.
-
-## Runtime
-
-The latest local runtime smoke used the installed
-`system-images;android-35;google_apis;arm64-v8a` image with a medium-phone AVD
-named `SwiftTUI_AndroidGallery_api35_medium_arm64`. Keep the emulator running as
-a foreground long-lived process while issuing `adb` commands from another shell;
-launching it as a background job from a short-lived shell can tear it down just
-after boot.
-
-With that lane, `adb` reported `emulator-5554 booted`, APK install returned
-`Success`, launching `org.swifttui.gallery.android/.MainActivity` returned
-`Status: ok`, the process stayed alive, and
-`/tmp/swifttui-androidgallery-api35-medium.png` showed the hosted SwiftTUI
-gallery (`Logo`, `Counter`, `Life`, `Todo`, and the SwiftTUI logo art) instead
-of the startup placeholder.
-
-Before treating the demo as complete, verify that it accepts basic input and
-survives switching across gallery tabs.
