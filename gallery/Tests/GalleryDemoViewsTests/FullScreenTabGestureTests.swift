@@ -9,126 +9,118 @@ import Testing
 @Suite(.serialized)
 struct LogoBreakerGestureTests {
 
-  @Test("fullscreen toy starts at bottom center with its initial launch velocity")
-  func spawnStateStartsAtBottomCenter() {
-    let terminalSize = CellSize(width: 40, height: 12)
-    let playfield = FullScreenToyPhysics.fieldBounds(from: terminalSize)
-    let floor = FullScreenToyPhysics.maximumOrigin(in: playfield, metrics: .estimated)
+  // MARK: - ArcadePhysics core + LogoBreaker game unit tests
 
-    let state = FullScreenToyPhysics.spawnState(in: playfield, metrics: .estimated)
-
-    #expect(state.position.x == floor.x / 2)
-    #expect(state.position.y == floor.y)
-    #expect(state.velocity.x == FullScreenToyPhysics.initialLaunchX)
-    #expect(state.velocity.y == FullScreenToyPhysics.initialLaunchY)
-  }
-
-  @Test("fullscreen toy physics applies gravity and bounces off the floor")
-  func physicsBouncesOffFloor() {
-    let terminalSize = CellSize(width: 40, height: 12)
-    let floor = FullScreenToyPhysics.maximumOrigin(in: terminalSize, metrics: .estimated)
-    var state = FullScreenToyPhysics.State(
-      position: .init(x: 10 * FullScreenToyPhysics.fixedScale, y: floor.y - 1),
-      velocity: .init(x: 0, y: 10)
-    )
-
-    FullScreenToyPhysics.step(&state, in: terminalSize, metrics: .estimated)
-
-    #expect(state.position.y == floor.y)
-    #expect(state.velocity.y < 0)
-  }
-
-  @Test("fullscreen toy physics reflects from the right wall")
-  func physicsReflectsOffRightWall() {
-    let terminalSize = CellSize(width: 40, height: 12)
-    let wall = FullScreenToyPhysics.maximumOrigin(in: terminalSize, metrics: .estimated)
-    var state = FullScreenToyPhysics.State(
-      position: .init(x: wall.x - 2, y: 4 * FullScreenToyPhysics.fixedScale),
-      velocity: .init(x: 6, y: 0)
-    )
-
-    FullScreenToyPhysics.step(&state, in: terminalSize, metrics: .estimated)
-
-    #expect(state.position.x == wall.x)
-    #expect(state.velocity.x < 0)
-  }
-
-  @Test("fullscreen toy release converts gesture velocity into physics velocity")
-  func releaseConvertsGestureVelocity() {
-    let terminalSize = CellSize(width: 40, height: 12)
-    var state = FullScreenToyPhysics.State()
-
-    FullScreenToyPhysics.applyRelease(
-      to: &state,
-      translation: .zero,
-      velocity: Vector(dx: 100, dy: -50),
-      in: terminalSize,
-      metrics: .estimated
-    )
-
-    #expect(state.velocity == .init(x: 64, y: -16))
-  }
-
-  @Test("fullscreen toy release velocity does not move an already committed drag")
-  func releaseVelocityDoesNotMoveCommittedDrag() {
-    let terminalSize = CellSize(width: 40, height: 12)
-    var state = FullScreenToyPhysics.State(
-      position: .init(x: 12, y: 24),
-      velocity: .zero
-    )
-
-    FullScreenToyPhysics.applyReleaseVelocity(
-      to: &state,
-      velocity: Vector(dx: 100, dy: -50),
-      in: terminalSize,
-      metrics: .estimated
-    )
-
-    #expect(state.position == .init(x: 12, y: 24))
-    #expect(state.velocity == .init(x: 64, y: -16))
-  }
-
-  @Test("beginning a ball drag clears existing velocity")
-  func beginningDragClearsExistingVelocity() {
-    var state = FullScreenToyPhysics.State(
-      position: .init(x: 12, y: 24),
-      velocity: .init(x: 40, y: -18)
-    )
-
-    FullScreenToyPhysics.stop(&state)
-
-    #expect(state.position == .init(x: 12, y: 24))
-    #expect(state.velocity == .zero)
-  }
-
-  @Test("logo breaker drag commits grabbed position without gravity or floor bounce")
-  func logoBreakerDragCommitsGrabbedPositionWithoutPhysicsStep() {
-    let terminalSize = CellSize(width: 80, height: 40)
+  @Test("spawn places the ball at the bottom-center with an upward launch")
+  func spawnPlacesBallAtBottomCenter() {
+    let bounds = CellSize(width: 40, height: 12)
     let metrics = CellPixelMetrics.estimated
-    let floor = FullScreenToyPhysics.maximumOrigin(in: terminalSize, metrics: metrics)
-    var brokenBrickIDs = Set(LogoArt.bricks.map(\.id))
-    var state = FullScreenToyPhysics.State(
-      position: .init(x: 12 * FullScreenToyPhysics.fixedScale, y: floor.y),
-      velocity: .init(x: 0, y: 100)
+    let world = WorldSpace(metrics: metrics)
+    let field = LogoBreakerGame.field(in: bounds, world: world)
+    let limits = field.centerBounds(radius: LogoBreakerGame.ballRadius)
+
+    let ball = LogoBreakerGame.spawnBody(in: bounds, metrics: metrics)
+
+    #expect(ball.position.x == field.bounds.maxX / 2)
+    #expect(ball.position.y == limits.maxY)
+    #expect(ball.velocity.dx > 0)
+    #expect(ball.velocity.dy < 0)
+    #expect(ball.radius == LogoBreakerGame.ballRadius)
+  }
+
+  @Test("gravity pulls the ball down and it bounces up off the floor")
+  func gravityBouncesOffFloor() {
+    let bounds = CellSize(width: 40, height: 12)
+    let world = WorldSpace(metrics: .estimated)
+    let field = LogoBreakerGame.field(in: bounds, world: world)
+    let limits = field.centerBounds(radius: LogoBreakerGame.ballRadius)
+    var body = PhysicsBody(
+      position: Point(x: limits.maxX / 2, y: limits.maxY - 0.5),
+      velocity: Vector(dx: 0, dy: 40),
+      radius: LogoBreakerGame.ballRadius
     )
 
-    let outcome = LogoBreakerGame.drag(
-      &state,
-      brokenBrickIDs: &brokenBrickIDs,
-      to: Vector(dx: 3, dy: -5),
-      in: terminalSize,
+    PhysicsIntegrator.step(&body, in: field, config: LogoBreakerGame.config)
+
+    #expect(body.position.y <= limits.maxY)
+    #expect(body.velocity.dy < 0)
+  }
+
+  @Test("the ball reflects off the right wall")
+  func reflectsOffRightWall() {
+    let bounds = CellSize(width: 40, height: 12)
+    let world = WorldSpace(metrics: .estimated)
+    let field = LogoBreakerGame.field(in: bounds, world: world)
+    let limits = field.centerBounds(radius: LogoBreakerGame.ballRadius)
+    var body = PhysicsBody(
+      position: Point(x: limits.maxX - 0.5, y: (limits.minY + limits.maxY) / 2),
+      velocity: Vector(dx: 40, dy: 0),
+      radius: LogoBreakerGame.ballRadius
+    )
+
+    PhysicsIntegrator.step(&body, in: field, config: LogoBreakerGame.config)
+
+    #expect(body.position.x == limits.maxX)
+    #expect(body.velocity.dx < 0)
+  }
+
+  @Test("release converts gesture velocity (cells/sec) into world velocity")
+  func releaseConvertsGestureVelocity() {
+    let bounds = CellSize(width: 40, height: 12)
+    let metrics = CellPixelMetrics.estimated
+    var body = PhysicsBody(position: Point(x: 5, y: 5), radius: LogoBreakerGame.ballRadius)
+
+    LogoBreakerGame.release(
+      &body,
+      gestureVelocity: Vector(dx: 100, dy: -50),
+      in: bounds,
       metrics: metrics
     )
 
-    #expect(outcome == .tracking)
-    #expect(
-      state.position
-        == .init(
-          x: 15 * FullScreenToyPhysics.fixedScale,
-          y: floor.y - 5 * FullScreenToyPhysics.fixedScale
-        )
+    // Aspect ratio 2.0: the vertical component scales by the cell aspect; the
+    // horizontal component passes through unchanged.
+    #expect(body.velocity == Vector(dx: 100, dy: -100))
+    #expect(body.position == Point(x: 5, y: 5))
+  }
+
+  @Test("stopping the ball clears its velocity but not its position")
+  func stoppingClearsVelocity() {
+    var body = PhysicsBody(
+      position: Point(x: 12, y: 24),
+      velocity: Vector(dx: 40, dy: -18),
+      radius: LogoBreakerGame.ballRadius
     )
-    #expect(state.velocity == .zero)
+
+    LogoBreakerGame.stop(&body)
+
+    #expect(body.position == Point(x: 12, y: 24))
+    #expect(body.velocity == .zero)
+  }
+
+  @Test("dragging commits the grabbed position without applying gravity")
+  func dragCommitsGrabbedPositionWithoutPhysics() {
+    let bounds = CellSize(width: 80, height: 40)
+    let metrics = CellPixelMetrics.estimated
+    let world = WorldSpace(metrics: metrics)
+    var brokenBrickIDs = Set(LogoArt.bricks.map(\.id))
+    var body = PhysicsBody(
+      position: Point(x: 20, y: 60),
+      velocity: Vector(dx: 0, dy: 100),
+      radius: LogoBreakerGame.ballRadius
+    )
+
+    let outcome = LogoBreakerGame.drag(
+      &body,
+      brokenBrickIDs: &brokenBrickIDs,
+      by: Vector(dx: 3, dy: -5),
+      in: bounds,
+      metrics: metrics
+    )
+
+    let step = world.toWorld(Vector(dx: 3, dy: -5))
+    #expect(outcome == .tracking)
+    #expect(body.position == Point(x: 20 + step.dx, y: 60 + step.dy))
+    #expect(body.velocity == .zero)
   }
 
   @Test("logo breaker derives breakable bricks from original logo pixels")
@@ -154,61 +146,58 @@ struct LogoBreakerGestureTests {
     #expect(Set(LogoArt.bricks.map(\.id)).count == LogoArt.bricks.count)
   }
 
-  @Test("logo breaker removes a logo brick and reflects the ball")
-  func logoBreakerBreaksIntersectedLogoCell() throws {
-    let terminalSize = CellSize(width: 80, height: 24)
+  @Test("stepping the ball into a brick removes it and reflects upward")
+  func stepBreaksIntersectedBrick() throws {
+    let bounds = CellSize(width: 80, height: 24)
     let metrics = CellPixelMetrics.estimated
+    let world = WorldSpace(metrics: metrics)
+    let logoOrigin = LogoBreakerGame.logoOrigin(in: bounds)
     let ballHeight = LogoBreakerGame.ballCellHeight(metrics: metrics)
-    let logoOrigin = LogoBreakerGame.logoOrigin(in: terminalSize)
     let target = try #require(LogoArt.bricks.first { $0.y > ballHeight })
+    let box = brickBox(target, logoOrigin: logoOrigin, world: world)
+    let radius = LogoBreakerGame.ballRadius
     var brokenBrickIDs = Set(LogoArt.bricks.map(\.id))
     brokenBrickIDs.remove(target.id)
-    var state = FullScreenToyPhysics.State(
-      position: .init(
-        x: centeredBallOriginX(over: target, logoOrigin: logoOrigin, metrics: metrics),
-        y: (logoOrigin.y + target.y - ballHeight) * FullScreenToyPhysics.fixedScale
-      ),
-      velocity: .init(x: 0, y: FullScreenToyPhysics.fixedScale)
+    var body = PhysicsBody(
+      position: Point(x: (box.minX + box.maxX) / 2, y: box.minY - radius - 0.5),
+      velocity: Vector(dx: 0, dy: 30),
+      radius: radius
     )
 
     _ = LogoBreakerGame.step(
-      &state,
+      &body,
       brokenBrickIDs: &brokenBrickIDs,
-      in: terminalSize,
+      in: bounds,
       metrics: metrics
     )
 
     #expect(brokenBrickIDs.contains(target.id))
-    #expect(state.velocity.y < 0)
+    #expect(body.velocity.dy < 0)
   }
 
-  @Test("logo breaker ignores ball bounding-box corner overlap outside the circle")
-  func logoBreakerCircleMissesBoundingBoxOnlyCornerOverlap() throws {
-    let terminalSize = CellSize(width: 80, height: 40)
+  @Test("the circle ignores a brick that only overlaps its bounding-box corner")
+  func circleIgnoresBoundingBoxCornerOverlap() throws {
+    let bounds = CellSize(width: 80, height: 40)
     let metrics = CellPixelMetrics.estimated
-    let logoOrigin = LogoBreakerGame.logoOrigin(in: terminalSize)
+    let world = WorldSpace(metrics: metrics)
+    let logoOrigin = LogoBreakerGame.logoOrigin(in: bounds)
     let target = try #require(LogoArt.bricks.first { $0.y >= 6 && $0.x >= 4 })
+    let box = brickBox(target, logoOrigin: logoOrigin, world: world)
+    let radius = LogoBreakerGame.ballRadius
     var brokenBrickIDs = Set(LogoArt.bricks.map(\.id))
     brokenBrickIDs.remove(target.id)
-    let ball = LogoBreakerGame.ballGeometry(at: .zero, metrics: metrics)
-    let brickMinX = Double(logoOrigin.x + target.x)
-    let brickMinY = Double(logoOrigin.y + target.y)
-    var state = FullScreenToyPhysics.State(
-      position: fixedBallOrigin(
-        center: Point(
-          x: brickMinX - ball.radiusX + 0.2,
-          y: brickMinY - ball.radiusY + 0.1
-        ),
-        metrics: metrics
-      ),
-      velocity: .zero
+    // The bounding box overlaps the brick corner, but the circle's curve does
+    // not reach it (distance to the corner exceeds the radius).
+    var body = PhysicsBody(
+      position: Point(x: box.minX - radius * 0.9, y: box.minY - radius * 0.9),
+      radius: radius
     )
 
     let outcome = LogoBreakerGame.drag(
-      &state,
+      &body,
       brokenBrickIDs: &brokenBrickIDs,
-      to: .zero,
-      in: terminalSize,
+      by: .zero,
+      in: bounds,
       metrics: metrics
     )
 
@@ -216,153 +205,240 @@ struct LogoBreakerGestureTests {
     #expect(!brokenBrickIDs.contains(target.id))
   }
 
-  @Test("logo breaker circular corner hit adds horizontal momentum")
-  func logoBreakerCircularCornerHitAddsHorizontalMomentum() throws {
-    let terminalSize = CellSize(width: 80, height: 40)
+  @Test("a glancing corner hit adds horizontal momentum")
+  func cornerHitAddsHorizontalMomentum() throws {
+    let bounds = CellSize(width: 80, height: 40)
     let metrics = CellPixelMetrics.estimated
-    let logoOrigin = LogoBreakerGame.logoOrigin(in: terminalSize)
+    let world = WorldSpace(metrics: metrics)
+    let logoOrigin = LogoBreakerGame.logoOrigin(in: bounds)
     let target = try #require(LogoArt.bricks.first { $0.y >= 8 && $0.x >= 4 })
+    let box = brickBox(target, logoOrigin: logoOrigin, world: world)
+    let radius = LogoBreakerGame.ballRadius
     var brokenBrickIDs = Set(LogoArt.bricks.map(\.id))
     brokenBrickIDs.remove(target.id)
-    let ball = LogoBreakerGame.ballGeometry(at: .zero, metrics: metrics)
-    let brickMinX = Double(logoOrigin.x + target.x)
-    let brickMinY = Double(logoOrigin.y + target.y)
-    var state = FullScreenToyPhysics.State(
-      position: fixedBallOrigin(
-        center: Point(
-          x: brickMinX - 1,
-          y: brickMinY - ball.radiusY - 2.5
-        ),
-        metrics: metrics
-      ),
-      velocity: .init(x: 0, y: 4 * FullScreenToyPhysics.fixedScale)
+    // Just left of the brick's top-left corner, falling straight down: the
+    // curved corner deflects the ball up and to the left.
+    var body = PhysicsBody(
+      position: Point(x: box.minX - radius * 0.25, y: box.minY - radius - 1),
+      velocity: Vector(dx: 0, dy: 40),
+      radius: radius
     )
 
     _ = LogoBreakerGame.step(
-      &state,
+      &body,
       brokenBrickIDs: &brokenBrickIDs,
-      in: terminalSize,
+      in: bounds,
       metrics: metrics
     )
 
     #expect(brokenBrickIDs.contains(target.id))
-    #expect(state.velocity.x < 0)
-    #expect(state.velocity.y < 0)
+    #expect(body.velocity.dx < 0)
+    #expect(body.velocity.dy < 0)
   }
 
-  @Test("logo breaker sweeps high-speed movement to the first reachable brick")
-  func logoBreakerSweepsFastMovementToFirstReachableBrick() throws {
-    let terminalSize = CellSize(width: 80, height: 40)
+  @Test("a fast move sweeps to the first reachable brick, not the far one")
+  func sweepsFastMovementToFirstReachableBrick() throws {
+    let bounds = CellSize(width: 80, height: 40)
     let metrics = CellPixelMetrics.estimated
+    let world = WorldSpace(metrics: metrics)
+    let logoOrigin = LogoBreakerGame.logoOrigin(in: bounds)
     let ballHeight = LogoBreakerGame.ballCellHeight(metrics: metrics)
-    let logoOrigin = LogoBreakerGame.logoOrigin(in: terminalSize)
-    let columns = Dictionary(grouping: LogoArt.bricks, by: { $0.x })
-    let pair = try #require(
-      columns.values.compactMap { cells -> (near: LogoBrick, far: LogoBrick)? in
-        let sorted = cells.sorted { $0.y < $1.y }
-        for index in sorted.indices {
-          let near = sorted[index]
-          guard near.y > ballHeight + 1 else {
-            continue
-          }
-          guard
-            let far = sorted[(index + 1)..<sorted.endIndex].first(where: {
-              $0.y >= near.y + ballHeight + 2
-            })
-          else {
-            continue
-          }
-          return (near, far)
-        }
-        return nil
-      }.first
-    )
+    let pair = try #require(firstReachableBrickPair(ballHeight: ballHeight))
+    let nearBox = brickBox(pair.near, logoOrigin: logoOrigin, world: world)
+    let farBox = brickBox(pair.far, logoOrigin: logoOrigin, world: world)
+    let radius = LogoBreakerGame.ballRadius
     var brokenBrickIDs = Set(LogoArt.bricks.map(\.id))
     brokenBrickIDs.remove(pair.near.id)
     brokenBrickIDs.remove(pair.far.id)
-    var state = FullScreenToyPhysics.State(
-      position: .init(
-        x: centeredBallOriginX(over: pair.near, logoOrigin: logoOrigin, metrics: metrics),
-        y: (logoOrigin.y + pair.near.y - ballHeight - 1)
-          * FullScreenToyPhysics.fixedScale
-      ),
-      velocity: .init(
-        x: 0,
-        y: (pair.far.y - pair.near.y + ballHeight + 3)
-          * FullScreenToyPhysics.fixedScale
-      )
+    let centerY = nearBox.minY - radius - 1
+    // Fast enough that a naive (non-swept) move would pass through both bricks.
+    let velocityY = ((farBox.maxY - centerY) + radius + 10) / LogoBreakerGame.config.dt
+    var body = PhysicsBody(
+      position: Point(x: (nearBox.minX + nearBox.maxX) / 2, y: centerY),
+      velocity: Vector(dx: 0, dy: velocityY),
+      radius: radius
     )
 
     _ = LogoBreakerGame.step(
-      &state,
+      &body,
       brokenBrickIDs: &brokenBrickIDs,
-      in: terminalSize,
+      in: bounds,
       metrics: metrics
     )
 
     #expect(brokenBrickIDs.contains(pair.near.id))
     #expect(!brokenBrickIDs.contains(pair.far.id))
-    #expect(state.velocity.y < 0)
+    #expect(body.velocity.dy < 0)
   }
 
-  @Test("dragging through logo bricks breaks the first reachable brick and drops the drag")
-  func logoBreakerDragDropsAtFirstReachableBrick() throws {
-    let terminalSize = CellSize(width: 80, height: 40)
+  @Test("dragging through bricks breaks the first reachable one and drops the drag")
+  func dragDropsAtFirstReachableBrick() throws {
+    let bounds = CellSize(width: 80, height: 40)
     let metrics = CellPixelMetrics.estimated
+    let world = WorldSpace(metrics: metrics)
+    let logoOrigin = LogoBreakerGame.logoOrigin(in: bounds)
     let ballHeight = LogoBreakerGame.ballCellHeight(metrics: metrics)
-    let logoOrigin = LogoBreakerGame.logoOrigin(in: terminalSize)
-    let columns = Dictionary(grouping: LogoArt.bricks, by: { $0.x })
-    let pair = try #require(
-      columns.values.compactMap { cells -> (near: LogoBrick, far: LogoBrick)? in
-        let sorted = cells.sorted { $0.y < $1.y }
-        for index in sorted.indices {
-          let near = sorted[index]
-          guard near.y > ballHeight + 1 else {
-            continue
-          }
-          guard
-            let far = sorted[(index + 1)..<sorted.endIndex].first(where: {
-              $0.y >= near.y + ballHeight + 2
-            })
-          else {
-            continue
-          }
-          return (near, far)
-        }
-        return nil
-      }.first
-    )
+    let pair = try #require(firstReachableBrickPair(ballHeight: ballHeight))
+    let nearBox = brickBox(pair.near, logoOrigin: logoOrigin, world: world)
+    let farBox = brickBox(pair.far, logoOrigin: logoOrigin, world: world)
+    let radius = LogoBreakerGame.ballRadius
     var brokenBrickIDs = Set(LogoArt.bricks.map(\.id))
     brokenBrickIDs.remove(pair.near.id)
     brokenBrickIDs.remove(pair.far.id)
-    var state = FullScreenToyPhysics.State(
-      position: .init(
-        x: centeredBallOriginX(over: pair.near, logoOrigin: logoOrigin, metrics: metrics),
-        y: (logoOrigin.y + pair.near.y - ballHeight - 1)
-          * FullScreenToyPhysics.fixedScale
-      ),
-      velocity: .init(x: 20, y: -12)
+    let centerY = nearBox.minY - radius - 1
+    var body = PhysicsBody(
+      position: Point(x: (nearBox.minX + nearBox.maxX) / 2, y: centerY),
+      radius: radius
     )
+    // Drag straight down, far enough (in cells) to pass both bricks.
+    let dragCells = ((farBox.maxY - centerY) + radius + 10) / world.aspect
 
     let outcome = LogoBreakerGame.drag(
-      &state,
+      &body,
       brokenBrickIDs: &brokenBrickIDs,
-      to: Vector(
-        dx: 0,
-        dy: Double(pair.far.y - pair.near.y + ballHeight + 3)
-      ),
-      in: terminalSize,
+      by: Vector(dx: 0, dy: dragCells),
+      in: bounds,
       metrics: metrics
     )
 
     #expect(outcome == .dropped)
     #expect(brokenBrickIDs.contains(pair.near.id))
     #expect(!brokenBrickIDs.contains(pair.far.id))
-    #expect(
-      state.position.y
-        == (logoOrigin.y + pair.near.y - ballHeight) * FullScreenToyPhysics.fixedScale
+    #expect(body.velocity == .zero)
+  }
+
+  @Test("a resting ball is a fixed point: stepping leaves it byte-identical")
+  func restingBallIsAFixedPoint() {
+    let bounds = CellSize(width: 40, height: 12)
+    let world = WorldSpace(metrics: .estimated)
+    let field = LogoBreakerGame.field(in: bounds, world: world)
+    let limits = field.centerBounds(radius: LogoBreakerGame.ballRadius)
+    var body = PhysicsBody(
+      position: Point(x: (limits.minX + limits.maxX) / 2, y: limits.maxY),
+      velocity: .zero,
+      radius: LogoBreakerGame.ballRadius
     )
-    #expect(state.velocity == .zero)
+    let before = body
+
+    let changed = PhysicsIntegrator.step(&body, in: field, config: LogoBreakerGame.config)
+
+    #expect(changed == false)
+    #expect(body == before)
+  }
+
+  @Test("a launched ball settles to an exact rest within a bounded budget")
+  func launchedBallSettlesToRest() {
+    let bounds = CellSize(width: 40, height: 12)
+    let world = WorldSpace(metrics: .estimated)
+    let field = LogoBreakerGame.field(in: bounds, world: world)
+    var body = LogoBreakerGame.spawnBody(in: bounds, metrics: .estimated)
+
+    var settledAfter: Int?
+    for tick in 0..<2000 {
+      let changed = PhysicsIntegrator.step(&body, in: field, config: LogoBreakerGame.config)
+      if !changed {
+        settledAfter = tick
+        break
+      }
+    }
+
+    #expect(settledAfter != nil, "the ball should come to rest within 2000 ticks")
+
+    // Once settled, the loop must see no further change so it can elide frames.
+    let before = body
+    let changed = PhysicsIntegrator.step(&body, in: field, config: LogoBreakerGame.config)
+    #expect(changed == false)
+    #expect(body == before)
+  }
+
+  @Test("a brick the resting ball merely touches is not deleted, and the frame elides")
+  func restingBallDoesNotDeleteTouchedBrick() throws {
+    // A short field so the logo reaches the floor: a ball at rest there can end
+    // up touching a surviving brick. Stepping must NOT delete it (no approach,
+    // no motion) and must report no change so the host elides the rest frame.
+    let bounds = CellSize(width: 40, height: 12)
+    let metrics = CellPixelMetrics.estimated
+    let world = WorldSpace(metrics: metrics)
+    let field = LogoBreakerGame.field(in: bounds, world: world)
+    let logoOrigin = LogoBreakerGame.logoOrigin(in: bounds)
+    let limits = field.centerBounds(radius: LogoBreakerGame.ballRadius)
+    let radius = LogoBreakerGame.ballRadius
+
+    func restCenter(over box: AABB) -> Point {
+      Point(x: min(max(limits.minX, (box.minX + box.maxX) / 2), limits.maxX), y: limits.maxY)
+    }
+    let target = try #require(
+      LogoArt.bricks.first { brick in
+        let box = brickBox(brick, logoOrigin: logoOrigin, world: world)
+        return SweptCircle.overlapNormal(center: restCenter(over: box), radius: radius, box: box)
+          != nil
+      },
+      "test geometry must place a brick under the resting ball")
+
+    var brokenBrickIDs: Set<Int> = []
+    var body = PhysicsBody(
+      position: restCenter(over: brickBox(target, logoOrigin: logoOrigin, world: world)),
+      velocity: .zero,
+      radius: radius
+    )
+    let before = body
+
+    let changed = LogoBreakerGame.step(
+      &body,
+      brokenBrickIDs: &brokenBrickIDs,
+      in: bounds,
+      metrics: metrics
+    )
+
+    #expect(brokenBrickIDs.isEmpty, "a resting ball must not delete bricks it merely touches")
+    #expect(changed == false, "a resting ball touching a brick must still elide its frame")
+    #expect(body == before)
+  }
+
+  @Test("the settle invariant restSpeed > gravity*dt is mechanically checkable")
+  func settleInvariantIsCheckable() {
+    #expect(PhysicsConfig.arcade.isSettleable)
+    #expect(LogoBreakerGame.config.isSettleable)
+
+    var mistuned = PhysicsConfig.arcade
+    mistuned.gravity = 200
+    mistuned.restSpeed = 6
+    #expect(mistuned.settleImpulse == 8)
+    #expect(!mistuned.isSettleable, "restSpeed 6 cannot absorb an 8/tick gravity impulse")
+  }
+
+  @Test("the multi-box sweep returns the nearer box, and clusters flush hits")
+  func multiBoxSweepPicksNearestAndClustersTies() throws {
+    let near = AABB(minX: 0, minY: 10, maxX: 10, maxY: 12)
+    let far = AABB(minX: 0, minY: 30, maxX: 10, maxY: 32)
+    let radius = 1.0
+
+    // Swept straight down from above both: the nearer box is hit first.
+    let nearest = try #require(
+      SweptCircle.firstContact(
+        center: Point(x: 5, y: 0),
+        radius: radius,
+        delta: Vector(dx: 0, dy: 40),
+        against: [near, far]
+      ))
+    #expect(nearest.indices == [0])
+    #expect(nearest.contact.normal.dy < 0)
+
+    // Two adjacent boxes whose top faces are flush at the same height are hit
+    // together; combining their up-normals keeps the reflection vertical instead
+    // of biasing toward one face.
+    let left = AABB(minX: 0, minY: 10, maxX: 5, maxY: 12)
+    let right = AABB(minX: 5, minY: 10, maxX: 10, maxY: 12)
+    let flush = try #require(
+      SweptCircle.firstContact(
+        center: Point(x: 5, y: 0),
+        radius: radius,
+        delta: Vector(dx: 0, dy: 40),
+        against: [left, right]
+      ))
+    #expect(Set(flush.indices) == [0, 1])
+    #expect(abs(flush.contact.normal.dx) < 1e-9)
+    #expect(flush.contact.normal.dy < 0)
   }
 
   @Test(
@@ -393,7 +469,7 @@ struct LogoBreakerGestureTests {
     let metrics = CellPixelMetrics.estimated
     let ballHeight = max(
       1,
-      Int((Double(FullScreenToyPhysics.diameter) / metrics.aspectRatio).rounded())
+      Int((Double(LogoBreakerGame.ballDiameter) / metrics.aspectRatio).rounded())
     )
 
     // Locate the ball's interaction region by its distinctive size
@@ -401,7 +477,7 @@ struct LogoBreakerGestureTests {
     // surrounding chrome (toolbar, palette command, etc.) which have
     // different dimensions.
     let ballSize = CellSize(
-      width: FullScreenToyPhysics.diameter,
+      width: LogoBreakerGame.ballDiameter,
       height: ballHeight
     )
     let ballRegion = artifacts.semanticSnapshot.interactionRegions.first {
@@ -1014,29 +1090,41 @@ private func brailleBounds(in surface: RasterSurface) -> CellRect? {
   )
 }
 
-private func centeredBallOriginX(
-  over brick: LogoBrick,
+private func brickBox(
+  _ brick: LogoBrick,
   logoOrigin: CellPoint,
-  metrics: CellPixelMetrics
-) -> Int {
-  let ball = LogoBreakerGame.ballGeometry(at: .zero, metrics: metrics)
-  let centerX = Double(logoOrigin.x + brick.x) + Double(brick.width) / 2
-  return fixedCells(centerX - ball.radiusX)
-}
-
-private func fixedBallOrigin(
-  center: Point,
-  metrics: CellPixelMetrics
-) -> FullScreenToyPhysics.FixedPoint {
-  let ball = LogoBreakerGame.ballGeometry(at: .zero, metrics: metrics)
-  return FullScreenToyPhysics.FixedPoint(
-    x: fixedCells(center.x - ball.radiusX),
-    y: fixedCells(center.y - ball.radiusY)
+  world: WorldSpace
+) -> AABB {
+  world.toWorld(
+    cellX: Double(logoOrigin.x + brick.x),
+    cellY: Double(logoOrigin.y + brick.y),
+    width: Double(brick.width),
+    height: Double(brick.height)
   )
 }
 
-private func fixedCells(_ value: Double) -> Int {
-  Int((value * Double(FullScreenToyPhysics.fixedScale)).rounded())
+private func firstReachableBrickPair(
+  ballHeight: Int
+) -> (near: LogoBrick, far: LogoBrick)? {
+  let columns = Dictionary(grouping: LogoArt.bricks, by: { $0.x })
+  return columns.values.compactMap { cells -> (near: LogoBrick, far: LogoBrick)? in
+    let sorted = cells.sorted { $0.y < $1.y }
+    for index in sorted.indices {
+      let near = sorted[index]
+      guard near.y > ballHeight + 1 else {
+        continue
+      }
+      guard
+        let far = sorted[(index + 1)..<sorted.endIndex].first(where: {
+          $0.y >= near.y + ballHeight + 2
+        })
+      else {
+        continue
+      }
+      return (near, far)
+    }
+    return nil
+  }.first
 }
 
 private func deduplicated(
