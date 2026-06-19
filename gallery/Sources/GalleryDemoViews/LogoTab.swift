@@ -2,15 +2,17 @@ import SwiftTUIRuntime
 
 /// Initial gallery tab: the SwiftTUI mark becomes a brick-breaker field.
 ///
-/// The bricks are the same half-block terminal cells the old landing tab used
-/// for the logo. The ball reuses the gallery physics toy's drag/release,
-/// gravity, and boundary-bounce model, then removes any logo cell it crosses.
+/// The bricks are the original source pixels from the logo, with each source
+/// pixel rendered as two horizontal half-block terminal cells. The ball reuses
+/// the gallery physics toy's drag/release, gravity, and boundary-bounce model,
+/// then removes any logo source pixel it crosses.
 struct LogoTab: View {
   @State private var ballState = FullScreenToyPhysics.State()
   @State private var brokenBrickIDs: Set<Int> = []
   @State private var didSeedInitialPosition = false
   @State private var isDragging = false
-  @GestureState private var dragOffset = Vector.zero
+  @State private var dragTranslation = Vector.zero
+  @State private var didDropCurrentDrag = false
 
   var body: some View {
     GeometryReader { proxy in
@@ -19,7 +21,7 @@ struct LogoTab: View {
       let fieldBounds = FullScreenToyPhysics.fieldBounds(from: bounds)
       let current = FullScreenToyPhysics.displayPosition(
         for: ballState,
-        dragOffset: dragOffset,
+        dragOffset: .zero,
         in: fieldBounds,
         metrics: metrics
       )
@@ -60,21 +62,56 @@ struct LogoTab: View {
     metrics: CellPixelMetrics
   ) -> some Gesture {
     DragGesture()
-      .updating($dragOffset) { value, state, _ in
-        state = value.translation
-      }
-      .onChanged { _ in
-        isDragging = true
+      .onChanged { value in
+        guard !didDropCurrentDrag else {
+          return
+        }
+        if !isDragging {
+          FullScreenToyPhysics.stop(&ballState)
+          dragTranslation = .zero
+          isDragging = true
+        }
+
+        var nextBall = ballState
+        var nextBrokenBricks = brokenBrickIDs
+        let outcome = LogoBreakerGame.drag(
+          &nextBall,
+          brokenBrickIDs: &nextBrokenBricks,
+          to: Vector(
+            dx: value.translation.dx - dragTranslation.dx,
+            dy: value.translation.dy - dragTranslation.dy
+          ),
+          in: bounds,
+          metrics: metrics
+        )
+        switch outcome {
+        case .tracking:
+          ballState = nextBall
+          brokenBrickIDs = nextBrokenBricks
+          dragTranslation = value.translation
+        case .dropped:
+          ballState = nextBall
+          brokenBrickIDs = nextBrokenBricks
+          dragTranslation = .zero
+          isDragging = false
+          didDropCurrentDrag = true
+        }
       }
       .onEnded { value in
-        FullScreenToyPhysics.applyRelease(
+        defer {
+          dragTranslation = .zero
+          isDragging = false
+          didDropCurrentDrag = false
+        }
+        guard !didDropCurrentDrag else {
+          return
+        }
+        FullScreenToyPhysics.applyReleaseVelocity(
           to: &ballState,
-          translation: value.translation,
           velocity: value.velocity,
           in: bounds,
           metrics: metrics
         )
-        isDragging = false
       }
   }
 
@@ -158,14 +195,14 @@ struct LogoBreakerGame {
     metrics: CellPixelMetrics
   ) -> Bool {
     let previous = state
-    let previousRect = ballRect(for: previous, in: bounds, metrics: metrics)
+    let previousBall = ballBody(for: previous, in: bounds, metrics: metrics)
 
     FullScreenToyPhysics.step(&state, in: bounds, metrics: metrics)
 
-    let nextRect = ballRect(for: state, in: bounds, metrics: metrics)
+    let nextBall = ballBody(for: state, in: bounds, metrics: metrics)
     guard let collision = firstCollision(
-      from: previousRect,
-      to: nextRect,
+      from: previousBall,
+      to: nextBall,
       brokenBrickIDs: brokenBrickIDs,
       logoOrigin: logoOrigin(in: bounds)
     ) else {
@@ -177,61 +214,142 @@ struct LogoBreakerGame {
       brokenBrickIDs.insert(hit.brick.id)
     }
     state.position = fixedPosition(
-      for: previousRect.moved(
-        dx: (nextRect.minX - previousRect.minX) * collision.time,
-        dy: (nextRect.minY - previousRect.minY) * collision.time
+      for: previousBall.moved(
+        dx: (nextBall.center.x - previousBall.center.x) * collision.time,
+        dy: (nextBall.center.y - previousBall.center.y) * collision.time
       )
     )
     reflectVelocity(
       &state.velocity,
-      along: collision.axis,
-      deltaX: nextRect.minX - previousRect.minX,
-      deltaY: nextRect.minY - previousRect.minY
+      normal: collision.normal,
+      yScale: previousBall.yScale
     )
     state = FullScreenToyPhysics.clamped(state, in: bounds, metrics: metrics)
 
     return state != previous || brokenBrickIDs.count != oldBrokenCount
   }
 
-  private static func ballRect(
+  @discardableResult
+  static func drag(
+    _ state: inout FullScreenToyPhysics.State,
+    brokenBrickIDs: inout Set<Int>,
+    from currentTranslation: Vector = .zero,
+    to proposedTranslation: Vector,
+    in bounds: CellSize,
+    metrics: CellPixelMetrics
+  ) -> LogoBreakerDragOutcome {
+    let startBall = ballBody(
+      for: draggedState(
+        state,
+        translation: currentTranslation,
+        in: bounds,
+        metrics: metrics
+      ),
+      in: bounds,
+      metrics: metrics
+    )
+    let endBall = ballBody(
+      for: draggedState(
+        state,
+        translation: proposedTranslation,
+        in: bounds,
+        metrics: metrics
+      ),
+      in: bounds,
+      metrics: metrics
+    )
+
+    guard let collision = firstCollision(
+      from: startBall,
+      to: endBall,
+      brokenBrickIDs: brokenBrickIDs,
+      logoOrigin: logoOrigin(in: bounds)
+    ) else {
+      state = draggedState(
+        state,
+        translation: proposedTranslation,
+        in: bounds,
+        metrics: metrics
+      )
+      FullScreenToyPhysics.stop(&state)
+      return .tracking
+    }
+
+    for hit in collision.hits {
+      brokenBrickIDs.insert(hit.brick.id)
+    }
+    state.position = fixedPosition(
+      for: startBall.moved(
+        dx: (endBall.center.x - startBall.center.x) * collision.time,
+        dy: (endBall.center.y - startBall.center.y) * collision.time
+      )
+    )
+    FullScreenToyPhysics.stop(&state)
+    state = FullScreenToyPhysics.clamped(state, in: bounds, metrics: metrics)
+    return .dropped
+  }
+
+  private static func draggedState(
+    _ state: FullScreenToyPhysics.State,
+    translation: Vector,
+    in bounds: CellSize,
+    metrics: CellPixelMetrics
+  ) -> FullScreenToyPhysics.State {
+    var translated = state
+    translated.position.x += Int(
+      (translation.dx * Double(FullScreenToyPhysics.fixedScale)).rounded()
+    )
+    translated.position.y += Int(
+      (translation.dy * Double(FullScreenToyPhysics.fixedScale)).rounded()
+    )
+    return FullScreenToyPhysics.clamped(
+      translated,
+      in: bounds,
+      metrics: metrics
+    )
+  }
+
+  private static func ballBody(
     for state: FullScreenToyPhysics.State,
     in bounds: CellSize,
     metrics: CellPixelMetrics
-  ) -> LogoBreakerRect {
+  ) -> LogoBreakerBall {
     let position = FullScreenToyPhysics.displayPosition(
       for: state,
       dragOffset: .zero,
       in: bounds,
       metrics: metrics
     )
-    return LogoBreakerRect(
-      minX: position.x,
-      minY: position.y,
-      maxX: position.x + Double(FullScreenToyPhysics.diameter),
-      maxY: position.y + Double(ballCellHeight(metrics: metrics))
+    let geometry = ballGeometry(at: position, metrics: metrics)
+    return LogoBreakerBall(
+      center: geometry.center,
+      radiusX: geometry.radiusX,
+      radiusY: geometry.radiusY
     )
   }
 
   private static func firstCollision(
-    from startRect: LogoBreakerRect,
-    to endRect: LogoBreakerRect,
+    from startBall: LogoBreakerBall,
+    to endBall: LogoBreakerBall,
     brokenBrickIDs: Set<Int>,
     logoOrigin: CellPoint
   ) -> LogoBreakerCollision? {
-    let dx = endRect.minX - startRect.minX
-    let dy = endRect.minY - startRect.minY
-    let hits = LogoArt.brickCells.compactMap { brick -> LogoBreakerSweptHit? in
+    let dx = endBall.center.x - startBall.center.x
+    let dy = endBall.center.y - startBall.center.y
+    let hits = LogoArt.bricks.compactMap { brick -> LogoBreakerSweptHit? in
       guard !brokenBrickIDs.contains(brick.id) else {
         return nil
       }
       return sweptHit(
-        from: startRect,
+        from: startBall,
         dx: dx,
         dy: dy,
         x: logoOrigin.x + brick.x,
-        y: logoOrigin.y + brick.y
+        y: logoOrigin.y + brick.y,
+        width: brick.width,
+        height: brick.height
       ).map {
-        LogoBreakerSweptHit(brick: brick, time: $0.time, axis: $0.axis)
+        LogoBreakerSweptHit(brick: brick, time: $0.time, normal: $0.normal)
       }
     }
     guard let firstTime = hits.map(\.time).min() else {
@@ -243,145 +361,337 @@ struct LogoBreakerGame {
     }
     return LogoBreakerCollision(
       time: firstTime,
-      axis: collisionAxis(for: firstHits, dx: dx, dy: dy),
+      normal: collisionNormal(for: firstHits, dx: dx, dy: dy, yScale: startBall.yScale),
       hits: firstHits
     )
   }
 
   private static func sweptHit(
-    from rect: LogoBreakerRect,
+    from ball: LogoBreakerBall,
     dx: Double,
     dy: Double,
     x: Int,
-    y: Int
-  ) -> (time: Double, axis: LogoBreakerCollisionAxis)? {
+    y: Int,
+    width: Int,
+    height: Int
+  ) -> (time: Double, normal: LogoBreakerVector)? {
     let brick = LogoBreakerRect(
       minX: Double(x),
       minY: Double(y),
-      maxX: Double(x + 1),
-      maxY: Double(y + 1)
+      maxX: Double(x + width),
+      maxY: Double(y + height)
     )
-    let xRange = sweptAxisRange(
-      min: rect.minX,
-      max: rect.maxX,
-      obstacleMin: brick.minX,
-      obstacleMax: brick.maxX,
-      delta: dx
-    )
-    let yRange = sweptAxisRange(
-      min: rect.minY,
-      max: rect.maxY,
-      obstacleMin: brick.minY,
-      obstacleMax: brick.maxY,
-      delta: dy
-    )
-    guard let xRange, let yRange else {
-      return nil
-    }
-
-    let entry = max(xRange.entry, yRange.entry, 0)
-    let exit = min(xRange.exit, yRange.exit, 1)
-    guard entry <= exit, entry <= 1 else {
-      return nil
-    }
-
-    let axis: LogoBreakerCollisionAxis
-    if xRange.entry == yRange.entry {
-      axis = abs(dx) > abs(dy) ? .horizontal : .vertical
-    } else {
-      axis = xRange.entry > yRange.entry ? .horizontal : .vertical
-    }
-    return (time: entry, axis: axis)
+    return sweptCircleHit(from: ball, dx: dx, dy: dy, obstacle: brick)
   }
 
-  private static func sweptAxisRange(
-    min: Double,
-    max: Double,
-    obstacleMin: Double,
-    obstacleMax: Double,
-    delta: Double
-  ) -> (entry: Double, exit: Double)? {
-    guard delta != 0 else {
-      guard max >= obstacleMin, min <= obstacleMax else {
-        return nil
-      }
-      return (entry: -.infinity, exit: .infinity)
+  private static func sweptCircleHit(
+    from ball: LogoBreakerBall,
+    dx: Double,
+    dy: Double,
+    obstacle: LogoBreakerRect
+  ) -> (time: Double, normal: LogoBreakerVector)? {
+    let yScale = ball.yScale
+    let radius = ball.radiusX
+    let start = LogoBreakerVector(
+      x: ball.center.x,
+      y: ball.center.y * yScale
+    )
+    let delta = LogoBreakerVector(x: dx, y: dy * yScale)
+    let rect = obstacle.scaledY(by: yScale)
+    var candidates: [(time: Double, normal: LogoBreakerVector)] = []
+
+    if let normal = circleRectNormal(center: start, radius: radius, rect: rect),
+      isMovingTowardObstacle(delta: delta, normal: normal)
+    {
+      candidates.append((time: 0, normal: normal))
     }
 
-    if delta > 0 {
-      return (
-        entry: (obstacleMin - max) / delta,
-        exit: (obstacleMax - min) / delta
+    if delta.x > collisionEpsilon {
+      addFaceCandidate(
+        time: (rect.minX - radius - start.x) / delta.x,
+        normal: LogoBreakerVector(x: -1, y: 0),
+        coordinate: start.y,
+        delta: delta.y,
+        range: rect.minY...rect.maxY,
+        movement: delta,
+        candidates: &candidates
       )
-    } else {
-      return (
-        entry: (obstacleMax - min) / delta,
-        exit: (obstacleMin - max) / delta
+    } else if delta.x < -collisionEpsilon {
+      addFaceCandidate(
+        time: (rect.maxX + radius - start.x) / delta.x,
+        normal: LogoBreakerVector(x: 1, y: 0),
+        coordinate: start.y,
+        delta: delta.y,
+        range: rect.minY...rect.maxY,
+        movement: delta,
+        candidates: &candidates
       )
     }
+
+    if delta.y > collisionEpsilon {
+      addFaceCandidate(
+        time: (rect.minY - radius - start.y) / delta.y,
+        normal: LogoBreakerVector(x: 0, y: -1),
+        coordinate: start.x,
+        delta: delta.x,
+        range: rect.minX...rect.maxX,
+        movement: delta,
+        candidates: &candidates
+      )
+    } else if delta.y < -collisionEpsilon {
+      addFaceCandidate(
+        time: (rect.maxY + radius - start.y) / delta.y,
+        normal: LogoBreakerVector(x: 0, y: 1),
+        coordinate: start.x,
+        delta: delta.x,
+        range: rect.minX...rect.maxX,
+        movement: delta,
+        candidates: &candidates
+      )
+    }
+
+    for corner in [
+      LogoBreakerCorner(point: LogoBreakerVector(x: rect.minX, y: rect.minY), xSign: -1, ySign: -1),
+      LogoBreakerCorner(point: LogoBreakerVector(x: rect.maxX, y: rect.minY), xSign: 1, ySign: -1),
+      LogoBreakerCorner(point: LogoBreakerVector(x: rect.minX, y: rect.maxY), xSign: -1, ySign: 1),
+      LogoBreakerCorner(point: LogoBreakerVector(x: rect.maxX, y: rect.maxY), xSign: 1, ySign: 1),
+    ] {
+      addCornerCandidates(
+        start: start,
+        delta: delta,
+        radius: radius,
+        corner: corner,
+        candidates: &candidates
+      )
+    }
+
+    return candidates
+      .filter { isValidCollisionTime($0.time) }
+      .min { lhs, rhs in lhs.time < rhs.time }
+  }
+
+  private static func addFaceCandidate(
+    time: Double,
+    normal: LogoBreakerVector,
+    coordinate: Double,
+    delta: Double,
+    range: ClosedRange<Double>,
+    movement: LogoBreakerVector,
+    candidates: inout [(time: Double, normal: LogoBreakerVector)]
+  ) {
+    guard isValidCollisionTime(time) else {
+      return
+    }
+    let hitCoordinate = coordinate + delta * time
+    guard hitCoordinate >= range.lowerBound - collisionEpsilon,
+      hitCoordinate <= range.upperBound + collisionEpsilon,
+      isMovingTowardObstacle(delta: movement, normal: normal)
+    else {
+      return
+    }
+    candidates.append((time: max(0, time), normal: normal))
+  }
+
+  private static func addCornerCandidates(
+    start: LogoBreakerVector,
+    delta: LogoBreakerVector,
+    radius: Double,
+    corner: LogoBreakerCorner,
+    candidates: inout [(time: Double, normal: LogoBreakerVector)]
+  ) {
+    let offset = start - corner.point
+    let a = delta.dot(delta)
+    guard a > collisionEpsilon else {
+      return
+    }
+    let b = 2 * offset.dot(delta)
+    let c = offset.dot(offset) - radius * radius
+    let discriminant = b * b - 4 * a * c
+    guard discriminant >= -collisionEpsilon else {
+      return
+    }
+
+    let root = max(0, discriminant).squareRoot()
+    let roots = [
+      (-b - root) / (2 * a),
+      (-b + root) / (2 * a),
+    ].sorted()
+    for time in roots where isValidCollisionTime(time) {
+      let center = start + delta * time
+      guard corner.contains(center) else {
+        continue
+      }
+      guard let normal = (center - corner.point).normalized,
+        isMovingTowardObstacle(delta: delta, normal: normal)
+      else {
+        continue
+      }
+      candidates.append((time: max(0, time), normal: normal))
+    }
+  }
+
+  private static func circleRectNormal(
+    center: LogoBreakerVector,
+    radius: Double,
+    rect: LogoBreakerRect
+  ) -> LogoBreakerVector? {
+    let closest = LogoBreakerVector(
+      x: min(max(center.x, rect.minX), rect.maxX),
+      y: min(max(center.y, rect.minY), rect.maxY)
+    )
+    let offset = center - closest
+    let distanceSquared = offset.dot(offset)
+    guard distanceSquared <= radius * radius + collisionEpsilon else {
+      return nil
+    }
+    if let normal = offset.normalized {
+      return normal
+    }
+
+    let nearestFace = [
+      (distance: abs(center.x - rect.minX), normal: LogoBreakerVector(x: -1, y: 0)),
+      (distance: abs(rect.maxX - center.x), normal: LogoBreakerVector(x: 1, y: 0)),
+      (distance: abs(center.y - rect.minY), normal: LogoBreakerVector(x: 0, y: -1)),
+      (distance: abs(rect.maxY - center.y), normal: LogoBreakerVector(x: 0, y: 1)),
+    ].min { lhs, rhs in lhs.distance < rhs.distance }
+    return nearestFace?.normal
   }
 
   private static func reflectVelocity(
     _ velocity: inout FullScreenToyPhysics.FixedVelocity,
-    along axis: LogoBreakerCollisionAxis,
-    deltaX: Double,
-    deltaY: Double
+    normal: LogoBreakerVector,
+    yScale: Double
   ) {
-    switch axis {
-    case .horizontal:
-      let direction = deltaX > 0 ? -1 : 1
-      velocity.x = reflected(
-        velocity.x,
-        direction: direction,
-        numerator: FullScreenToyPhysics.wallBounceNumerator,
-        denominator: FullScreenToyPhysics.wallBounceDenominator
-      )
-    case .vertical:
-      let direction = deltaY > 0 ? -1 : 1
-      velocity.y = reflected(
-        velocity.y,
-        direction: direction,
-        numerator: FullScreenToyPhysics.wallBounceNumerator,
-        denominator: FullScreenToyPhysics.wallBounceDenominator
-      )
+    guard let normal = normal.normalized else {
+      return
     }
+    let scaledVelocity = LogoBreakerVector(
+      x: Double(velocity.x),
+      y: Double(velocity.y) * yScale
+    )
+    let incoming = scaledVelocity.dot(normal)
+    guard incoming < 0 else {
+      return
+    }
+
+    let restitution = Double(FullScreenToyPhysics.wallBounceNumerator)
+      / Double(FullScreenToyPhysics.wallBounceDenominator)
+    let reflected = scaledVelocity - normal * ((1 + restitution) * incoming)
+    velocity.x = Int(reflected.x.rounded())
+    velocity.y = Int((reflected.y / yScale).rounded())
   }
 
-  private static func collisionAxis(
+  private static func collisionNormal(
     for hits: [LogoBreakerSweptHit],
     dx: Double,
-    dy: Double
-  ) -> LogoBreakerCollisionAxis {
-    if hits.contains(where: { $0.axis == .vertical }),
-      !hits.contains(where: { $0.axis == .horizontal })
-    {
-      return .vertical
+    dy: Double,
+    yScale: Double
+  ) -> LogoBreakerVector {
+    let combined = hits.reduce(LogoBreakerVector.zero) { partial, hit in
+      partial + hit.normal
     }
-    if hits.contains(where: { $0.axis == .horizontal }),
-      !hits.contains(where: { $0.axis == .vertical })
-    {
-      return .horizontal
+    if let normal = combined.normalized {
+      return normal
     }
-    return abs(dx) > abs(dy) ? .horizontal : .vertical
+
+    let movement = LogoBreakerVector(x: -dx, y: -dy * yScale)
+    return movement.normalized ?? LogoBreakerVector(x: 0, y: -1)
   }
 
   private static func fixedPosition(
-    for rect: LogoBreakerRect
+    for ball: LogoBreakerBall
   ) -> FullScreenToyPhysics.FixedPoint {
     FullScreenToyPhysics.FixedPoint(
-      x: Int((rect.minX * Double(FullScreenToyPhysics.fixedScale)).rounded()),
-      y: Int((rect.minY * Double(FullScreenToyPhysics.fixedScale)).rounded())
+      x: Int(
+        ((ball.center.x - ball.radiusX) * Double(FullScreenToyPhysics.fixedScale))
+          .rounded()
+      ),
+      y: Int(
+        ((ball.center.y - ball.radiusY) * Double(FullScreenToyPhysics.fixedScale))
+          .rounded()
+      )
     )
   }
 
-  private static func reflected(
-    _ component: Int,
-    direction: Int,
-    numerator: Int,
-    denominator: Int
-  ) -> Int {
-    let magnitude = max(1, abs(component) * numerator / denominator)
-    return magnitude * direction
+  private static func isMovingTowardObstacle(
+    delta: LogoBreakerVector,
+    normal: LogoBreakerVector
+  ) -> Bool {
+    delta.dot(normal) < -collisionEpsilon
+  }
+
+  private static func isValidCollisionTime(_ time: Double) -> Bool {
+    time >= -collisionEpsilon && time <= 1 + collisionEpsilon
+  }
+
+  private static let collisionEpsilon = 0.000_001
+}
+
+private struct LogoBreakerBall: Equatable, Sendable {
+  let center: Point
+  let radiusX: Double
+  let radiusY: Double
+
+  var yScale: Double {
+    guard radiusY > 0 else {
+      return 1
+    }
+    return radiusX / radiusY
+  }
+
+  func moved(dx: Double, dy: Double) -> LogoBreakerBall {
+    LogoBreakerBall(
+      center: Point(x: center.x + dx, y: center.y + dy),
+      radiusX: radiusX,
+      radiusY: radiusY
+    )
+  }
+}
+
+private struct LogoBreakerVector: Equatable, Sendable {
+  let x: Double
+  let y: Double
+
+  static let zero = LogoBreakerVector(x: 0, y: 0)
+
+  var normalized: LogoBreakerVector? {
+    let length = dot(self).squareRoot()
+    guard length > 0.000_001 else {
+      return nil
+    }
+    return LogoBreakerVector(x: x / length, y: y / length)
+  }
+
+  func dot(_ other: LogoBreakerVector) -> Double {
+    x * other.x + y * other.y
+  }
+
+  static func + (lhs: LogoBreakerVector, rhs: LogoBreakerVector) -> LogoBreakerVector {
+    LogoBreakerVector(x: lhs.x + rhs.x, y: lhs.y + rhs.y)
+  }
+
+  static func - (lhs: LogoBreakerVector, rhs: LogoBreakerVector) -> LogoBreakerVector {
+    LogoBreakerVector(x: lhs.x - rhs.x, y: lhs.y - rhs.y)
+  }
+
+  static func * (lhs: LogoBreakerVector, rhs: Double) -> LogoBreakerVector {
+    LogoBreakerVector(x: lhs.x * rhs, y: lhs.y * rhs)
+  }
+}
+
+private struct LogoBreakerCorner: Equatable, Sendable {
+  let point: LogoBreakerVector
+  let xSign: Int
+  let ySign: Int
+
+  func contains(_ center: LogoBreakerVector) -> Bool {
+    let xMatches = xSign < 0
+      ? center.x <= point.x + 0.000_001
+      : center.x >= point.x - 0.000_001
+    let yMatches = ySign < 0
+      ? center.y <= point.y + 0.000_001
+      : center.y >= point.y - 0.000_001
+    return xMatches && yMatches
   }
 }
 
@@ -391,41 +701,30 @@ private struct LogoBreakerRect: Equatable, Sendable {
   let maxX: Double
   let maxY: Double
 
-  var center: Point {
-    Point(x: (minX + maxX) / 2, y: (minY + maxY) / 2)
-  }
-
-  func moved(dx: Double, dy: Double) -> LogoBreakerRect {
+  func scaledY(by scale: Double) -> LogoBreakerRect {
     LogoBreakerRect(
-      minX: minX + dx,
-      minY: minY + dy,
-      maxX: maxX + dx,
-      maxY: maxY + dy
+      minX: minX,
+      minY: minY * scale,
+      maxX: maxX,
+      maxY: maxY * scale
     )
-  }
-
-  func intersectsCell(x: Int, y: Int) -> Bool {
-    maxX > Double(x)
-      && minX < Double(x + 1)
-      && maxY > Double(y)
-      && minY < Double(y + 1)
   }
 }
 
-private enum LogoBreakerCollisionAxis: Equatable, Sendable {
-  case horizontal
-  case vertical
+enum LogoBreakerDragOutcome: Equatable, Sendable {
+  case tracking
+  case dropped
 }
 
 private struct LogoBreakerSweptHit: Equatable, Sendable {
-  let brick: LogoBrickCell
+  let brick: LogoBrick
   let time: Double
-  let axis: LogoBreakerCollisionAxis
+  let normal: LogoBreakerVector
 }
 
 private struct LogoBreakerCollision: Equatable, Sendable {
   let time: Double
-  let axis: LogoBreakerCollisionAxis
+  let normal: LogoBreakerVector
   let hits: [LogoBreakerSweptHit]
 }
 
@@ -437,8 +736,10 @@ private struct LogoBreakerDrawing: CanvasDrawing, Equatable {
   let ballRadiusY: Double
 
   func draw(into context: inout CanvasContext) {
-    for brick in LogoArt.brickCells where !brokenBrickIDs.contains(brick.id) {
-      draw(brick, into: &context)
+    for brick in LogoArt.bricks where !brokenBrickIDs.contains(brick.id) {
+      for cell in brick.cells {
+        draw(cell, into: &context)
+      }
     }
 
     context.foreground = .cyan

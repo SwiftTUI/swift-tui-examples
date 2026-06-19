@@ -8,6 +8,15 @@ struct LogoBrickCell: Equatable, Sendable {
   let bottom: Color?
 }
 
+struct LogoBrick: Equatable, Sendable {
+  let id: Int
+  let x: Int
+  let y: Int
+  let width: Int
+  let height: Int
+  let cells: [LogoBrickCell]
+}
+
 /// The SwiftTUI mark as a 32×32 truecolor bitmap for ``LogoTab``.
 ///
 /// Generated from the org-root `logo.svg` (a 16×16 pixel-art mark)
@@ -18,6 +27,8 @@ struct LogoBrickCell: Equatable, Sendable {
 enum LogoArt {
   static let width = 32
   static let height = 32
+  static let sourceWidth = width / 2
+  static let sourceHeight = height / 2
   static let cellWidth = width
   static let cellHeight = CanvasPixelGridMode.verticalHalfBlock.cellHeight(for: height)
   static let brickCells: [LogoBrickCell] = {
@@ -43,6 +54,33 @@ enum LogoArt {
       }
     }
     return cells
+  }()
+  static let bricks: [LogoBrick] = {
+    let cellsByID = Dictionary(uniqueKeysWithValues: brickCells.map { ($0.id, $0) })
+    var bricks: [LogoBrick] = []
+    for y in 0..<sourceHeight {
+      for sourceX in 0..<sourceWidth {
+        let x = sourceX * 2
+        let cells = [
+          cellsByID[y * width + x],
+          cellsByID[y * width + x + 1],
+        ].compactMap { $0 }
+        guard !cells.isEmpty else {
+          continue
+        }
+        bricks.append(
+          LogoBrick(
+            id: y * sourceWidth + sourceX,
+            x: x,
+            y: y,
+            width: 2,
+            height: 1,
+            cells: cells
+          )
+        )
+      }
+    }
+    return bricks
   }()
   private static let palette: [Color] = [
     Color(hexRGB: 0x04EDDE),  // 0

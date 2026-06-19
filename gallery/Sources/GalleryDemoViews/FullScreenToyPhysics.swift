@@ -20,7 +20,7 @@ struct FullScreenToyPhysics {
   static let settleVelocity = 2
   static let fieldHeightInset = 0
   static let fieldWidthInset = 0
-  static let initialLaunchX = 0
+  static let initialLaunchX = 8
   static let initialLaunchY = -10
 
   struct BoundsID: Hashable {
@@ -80,6 +80,20 @@ struct FullScreenToyPhysics {
     state.position.y += Int((translation.dy * Double(fixedScale)).rounded())
     state = clamped(state, in: bounds, metrics: metrics)
     state.velocity = releaseVelocity(from: velocity, metrics: metrics)
+  }
+
+  static func applyReleaseVelocity(
+    to state: inout State,
+    velocity: Vector,
+    in bounds: CellSize,
+    metrics: CellPixelMetrics
+  ) {
+    state = clamped(state, in: bounds, metrics: metrics)
+    state.velocity = releaseVelocity(from: velocity, metrics: metrics)
+  }
+
+  static func stop(_ state: inout State) {
+    state.velocity = .zero
   }
 
   static func spawnState(
