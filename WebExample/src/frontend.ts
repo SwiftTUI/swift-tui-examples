@@ -335,7 +335,14 @@ function passiveEmbedOptions(
   options: WebHostSceneRuntimeOptions
 ): WebHostSceneRuntimeOptions {
   if (!isPassiveMarketingEmbed) {
-    return options;
+    return {
+      ...options,
+      // The standalone /webexample/ page is a full-screen app with no page to
+      // scroll past, so it keeps the legacy "capture" behavior (the inner view
+      // always handles the wheel). The library default is "chain", which only
+      // matters for embeds like the marketing iframe below.
+      wheelMode: "capture",
+    };
   }
 
   return {
@@ -345,6 +352,7 @@ function passiveEmbedOptions(
     // scrollable region under the pointer can still scroll in that direction;
     // at its edge (or over non-scrollable content) the wheel falls through and
     // the host page scrolls. Scenes with no ScrollView stay fully passive.
+    // This is also the library default now; set explicitly for clarity.
     wheelMode: "chain",
   };
 }
