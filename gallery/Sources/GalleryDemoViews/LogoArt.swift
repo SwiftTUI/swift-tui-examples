@@ -1,5 +1,12 @@
 import SwiftTUIRuntime
 
+struct LogoBrickCell: Equatable, Sendable {
+  let id: Int
+  let x: Int
+  let y: Int
+  let top: Color?
+  let bottom: Color?
+}
 
 /// The SwiftTUI mark as a 32×32 truecolor bitmap for ``LogoTab``.
 ///
@@ -11,6 +18,32 @@ import SwiftTUIRuntime
 enum LogoArt {
   static let width = 32
   static let height = 32
+  static let cellWidth = width
+  static let cellHeight = CanvasPixelGridMode.verticalHalfBlock.cellHeight(for: height)
+  static let brickCells: [LogoBrickCell] = {
+    var cells: [LogoBrickCell] = []
+    for y in 0..<cellHeight {
+      let topY = y * 2
+      let bottomY = topY + 1
+      for x in 0..<width {
+        let top = pixel(x: x, y: topY)
+        let bottom = pixel(x: x, y: bottomY)
+        guard top != nil || bottom != nil else {
+          continue
+        }
+        cells.append(
+          LogoBrickCell(
+            id: y * width + x,
+            x: x,
+            y: y,
+            top: top,
+            bottom: bottom
+          )
+        )
+      }
+    }
+    return cells
+  }()
   private static let palette: [Color] = [
     Color(hexRGB: 0x04EDDE),  // 0
     Color(hexRGB: 0x02E9D5),  // 1
@@ -171,4 +204,11 @@ enum LogoArt {
     -1, -1, -1, -1, 115, 115, 116, 116, 120, 120, 121, 121, 120, 120, 121, 121, 122, 122, 120, 120, 120, 120, 121, 121, 120, 120, 121, 121, -1, -1, -1, -1,
   ]
   static let pixels: [Color?] = indices.map { $0 < 0 ? nil : palette[$0] }
+
+  private static func pixel(x: Int, y: Int) -> Color? {
+    guard x >= 0, x < width, y >= 0, y < height else {
+      return nil
+    }
+    return pixels[y * width + x]
+  }
 }

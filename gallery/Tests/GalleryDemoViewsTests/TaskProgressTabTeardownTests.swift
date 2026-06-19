@@ -61,20 +61,21 @@ struct TaskProgressTabTeardownTests {
       "expected the task-progress tab to start at least one autonomous .task; got \(onProgress)"
     )
 
-    // Switch away to the always-visible Logo tab.
+    // Switch away to the always-visible Counter tab, which has no autonomous
+    // tasks of its own.
     let surface = try #require(host.lastPresentedSurface)
-    let logoCenter = try #require(
-      Self.centerOfText("Logo", in: surface),
+    let counterCenter = try #require(
+      Self.centerOfText("Counter", in: surface),
       """
-      could not locate the Logo tab to switch away. Surface:
+      could not locate the Counter tab to switch away. Surface:
       \(surface.lines.joined(separator: "\n"))
       """
     )
     #expect(
-      runLoop.handle(.input(.mouse(.init(kind: .down(.primary), location: logoCenter)))) == nil
+      runLoop.handle(.input(.mouse(.init(kind: .down(.primary), location: counterCenter)))) == nil
     )
     #expect(
-      runLoop.handle(.input(.mouse(.init(kind: .up(.primary), location: logoCenter)))) == nil
+      runLoop.handle(.input(.mouse(.init(kind: .up(.primary), location: counterCenter)))) == nil
     )
     for _ in 0..<4 {
       scheduler.requestInvalidation(of: [rootIdentity])
@@ -83,8 +84,8 @@ struct TaskProgressTabTeardownTests {
 
     let afterLeave = runLoop.lifecycleCoordinator.activeTaskCount
     let remaining = runLoop.lifecycleCoordinator.activeTaskDescriptors.keys.map(\.path).sorted()
-    // The Logo tab is a static splash with no autonomous tasks, so once the
-    // progress tab's animation tasks are cancelled the live count must be zero.
+    // Counter has no autonomous tasks, so once the progress tab's animation
+    // tasks are cancelled the live count must be zero.
     // A surviving task is an orphan (its node's viewNodeID churned, so it was
     // never cancelled) that keeps re-rendering off-screen — the slowdown that
     // persists across tab switches.

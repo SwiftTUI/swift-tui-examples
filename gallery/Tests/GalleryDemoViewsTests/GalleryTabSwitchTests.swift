@@ -231,12 +231,12 @@ struct GalleryTabSwitchTests {
   }
 
   @Test(
-    "opening and dismissing the palette keeps Physics progress while Physics stays selected",
+    "opening and dismissing the palette keeps Logo Breaker progress while selected",
     .enabled(if: galleryRuntimeTestsEnabled, galleryRuntimeTestGateComment))
   func paletteOpenAndDismissKeepsPhysicsProgress() async throws {
     let terminalSize = CellSize(width: 80, height: 24)
     let rootIdentity = Identity(components: [.named("GalleryPhysicsPaletteContinuity")])
-    let view = GallerySelectionSeedHarness(initialSelection: .physics)
+    let view = GallerySelectionSeedHarness(initialSelection: .logo)
     let host = GalleryTabSwitchRecordingHost(size: terminalSize)
     let capture = GallerySurfaceCapture()
 
@@ -291,23 +291,23 @@ struct GalleryTabSwitchTests {
     )
     #expect(
       postDismissSurface != initialPhysicsSurface,
-      "dismissing the palette should not recreate the physics tab at its initial spawn frame"
+      "dismissing the palette should not recreate Logo Breaker at its initial spawn frame"
     )
     #expect(
       !postDismissText.contains("A SwiftUI-shaped terminal UI"),
-      "dismissing the palette should keep the Full Screen tab selected; surface was:\n\(postDismissText)"
+      "dismissing the palette should keep the Logo Breaker tab selected; surface was:\n\(postDismissText)"
     )
   }
 
   @Test(
-    "selecting the gallery physics tab starts its gravity loop",
+    "selecting the gallery logo breaker tab starts its gravity loop",
     .enabled(if: galleryRuntimeTestsEnabled, galleryRuntimeTestGateComment))
-  func selectingPhysicsTabStartsGravityLoop() async throws {
+  func selectingLogoBreakerTabStartsGravityLoop() async throws {
     let terminalSize = CellSize(width: 160, height: 24)
     let rootIdentity = Identity(components: [.named("GalleryPhysicsSelectionStartsLoop")])
     let view = GallerySelectionSeedHarness(initialSelection: .counter)
     let tabClickCenter = try Self.centerOfText(
-      "Full Screen",
+      "Logo Breaker",
       in: view,
       terminalSize: terminalSize,
       rootIdentity: Identity(components: [
@@ -349,14 +349,14 @@ struct GalleryTabSwitchTests {
     let uniqueSurfaces = deduplicated(host.surfaces)
     #expect(
       uniqueSurfaces.count >= capture.surfaceCountAtFirstPhysicsFrame + 2,
-      "expected selecting the gallery Physics tab to start gravity-driven frames"
+      "expected selecting the gallery Logo Breaker tab to start gravity-driven frames"
     )
   }
 
   @Test(
-    "selecting the overflowed gallery physics tab starts its gravity loop",
+    "selecting the overflowed gallery logo breaker tab starts its gravity loop",
     .enabled(if: galleryRuntimeTestsEnabled, galleryRuntimeTestGateComment))
-  func selectingOverflowedPhysicsTabStartsGravityLoop() async throws {
+  func selectingOverflowedLogoBreakerTabStartsGravityLoop() async throws {
     let terminalSize = CellSize(width: 80, height: 24)
     let rootIdentity = Identity(components: [.named("GalleryOverflowPhysicsSelectionStartsLoop")])
     let view = GallerySelectionSeedHarness(initialSelection: .counter)
@@ -381,7 +381,7 @@ struct GalleryTabSwitchTests {
           .event(.mouse(.init(kind: .up(.primary), location: overflowTriggerCenter))),
           .awaitCondition {
             guard let surface = host.lastPresentedSurface,
-              let itemBounds = Self.boundsOfText("Full Screen", in: surface)
+              let itemBounds = Self.boundsOfText("Logo Breaker", in: surface)
             else {
               return false
             }
@@ -418,7 +418,7 @@ struct GalleryTabSwitchTests {
     let uniqueSurfaces = deduplicated(host.surfaces)
     #expect(
       uniqueSurfaces.count >= capture.surfaceCountAtFirstPhysicsFrame + 2,
-      "expected selecting overflowed Physics to start gravity-driven frames"
+      "expected selecting overflowed Logo Breaker to start gravity-driven frames"
     )
   }
 
@@ -428,7 +428,7 @@ struct GalleryTabSwitchTests {
   func expandedOverflowMenuStaysVisibleAcrossAnimatedGalleryFrames() async throws {
     let terminalSize = CellSize(width: 80, height: 24)
     let rootIdentity = Identity(components: [.named("GalleryAnimatedOverflowMenuContinuity")])
-    let view = GallerySelectionSeedHarness(initialSelection: .physics)
+    let view = GallerySelectionSeedHarness(initialSelection: .logo)
     let overflowTriggerCenter = try Self.centerOfText(
       "▼",
       in: view,
@@ -467,7 +467,7 @@ struct GalleryTabSwitchTests {
               return false
             }
             let text = surface.lines.joined(separator: "\n")
-            guard text.contains("▲"), text.contains("Full Screen") else {
+            guard text.contains("▲"), text.contains("Logo Breaker") else {
               return false
             }
             expandedSurfaceCount = surfaces.count
@@ -489,7 +489,7 @@ struct GalleryTabSwitchTests {
     let surfacesAfterTrigger = Array(deduplicated(host.surfaces).dropFirst(surfaceCountAtTrigger))
     let missingMenuSurfaces = surfacesAfterTrigger.filter { surface in
       let text = surface.lines.joined(separator: "\n")
-      return !text.contains("▲") || !text.contains("Full Screen")
+      return !text.contains("▲") || !text.contains("Logo Breaker")
     }
 
     #expect(
@@ -503,12 +503,12 @@ struct GalleryTabSwitchTests {
   }
 
   @Test(
-    "gallery physics tab keeps advancing after a drag release",
+    "gallery logo breaker tab keeps advancing after a drag release",
     .enabled(if: galleryRuntimeTestsEnabled, galleryRuntimeTestGateComment))
   func physicsTabKeepsAdvancingAfterDragRelease() async throws {
     let terminalSize = CellSize(width: 80, height: 24)
     let rootIdentity = Identity(components: [.named("GalleryPhysicsReleaseContinuity")])
-    let view = GallerySelectionSeedHarness(initialSelection: .physics)
+    let view = GallerySelectionSeedHarness(initialSelection: .logo)
     let host = GalleryTabSwitchRecordingHost(size: terminalSize)
     let capture = GalleryPhysicsReleaseCapture()
 
@@ -560,7 +560,7 @@ struct GalleryTabSwitchTests {
     #expect(result.exitReason == .userExit(KeyPress(.character("d"), modifiers: .ctrl)))
     #expect(
       capture.surfaceCountAtRelease >= 4,
-      "expected gravity-driven frames before dragging the gallery Physics tab"
+      "expected gravity-driven frames before dragging the gallery Logo Breaker tab"
     )
 
     let uniqueSurfaces = deduplicated(host.surfaces)
@@ -577,11 +577,11 @@ struct GalleryTabSwitchTests {
 
     #expect(
       xPositions.count >= 2,
-      "expected the released Physics ball to keep horizontal momentum; centers: \(postReleaseCenters)"
+      "expected the released Logo Breaker ball to keep horizontal momentum; centers: \(postReleaseCenters)"
     )
     #expect(
       yPositions.count >= 2,
-      "expected the released Physics ball to keep responding to gravity; centers: \(postReleaseCenters)"
+      "expected the released Logo Breaker ball to keep responding to gravity; centers: \(postReleaseCenters)"
     )
   }
 
@@ -629,7 +629,7 @@ struct GalleryTabSwitchTests {
     let runTask = Task {
       try await Self.runSceneHarness(
         scene: WindowGroup("Gallery Window") {
-          GallerySelectionSeedHarness(initialSelection: .physics)
+          GallerySelectionSeedHarness(initialSelection: .logo)
         },
         presentationSurface: host,
         terminalInputReader: inputReader,
@@ -650,7 +650,7 @@ struct GalleryTabSwitchTests {
     let yPositions = Set(centers.map { $0.containingCell.y })
     #expect(
       yPositions.count >= 2,
-      "expected scene-hosted Physics to advance under gravity; centers: \(centers)"
+      "expected scene-hosted Logo Breaker to advance under gravity; centers: \(centers)"
     )
   }
 
@@ -680,7 +680,7 @@ struct GalleryTabSwitchTests {
         terminalInputReader: inputReader,
         terminalSize: terminalSize,
         rootIdentity: rootIdentity,
-        viewBuilder: { GallerySelectionSeedHarness(initialSelection: .physics) }
+        viewBuilder: { GallerySelectionSeedHarness(initialSelection: .logo) }
       )
     }
 
@@ -1990,8 +1990,8 @@ private struct GallerySelectionRuntimeBridge: View {
         FileDropTab()
       }
 
-      Tab("Full Screen", value: GalleryView.GalleryTab.physics) {
-        PhysicsTab()
+      Tab("Logo Breaker", value: GalleryView.GalleryTab.logo) {
+        LogoTab()
       }
     }
     .tabViewStyle(.literalTabs)
@@ -2041,8 +2041,8 @@ private struct GallerySelectionRuntimeBridge: View {
       action: { selection = .fileDrop }
     )
     .paletteCommand(
-      name: "Switch to Full Screen",
-      action: { selection = .physics }
+      name: "Switch to Logo Breaker",
+      action: { selection = .logo }
     )
     .toolbar(style: DefaultBottomToolbarStyle())
     .paletteSheet("Command palette", isPresented: $isPaletteOpen) { commands in
@@ -2351,7 +2351,7 @@ private final class GalleryCommandPaletteCapture {
 }
 
 private func containsSeedHarnessPaletteSurface(_ text: String) -> Bool {
-  text.contains("Switch to Full Screen")
+  text.contains("Switch to Logo Breaker")
     || text.contains("No commands in the current scope.")
     || text.contains("Command palette")
 }

@@ -61,9 +61,6 @@ public struct GalleryView: View {
       Tab(Self.descriptor(for: .focusContext).title, value: GalleryTab.focusContext) {
         FocusContextTab()
       }
-      Tab(Self.descriptor(for: .physics).title, value: GalleryTab.physics) {
-        PhysicsTab()
-      }
       Tab(Self.descriptor(for: .taskProgress).title, value: GalleryTab.taskProgress) {
         TaskProgressTab()
       }
@@ -99,7 +96,6 @@ public struct GalleryView: View {
     .galleryTabPaletteCommand(.popovers, selection: $selection)
     .galleryTabPaletteCommand(.pointerLab, selection: $selection)
     .galleryTabPaletteCommand(.focusContext, selection: $selection)
-    .galleryTabPaletteCommand(.physics, selection: $selection)
     .galleryTabPaletteCommand(.taskProgress, selection: $selection)
     .toolbar(style: .defaultBottom)
     .paletteSheet("Command palette", isPresented: $showPalette) { commands in
@@ -130,7 +126,6 @@ extension GalleryView {
     case popovers
     case pointerLab
     case focusContext
-    case physics
     case taskProgress
 
     /// The stable command-line key for this tab. One key per case.
@@ -193,8 +188,6 @@ extension GalleryView {
         PointerLabTab()
       case .focusContext:
         FocusContextTab()
-      case .physics:
-        PhysicsTab()
       case .taskProgress:
         TaskProgressTab()
       }
@@ -204,9 +197,9 @@ extension GalleryView {
   nonisolated static let tabDescriptors: [GalleryTabDescriptor] = [
     .init(
       value: .logo,
-      title: "Logo",
+      title: "Logo Breaker",
       key: "logo",
-      coverageTags: ["canvas", "pixel-grid", "truecolor"]
+      coverageTags: ["canvas", "pixel-grid", "truecolor", "gestures", "physics"]
     ),
     .init(
       value: .counter,
@@ -315,12 +308,6 @@ extension GalleryView {
       title: "Focus Context",
       key: "focus-context",
       coverageTags: ["focused-value", "focused-binding", "toolbar"]
-    ),
-    .init(
-      value: .physics,
-      title: "Physics",
-      key: "physics",
-      coverageTags: ["gestures", "fullscreen"]
     ),
     .init(
       value: .taskProgress,

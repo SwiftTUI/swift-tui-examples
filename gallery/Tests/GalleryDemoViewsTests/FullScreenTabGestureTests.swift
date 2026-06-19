@@ -7,7 +7,7 @@ import Testing
 
 @MainActor
 @Suite(.serialized)
-struct PhysicsTabGestureTests {
+struct LogoBreakerGestureTests {
 
   @Test("fullscreen toy starts at bottom center with its initial launch velocity")
   func spawnStateStartsAtBottomCenter() {
@@ -69,11 +69,102 @@ struct PhysicsTabGestureTests {
     #expect(state.velocity == .init(x: 64, y: -16))
   }
 
+  @Test("logo breaker derives bricks from the rendered logo cells")
+  func logoBreakerUsesRenderedLogoCellsAsBricks() {
+    #expect(LogoArt.cellWidth == 32)
+    #expect(LogoArt.cellHeight == 16)
+    #expect(!LogoArt.brickCells.isEmpty)
+    #expect(LogoArt.brickCells.allSatisfy { $0.top != nil || $0.bottom != nil })
+    #expect(Set(LogoArt.brickCells.map(\.id)).count == LogoArt.brickCells.count)
+  }
+
+  @Test("logo breaker removes a logo brick and reflects the ball")
+  func logoBreakerBreaksIntersectedLogoCell() throws {
+    let terminalSize = CellSize(width: 80, height: 24)
+    let metrics = CellPixelMetrics.estimated
+    let ballHeight = LogoBreakerGame.ballCellHeight(metrics: metrics)
+    let logoOrigin = LogoBreakerGame.logoOrigin(in: terminalSize)
+    let target = try #require(LogoArt.brickCells.first { $0.y > ballHeight })
+    var brokenBrickIDs: Set<Int> = []
+    var state = FullScreenToyPhysics.State(
+      position: .init(
+        x: (logoOrigin.x + target.x) * FullScreenToyPhysics.fixedScale,
+        y: (logoOrigin.y + target.y - ballHeight) * FullScreenToyPhysics.fixedScale
+      ),
+      velocity: .init(x: 0, y: FullScreenToyPhysics.fixedScale)
+    )
+
+    _ = LogoBreakerGame.step(
+      &state,
+      brokenBrickIDs: &brokenBrickIDs,
+      in: terminalSize,
+      metrics: metrics
+    )
+
+    #expect(brokenBrickIDs.contains(target.id))
+    #expect(state.velocity.y < 0)
+  }
+
+  @Test("logo breaker sweeps high-speed movement to the first reachable brick")
+  func logoBreakerSweepsFastMovementToFirstReachableBrick() throws {
+    let terminalSize = CellSize(width: 80, height: 40)
+    let metrics = CellPixelMetrics.estimated
+    let ballHeight = LogoBreakerGame.ballCellHeight(metrics: metrics)
+    let logoOrigin = LogoBreakerGame.logoOrigin(in: terminalSize)
+    let columns = Dictionary(grouping: LogoArt.brickCells, by: { $0.x })
+    let pair = try #require(
+      columns.values.compactMap { cells -> (near: LogoBrickCell, far: LogoBrickCell)? in
+        let sorted = cells.sorted { $0.y < $1.y }
+        for index in sorted.indices {
+          let near = sorted[index]
+          guard near.y > ballHeight + 1 else {
+            continue
+          }
+          guard
+            let far = sorted[(index + 1)..<sorted.endIndex].first(where: {
+              $0.y >= near.y + ballHeight + 2
+            })
+          else {
+            continue
+          }
+          return (near, far)
+        }
+        return nil
+      }.first
+    )
+    var brokenBrickIDs = Set(LogoArt.brickCells.map(\.id))
+    brokenBrickIDs.remove(pair.near.id)
+    brokenBrickIDs.remove(pair.far.id)
+    var state = FullScreenToyPhysics.State(
+      position: .init(
+        x: (logoOrigin.x + pair.near.x) * FullScreenToyPhysics.fixedScale,
+        y: (logoOrigin.y + pair.near.y - ballHeight - 1)
+          * FullScreenToyPhysics.fixedScale
+      ),
+      velocity: .init(
+        x: 0,
+        y: (pair.far.y - pair.near.y + ballHeight + 3)
+          * FullScreenToyPhysics.fixedScale
+      )
+    )
+
+    _ = LogoBreakerGame.step(
+      &state,
+      brokenBrickIDs: &brokenBrickIDs,
+      in: terminalSize,
+      metrics: metrics
+    )
+
+    #expect(brokenBrickIDs.contains(pair.near.id))
+    #expect(!brokenBrickIDs.contains(pair.far.id))
+    #expect(state.velocity.y < 0)
+  }
+
   @Test(
     "ball drag-gesture hit region tracks the visible ball position in absolute coordinates"
   )
   func ballHitRegionIsPlacedAtVisibleBall() throws {
-    // Regression test for the bug that caused the gallery Physics
+    // Regression test for the bug that caused the gallery Logo Breaker
     // ball gesture to misfire. The ball's `contentShape(_:CellRect)`
     // is supplied in node-local Canvas coordinates; the framework
     // translates it by the Canvas's absolute placed origin. Earlier
@@ -82,12 +173,12 @@ struct PhysicsTabGestureTests {
     // undraggable whenever it was rendered anywhere other than the
     // screen origin.
     let terminalSize = CellSize(width: 40, height: 12)
-    let rootIdentity = Identity(components: [.named("PhysicsTabHitRegionPlacement")])
+    let rootIdentity = Identity(components: [.named("LogoBreakerHitRegionPlacement")])
     var env = EnvironmentValues()
     env.terminalSize = terminalSize
 
     let artifacts = DefaultRenderer().render(
-      PhysicsTab(),
+      LogoTab(),
       context: .init(identity: rootIdentity, environmentValues: env),
       proposal: .init(width: terminalSize.width, height: terminalSize.height)
     )
@@ -140,7 +231,7 @@ struct PhysicsTabGestureTests {
     .enabled(if: galleryRuntimeTestsEnabled, galleryRuntimeTestGateComment))
   func gravityLoopSchedulesRuntimeFrames() async throws {
     let terminalSize = CellSize(width: 40, height: 12)
-    let rootIdentity = Identity(components: [.named("PhysicsTabGravityLoop")])
+    let rootIdentity = Identity(components: [.named("LogoBreakerGravityLoop")])
     let host = GestureRecordingHost(size: terminalSize)
     let inputReader = AwaitedTerminalInputReader(
       frameSignal: host.frameSignal,
@@ -155,7 +246,7 @@ struct PhysicsTabGestureTests {
       host: host,
       terminalSize: terminalSize,
       rootIdentity: rootIdentity,
-      viewBuilder: { PhysicsTab() },
+      viewBuilder: { LogoTab() },
       terminalInputReader: inputReader
     )
     try await inputReader.requireNoWaitFailure()
@@ -173,8 +264,8 @@ struct PhysicsTabGestureTests {
     .enabled(if: galleryRuntimeTestsEnabled, galleryRuntimeTestGateComment))
   func draggingRectangleUpdatesAndCommits() async throws {
     let terminalSize = CellSize(width: 40, height: 12)
-    let rootIdentity = Identity(components: [.named("PhysicsTabGestureTest")])
-    let view = PhysicsTab()
+    let rootIdentity = Identity(components: [.named("LogoBreakerGestureTest")])
+    let view = LogoTab()
 
     var env = EnvironmentValues()
     env.terminalSize = terminalSize
@@ -221,8 +312,8 @@ struct PhysicsTabGestureTests {
     .enabled(if: galleryRuntimeTestsEnabled, galleryRuntimeTestGateComment))
   func draggingRectangleTwiceTracksItsMovedPosition() async throws {
     let terminalSize = CellSize(width: 40, height: 12)
-    let rootIdentity = Identity(components: [.named("PhysicsTabGestureTwiceTest")])
-    let view = PhysicsTab()
+    let rootIdentity = Identity(components: [.named("LogoBreakerGestureTwiceTest")])
+    let view = LogoTab()
 
     var env = EnvironmentValues()
     env.terminalSize = terminalSize
@@ -300,8 +391,8 @@ struct PhysicsTabGestureTests {
     .enabled(if: galleryRuntimeTestsEnabled, galleryRuntimeTestGateComment))
   func draggingRectangleReleaseResumesPhysics() async throws {
     let terminalSize = CellSize(width: 40, height: 12)
-    let rootIdentity = Identity(components: [.named("PhysicsTabReleaseResumesPhysics")])
-    let view = PhysicsTab()
+    let rootIdentity = Identity(components: [.named("LogoBreakerReleaseResumesPhysics")])
+    let view = LogoTab()
 
     var env = EnvironmentValues()
     env.terminalSize = terminalSize
@@ -363,7 +454,7 @@ struct PhysicsTabGestureTests {
     env.terminalSize = terminalSize
 
     let artifacts = DefaultRenderer().render(
-      PhysicsTab()
+      LogoTab()
         .toolbarItem(.init(title: "⌃K Palette", action: {}))
         .panel(id: "gallery")
         .toolbar(style: DefaultBottomToolbarStyle()),
@@ -402,7 +493,7 @@ struct PhysicsTabGestureTests {
       terminalSize: terminalSize,
       rootIdentity: rootIdentity,
       viewBuilder: {
-        PhysicsTab()
+        LogoTab()
           .toolbarItem(.init(title: "⌃K Palette", action: {}))
           .panel(id: "gallery")
           .toolbar(style: DefaultBottomToolbarStyle())

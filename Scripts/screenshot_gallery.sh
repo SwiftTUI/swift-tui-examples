@@ -10,7 +10,7 @@
 #   SCREENSHOT_TAB     Same as positional [tab-key]; defaults to "counter".
 #                      Recognised: counter, todo, calculator,
 #                      borders-and-shapes, images, animations, file-drop,
-#                      physics. Run `gallery-demo --help` for the full list.
+#                      logo. Run `gallery-demo --help` for the full list.
 #   SCREENSHOT_DELAY   Seconds to wait after kitty launches before
 #                      capturing. Default: 2.
 #

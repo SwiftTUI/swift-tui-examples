@@ -30,7 +30,7 @@ keys.
 
 | Tab | Coverage |
 | --- | --- |
-| Logo | Truecolor `Canvas` pixel grid (the SwiftTUI mark, half-block packed) |
+| Logo Breaker | Brick-breaker logo game with truecolor logo cells, drag/release, and bouncing ball physics |
 | Counter | Basic state mutation and button input |
 | Life | Custom rendering and simulation state |
 | Todo | Lists, editing, deletion, and selection |
@@ -47,7 +47,6 @@ keys.
 | Popovers | Anchored popover presentation and palette composition |
 | Pointer Lab | SpatialTapGesture, DragGesture, long press, contentShape, and named coordinate spaces |
 | Focus Context | FocusedValue, FocusedBinding, and toolbar/status consumers of focused child state |
-| Physics | Gesture-driven full-screen toy surface |
 | Progress | Generic task-progress pane with spinner, shimmering title, subtask list, and hidden-item summary |
 
 `Ctrl+K` opens the command palette. The gallery intentionally exercises the
