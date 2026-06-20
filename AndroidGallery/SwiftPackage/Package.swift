@@ -19,7 +19,7 @@ let package = Package(
     .package(path: "../../gallery"),
     .package(
       url: "https://github.com/SwiftTUI/swift-tui.git",
-      exact: "0.0.24"
+      exact: "0.0.25"
     ),
   ],
   targets: [
