@@ -51,5 +51,13 @@ let package = Package(
         .plugin(name: "LayoutSourceSnippetPlugin", package: "layouts-demo")
       ]
     ),
+    .testTarget(
+      name: "LayoutsSwiftUITests",
+      dependencies: [
+        "SwiftUILayouts",
+        .product(name: "Layouts", package: "layouts-demo"),
+      ],
+      path: "Tests/LayoutsSwiftUITests"
+    ),
   ]
 )
