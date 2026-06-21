@@ -6,9 +6,20 @@
 # scope), so swift-format's in-place rewrites only touch the files in
 # the commit — never the whole tree or a branch diff.
 
+default_install_hook_types = ["pre-commit", "commit-msg"]
+
 [[repos]]
 repo = "local"
 hooks = [
+  {
+    id = "no-ai-coauthors",
+    name = "forbid AI model Co-authored-by trailers",
+    entry = "./Scripts/check_commit_message_policy.sh",
+    language = "system",
+    stages = ["commit-msg"],
+    always_run = true,
+    pass_filenames = true
+  },
   {
     id = "swift-format",
     name = "run swift-format format",
@@ -17,5 +28,21 @@ hooks = [
     files = '.*\.swift$',
     exclude = '(^|/)Vendor/',
     pass_filenames = true
+  },
+  {
+    id = "structured-concurrency-escape-hatches",
+    name = "forbid unchecked concurrency and @safe escape hatches",
+    entry = "./Scripts/check_concurrency_safety_policies.sh",
+    language = "system",
+    files = '.*\.swift$',
+    pass_filenames = false
+  },
+  {
+    id = "main-thread-usage",
+    name = "forbid bare Thread.isMainThread without thread-ismain-ok justification",
+    entry = "./Scripts/check_main_thread_usage.sh",
+    language = "system",
+    files = '.*\.swift$|^Scripts/check_main_thread_usage\.sh$',
+    pass_filenames = false
   },
 ]
