@@ -7,9 +7,12 @@ import SwiftUI
 /// `BorderEdgeStyle(top:right:bottom:left:)` plus a `.heavy` border
 /// set — neither has a one-liner SwiftUI equivalent. This port
 /// reaches the divergence by stacking four `.overlay` rectangles, one
-/// per edge. Layout shape is intentionally preserved; readers of
-/// BEHAVIOUR_FINDINGS comparing rasters should expect SwiftUI to
-/// paint thin colored strokes rather than `━ ┃ ┏ ┓ ┗ ┛` glyphs.
+/// per edge, each a single-cell-thick stroke (`cell(1)`) so the result
+/// reads as a four-color *border frame* — not filled quadrant bands.
+/// That matches SwiftTUI's one-cell `.heavy` ring: readers comparing
+/// rasters should expect SwiftUI to paint thin colored strokes rather
+/// than `━ ┃ ┏ ┓ ┗ ┛` glyphs. (The padding stays `cell(2)`; only the
+/// stroke thickness is one cell.)
 public struct PerSideBorderColors: View {
   public init() {}
 
@@ -19,16 +22,16 @@ public struct PerSideBorderColors: View {
       Text("X")
         .padding(cell(2))
         .overlay(alignment: .top) {
-          Rectangle().fill(Color.red).frame(height: cell(2))
+          Rectangle().fill(Color.red).frame(height: cell(1))
         }
         .overlay(alignment: .trailing) {
-          Rectangle().fill(Color.yellow).frame(width: cell(2))
+          Rectangle().fill(Color.yellow).frame(width: cell(1))
         }
         .overlay(alignment: .bottom) {
-          Rectangle().fill(Color.green).frame(height: cell(2))
+          Rectangle().fill(Color.green).frame(height: cell(1))
         }
         .overlay(alignment: .leading) {
-          Rectangle().fill(Color.blue).frame(width: cell(2))
+          Rectangle().fill(Color.blue).frame(width: cell(1))
         }
     }
     .padding(cell(1))
