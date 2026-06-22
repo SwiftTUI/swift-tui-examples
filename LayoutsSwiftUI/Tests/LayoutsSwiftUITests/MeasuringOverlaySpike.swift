@@ -65,10 +65,13 @@ import SwiftUILayouts
       let pointSize = CGSize(width: CGFloat(Self.cols) * 10, height: CGFloat(Self.rows) * 10)
 
       // --- (1) ImageRenderer PNG (Tier-1, low risk) -----------------------
+      // Normalize chrome to black-on-white in BOTH engines so default
+      // text/background color differences don't read as layout discrepancies
+      // (intrinsic per-view colors — blue/red/gray fills — are preserved).
       let framed = entry.makeView()
         .frame(width: pointSize.width, height: pointSize.height, alignment: .topLeading)
-        .background(Color.black)
-        .environment(\.colorScheme, .dark)
+        .background(Color.white)
+        .environment(\.colorScheme, .light)
 
       let renderer = ImageRenderer(content: framed)
       renderer.scale = Self.scale
@@ -82,7 +85,7 @@ import SwiftUILayouts
       try writePNG(cg, to: "\(Self.outDir)/png/\(id).swiftui.png")
 
       // --- (2) pixel-bbox content extent (Tier-1 fallback geometry) -------
-      let bbox = contentBBox(cg, backgroundIsBlack: true)
+      let bbox = contentBBox(cg)
       // Convert pixel bbox back to cells (scale -> points -> /10).
       let bboxCells = bbox.map { CellRectJSON(from: $0, scale: Self.scale) }
 
@@ -178,8 +181,8 @@ import SwiftUILayouts
 
   // MARK: - pixel bbox
 
-  /// Bounding box (in pixels) of content that differs from the background.
-  private func contentBBox(_ cg: CGImage, backgroundIsBlack: Bool) -> CGRect? {
+  /// Bounding box (in pixels) of content that differs from the white background.
+  private func contentBBox(_ cg: CGImage) -> CGRect? {
     let w = cg.width, h = cg.height
     let bytesPerRow = w * 4
     var pixels = [UInt8](repeating: 0, count: bytesPerRow * h)
@@ -193,14 +196,14 @@ import SwiftUILayouts
     ctx.draw(cg, in: CGRect(x: 0, y: 0, width: w, height: h))
 
     var minX = w, minY = h, maxX = -1, maxY = -1
-    let threshold: Int = 18  // tolerance over pure black
+    let threshold: Int = 24  // sum-abs distance from white; tolerate AA fringe
     for y in 0..<h {
       let row = y * bytesPerRow
       for x in 0..<w {
         let i = row + x * 4
         let r = Int(pixels[i]), g = Int(pixels[i + 1]), b = Int(pixels[i + 2])
-        let isContent = backgroundIsBlack ? (r + g + b > threshold) : true
-        if isContent {
+        let diffFromWhite = (255 - r) + (255 - g) + (255 - b)
+        if diffFromWhite > threshold {
           if x < minX { minX = x }
           if x > maxX { maxX = x }
           if y < minY { minY = y }
