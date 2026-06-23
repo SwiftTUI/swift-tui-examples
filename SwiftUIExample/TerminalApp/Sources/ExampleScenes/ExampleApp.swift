@@ -1,6 +1,6 @@
 import GalleryDemoViews
 import SharedHostScenes
-import SwiftTUI
+import SwiftTUIRuntime
 
 public struct ExampleApp: App {
   public init() {}

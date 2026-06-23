@@ -25,7 +25,11 @@ let package = Package(
       dependencies: [
         .product(name: "GalleryDemoViews", package: "gallery"),
         .product(name: "SharedHostScenes", package: "shared-host-scenes"),
-        .product(name: "SwiftTUI", package: "swift-tui"),
+        // SwiftUIHost embeds a SwiftTUIRuntime app. Depend on the runtime, NOT
+        // the SwiftTUI umbrella — the umbrella bundles SwiftTUIWebHostCLI →
+        // SwiftTUIWebHost, whose Process() use is macOS-only and breaks the
+        // iOS build. An embedded host must never pull the web host.
+        .product(name: "SwiftTUIRuntime", package: "swift-tui"),
       ],
       path: "Sources/ExampleScenes"
     )
