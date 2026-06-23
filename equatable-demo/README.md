@@ -20,7 +20,7 @@ re-evaluating all 48 cells — the panel is unchanged, so its `==` returns equal
 ## Run
 
 ```bash
-swiftly run swift run --package-path equatable-demo equatable-demo
+swiftly run swift run --package-path equatable-demo EquatableDemo
 ```
 
 Press `tick` (or the spacebar) and watch the counter change while the panel
