@@ -1,28 +1,36 @@
-# Terminal Workspace Example
+# Terminal Workspace
 
-This example demonstrates the first-class terminal workspace surface:
-tabs, split panes, retained terminal sessions, visible active-pane chrome,
-workspace commands, and layout persistence.
+> A first-class terminal multiplexer surface — tabbed, split-pane shell sessions with active-pane chrome, a command palette, and persisted layout — showing how a full workspace UI is composed and survives restarts. Runs in the terminal.
 
-Run it from the repo root:
+## Run
 
 ```bash
 swiftly run swift run --package-path terminal-workspace terminal-workspace
 ```
 
-Useful controls:
+## Demonstrates
 
-- `Ctrl+K`: command palette
-- `Alt+H/J/K/L` or `Alt+Arrow`: move focus
-- `Alt+V`: split the focused pane right
-- `Alt+S`: split the focused pane down
-- `Alt+T`: create a new shell tab
-- `Alt+Z`: zoom or unzoom the focused pane
-- `Alt+X`: close the focused pane
+- `SwiftTUITerminalWorkspace` — which means a developer gets a ready-made tabbed, split-pane terminal workspace surface rather than hand-building one.
+- Retained terminal sessions with visible active-pane chrome and a `Ctrl+K` command palette — directional focus movement, splitting, zoom, and pane lifecycle out of the box.
+- Layout and command-metadata persistence to `~/.swift-tui-terminal-workspace.json`, restored on launch.
+
+## Persistence
 
 The example persists layout and command metadata to
 `~/.swift-tui-terminal-workspace.json`. It intentionally restores fresh
 processes on launch; detach/reattach is future workspace-session work.
+
+## Controls
+
+| Key | Action |
+| --- | --- |
+| `Ctrl+K` | Command palette |
+| `Alt+H/J/K/L` or `Alt+Arrow` | Move focus |
+| `Alt+V` | Split the focused pane right |
+| `Alt+S` | Split the focused pane down |
+| `Alt+T` | Create a new shell tab |
+| `Alt+Z` | Zoom or unzoom the focused pane |
+| `Alt+X` | Close the focused pane |
 
 ## Test
 
@@ -32,3 +40,7 @@ swiftly run swift test --package-path terminal-workspace
 
 The focused test pins the initial dev/ops workspace shape and pane identifiers
 so the example remains useful as the workspace product evolves.
+
+## See also
+
+- [DocC reference](https://swifttui.sh/docs/documentation/) — the full `SwiftTUITerminalWorkspace` API surface.

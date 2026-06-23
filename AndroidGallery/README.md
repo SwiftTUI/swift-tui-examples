@@ -1,34 +1,29 @@
-# SwiftTUI Android Gallery
+# Android Gallery
 
-This Android app embeds the SwiftTUI gallery in a Compose host view.
+Embed the SwiftTUI gallery in an Android Compose host — the Android surface of the same App, running on a native Android surface (Jetpack Compose via `SwiftTUIAndroidHost`).
 
-The app builds the Swift gallery host package as an `arm64-v8a` Android dynamic
-library, copies the Swift Android runtime libraries into generated `jniLibs`,
-and uses a small JNI shim to drive the `SwiftTUIAndroidHost` C ABI from Kotlin.
+## Run
 
-The demo is packaged only for `arm64-v8a` but the framework supports `x86_64`.
-See `app/build.gradle.kts`, `app/src/main/jni/Application.mk` and the Swift 
-cross-build.
+```bash
+./gradlew :app:assembleDebug
+```
 
-## Current State
+Run from this directory. The roster uses the `(cd AndroidGallery && ./gradlew :app:assembleDebug)` form from the repo root — same command.
 
-The app currently assembles and packages the Swift gallery host into the debug
-APK. The first screen is a Compose `SwiftTUIHostView` backed by a native Swift
-host handle. Compose measures the available pixels, converts them to a terminal
-cell grid, and publishes resize information back to SwiftTUI.
+## Demonstrates
 
-The Android host frame parser consumes the versioned JSON snapshot emitted by
-`SwiftTUIAndroidHost`. The current schema carries terminal colors, raster cells,
-cell styles, ranged damage metadata, image attachments, accessibility nodes,
-accessibility announcements, focus presentation, and preferred layout size. The
-Compose renderer paints styled cells, cell backgrounds, text decorations, and
-embedded image payloads on an Android Canvas, with a transparent semantics
-overlay above the canvas for Android accessibility.
+- `SwiftTUIAndroidHost` — which means the same SwiftTUI `App` renders on a native Android surface, with no platform-specific view code in the gallery itself.
+- A Compose `SwiftTUIHostView` measures available pixels, converts them to a terminal cell grid, and publishes resize information back to SwiftTUI — so layout follows the device viewport.
+- The Compose renderer paints styled cells, cell backgrounds, text decorations, and embedded image payloads on an Android Canvas, with a transparent semantics overlay above the canvas for Android accessibility — driven entirely by the host's versioned JSON snapshot.
+- Hardware keyboard input and basic touch activation bridge back to SwiftTUI, so the gallery is interactive on-device.
 
-Hardware keyboard input and basic touch activation are bridged back to
-SwiftTUI. IME composition, clipboard, link opening, Android accessibility focus
-synchronization, Android content URI import, and retained bitmap damage caches
-remain follow-up work.
+## How it works
+
+The app builds the Swift gallery host package (`GalleryAndroidHost`, which depends on `GalleryDemoViews`, `SwiftTUIAndroidHost`, and `SwiftTUIRuntime`) as an `arm64-v8a` Android dynamic library, copies the Swift Android runtime libraries into generated `jniLibs`, and uses a small JNI shim to drive the `SwiftTUIAndroidHost` C ABI from Kotlin.
+
+The first screen is a Compose `SwiftTUIHostView` backed by a native Swift host handle. The Android host frame parser consumes the versioned JSON snapshot emitted by `SwiftTUIAndroidHost`; the current schema carries terminal colors, raster cells, cell styles, ranged damage metadata, image attachments, accessibility nodes, accessibility announcements, focus presentation, and preferred layout size.
+
+The demo is packaged only for `arm64-v8a`, but the framework also cross-compiles for `x86_64-unknown-linux-android28` — this is a deliberate packaging-scope choice, not a limitation. To add an `x86_64` lane (e.g. a CI emulator), add the ABI in `app/build.gradle.kts`, in `:swift-tui-host`'s `Application.mk`, and give the convention plugin a second `--swift-sdk` cross-build with a per-ABI copy.
 
 ## Build
 
@@ -57,7 +52,8 @@ org-root development, Gradle mirrors that URL to `SWIFTTUI_CHECKOUT` or the
 default sibling checkout at `../../../swift-tui` so pre-release Android host
 changes build against the pinned local checkout.
 
-The local command verified on 2026-06-10 was:
+A fully env-prefixed local invocation (useful when the SDK/NDK are not on the
+default paths):
 
 ```bash
 JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" \
@@ -68,5 +64,18 @@ SWIFT_ANDROID_ROOT="$HOME/Library/org.swift.swiftpm/swift-sdks/swift-6.3.2-RELEA
 gradle :app:assembleDebug
 ```
 
-The Gradle wrapper is committed. In the latest local run on 2026-06-10,
-`./gradlew :app:assembleDebug` completed successfully.
+The Gradle wrapper is committed, so `./gradlew :app:assembleDebug` is the
+preferred entry point.
+
+## Status
+
+The app assembles and packages the Swift gallery host into the debug APK and renders the interactive gallery on-device. IME composition, clipboard, link opening, Android accessibility focus synchronization, Android content URI import, and retained bitmap damage caches remain follow-up work.
+
+## Test
+
+No test target. (The host `SwiftPackage` declares only the `GalleryAndroidHost` dynamic library; build verification runs through Gradle.)
+
+## See also
+
+- [`../WebExample`](../WebExample) — the browser/WASI surface of the SwiftTUI gallery.
+- DocC reference: https://swifttui.sh/docs/documentation/

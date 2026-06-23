@@ -1,14 +1,6 @@
-# Component Gallery
+# Gallery
 
-This example app is a full-screen component workbench for the public
-`SwiftTUI` surface.
-
-It is designed to feel like a terminal workspace rather than a scrolled
-showcase page. The gallery uses tabbed panes, sidebar navigation, and preview
-regions to exercise the current automatic chrome, multiline editing,
-indeterminate progress, and terminal-native alert presentation. It also mirrors
-command-palette-driven terminal workspace patterns through local example
-composition.
+> The flagship component workbench for the public `SwiftTUI` surface — a tabbed terminal workspace that exercises chrome, editing, charts, animated images, and terminal-native presentation in one place, so you can see what the framework ships before you build with it. Its canonical host is the terminal (plus a localhost WebHost via `--web`).
 
 ## Run
 
@@ -22,11 +14,17 @@ Run the same gallery through the batteries-included WebHost mode:
 swiftly run swift run --package-path gallery gallery-demo --web
 ```
 
-Pass `--tab <key>` to land on a specific tab for screenshots or manual checks,
-for example `--tab images`. Run `gallery-demo --help` for the full list of tab
-keys.
+Pass `--tab <key>` to land on a specific tab for screenshots or manual checks, for example `--tab images`. Run `gallery-demo --help` for the full list of tab keys.
+
+## Demonstrates
+
+- `SwiftTUI` — which means the full app surface: automatic chrome, tabbed panes, sidebar navigation, multiline editing, focus, and terminal-native alert/sheet/popover presentation.
+- `SwiftTUICharts` and `SwiftTUIAnimatedImage` — which means drop-in charting and animated-image playback rendered directly into terminal cells.
+- Command-palette-driven workspace patterns (`Ctrl+K`) — which means the same command and presentation surfaces app authors use, composed locally as an example.
 
 ## Tabs
+
+This example app is a full-screen component workbench. It is designed to feel like a terminal workspace rather than a scrolled showcase page, using tabbed panes, sidebar navigation, and preview regions, and mirrors command-palette-driven terminal workspace patterns through local example composition.
 
 | Tab | Coverage |
 | --- | --- |
@@ -49,8 +47,14 @@ keys.
 | Focus Context | FocusedValue, FocusedBinding, and toolbar/status consumers of focused child state |
 | Progress | Generic task-progress pane with spinner, shimmering title, subtask list, and hidden-item summary |
 
-`Ctrl+K` opens the command palette. The gallery intentionally exercises the
-same command and presentation surfaces that app authors use.
+## Controls
+
+| Key | Action |
+| --- | --- |
+| `Ctrl+K` | Open the command palette |
+| `--tab <key>` | Launch directly on a named tab (CLI flag) |
+
+The gallery intentionally exercises the same command and presentation surfaces that app authors use.
 
 ## Test
 
@@ -58,6 +62,9 @@ same command and presentation surfaces that app authors use.
 swiftly run swift test --package-path gallery
 ```
 
-The test target covers tab switching, palette composition, text input,
-animation regressions, WebHost package composition, and focused behavior for
-individual tabs.
+The test target covers tab switching, palette composition, text input, animation regressions, WebHost package composition, and focused behavior for individual tabs.
+
+## See also
+
+- [`terminal-workspace`](../terminal-workspace/README.md) — a focused command-palette terminal workspace, narrower than the full gallery.
+- [SwiftTUI DocC reference](https://swifttui.sh/docs/documentation/) — the public API surface the gallery exercises.

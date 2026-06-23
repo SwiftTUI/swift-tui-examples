@@ -1,21 +1,25 @@
 # File Previewer
 
-Terminal file-browser example built from SwiftTUI views plus embedded terminal
-processes.
+A Miller-column file browser that previews the selected file by launching the right external tool inside an embedded terminal — open it on any directory and arrow through your tree with live previews. Runs in the terminal (with embedded child processes).
 
-The app opens on the current working directory, renders a Miller-column browser,
-and previews the selected file by launching the appropriate external command in
-a `TerminalView`.
+## Run
+
+```bash
+swiftly run swift run --package-path file-previewer FilePreviewerApp
+```
+
+Run it from the directory you want to browse — the app opens on the current working directory.
 
 ## Demonstrates
 
-- `SwiftTUITerminal` embedding through `TerminalProcessSession`.
-- A Miller-column layout with deterministic width allocation.
-- Preview command routing by file extension.
-- Keeping navigation state, directory selection, and the active terminal process
-  inside a normal SwiftTUI view tree.
+- `SwiftTUITerminal` embedding via `TerminalProcessSession` — which means you can host a live child process (a previewer) inside a SwiftTUI view.
+- A Miller-column layout with deterministic width allocation — multi-pane directory navigation that lays out predictably.
+- Preview command routing by file extension — the right viewer fires per file type without hardcoding a single tool.
+- Navigation state, directory selection, and the active terminal process all live inside a normal SwiftTUI view tree.
 
-Default preview commands:
+## Preview commands
+
+The app picks a preview command by file extension:
 
 | Extension | Command |
 | --- | --- |
@@ -29,14 +33,6 @@ Default preview commands:
 
 Those tools are optional runtime dependencies of the example, not repo build
 requirements.
-
-## Run
-
-```bash
-swiftly run swift run --package-path file-previewer FilePreviewerApp
-```
-
-Run it from the directory you want to browse.
 
 ## Controls
 
@@ -55,3 +51,8 @@ swiftly run swift test --package-path file-previewer
 The tests cover preview-command lookup, Miller-column width allocation,
 directory-listing caching, preview-session replacement, and large-column lazy
 rendering.
+
+## See also
+
+- A sibling embedded-process example in the [examples roster](../README.md).
+- DocC reference: <https://swifttui.sh/docs/documentation/>
