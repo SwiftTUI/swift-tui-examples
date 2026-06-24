@@ -12,7 +12,7 @@ directory + README per example). Examples exercise the public products
 `SwiftTUIWASI`, …). Use the README roster table for the exact run/test command
 per example.
 
-This repo is public pre-release. Default manifests must use tagged HTTPS
+This repo is public beta. Default manifests must use tagged HTTPS
 SwiftPM dependencies and released package artifacts, not sibling source
 checkouts. Do not add coordination-only pin files; pre-tag integration belongs
 in `swift-tui-org`.
