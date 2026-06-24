@@ -318,7 +318,10 @@ extension GalleryView {
   ]
 
   nonisolated static func descriptor(for tab: GalleryTab) -> GalleryTabDescriptor {
-    tabDescriptors.first { $0.value == tab }!
+    guard let descriptor = tabDescriptors.first(where: { $0.value == tab }) else {
+      preconditionFailure("missing descriptor for \(tab)")
+    }
+    return descriptor
   }
 }
 

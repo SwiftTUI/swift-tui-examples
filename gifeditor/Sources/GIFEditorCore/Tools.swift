@@ -109,11 +109,11 @@ public enum ToolOps {
     if seed == color { return buffer }
     var copy = buffer
     var stack: [PixelPoint] = [point]
-    let bounds =
-      selection?.rect
-      ?? PixelRect(
-        x: 0, y: 0, width: buffer.size.width, height: buffer.size.height
-      )
+    let canvas = PixelRect(
+      x: 0, y: 0, width: buffer.size.width, height: buffer.size.height
+    )
+    guard let bounds = (selection?.rect ?? canvas).intersected(with: canvas)
+    else { return buffer }
     while let p = stack.popLast() {
       if !bounds.contains(p) { continue }
       if copy[p] != seed { continue }
@@ -146,11 +146,11 @@ public enum ToolOps {
     let lengthSquared = dx * dx + dy * dy
     guard lengthSquared > 0 else { return copy }
 
-    let bounds =
-      selection?.rect
-      ?? PixelRect(
-        x: 0, y: 0, width: buffer.size.width, height: buffer.size.height
-      )
+    let canvas = PixelRect(
+      x: 0, y: 0, width: buffer.size.width, height: buffer.size.height
+    )
+    guard let bounds = (selection?.rect ?? canvas).intersected(with: canvas)
+    else { return copy }
 
     for y in bounds.minY..<bounds.maxY {
       for x in bounds.minX..<bounds.maxX {
