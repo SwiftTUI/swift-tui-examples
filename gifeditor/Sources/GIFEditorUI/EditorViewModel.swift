@@ -8,57 +8,35 @@ import SwiftTUI
 ///
 /// Kept @MainActor — the editor is single-window, single-threaded, and
 /// every mutation is driven from a UI event.
+///
+/// The view model is a coordinator: it owns the document and selection
+/// context (cursor, frame/layer index, tool state) and delegates the
+/// three cross-cutting concerns to focused collaborators —
+/// `EditorHistory` for undo/redo, `CanvasDragController` for pointer
+/// drags, and `GIFDocumentIO` for save/encode. Those collaborators never
+/// touch the view tree, so the coordinator stays the single mutation
+/// surface the views bind to.
 @MainActor
 public final class EditorViewModel {
   // MARK: - Document
 
   public private(set) var document: GIFDocument
 
+  // MARK: - History
+
+  private var history = EditorHistory()
+
   public var canUndo: Bool {
-    !undoStack.isEmpty
+    history.canUndo
   }
 
   public var canRedo: Bool {
-    !redoStack.isEmpty
+    history.canRedo
   }
 
   public var isDirty: Bool {
-    currentHistoryGeneration != cleanHistoryGeneration
+    history.isDirty
   }
-
-  private struct EditorSnapshot: Equatable {
-    var document: GIFDocument
-    var currentFrameIndex: Int
-    var currentLayerIndex: Int
-    var cursor: GIFEditorCore.PixelPoint
-    var selection: Selection?
-    var historyGeneration: Int
-  }
-
-  private struct HistoryEntry {
-    var snapshot: EditorSnapshot
-    var label: String
-  }
-
-  private struct ActiveUndoGroup {
-    var snapshot: EditorSnapshot
-    var label: String
-  }
-
-  private struct ActiveSelectMove {
-    var layerPixels: PixelBuffer
-    var selection: Selection?
-    var sourceRect: PixelRect
-  }
-
-  private var undoStack: [HistoryEntry] = []
-  private var redoStack: [HistoryEntry] = []
-  private var activeUndoGroup: ActiveUndoGroup?
-  private var activeSelectMove: ActiveSelectMove?
-  private var currentHistoryGeneration: Int = 0
-  private var cleanHistoryGeneration: Int = 0
-  private var nextHistoryGeneration: Int = 1
-  private let historyLimit: Int = 100
 
   // MARK: - Selection state
 
@@ -126,6 +104,11 @@ public final class EditorViewModel {
   /// Gradient tool's first endpoint.
   public var pendingGradientAnchor: GIFEditorCore.PixelPoint? = nil
 
+  /// Pointer-drag state machine for the canvas. Holds the transient
+  /// select-move snapshot; all of its mutation routes back through this
+  /// view model via `CanvasDragContext`.
+  private var dragController = CanvasDragController()
+
   // MARK: - Status / feedback
 
   public var statusMessage: String = ""
@@ -137,27 +120,23 @@ public final class EditorViewModel {
   // MARK: - History
 
   public func undo() {
-    guard let entry = undoStack.popLast() else {
+    guard let result = history.undo(current: snapshotState()) else {
       announce("Nothing to undo")
       return
     }
 
-    activeUndoGroup = nil
-    redoStack.append(HistoryEntry(snapshot: snapshotState(), label: entry.label))
-    restore(entry.snapshot)
-    announce("Undid \(entry.label)")
+    restore(result.snapshot)
+    announce("Undid \(result.label)")
   }
 
   public func redo() {
-    guard let entry = redoStack.popLast() else {
+    guard let result = history.redo(current: snapshotState()) else {
       announce("Nothing to redo")
       return
     }
 
-    activeUndoGroup = nil
-    undoStack.append(HistoryEntry(snapshot: snapshotState(), label: entry.label))
-    restore(entry.snapshot)
-    announce("Redid \(entry.label)")
+    restore(result.snapshot)
+    announce("Redid \(result.label)")
   }
 
   // MARK: - Frame & layer accessors
@@ -250,14 +229,14 @@ public final class EditorViewModel {
     tool = newTool
     pendingMarqueeAnchor = nil
     pendingGradientAnchor = nil
-    activeSelectMove = nil
+    dragController.reset()
     announce("Tool: \(newTool.label)")
   }
 
   public func clearSelection() {
     selection = nil
     pendingMarqueeAnchor = nil
-    activeSelectMove = nil
+    dragController.reset()
     announce("Selection cleared")
   }
 
@@ -305,33 +284,10 @@ public final class EditorViewModel {
     cursor = GIFEditorCore.PixelPoint(x: cursor.x + dx, y: cursor.y + dy)
   }
 
+  // MARK: - Canvas drag
+
   public func beginCanvasDrag(at point: GIFEditorCore.PixelPoint) {
-    cursor = point
-    switch tool {
-    case .pen:
-      beginUndoGroup("Paint stroke")
-      strokeCurrentLayer(from: point, to: point, color: primaryColorIndex)
-      announce("Painting \(point.x),\(point.y)")
-    case .eraser:
-      beginUndoGroup("Erase stroke")
-      strokeCurrentLayer(from: point, to: point, color: nil)
-      announce("Erasing \(point.x),\(point.y)")
-    case .fill, .eyedropper:
-      announce("Target \(point.x),\(point.y)")
-    case .gradient:
-      beginUndoGroup("Apply gradient")
-      pendingGradientAnchor = point
-      announce("Gradient anchor \(point.x),\(point.y)")
-    case .marquee:
-      pendingMarqueeAnchor = point
-      selection = Selection(rect: PixelRect.bounding(point, point))
-      announce("Selecting from \(point.x),\(point.y)")
-    case .select:
-      beginUndoGroup("Move pixels")
-      beginSelectMove()
-      updateSelectMove(startingAt: point, to: point)
-      announce(selectMoveStatus(to: point, from: point))
-    }
+    dragController.begin(at: point, context: self)
   }
 
   public func updateCanvasDrag(
@@ -339,31 +295,7 @@ public final class EditorViewModel {
     from previous: GIFEditorCore.PixelPoint?,
     to point: GIFEditorCore.PixelPoint
   ) {
-    cursor = point
-    switch tool {
-    case .pen:
-      strokeCurrentLayer(from: previous ?? anchor, to: point, color: primaryColorIndex)
-      announce("Painting \(point.x),\(point.y)")
-    case .eraser:
-      strokeCurrentLayer(from: previous ?? anchor, to: point, color: nil)
-      announce("Erasing \(point.x),\(point.y)")
-    case .fill, .eyedropper:
-      announce("Target \(point.x),\(point.y)")
-    case .gradient:
-      pendingGradientAnchor = anchor
-      announce("Gradient \(anchor.x),\(anchor.y) -> \(point.x),\(point.y)")
-    case .marquee:
-      pendingMarqueeAnchor = anchor
-      selection = Selection(rect: PixelRect.bounding(anchor, point))
-      announce("Selection \(anchor.x),\(anchor.y) -> \(point.x),\(point.y)")
-    case .select:
-      if activeSelectMove == nil {
-        beginUndoGroup("Move pixels")
-        beginSelectMove()
-      }
-      updateSelectMove(startingAt: anchor, to: point)
-      announce(selectMoveStatus(to: point, from: anchor))
-    }
+    dragController.update(startingAt: anchor, from: previous, to: point, context: self)
   }
 
   public func endCanvasDrag(
@@ -371,44 +303,7 @@ public final class EditorViewModel {
     from previous: GIFEditorCore.PixelPoint?,
     to point: GIFEditorCore.PixelPoint
   ) {
-    if previous == nil {
-      beginCanvasDrag(at: anchor)
-    }
-
-    cursor = point
-    switch tool {
-    case .pen:
-      if let previous, previous != point {
-        strokeCurrentLayer(from: previous, to: point, color: primaryColorIndex)
-      }
-      finishUndoGroup()
-      announce("Painted to \(point.x),\(point.y)")
-    case .eraser:
-      if let previous, previous != point {
-        strokeCurrentLayer(from: previous, to: point, color: nil)
-      }
-      finishUndoGroup()
-      announce("Erased to \(point.x),\(point.y)")
-    case .fill, .eyedropper:
-      applyToolAtCursor()
-    case .gradient:
-      pendingGradientAnchor = anchor
-      applyToolAtCursor()
-      finishUndoGroup()
-    case .marquee:
-      pendingMarqueeAnchor = anchor
-      applyToolAtCursor()
-    case .select:
-      if activeSelectMove == nil {
-        beginUndoGroup("Move pixels")
-        beginSelectMove()
-      }
-      updateSelectMove(startingAt: anchor, to: point)
-      let status = selectMoveStatus(to: point, from: anchor)
-      activeSelectMove = nil
-      finishUndoGroup()
-      announce(status)
-    }
+    dragController.end(startingAt: anchor, from: previous, to: point, context: self)
   }
 
   // MARK: - Frames
@@ -699,77 +594,43 @@ public final class EditorViewModel {
   // MARK: - Save / load
 
   public var defaultSaveURL: URL {
-    document.path
-      ?? URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-        .appendingPathComponent("untitled.gif")
+    GIFDocumentIO.defaultSaveURL(for: document)
   }
 
   public static func saveURL(from pathText: String) -> URL? {
-    let trimmed = pathText.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmed.isEmpty else { return nil }
-
-    let expanded = (trimmed as NSString).expandingTildeInPath
-    if expanded.hasPrefix("/") {
-      return URL(fileURLWithPath: expanded)
-    }
-    return URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-      .appendingPathComponent(expanded)
+    GIFDocumentIO.saveURL(from: pathText)
   }
 
   @discardableResult
   public func save(to target: URL, overwriteExisting: Bool) -> Bool {
-    if FileManager.default.fileExists(atPath: target.path) && !overwriteExisting {
+    switch GIFDocumentIO.save(
+      document: document, to: target, overwriteExisting: overwriteExisting)
+    {
+    case .needsOverwriteConfirmation:
       announce("Confirm overwrite before saving")
       return false
-    }
-
-    do {
-      let bytes = try GIFEncoder.encode(document: document)
-      try Data(bytes).write(to: target, options: .atomic)
+    case .saved:
       document.path = target
-      cleanHistoryGeneration = currentHistoryGeneration
+      history.markClean()
       announce("Saved to \(target.path)")
       return true
-    } catch {
+    case .failed(let error):
       announce("Save failed: \(error)")
       return false
     }
   }
 
-  // MARK: - Helpers
+  // MARK: - Edit / history helpers
 
   private func recordUndoableEdit(_ label: String, _ edit: () -> Void) {
-    if activeUndoGroup != nil {
+    if history.hasActiveGroup {
       edit()
       return
     }
 
     let before = snapshotState()
     edit()
-    commitUndoStep(from: before, label: label)
-  }
-
-  private func beginUndoGroup(_ label: String) {
-    guard activeUndoGroup == nil else { return }
-    activeUndoGroup = ActiveUndoGroup(snapshot: snapshotState(), label: label)
-  }
-
-  private func finishUndoGroup(label: String? = nil) {
-    guard let group = activeUndoGroup else { return }
-    activeUndoGroup = nil
-    commitUndoStep(from: group.snapshot, label: label ?? group.label)
-  }
-
-  private func commitUndoStep(from before: EditorSnapshot, label: String) {
-    guard document != before.document else { return }
-
-    undoStack.append(HistoryEntry(snapshot: before, label: label))
-    if undoStack.count > historyLimit {
-      undoStack.removeFirst(undoStack.count - historyLimit)
-    }
-    redoStack.removeAll()
-    currentHistoryGeneration = nextHistoryGeneration
-    nextHistoryGeneration += 1
+    history.recordSingleEdit(from: before, label: label, current: document)
   }
 
   private func snapshotState() -> EditorSnapshot {
@@ -779,7 +640,7 @@ public final class EditorViewModel {
       currentLayerIndex: currentLayerIndex,
       cursor: cursor,
       selection: selection,
-      historyGeneration: currentHistoryGeneration
+      historyGeneration: history.currentHistoryGeneration
     )
   }
 
@@ -791,8 +652,8 @@ public final class EditorViewModel {
     selection = snapshot.selection
     pendingMarqueeAnchor = nil
     pendingGradientAnchor = nil
-    activeSelectMove = nil
-    currentHistoryGeneration = snapshot.historyGeneration
+    dragController.reset()
+    history.adoptRestored(generation: snapshot.historyGeneration)
   }
 
   /// Replaces the current layer's pixel buffer with the result of
@@ -803,7 +664,26 @@ public final class EditorViewModel {
     document.frames[currentFrameIndex].layers[currentLayerIndex] = layer
   }
 
-  private func strokeCurrentLayer(
+  /// Sets the one-line status feedback shown in the footer. Internal
+  /// (not `private`) so it also serves as the `CanvasDragContext`
+  /// witness the drag controller announces through.
+  func announce(_ message: String) {
+    statusMessage = message
+  }
+}
+
+// MARK: - CanvasDragContext
+
+extension EditorViewModel: CanvasDragContext {
+  var canvasSize: GIFEditorCore.PixelSize {
+    document.size
+  }
+
+  var currentLayerPixels: PixelBuffer {
+    currentLayer.pixels
+  }
+
+  func strokeCurrentLayer(
     from start: GIFEditorCore.PixelPoint,
     to end: GIFEditorCore.PixelPoint,
     color: PaletteIndex?
@@ -819,66 +699,23 @@ public final class EditorViewModel {
     }
   }
 
-  private func beginSelectMove() {
-    let wholeLayer = PixelRect(
-      x: 0,
-      y: 0,
-      width: document.size.width,
-      height: document.size.height
-    )
-    activeSelectMove = ActiveSelectMove(
-      layerPixels: currentLayer.pixels,
-      selection: selection,
-      sourceRect: selection?.rect ?? wholeLayer
-    )
+  func replaceCurrentLayerPixels(with pixels: PixelBuffer) {
+    mutateCurrentLayer { _ in pixels }
   }
 
-  private func updateSelectMove(
-    startingAt anchor: GIFEditorCore.PixelPoint,
-    to point: GIFEditorCore.PixelPoint
-  ) {
-    guard let move = activeSelectMove else {
-      return
-    }
-
-    let dx = point.x - anchor.x
-    let dy = point.y - anchor.y
-    mutateCurrentLayer { _ in
-      ToolOps.move(
-        on: move.layerPixels,
-        rect: move.sourceRect,
-        byX: dx,
-        y: dy
-      )
-    }
-
-    if let selection = move.selection {
-      self.selection = Selection(rect: selection.rect.offsetBy(dx: dx, dy: dy))
-    }
+  func beginUndoGroup(_ label: String) {
+    history.beginGroup(label, before: snapshotState())
   }
 
-  private func selectMoveStatus(
-    to point: GIFEditorCore.PixelPoint,
-    from anchor: GIFEditorCore.PixelPoint
-  ) -> String {
-    let dx = point.x - anchor.x
-    let dy = point.y - anchor.y
-    let target = activeSelectMove?.selection == nil ? "layer" : "selection"
-    return "Move \(target) Δ\(dx),\(dy)"
-  }
-
-  private func announce(_ message: String) {
-    statusMessage = message
-  }
-}
-
-extension PixelRect {
-  fileprivate func offsetBy(dx: Int, dy: Int) -> PixelRect {
-    PixelRect(x: minX + dx, y: minY + dy, width: size.width, height: size.height)
+  func finishUndoGroup() {
+    history.finishGroup(current: document)
   }
 }
 
 // Local clamp helper since `Comparable.clamped(to:)` isn't in stdlib.
+// `fileprivate` (not `private`) because the helper is shared between this
+// file's class body and extension — `private` on a top-level extension
+// scopes to that extension alone, not the file.
 extension Comparable {
   fileprivate func clamped(to range: ClosedRange<Self>) -> Self {
     min(max(self, range.lowerBound), range.upperBound)
