@@ -95,10 +95,9 @@ public struct GIFDocument: Hashable, Sendable, Codable {
   /// Composites every visible layer of `frame` into a single flat buffer
   /// (bottom-to-top). The returned buffer is independent of any layer
   /// and is the format the renderer/encoder consumes.
-  public func flatten(frameIndex: Int) -> PixelBuffer {
-    precondition(frames.indices.contains(frameIndex), "frame index out of range")
+  public func flatten(_ frame: EditorFrame) -> PixelBuffer {
     var result = PixelBuffer(size: size)
-    for layer in frames[frameIndex].layers where layer.isVisible {
+    for layer in frame.layers where layer.isVisible {
       // Paint the layer onto the running composite, treating the layer's
       // `nil` pixels as fully transparent so deeper layers show through.
       result.stamp(layer.pixels, at: .zero, respectingTransparency: true)
@@ -106,14 +105,25 @@ public struct GIFDocument: Hashable, Sendable, Codable {
     return result
   }
 
-  /// Composites a frame as `[EditorColor]`, evaluating the palette so
-  /// the renderer doesn't need to know about palette indices.
-  public func flattenedColors(frameIndex: Int) -> [EditorColor?] {
-    let buffer = flatten(frameIndex: frameIndex)
-    return buffer.pixels.map { idx in
+  public func flatten(frameIndex: Int) -> PixelBuffer {
+    precondition(frames.indices.contains(frameIndex), "frame index out of range")
+    return flatten(frames[frameIndex])
+  }
+
+  /// Composites a frame value as `[EditorColor]`, evaluating the palette so
+  /// the renderer doesn't need to know about palette indices. Taking the
+  /// frame by value (rather than index) lets callers memoize the result on
+  /// frame content without threading the index through.
+  public func flattenedColors(for frame: EditorFrame) -> [EditorColor?] {
+    flatten(frame).pixels.map { idx in
       guard let idx else { return nil }
       let color = palette[idx]
       return color.alpha == 0 ? nil : color
     }
+  }
+
+  public func flattenedColors(frameIndex: Int) -> [EditorColor?] {
+    precondition(frames.indices.contains(frameIndex), "frame index out of range")
+    return flattenedColors(for: frames[frameIndex])
   }
 }

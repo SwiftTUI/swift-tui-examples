@@ -22,6 +22,22 @@ public final class EditorViewModel {
 
   public private(set) var document: GIFDocument
 
+  // MARK: - Composite cache
+
+  private struct CompositeCacheKey: Hashable {
+    let frame: EditorFrame
+    let palette: ColorPalette
+    let size: GIFEditorCore.PixelSize
+  }
+
+  /// Memoized per-frame composited colors, keyed on (frame content, palette,
+  /// canvas size). The key *is* the content, so the cache is correct by
+  /// construction: any pixel / visibility / palette / size change yields a new
+  /// key and recomputes. Rebuilt to the live frame set on each
+  /// `compositedFrames()` call, so it stays bounded to the frame count and
+  /// stale intermediate-stroke entries are evicted.
+  private var compositeCache: [CompositeCacheKey: [EditorColor?]] = [:]
+
   // MARK: - History
 
   private var history = EditorHistory()
@@ -147,6 +163,35 @@ public final class EditorViewModel {
 
   public var currentLayer: EditorLayer {
     currentFrame.layers[currentLayerIndex]
+  }
+
+  /// Composited colors for every frame, in frame order, memoized on content.
+  ///
+  /// The editor re-evaluates its whole body on every refresh — cursor moves,
+  /// hovers, tool/selection changes, and, during a stroke, once per rendered
+  /// frame — and the timeline needs a thumbnail for every frame. Recompositing
+  /// all frames each time is `O(frames × layers × area)`; here only the frames
+  /// whose content changed since the last call recompute, so a stroke pays to
+  /// composite one frame and reads the rest from cache.
+  ///
+  /// Index `i` of the result corresponds to `document.frames[i]`.
+  func compositedFrames() -> [[EditorColor?]] {
+    let palette = document.palette
+    let size = document.size
+    var rebuilt: [CompositeCacheKey: [EditorColor?]] = [:]
+    rebuilt.reserveCapacity(document.frames.count)
+    let result = document.frames.map { frame -> [EditorColor?] in
+      let key = CompositeCacheKey(frame: frame, palette: palette, size: size)
+      if let cached = rebuilt[key] ?? compositeCache[key] {
+        rebuilt[key] = cached
+        return cached
+      }
+      let colors = document.flattenedColors(for: frame)
+      rebuilt[key] = colors
+      return colors
+    }
+    compositeCache = rebuilt
+    return result
   }
 
   // MARK: - Tool dispatch

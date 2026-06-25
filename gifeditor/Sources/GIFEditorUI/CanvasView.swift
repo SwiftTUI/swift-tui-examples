@@ -44,18 +44,24 @@ private struct CanvasSurfaceView: View {
   var mode: CanvasPixelGridMode = .verticalHalfBlock
 
   var body: some View {
-    ZStack(alignment: .topLeading) {
+    // Resolve the pixel colors once and share them between the base grid and
+    // the overlay. `resolvedPixels` is a pure function of `cells`/`size`, so a
+    // single evaluation is byte-identical to the two reads it replaces — and it
+    // halves the per-render color-resolution cost (paid on every drag refresh
+    // and every hover that crosses a pixel boundary).
+    let resolved = resolvedPixels
+    return ZStack(alignment: .topLeading) {
       Canvas.pixelGrid(
         width: size.width,
         height: size.height,
-        pixels: resolvedPixels,
+        pixels: resolved,
         mode: mode
       )
 
       Canvas(
         CanvasOverlayDrawing(
           size: size,
-          pixels: resolvedPixels,
+          pixels: resolved,
           cursor: cursor,
           selection: selection,
           pendingMarqueeAnchor: pendingMarqueeAnchor,

@@ -149,7 +149,7 @@ struct EditorHistory {
     label: String,
     current document: GIFDocument
   ) {
-    guard document != before.document else { return }
+    guard Self.documentChanged(from: before.document, to: document) else { return }
 
     undoStack.append(HistoryEntry(snapshot: before, label: label))
     if undoStack.count > limit {
@@ -158,5 +158,23 @@ struct EditorHistory {
     redoStack.removeAll()
     currentGeneration = nextGeneration
     nextGeneration += 1
+  }
+
+  /// Same boolean result as `current != before`, but short-circuits on the
+  /// cheap scalar fields first so a structural edit (resize, frame add/delete,
+  /// palette change) is decided without the `O(frames × layers × area)`
+  /// pixel-by-pixel frame walk. Only a structurally-identical document falls
+  /// through to the full frame compare — which itself short-circuits at the
+  /// first differing frame. Behavior is identical to the synthesized `!=`.
+  private static func documentChanged(
+    from before: GIFDocument,
+    to current: GIFDocument
+  ) -> Bool {
+    if before.size != current.size { return true }
+    if before.frames.count != current.frames.count { return true }
+    if before.loopCount != current.loopCount { return true }
+    if before.path != current.path { return true }
+    if before.palette != current.palette { return true }
+    return before.frames != current.frames
   }
 }

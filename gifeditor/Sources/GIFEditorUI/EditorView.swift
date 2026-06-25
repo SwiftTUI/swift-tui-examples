@@ -71,13 +71,22 @@ public struct EditorView: View {
       isSaveSheetPresented = true
       openMenu = nil
     }
-    let frameColors = model.document.flattenedColors(frameIndex: model.currentFrameIndex)
-    let timelineFrames = (0..<model.document.frames.count).map { index in
-      TimelineFrame(
-        thumbnail: thumbnail(for: index),
-        delayCentiseconds: model.document.frames[index].delayCentiseconds
-      )
-    }
+    // One memoized compositing pass feeds both the canvas (current frame) and
+    // every timeline thumbnail. During a stroke only the edited frame
+    // recomposites; the rest are served from the model's content-keyed cache.
+    let composites = model.compositedFrames()
+    let frameColors = composites[model.currentFrameIndex]
+    // Skip building thumbnails entirely when the timeline strip is hidden —
+    // `showsTimeline` previously gated only the render, not this compute.
+    let timelineFrames =
+      showsTimeline
+      ? composites.indices.map { index in
+        TimelineFrame(
+          thumbnail: Self.thumbnail(from: composites[index], sourceSize: model.document.size),
+          delayCentiseconds: model.document.frames[index].delayCentiseconds
+        )
+      }
+      : []
     let primaryColor = model.document.palette[model.primaryColorIndex]
     let secondaryColor = model.document.palette[model.secondaryColorIndex]
 
@@ -289,19 +298,22 @@ public struct EditorView: View {
     }
   }
 
-  /// 8-cell-wide thumbnail per frame, sampled with nearest-neighbor.
-  private func thumbnail(for frameIndex: Int) -> TimelineFrame.Thumbnail {
-    let composited = model.document.flattenedColors(frameIndex: frameIndex)
-    let srcSize = model.document.size
+  /// 6×6 thumbnail sampled nearest-neighbor from an already-composited frame.
+  /// Takes the composited colors (rather than a frame index) so the caller can
+  /// reuse the model's memoized composites instead of re-flattening per frame.
+  private static func thumbnail(
+    from composited: [EditorColor?],
+    sourceSize: GIFEditorCore.PixelSize
+  ) -> TimelineFrame.Thumbnail {
     let thumbWidth = 6
     let thumbHeight = 6
     var out: [EditorColor?] = []
     out.reserveCapacity(thumbWidth * thumbHeight)
     for ty in 0..<thumbHeight {
       for tx in 0..<thumbWidth {
-        let sx = (tx * srcSize.width) / thumbWidth
-        let sy = (ty * srcSize.height) / thumbHeight
-        out.append(composited[sy * srcSize.width + sx])
+        let sx = (tx * sourceSize.width) / thumbWidth
+        let sy = (ty * sourceSize.height) / thumbHeight
+        out.append(composited[sy * sourceSize.width + sx])
       }
     }
     return TimelineFrame.Thumbnail(width: thumbWidth, height: thumbHeight, pixels: out)
