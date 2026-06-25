@@ -56,6 +56,37 @@ struct SaveGIFSheetViewTests {
     #expect(text.contains("A file already exists"))
     #expect(text.contains("Confirm overwrite"))
   }
+
+  @Test("Save sheet renders loading state before async preview completes")
+  func saveSheetRendersLoadingStateBeforeAsyncPreviewCompletes() throws {
+    var pathText = FileManager.default.temporaryDirectory
+      .appendingPathComponent("gifeditor-save-sheet-\(UUID().uuidString).gif")
+      .path
+    var overwriteConfirmed = false
+    let rendered = render(
+      SaveGIFSheetView(
+        preview: nil,
+        pathText: Binding(
+          get: { pathText },
+          set: { pathText = $0 }
+        ),
+        overwriteConfirmed: Binding(
+          get: { overwriteConfirmed },
+          set: { overwriteConfirmed = $0 }
+        ),
+        onSave: { _, _ in },
+        onCancel: {}
+      ),
+      width: 80,
+      height: 24
+    )
+
+    let text = rendered.rasterSurface.lines.joined(separator: "\n")
+    #expect(text.contains("Review GIF before saving"))
+    #expect(text.contains("Preparing encoded preview"))
+    #expect(text.contains("Preparing preview before save"))
+    #expect(!text.contains("Ready to save"))
+  }
 }
 
 private func twoFrameDocument() -> GIFDocument {

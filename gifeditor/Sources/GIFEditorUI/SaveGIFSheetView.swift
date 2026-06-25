@@ -47,8 +47,38 @@ struct SaveGIFPreview: Equatable, Sendable {
   }
 }
 
+struct SaveGIFPreviewSheetView: View {
+  let document: GIFDocument
+  let requestID: Int
+  @Binding var pathText: String
+  @Binding var overwriteConfirmed: Bool
+  let onSave: @MainActor @Sendable (URL, Bool) -> Void
+  let onCancel: @MainActor @Sendable () -> Void
+
+  @State private var preview: SaveGIFPreview?
+
+  var body: some View {
+    SaveGIFSheetView(
+      preview: preview,
+      pathText: $pathText,
+      overwriteConfirmed: $overwriteConfirmed,
+      onSave: onSave,
+      onCancel: onCancel
+    )
+    .task(id: requestID) { @MainActor in
+      preview = nil
+      let document = document
+      let generatedPreview = await Task.detached(priority: .userInitiated) {
+        SaveGIFPreview.make(from: document)
+      }.value
+      guard !Task.isCancelled else { return }
+      preview = generatedPreview
+    }
+  }
+}
+
 struct SaveGIFSheetView: View {
-  let preview: SaveGIFPreview
+  let preview: SaveGIFPreview?
   @Binding var pathText: String
   @Binding var overwriteConfirmed: Bool
   let onSave: @MainActor @Sendable (URL, Bool) -> Void
@@ -103,7 +133,10 @@ struct SaveGIFSheetView: View {
 
   @ViewBuilder
   private var previewArea: some View {
-    if let errorMessage = preview.errorMessage {
+    if preview == nil {
+      Text("Preparing encoded preview...")
+        .foregroundStyle(.muted)
+    } else if let errorMessage = preview?.errorMessage {
       Text("Preview failed: \(errorMessage)")
         .foregroundStyle(.warning)
     } else if let frame = currentFrame {
@@ -129,6 +162,8 @@ struct SaveGIFSheetView: View {
   private var targetStatus: some View {
     if targetURL == nil {
       Text("Enter a destination path").foregroundStyle(.warning)
+    } else if preview == nil {
+      Text("Preparing preview before save").foregroundStyle(.muted)
     } else if requiresOverwriteConfirmation {
       Text("A file already exists at this path. Confirm overwrite to enable Save.")
         .foregroundStyle(.warning)
@@ -151,6 +186,7 @@ struct SaveGIFSheetView: View {
   }
 
   private var currentFrame: SaveGIFPreview.Frame? {
+    guard let preview else { return nil }
     guard !preview.frames.isEmpty else { return nil }
     return preview.frames[min(previewFrameIndex, preview.frames.count - 1)]
   }
@@ -169,10 +205,13 @@ struct SaveGIFSheetView: View {
   }
 
   private var canSave: Bool {
-    targetURL != nil && preview.canSave && (!requiresOverwriteConfirmation || overwriteConfirmed)
+    targetURL != nil && preview?.canSave == true && (!requiresOverwriteConfirmation || overwriteConfirmed)
   }
 
   private var previewSummary: String {
+    guard let preview else {
+      return "Preparing preview"
+    }
     let byteCount = preview.encodedByteCount.map { "\($0) bytes" } ?? "unknown size"
     guard let currentFrame else {
       return "\(preview.frames.count) frames • \(byteCount)"
@@ -184,6 +223,7 @@ struct SaveGIFSheetView: View {
   @MainActor
   private func runPreview() async {
     previewFrameIndex = 0
+    guard let preview else { return }
     while preview.frames.count > 1 && !Task.isCancelled {
       let frame = preview.frames[min(previewFrameIndex, preview.frames.count - 1)]
       try? await Task.sleep(for: frame.delay)

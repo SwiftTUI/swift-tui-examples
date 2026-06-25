@@ -43,7 +43,8 @@ public struct EditorView: View {
   @State private var isSaveSheetPresented = false
   @State private var savePathText = ""
   @State private var overwriteSaveConfirmed = false
-  @State private var savePreview: SaveGIFPreview?
+  @State private var savePreviewDocument: GIFDocument?
+  @State private var savePreviewRequestID = 0
   @State private var openMenu: MenuBarMenu?
 
   /// Fixed width of the right inspector column. Pinning it (rather than
@@ -67,7 +68,8 @@ public struct EditorView: View {
     let presentSaveSheet: @MainActor @Sendable () -> Void = {
       savePathText = model.defaultSaveURL.path
       overwriteSaveConfirmed = false
-      savePreview = SaveGIFPreview.make(from: model.document)
+      savePreviewDocument = model.document
+      savePreviewRequestID &+= 1
       isSaveSheetPresented = true
       openMenu = nil
     }
@@ -215,19 +217,22 @@ public struct EditorView: View {
       refresh: refresh
     )
     .sheet("Save GIF", isPresented: $isSaveSheetPresented) {
-      SaveGIFSheetView(
-        preview: savePreview ?? SaveGIFPreview.make(from: model.document),
+      SaveGIFPreviewSheetView(
+        document: savePreviewDocument ?? model.document,
+        requestID: savePreviewRequestID,
         pathText: $savePathText,
         overwriteConfirmed: $overwriteSaveConfirmed,
         onSave: { target, overwriteExisting in
           if model.save(to: target, overwriteExisting: overwriteExisting) {
             isSaveSheetPresented = false
+            savePreviewDocument = nil
           }
           refresh()
         },
         onCancel: {
           isSaveSheetPresented = false
           overwriteSaveConfirmed = false
+          savePreviewDocument = nil
         }
       )
     }
