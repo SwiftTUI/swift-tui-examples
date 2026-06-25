@@ -1,6 +1,6 @@
 import Foundation
 import GIFEditor
-import SwiftTUIWebHostCLI
+import SwiftTUI
 
 @main
 struct GIFEditorApp: App, SwiftTUICommand {
@@ -24,9 +24,5 @@ struct GIFEditorApp: App, SwiftTUICommand {
     .exitOnKeys([
       KeyPress(.character("q"), modifiers: .ctrl)
     ])
-  }
-
-  static func run() async throws {
-    try await WebHostCLIRunner.run(GIFEditorApp.self)
   }
 }
