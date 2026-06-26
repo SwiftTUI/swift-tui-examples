@@ -37,12 +37,11 @@ This example app is a full-screen component workbench. It is designed to feel li
 | Scroll Control | Programmatic scroll movement and bound scroll position |
 | Calculator | Click targets and compact control layout |
 | Borders & Shapes | Shape drawing, borders, and panel chrome |
-| Presentation Lab | alert, confirmationDialog, sheet, toast, popover, popoverTip, and paletteSheet |
+| Presentation Lab | alert, confirmationDialog, sheet, toast, boolean and item popovers, popoverTip, and paletteSheet |
 | Navigation & Collections | NavigationStack, navigationDestination, OutlineGroup, lazy stacks, list selection, and table selection |
 | Images | Image attachments, rendered image placement, and `SwiftTUIAnimatedImage` playback |
 | Animations | Runtime invalidation and animated presentation |
 | File Drop | File-drop authoring surface |
-| Popovers | Anchored popover presentation and palette composition |
 | Pointer Lab | SpatialTapGesture, DragGesture, long press, contentShape, and named coordinate spaces |
 | Focus Context | FocusedValue, FocusedBinding, and toolbar/status consumers of focused child state |
 | Progress | Generic task-progress pane with spinner, shimmering title, subtask list, and hidden-item summary |

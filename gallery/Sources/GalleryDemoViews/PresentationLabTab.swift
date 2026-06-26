@@ -8,7 +8,16 @@ struct PresentationLabTab: View {
   @State private var showPopover = false
   @State private var showTip = false
   @State private var showPalette = false
+  @State private var showPopoverDetails = false
+  @State private var selectedPopoverTool: PresentationLabPopoverTool?
+  @State private var showPopoverDemoTip = false
+  @State private var popoverTipResult = "No tip action yet"
   @State private var lastEvent = "No presentation opened yet"
+
+  private let popoverTools: [PresentationLabPopoverTool] = [
+    .init(id: "filters", name: "Filters", detail: "Tune the visible rows without leaving context."),
+    .init(id: "export", name: "Export", detail: "Review destination and format before committing."),
+  ]
 
   var body: some View {
     VStack(alignment: .leading, spacing: 1) {
@@ -42,6 +51,12 @@ struct PresentationLabTab: View {
       ControlGroup("Command surface") {
         Button("Palette") { showPalette = true }
       }
+      Divider()
+      booleanPopoverSection
+      Divider()
+      itemPopoverSection
+      Divider()
+      tipPopoverSection
       Text("Last event: \(lastEvent)")
         .foregroundStyle(.separator)
       Spacer(minLength: 0)
@@ -111,6 +126,90 @@ struct PresentationLabTab: View {
         .foregroundStyle(.separator)
     }
   }
+
+  private var booleanPopoverSection: some View {
+    VStack(alignment: .leading, spacing: 0) {
+      Text("Boolean binding")
+        .foregroundStyle(.muted)
+      Button(showPopoverDetails ? "Hide Details" : "Show Details") {
+        showPopoverDetails.toggle()
+      }
+      .popover(
+        isPresented: $showPopoverDetails,
+        attachmentAnchor: .rect(.bounds),
+        arrowEdge: .trailing
+      ) {
+        VStack(alignment: .leading, spacing: 0) {
+          Text("Details popover")
+            .bold()
+          Text("Anchored to the trigger and dismissed with Escape.")
+            .foregroundStyle(.muted)
+          Button("Close") {
+            showPopoverDetails = false
+          }
+          .padding(.top, 1)
+        }
+      }
+    }
+  }
+
+  private var itemPopoverSection: some View {
+    VStack(alignment: .leading, spacing: 0) {
+      Text("Optional item binding")
+        .foregroundStyle(.muted)
+      HStack(spacing: 1) {
+        ForEach(popoverTools) { tool in
+          Button(tool.name) {
+            selectedPopoverTool = tool
+          }
+        }
+      }
+      .popover(
+        item: $selectedPopoverTool,
+        attachmentAnchor: .rect(.bounds),
+        arrowEdge: .bottom
+      ) { tool in
+        VStack(alignment: .leading, spacing: 0) {
+          Text(tool.name)
+            .bold()
+          Text(tool.detail)
+            .foregroundStyle(.muted)
+          Button("Done") {
+            selectedPopoverTool = nil
+          }
+          .padding(.top, 1)
+        }
+      }
+    }
+  }
+
+  private var tipPopoverSection: some View {
+    VStack(alignment: .leading, spacing: 0) {
+      Text("TipKit-inspired tip")
+        .foregroundStyle(.muted)
+      HStack(spacing: 1) {
+        Button("Show Tip") {
+          showPopoverDemoTip = true
+        }
+        Text(popoverTipResult)
+          .foregroundStyle(.separator)
+      }
+      .popoverTip(
+        PresentationLabDemoTip(),
+        isPresented: $showPopoverDemoTip,
+        attachmentAnchor: .rect(.bounds),
+        arrowEdge: .bottom
+      ) { action in
+        popoverTipResult = "Tip action: \(action.title)"
+      }
+    }
+  }
+}
+
+private struct PresentationLabPopoverTool: Identifiable, Sendable {
+  var id: String
+  var name: String
+  var detail: String
 }
 
 private struct PresentationLabTip: PopoverTip {
@@ -131,6 +230,24 @@ private struct PresentationLabTip: PopoverTip {
   var actions: [PopoverTipAction] {
     [
       .init(id: "got-it", title: "Got it")
+    ]
+  }
+}
+
+private struct PresentationLabDemoTip: PopoverTip {
+  var id: String { "presentation-lab-demo-tip" }
+
+  var title: Text {
+    Text("Try item popovers")
+  }
+
+  var message: Text? {
+    Text("Open a tool chip to render a popover from an Identifiable binding.")
+  }
+
+  var actions: [PopoverTipAction] {
+    [
+      PopoverTipAction(id: "got-it", title: "Got it")
     ]
   }
 }

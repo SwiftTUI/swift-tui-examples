@@ -52,9 +52,6 @@ public struct GalleryView: View {
       Tab(Self.descriptor(for: .fileDrop).title, value: GalleryTab.fileDrop) {
         FileDropTab()
       }
-      Tab(Self.descriptor(for: .popovers).title, value: GalleryTab.popovers) {
-        PopoverTab()
-      }
       Tab(Self.descriptor(for: .pointerLab).title, value: GalleryTab.pointerLab) {
         PointerLabTab()
       }
@@ -93,7 +90,6 @@ public struct GalleryView: View {
     .galleryTabPaletteCommand(.images, selection: $selection)
     .galleryTabPaletteCommand(.animations, selection: $selection)
     .galleryTabPaletteCommand(.fileDrop, selection: $selection)
-    .galleryTabPaletteCommand(.popovers, selection: $selection)
     .galleryTabPaletteCommand(.pointerLab, selection: $selection)
     .galleryTabPaletteCommand(.focusContext, selection: $selection)
     .galleryTabPaletteCommand(.taskProgress, selection: $selection)
@@ -123,7 +119,6 @@ extension GalleryView {
     case images
     case animations
     case fileDrop
-    case popovers
     case pointerLab
     case focusContext
     case taskProgress
@@ -135,6 +130,10 @@ extension GalleryView {
 
     /// Resolves a tab from its command-line key, or `nil` when unknown.
     public init?(key: String) {
+      if key == "popovers" {
+        self = .presentationLab
+        return
+      }
       guard let descriptor = GalleryView.tabDescriptors.first(where: { $0.key == key })
       else {
         return nil
@@ -182,8 +181,6 @@ extension GalleryView {
         AnimationsTab()
       case .fileDrop:
         FileDropTab()
-      case .popovers:
-        PopoverTab()
       case .pointerLab:
         PointerLabTab()
       case .focusContext:
@@ -257,8 +254,8 @@ extension GalleryView {
       title: "Presentation Lab",
       key: "presentation-lab",
       coverageTags: [
-        "alert", "confirmation-dialog", "sheet", "toast", "popover", "popover-tip",
-        "palette-sheet",
+        "alert", "confirmation-dialog", "sheet", "toast", "popover", "item-popover",
+        "popover-tip", "palette-sheet",
       ]
     ),
     .init(
@@ -287,12 +284,6 @@ extension GalleryView {
       title: "File Drop",
       key: "file-drop",
       coverageTags: ["file-drop"]
-    ),
-    .init(
-      value: .popovers,
-      title: "Popovers",
-      key: "popovers",
-      coverageTags: ["popover", "popover-tip", "palette-sheet"]
     ),
     .init(
       value: .pointerLab,

@@ -25,7 +25,6 @@ struct GalleryMetadataTests {
         "Images",
         "Animations",
         "File Drop",
-        "Popovers",
         "Pointer Lab",
         "Focus Context",
         "Progress",
