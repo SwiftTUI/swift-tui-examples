@@ -1102,6 +1102,114 @@ struct GalleryTabSwitchTests {
   }
 
   @Test(
+    "presentation lab sheet and confirmation actions stay clickable",
+    .enabled(if: galleryRuntimeTestsEnabled, galleryRuntimeTestGateComment))
+  func presentationLabSheetAndConfirmationActionsStayClickable() async throws {
+    let terminalSize = CellSize(width: 80, height: 24)
+    let rootIdentity = Identity(components: [.named("GalleryPresentationLabActionClick")])
+    let sheetClickCenter = try Self.centerOfText(
+      "Sheet",
+      in: PresentationLabTab(),
+      terminalSize: terminalSize,
+      rootIdentity: Identity(components: [
+        .named("GalleryPresentationLabActionClick.SheetProbe")
+      ])
+    )
+    let confirmClickCenter = try Self.centerOfText(
+      "Confirm",
+      in: PresentationLabTab(),
+      terminalSize: terminalSize,
+      rootIdentity: Identity(components: [
+        .named("GalleryPresentationLabActionClick.ConfirmProbe")
+      ])
+    )
+    let host = GalleryTabSwitchRecordingHost(size: terminalSize)
+    let capture = GalleryPresentationLabCapture()
+
+    let result = try await Self.runHarness(
+      presentationSurface: host,
+      terminalInputReader: GalleryTabSwitchAwaitedInputReader(
+        frameSignal: host.frameSignal,
+        stageClock: host.stageClock,
+        steps: [
+          .awaitCondition {
+            host.lastPresentedSurface?.lines.joined(separator: "\n")
+              .contains("Presentation Lab") == true
+          },
+          .event(.mouse(.init(kind: .down(.primary), location: sheetClickCenter))),
+          .event(.mouse(.init(kind: .up(.primary), location: sheetClickCenter))),
+          .awaitCondition {
+            guard let surface = host.lastPresentedSurface else {
+              return false
+            }
+            let text = surface.lines.joined(separator: "\n")
+            guard text.contains("Sheet content"),
+              let closeCenter = Self.centerOfText("Close", in: surface)
+            else {
+              return false
+            }
+            capture.sheetCloseCenter = closeCenter
+            return true
+          },
+          .eventFrom {
+            .mouse(.init(kind: .down(.primary), location: capture.sheetCloseCenter))
+          },
+          .eventFrom {
+            .mouse(.init(kind: .up(.primary), location: capture.sheetCloseCenter))
+          },
+          .awaitCondition {
+            guard let text = host.lastPresentedSurface?.lines.joined(separator: "\n") else {
+              return false
+            }
+            return !text.contains("Sheet content") && text.contains("Sheet closed")
+          },
+          .event(.mouse(.init(kind: .down(.primary), location: confirmClickCenter))),
+          .event(.mouse(.init(kind: .up(.primary), location: confirmClickCenter))),
+          .awaitCondition {
+            guard let surface = host.lastPresentedSurface else {
+              return false
+            }
+            let text = surface.lines.joined(separator: "\n")
+            guard text.contains("Reset presentation state?"),
+              let resetCenter = Self.centerOfText(
+                "Reset",
+                in: surface,
+                chooseLast: true
+              )
+            else {
+              return false
+            }
+            capture.confirmResetCenter = resetCenter
+            return true
+          },
+          .eventFrom {
+            .mouse(.init(kind: .down(.primary), location: capture.confirmResetCenter))
+          },
+          .eventFrom {
+            .mouse(.init(kind: .up(.primary), location: capture.confirmResetCenter))
+          },
+          .awaitCondition {
+            guard let text = host.lastPresentedSurface?.lines.joined(separator: "\n") else {
+              return false
+            }
+            return !text.contains("Reset presentation state?")
+              && text.contains("Confirmation reset")
+          },
+          .event(.key(KeyPress(.character("d"), modifiers: .ctrl))),
+        ]),
+      terminalSize: terminalSize,
+      rootIdentity: rootIdentity,
+      viewBuilder: { PresentationLabTab() }
+    )
+
+    #expect(result.exitReason == .userExit(KeyPress(.character("d"), modifiers: .ctrl)))
+    let finalText = try #require(host.lastPresentedSurface).lines.joined(separator: "\n")
+    #expect(!finalText.contains("Sheet content"))
+    #expect(!finalText.contains("Reset presentation state?"))
+    #expect(finalText.contains("Confirmation reset"))
+  }
+
+  @Test(
     "default async palette open and dismiss publish valid shared raster damage",
     .enabled(if: galleryRuntimeTestsEnabled, galleryRuntimeTestGateComment))
   func defaultAsyncPaletteOpenAndDismissPublishValidSharedRasterDamage() async throws {
@@ -1344,8 +1452,21 @@ struct GalleryTabSwitchTests {
 
   private static func centerOfText(
     _ target: String,
-    in surface: RasterSurface
+    in surface: RasterSurface,
+    chooseLast: Bool = false
   ) -> Point? {
+    if chooseLast {
+      for row in surface.lines.indices.reversed() {
+        let line = surface.lines[row]
+        guard let range = line.range(of: target, options: .backwards) else {
+          continue
+        }
+        let column = line.distance(from: line.startIndex, to: range.lowerBound)
+        return Point(CellPoint(x: column + target.count / 2, y: row))
+      }
+      return nil
+    }
+
     for (row, line) in surface.lines.enumerated() {
       guard let range = line.range(of: target) else { continue }
       let column = line.distance(from: line.startIndex, to: range.lowerBound)
@@ -2348,6 +2469,12 @@ private final class GalleryPhysicsSelectionCapture {
 @MainActor
 private final class GalleryCommandPaletteCapture {
   var paletteSurface: RasterSurface?
+}
+
+@MainActor
+private final class GalleryPresentationLabCapture {
+  var sheetCloseCenter = Point.zero
+  var confirmResetCenter = Point.zero
 }
 
 private func containsSeedHarnessPaletteSurface(_ text: String) -> Bool {
