@@ -24,6 +24,7 @@ struct CounterTab: View {
           .frame(minWidth: 14, alignment: .center)
         mathButton(" + ", step, +)
       }
+      .focusSection()
       Spacer(minLength: 1)
       HStack(spacing: 2) {
         Slider("Step", value: $step, in: 1...9, step: 1)
@@ -34,6 +35,7 @@ struct CounterTab: View {
         }
         .buttonStyle(.borderedProminent)
       }
+      .focusSection()
       Spacer(minLength: 0)
     }
     .padding(2)

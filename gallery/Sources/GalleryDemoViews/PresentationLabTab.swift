@@ -28,6 +28,7 @@ struct PresentationLabTab: View {
         Button("Confirm") { showConfirmation = true }
         Button("Sheet") { showSheet = true }
       }
+      .focusSection()
       ControlGroup("Anchored") {
         Button("Toast") { showToast = true }
         Button("Popover") { showPopover = true }
@@ -48,15 +49,19 @@ struct PresentationLabTab: View {
             showTip = false
           }
       }
+      .focusSection()
       ControlGroup("Command surface") {
         Button("Palette") { showPalette = true }
       }
       Divider()
       booleanPopoverSection
+        .focusSection()
       Divider()
       itemPopoverSection
+        .focusSection()
       Divider()
       tipPopoverSection
+        .focusSection()
       Text("Last event: \(lastEvent)")
         .foregroundStyle(.separator)
       Spacer(minLength: 0)

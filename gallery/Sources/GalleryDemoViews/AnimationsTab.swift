@@ -119,6 +119,7 @@ public struct AnimationsTab: View {
           }
         }
       }
+      .focusSection()
     }
   }
 
@@ -174,6 +175,7 @@ public struct AnimationsTab: View {
             .border(set: .double)
         }
       }
+      .focusSection()
     }
   }
 
@@ -195,6 +197,7 @@ public struct AnimationsTab: View {
           }
         }
       }
+      .focusSection()
       Text(wide ? "◆ wide ◆" : "narrow")
         .foregroundStyle(.foreground)
         .frame(
@@ -232,6 +235,7 @@ public struct AnimationsTab: View {
           }
         }
       }
+      .focusSection()
       Text("▶ slide me")
         .foregroundStyle(Color.magenta)
         .offset(x: offsetX, y: 0)
@@ -270,6 +274,7 @@ public struct AnimationsTab: View {
           }
         }
       }
+      .focusSection()
       // The marker gets absolutely positioned inside a fixed-height
       // slot.  Without .frame(height:), .position would expand to
       // fill the full proposed space of the outer VStack, shoving
@@ -295,6 +300,7 @@ public struct AnimationsTab: View {
           }
         }
       }
+      .focusSection()
       // Two HStack orderings swapped based on state.  The
       // Text("★ hero") is tagged with matchedGeometryEffect(id:in:)
       // scoped to the heroNamespace, so the controller recognizes
@@ -354,6 +360,7 @@ public struct AnimationsTab: View {
         Text("taps: \(bounceTrigger)")
           .foregroundStyle(.separator)
       }
+      .focusSection()
       PhaseAnimator(
         [BouncePhase.rest, .up, .down, .rest],
         trigger: bounceTrigger
@@ -391,6 +398,7 @@ public struct AnimationsTab: View {
           }
         }
       }
+      .focusSection()
       Text("completed runs: \(completionRuns)")
         .foregroundStyle(.separator)
       Text("accent bar:")

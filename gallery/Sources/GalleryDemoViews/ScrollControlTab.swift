@@ -53,6 +53,7 @@ struct ScrollControlTab: View {
           record("bottom edge", changed: proxy.scrollTo(edge: .bottom))
         }
       }
+      .focusSection()
       HStack(spacing: 1) {
         Button("Up 2") {
           record("up two rows", changed: proxy.scrollBy(y: -2))
@@ -64,6 +65,7 @@ struct ScrollControlTab: View {
           record("absolute offset six", changed: proxy.scrollTo(y: 6))
         }
       }
+      .focusSection()
     }
   }
 

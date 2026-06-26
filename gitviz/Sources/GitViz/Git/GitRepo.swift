@@ -27,6 +27,23 @@ struct GitRepo: Sendable {
     self.workingDirectory = workingDirectory
   }
 
+  /// Runs repository IO and parsing outside the caller's actor.
+  ///
+  /// SwiftTUI command bodies render on the main actor, but `git` subprocesses
+  /// and history parsing can block for large repositories. Keep that work
+  /// behind this helper so commands prepare their data before hopping back to
+  /// render.
+  static func perform<T: Sendable>(
+    workingDirectory: URL,
+    priority: TaskPriority = .userInitiated,
+    _ operation: @Sendable @escaping (GitRepo) throws -> T
+  ) async throws -> T {
+    try await Task.detached(priority: priority) {
+      let repo = try GitRepo(workingDirectory: workingDirectory)
+      return try operation(repo)
+    }.value
+  }
+
   // MARK: - High-level summaries
 
   /// Repository-level summary used by `gitviz info`.

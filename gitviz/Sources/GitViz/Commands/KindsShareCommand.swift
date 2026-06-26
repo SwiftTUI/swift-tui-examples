@@ -14,12 +14,17 @@ struct KindsShareCommand: AsyncParsableCommand {
   var quarters: Int = 8
 
   @MainActor func run() async throws {
-    let repo = try GitRepo(workingDirectory: opts.resolvedPath)
-    let commits = try repo.commits(
-      since: opts.sinceDate,
-      until: opts.untilDate,
-      max: opts.maxCommits
-    )
+    let workingDirectory = opts.resolvedPath
+    let since = opts.sinceDate
+    let until = opts.untilDate
+    let maxCommits = opts.maxCommits
+    let commits = try await GitRepo.perform(workingDirectory: workingDirectory) { repo in
+      try repo.commits(
+        since: since,
+        until: until,
+        max: maxCommits
+      )
+    }
     let quarters = BarEntryAdapters.quarterlyKindShare(commits, quarters: quarters)
 
     GitVizRunOnce.print(

@@ -51,6 +51,15 @@ public enum GifCatInput {
     }
   }
 
+  public static func loadItems(
+    paths: [String],
+    currentDirectory: String = FileManager.default.currentDirectoryPath
+  ) async -> [GifCatItem] {
+    await Task.detached(priority: .userInitiated) {
+      items(paths: paths, currentDirectory: currentDirectory)
+    }.value
+  }
+
   public static func normalizedPath(
     _ rawPath: String,
     currentDirectory: String = FileManager.default.currentDirectoryPath

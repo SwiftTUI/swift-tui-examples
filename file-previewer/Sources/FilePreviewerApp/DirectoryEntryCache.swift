@@ -18,16 +18,31 @@ public final class DirectoryEntryCache {
   }
 
   public func entries(in directory: URL) -> [FileEntry] {
-    if let entries = cachedEntries[directory] {
-      markRecentlyUsed(directory)
+    if let entries = cachedEntries(in: directory) {
       return entries
     }
 
     let entries = loadEntries(directory)
+    store(entries, for: directory)
+    return entries
+  }
+
+  public func cachedEntries(in directory: URL) -> [FileEntry]? {
+    guard let entries = cachedEntries[directory] else {
+      return nil
+    }
+    markRecentlyUsed(directory)
+    return entries
+  }
+
+  public func hasEntries(in directory: URL) -> Bool {
+    cachedEntries[directory] != nil
+  }
+
+  public func store(_ entries: [FileEntry], for directory: URL) {
     cachedEntries[directory] = entries
     markRecentlyUsed(directory)
     trimToCapacity()
-    return entries
   }
 
   public func invalidate(_ directory: URL) {

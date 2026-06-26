@@ -30,6 +30,8 @@ struct ColumnBrowserNavigationTests {
       at: secondFolder.appendingPathComponent("folder-b-child", isDirectory: true),
       withIntermediateDirectories: true
     )
+    let entryCache = DirectoryEntryCache()
+    _ = entryCache.entries(in: root)
 
     let host = RecordingPresentationSurface(size: CellSize(width: 80, height: 16))
     let inputReader = SequenceInputReader([
@@ -49,7 +51,7 @@ struct ColumnBrowserNavigationTests {
       focusTracker: FocusTracker(invalidationIdentities: [rootIdentity]),
       proposal: ProposedSize(width: host.surfaceSize.width, height: host.surfaceSize.height),
       viewBuilder: { _, _ in
-        ColumnBrowser(path: [root])
+        ColumnBrowser(path: [root], entryCache: entryCache)
       }
     )
 

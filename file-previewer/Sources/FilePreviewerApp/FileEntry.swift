@@ -44,6 +44,12 @@ extension FileEntry {
       }
       .sorted()
   }
+
+  public static func entriesOffMain(in directory: URL) async -> [FileEntry] {
+    await Task.detached(priority: .userInitiated) {
+      entries(in: directory)
+    }.value
+  }
 }
 
 extension FileEntry: Comparable {

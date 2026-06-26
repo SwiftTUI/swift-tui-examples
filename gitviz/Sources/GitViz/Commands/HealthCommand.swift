@@ -17,8 +17,11 @@ struct HealthCommand: AsyncParsableCommand {
   @OptionGroup var opts: GitVizOptions
 
   @MainActor func run() async throws {
-    let repo = try GitRepo(workingDirectory: opts.resolvedPath)
-    let deltas = try repo.numstat(max: opts.maxCommits)
+    let workingDirectory = opts.resolvedPath
+    let maxCommits = opts.maxCommits
+    let deltas = try await GitRepo.perform(workingDirectory: workingDirectory) { repo in
+      try repo.numstat(max: maxCommits)
+    }
     let now = Date()
     let oneYearAgo = Calendar.current.date(byAdding: .year, value: -1, to: now) ?? now
 

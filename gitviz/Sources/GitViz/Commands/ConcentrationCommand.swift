@@ -16,8 +16,10 @@ struct ConcentrationCommand: AsyncParsableCommand {
   @OptionGroup var opts: GitVizOptions
 
   @MainActor func run() async throws {
-    let repo = try GitRepo(workingDirectory: opts.resolvedPath)
-    let tallies = try repo.shortlog()
+    let workingDirectory = opts.resolvedPath
+    let tallies = try await GitRepo.perform(workingDirectory: workingDirectory) { repo in
+      try repo.shortlog()
+    }
     let total = tallies.reduce(0) { $0 + $1.commits }
     let busFactor = computeBusFactor(tallies, total: total)
     let topEntries = tallies.prefix(opts.top).map { tally in

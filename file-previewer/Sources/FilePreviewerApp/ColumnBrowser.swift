@@ -9,6 +9,7 @@ public struct ColumnBrowser: View {
   @State private var previewSessions: PreviewSessionSlot<TerminalProcessSession>
   @State private var previewedURL: URL?
   @State private var entryCache: DirectoryEntryCache
+  @State private var directoryLoadRevision = 0
   @FocusState private var isFocused: Bool
 
   private let registry: PreviewerRegistry
@@ -35,7 +36,8 @@ public struct ColumnBrowser: View {
   }
 
   public var body: some View {
-    VStack(alignment: .leading, spacing: 1) {
+    _ = directoryLoadRevision
+    return VStack(alignment: .leading, spacing: 1) {
       header
       Divider()
       MillerLayout {
@@ -45,7 +47,8 @@ public struct ColumnBrowser: View {
             directory: directory,
             entries: entries(in: directory),
             selection: selection[directory],
-            isActive: index == activeColumn
+            isActive: index == activeColumn,
+            isLoading: !entryCache.hasEntries(in: directory)
           )
         }
 
@@ -58,6 +61,10 @@ public struct ColumnBrowser: View {
     .focused($isFocused)
     .defaultFocus($isFocused, true)
     .onKeyPress(perform: handleKeyPress)
+    .task(id: DirectoryLoadKey(directories: path)) {
+      @MainActor in
+      await loadVisibleDirectories()
+    }
   }
 
   private var header: some View {
@@ -100,7 +107,7 @@ public struct ColumnBrowser: View {
   }
 
   private func entries(in directory: URL) -> [FileEntry] {
-    entryCache.entries(in: directory)
+    entryCache.cachedEntries(in: directory) ?? []
   }
 
   private func handleKeyPress(_ keyPress: KeyPress) -> KeyPressResult {
@@ -178,7 +185,8 @@ public struct ColumnBrowser: View {
     }
 
     let isDirectory =
-      (try? selected.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
+      entryCache.cachedEntries(in: directory)?.first { $0.url == selected }?.isDirectory
+      ?? ((try? selected.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false)
     if isDirectory {
       let prefix = pathPrefix(through: directory)
       path = prefix + [selected]
@@ -223,4 +231,28 @@ public struct ColumnBrowser: View {
     activeColumn = min(activeColumn, max(0, path.count - 1))
     entryCache.retainOnly(Set(path))
   }
+
+  private func loadVisibleDirectories() async {
+    let directories = path
+    var didChange = false
+    for directory in directories {
+      guard !entryCache.hasEntries(in: directory) else {
+        continue
+      }
+      let entries = await FileEntry.entriesOffMain(in: directory)
+      guard !Task.isCancelled else {
+        return
+      }
+      entryCache.store(entries, for: directory)
+      didChange = true
+    }
+    entryCache.retainOnly(Set(path))
+    if didChange {
+      directoryLoadRevision &+= 1
+    }
+  }
+}
+
+private struct DirectoryLoadKey: Equatable, Sendable {
+  var directories: [URL]
 }

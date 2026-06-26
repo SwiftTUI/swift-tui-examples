@@ -58,4 +58,14 @@ enum GIFDocumentIO {
       return .failed(error)
     }
   }
+
+  static func saveOffMain(
+    document: GIFDocument,
+    to target: URL,
+    overwriteExisting: Bool
+  ) async -> SaveOutcome {
+    await Task.detached(priority: .userInitiated) {
+      save(document: document, to: target, overwriteExisting: overwriteExisting)
+    }.value
+  }
 }

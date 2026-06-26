@@ -129,8 +129,9 @@ public final class EditorViewModel {
 
   public var statusMessage: String = ""
 
-  public init(document: GIFDocument) {
+  public init(document: GIFDocument, initialStatusMessage: String = "") {
     self.document = document
+    statusMessage = initialStatusMessage
   }
 
   // MARK: - History
@@ -651,6 +652,28 @@ public final class EditorViewModel {
     switch GIFDocumentIO.save(
       document: document, to: target, overwriteExisting: overwriteExisting)
     {
+    case .needsOverwriteConfirmation:
+      announce("Confirm overwrite before saving")
+      return false
+    case .saved:
+      document.path = target
+      history.markClean()
+      announce("Saved to \(target.path)")
+      return true
+    case .failed(let error):
+      announce("Save failed: \(error)")
+      return false
+    }
+  }
+
+  @discardableResult
+  public func saveOffMain(to target: URL, overwriteExisting: Bool) async -> Bool {
+    let documentToSave = document
+    switch await GIFDocumentIO.saveOffMain(
+      document: documentToSave,
+      to: target,
+      overwriteExisting: overwriteExisting
+    ) {
     case .needsOverwriteConfirmation:
       announce("Confirm overwrite before saving")
       return false

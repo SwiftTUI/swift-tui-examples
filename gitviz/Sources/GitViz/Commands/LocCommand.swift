@@ -16,12 +16,17 @@ struct LocCommand: AsyncParsableCommand {
   @OptionGroup var opts: GitVizOptions
 
   @MainActor func run() async throws {
-    let repo = try GitRepo(workingDirectory: opts.resolvedPath)
-    let deltas = try repo.numstat(
-      since: opts.sinceDate,
-      until: opts.untilDate,
-      max: opts.maxCommits
-    )
+    let workingDirectory = opts.resolvedPath
+    let since = opts.sinceDate
+    let until = opts.untilDate
+    let maxCommits = opts.maxCommits
+    let deltas = try await GitRepo.perform(workingDirectory: workingDirectory) { repo in
+      try repo.numstat(
+        since: since,
+        until: until,
+        max: maxCommits
+      )
+    }
     let series = LineSeriesAdapters.cumulativeLOC(deltas)
     let chart = LineChart(
       "Net LOC (proxy)",

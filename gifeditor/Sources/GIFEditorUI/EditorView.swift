@@ -45,6 +45,7 @@ public struct EditorView: View {
   @State private var overwriteSaveConfirmed = false
   @State private var savePreviewDocument: GIFDocument?
   @State private var savePreviewRequestID = 0
+  @State private var isSaving = false
   @State private var openMenu: MenuBarMenu?
 
   /// Fixed width of the right inspector column. Pinning it (rather than
@@ -53,8 +54,13 @@ public struct EditorView: View {
   /// pooling as dead margin to the right of the panel.
   private static let rightPanelWidth = 28
 
-  public init(document: GIFDocument) {
-    _model = State(initialValue: EditorViewModel(document: document))
+  public init(document: GIFDocument, initialStatusMessage: String = "") {
+    _model = State(
+      initialValue: EditorViewModel(
+        document: document,
+        initialStatusMessage: initialStatusMessage
+      )
+    )
   }
 
   public var body: some View {
@@ -223,11 +229,25 @@ public struct EditorView: View {
         pathText: $savePathText,
         overwriteConfirmed: $overwriteSaveConfirmed,
         onSave: { target, overwriteExisting in
-          if model.save(to: target, overwriteExisting: overwriteExisting) {
-            isSaveSheetPresented = false
-            savePreviewDocument = nil
+          guard !isSaving else {
+            return
           }
+          isSaving = true
+          model.announce("Saving...")
           refresh()
+          Task {
+            @MainActor in
+            let saved = await model.saveOffMain(
+              to: target,
+              overwriteExisting: overwriteExisting
+            )
+            isSaving = false
+            if saved {
+              isSaveSheetPresented = false
+              savePreviewDocument = nil
+            }
+            refresh()
+          }
         },
         onCancel: {
           isSaveSheetPresented = false

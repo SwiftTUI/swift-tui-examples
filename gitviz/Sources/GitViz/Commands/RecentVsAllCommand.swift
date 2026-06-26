@@ -11,8 +11,11 @@ struct RecentVsAllCommand: AsyncParsableCommand {
   @OptionGroup var opts: GitVizOptions
 
   @MainActor func run() async throws {
-    let repo = try GitRepo(workingDirectory: opts.resolvedPath)
-    let commits = try repo.commits(max: opts.maxCommits)
+    let workingDirectory = opts.resolvedPath
+    let maxCommits = opts.maxCommits
+    let commits = try await GitRepo.perform(workingDirectory: workingDirectory) { repo in
+      try repo.commits(max: maxCommits)
+    }
     let entries = BarEntryAdapters.recentVsAllTime(commits, top: opts.top)
 
     GitVizRunOnce.print(

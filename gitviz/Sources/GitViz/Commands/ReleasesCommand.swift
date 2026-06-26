@@ -14,8 +14,10 @@ struct ReleasesCommand: AsyncParsableCommand {
   var max: Int = 20
 
   @MainActor func run() async throws {
-    let repo = try GitRepo(workingDirectory: opts.resolvedPath)
-    let tags = try repo.tags()
+    let workingDirectory = opts.resolvedPath
+    let tags = try await GitRepo.perform(workingDirectory: workingDirectory) { repo in
+      try repo.tags()
+    }
     let entries = TimelineAdapters.releaseHistory(tags, maxEntries: max)
     GitVizRunOnce.print(
       ChartCard(title: "Releases (newest first)") {

@@ -96,6 +96,7 @@ struct TodoTab: View {
         items.removeAll { $0.done }
       }
     }
+    .focusSection()
   }
 
   private var newTaskSheetBody: some View {

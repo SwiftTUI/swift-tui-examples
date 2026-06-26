@@ -12,7 +12,6 @@ struct TempoCommand: AsyncParsableCommand {
   @OptionGroup var opts: GitVizOptions
 
   @MainActor func run() async throws {
-    let repo = try GitRepo(workingDirectory: opts.resolvedPath)
     let calendar = Calendar.current
     let now = Date()
     let start =
@@ -21,11 +20,15 @@ struct TempoCommand: AsyncParsableCommand {
       ?? now
     let end = opts.untilDate ?? now
 
-    let commits = try repo.commits(
-      since: start,
-      until: end,
-      max: opts.maxCommits
-    )
+    let workingDirectory = opts.resolvedPath
+    let maxCommits = opts.maxCommits
+    let commits = try await GitRepo.perform(workingDirectory: workingDirectory) { repo in
+      try repo.commits(
+        since: start,
+        until: end,
+        max: maxCommits
+      )
+    }
     let perAuthor = DateValueAdapters.weeklyCommitsPerAuthor(
       commits: commits,
       topN: opts.top,

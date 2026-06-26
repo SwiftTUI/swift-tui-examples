@@ -11,8 +11,11 @@ struct VolatilityCommand: AsyncParsableCommand {
   @OptionGroup var opts: GitVizOptions
 
   @MainActor func run() async throws {
-    let repo = try GitRepo(workingDirectory: opts.resolvedPath)
-    let files = try repo.fileChangeCounts(max: opts.maxCommits)
+    let workingDirectory = opts.resolvedPath
+    let maxCommits = opts.maxCommits
+    let files = try await GitRepo.perform(workingDirectory: workingDirectory) { repo in
+      try repo.fileChangeCounts(max: maxCommits)
+    }
     let entries = BarEntryAdapters.volatilityBars(files, top: opts.top)
     GitVizRunOnce.print(
       BarChart(

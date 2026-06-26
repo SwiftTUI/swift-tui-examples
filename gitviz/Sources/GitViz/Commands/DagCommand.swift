@@ -13,8 +13,11 @@ struct DagCommand: AsyncParsableCommand {
   var max: Int = 200
 
   @MainActor func run() async throws {
-    let repo = try GitRepo(workingDirectory: opts.resolvedPath)
-    let layout = try repo.revList(max: max)
+    let workingDirectory = opts.resolvedPath
+    let maxCommits = max
+    let layout = try await GitRepo.perform(workingDirectory: workingDirectory) { repo in
+      try repo.revList(max: maxCommits)
+    }
 
     let bailFooter =
       layout.bailed

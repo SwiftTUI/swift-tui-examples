@@ -15,14 +15,17 @@ struct ActivityCommand: AsyncParsableCommand {
   var year: Int?
 
   @MainActor func run() async throws {
-    let repo = try GitRepo(workingDirectory: opts.resolvedPath)
     let calendar = Calendar.current
     let (start, end) = window(in: calendar)
-    let commits = try repo.commits(
-      since: start,
-      until: end,
-      max: opts.maxCommits
-    )
+    let workingDirectory = opts.resolvedPath
+    let maxCommits = opts.maxCommits
+    let commits = try await GitRepo.perform(workingDirectory: workingDirectory) { repo in
+      try repo.commits(
+        since: start,
+        until: end,
+        max: maxCommits
+      )
+    }
     let days = DateValueAdapters.dailyCommitCounts(
       commits: commits,
       in: start...end,

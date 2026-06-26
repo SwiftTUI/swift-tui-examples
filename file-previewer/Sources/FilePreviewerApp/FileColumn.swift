@@ -6,6 +6,7 @@ struct FileColumn: View {
   var entries: [FileEntry]
   var selection: URL?
   var isActive: Bool
+  var isLoading: Bool = false
 
   @State private var scrollPosition = ScrollPosition.zero
 
@@ -18,7 +19,7 @@ struct FileColumn: View {
       Divider()
 
       if entries.isEmpty {
-        Text("(empty)")
+        Text(isLoading ? "(loading)" : "(empty)")
           .foregroundStyle(.separator)
       } else {
         ScrollView(

@@ -4,18 +4,30 @@ import SwiftTUITerminalWorkspace
 
 public struct TerminalWorkspaceExampleView: View {
   @State private var workspace: TerminalWorkspaceState
+  @State private var workspaceChangedSinceLaunch = false
 
   public init() {
     _workspace = State(
-      wrappedValue: TerminalWorkspacePersistence.load()
-        ?? TerminalWorkspaceExampleModel.initialWorkspace()
+      wrappedValue: TerminalWorkspaceExampleModel.initialWorkspace()
     )
   }
 
   public var body: some View {
     TerminalWorkspaceView(workspace: $workspace)
+      .task {
+        @MainActor in
+        guard let persisted = await TerminalWorkspacePersistence.load() else {
+          return
+        }
+        guard !workspaceChangedSinceLaunch else {
+          return
+        }
+        workspace = persisted
+      }
       .onChange(of: workspace) {
-        TerminalWorkspacePersistence.save(workspace)
+        let snapshot = workspace
+        workspaceChangedSinceLaunch = true
+        TerminalWorkspacePersistence.save(snapshot)
       }
   }
 }
@@ -131,18 +143,24 @@ public enum TerminalWorkspaceExampleModel {
 }
 
 enum TerminalWorkspacePersistence {
-  static func load() -> TerminalWorkspaceState? {
-    guard let data = try? Data(contentsOf: fileURL) else {
-      return nil
-    }
-    return try? JSONDecoder().decode(TerminalWorkspaceState.self, from: data)
+  static func load() async -> TerminalWorkspaceState? {
+    let fileURL = fileURL
+    return await Task.detached(priority: .userInitiated) {
+      guard let data = try? Data(contentsOf: fileURL) else {
+        return nil
+      }
+      return try? JSONDecoder().decode(TerminalWorkspaceState.self, from: data)
+    }.value
   }
 
   static func save(_ workspace: TerminalWorkspaceState) {
-    guard let data = try? JSONEncoder().encode(workspace) else {
-      return
+    let fileURL = fileURL
+    Task.detached(priority: .utility) {
+      guard let data = try? JSONEncoder().encode(workspace) else {
+        return
+      }
+      try? data.write(to: fileURL, options: [.atomic])
     }
-    try? data.write(to: fileURL, options: [.atomic])
   }
 
   private static var fileURL: URL {

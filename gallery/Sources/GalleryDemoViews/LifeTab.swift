@@ -149,6 +149,7 @@ public struct LifeTab: View {
         }
       }
     }
+    .focusSection()
     .padding(.horizontal, 1)
   }
 

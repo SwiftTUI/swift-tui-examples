@@ -5,8 +5,8 @@ import Testing
 
 @MainActor
 struct ColumnBrowserCacheTests {
-  @Test("browser does not reread the same directory across repeated renders")
-  func browserDoesNotRereadDirectoryAcrossRepeatedRenders() {
+  @Test("browser does not read directories synchronously during render")
+  func browserDoesNotReadDirectoriesSynchronouslyDuringRender() {
     let root = URL(fileURLWithPath: "/tmp/root")
     var loadCount = 0
     let cache = DirectoryEntryCache(capacity: 8) { directory in
@@ -40,6 +40,6 @@ struct ColumnBrowserCacheTests {
       proposal: .init(width: 80, height: 20)
     )
 
-    #expect(loadCount == 1)
+    #expect(loadCount == 0)
   }
 }

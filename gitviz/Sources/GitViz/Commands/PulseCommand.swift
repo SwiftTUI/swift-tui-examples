@@ -12,12 +12,15 @@ struct PulseCommand: AsyncParsableCommand {
   @OptionGroup var opts: GitVizOptions
 
   @MainActor func run() async throws {
-    let repo = try GitRepo(workingDirectory: opts.resolvedPath)
     let calendar = Calendar.current
     let now = Date()
     let fiveWeeksAgo =
       calendar.date(byAdding: .weekOfYear, value: -5, to: now) ?? now
-    let commits = try repo.commits(since: fiveWeeksAgo, max: opts.maxCommits)
+    let workingDirectory = opts.resolvedPath
+    let maxCommits = opts.maxCommits
+    let commits = try await GitRepo.perform(workingDirectory: workingDirectory) { repo in
+      try repo.commits(since: fiveWeeksAgo, max: maxCommits)
+    }
     let perWeek = weeklyTotals(commits, in: fiveWeeksAgo...now, calendar: calendar)
     let current = Double(perWeek.last ?? 0)
     let trailing = Array(perWeek.dropLast())

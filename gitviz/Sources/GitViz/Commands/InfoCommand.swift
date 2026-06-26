@@ -12,9 +12,13 @@ struct InfoCommand: AsyncParsableCommand {
   @OptionGroup var opts: GitVizOptions
 
   @MainActor func run() async throws {
-    let repo = try GitRepo(workingDirectory: opts.resolvedPath)
-    let info = try repo.info(maxCommitsForScannedShare: opts.maxCommits)
-    let tags = (try? repo.tags()) ?? []
+    let workingDirectory = opts.resolvedPath
+    let maxCommits = opts.maxCommits
+    let (info, tags) = try await GitRepo.perform(workingDirectory: workingDirectory) { repo in
+      let info = try repo.info(maxCommitsForScannedShare: maxCommits)
+      let tags = (try? repo.tags()) ?? []
+      return (info, tags)
+    }
     let milestones = TimelineAdapters.infoMilestones(info: info, tags: tags)
 
     let scanned = clamp(info.scannedCommitShare, to: 0...1)
