@@ -556,7 +556,7 @@ struct LogoBreakerGestureTests {
       proposal: .init(width: terminalSize.width, height: terminalSize.height)
     )
 
-    let shapeBounds = try #require(firstShapeBounds(in: initial.placedTree))
+    let shapeBounds = try #require(brailleBounds(in: initial.rasterSurface))
     let start = centerPoint(of: shapeBounds)
     let end = Point(x: start.x + 5, y: start.y + 2)
 
@@ -604,7 +604,7 @@ struct LogoBreakerGestureTests {
       proposal: .init(width: terminalSize.width, height: terminalSize.height)
     )
 
-    let shapeBounds = try #require(firstShapeBounds(in: initial.placedTree))
+    let shapeBounds = try #require(brailleBounds(in: initial.rasterSurface))
     let start = centerPoint(of: shapeBounds)
     let firstEnd = Point(x: start.x + 5, y: start.y + 2)
     let capture = PhysicsSecondDragCapture()
@@ -683,7 +683,7 @@ struct LogoBreakerGestureTests {
       proposal: .init(width: terminalSize.width, height: terminalSize.height)
     )
 
-    let shapeBounds = try #require(firstShapeBounds(in: initial.placedTree))
+    let shapeBounds = try #require(brailleBounds(in: initial.rasterSurface))
     let start = centerPoint(of: shapeBounds)
     let end = Point(x: start.x + 7, y: start.y + 3)
 
@@ -1048,18 +1048,6 @@ private func centerPoint(of rect: CellRect) -> Point {
       y: rect.origin.y + rect.size.height / 2
     )
   )
-}
-
-private func firstShapeBounds(in node: PlacedNode) -> CellRect? {
-  if case .shape = node.drawPayload {
-    return node.bounds
-  }
-  for child in node.children {
-    if let match = firstShapeBounds(in: child) {
-      return match
-    }
-  }
-  return nil
 }
 
 private func brailleBounds(in surface: RasterSurface) -> CellRect? {

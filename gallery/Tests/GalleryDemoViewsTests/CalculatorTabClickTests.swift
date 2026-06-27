@@ -28,7 +28,7 @@ struct CalculatorTabClickTests {
       proposal: .init(width: terminalSize.width, height: terminalSize.height)
     )
 
-    let sevenBounds = try #require(Self.boundsOfText("7", in: initial.placedTree))
+    let sevenBounds = try #require(Self.boundsOfText("7", in: initial.rasterSurface))
     let clickCenter = centerPoint(of: sevenBounds)
 
     let host = RecordingHost(size: terminalSize)
@@ -58,14 +58,17 @@ struct CalculatorTabClickTests {
 
   // MARK: - Helpers
 
-  private static func boundsOfText(_ target: String, in node: PlacedNode) -> CellRect? {
-    if case .text(let content) = node.drawPayload, content == target {
-      return node.bounds
-    }
-    for child in node.children {
-      if let match = boundsOfText(target, in: child) {
-        return match
+  private static func boundsOfText(_ target: String, in surface: RasterSurface) -> CellRect? {
+    for (row, line) in surface.lines.enumerated() {
+      guard let range = line.range(of: target) else {
+        continue
       }
+
+      let column = line.distance(from: line.startIndex, to: range.lowerBound)
+      return CellRect(
+        origin: CellPoint(x: column, y: row),
+        size: CellSize(width: target.count, height: 1)
+      )
     }
     return nil
   }

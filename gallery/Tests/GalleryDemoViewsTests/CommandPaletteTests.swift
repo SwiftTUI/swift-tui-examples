@@ -6,8 +6,8 @@ import Testing
 @MainActor
 @Suite
 struct CommandPaletteTests {
-  @Test("command palette resolves through a declared child identity")
-  func commandPaletteResolvesThroughDeclaredChildBoundary() {
+  @Test("command palette publishes focusable filter semantics")
+  func commandPalettePublishesFocusableFilterSemantics() {
     let rootIdentity = Identity(components: ["CommandPaletteRoot"])
     var environment = EnvironmentValues()
     environment.terminalSize = .init(width: 80, height: 24)
@@ -24,7 +24,12 @@ struct CommandPaletteTests {
       proposal: .init(width: 44, height: 12)
     )
 
-    #expect(artifacts.resolvedTree.identity == rootIdentity.child("Group[0]"))
+    #expect(!artifacts.semanticSnapshot.focusRegions.isEmpty)
+    #expect(
+      artifacts.semanticSnapshot.focusRegions.contains {
+        $0.rect.size.width > 0 && $0.rect.size.height > 0
+      }
+    )
   }
 
   @Test("command palette list does not render an internal title")

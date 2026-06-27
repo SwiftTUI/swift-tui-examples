@@ -219,7 +219,7 @@ private func render(
   _ view: some View,
   width: Int,
   height: Int
-) -> FrameArtifacts {
+) -> RenderSnapshot {
   var env = EnvironmentValues()
   env.terminalSize = CellSize(width: width, height: height)
   return DefaultRenderer().render(

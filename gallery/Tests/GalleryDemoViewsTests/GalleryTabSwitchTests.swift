@@ -1393,27 +1393,6 @@ struct GalleryTabSwitchTests {
 
   private static func boundsOfText(
     _ target: String,
-    in node: PlacedNode,
-    chooseTopMost: Bool = false
-  ) -> CellRect? {
-    var matches: [CellRect] = []
-    collectBoundsOfText(target, in: node, into: &matches)
-    guard !matches.isEmpty else {
-      return nil
-    }
-    if chooseTopMost {
-      return matches.min(by: {
-        if $0.origin.y == $1.origin.y {
-          return $0.origin.x < $1.origin.x
-        }
-        return $0.origin.y < $1.origin.y
-      })
-    }
-    return matches.first
-  }
-
-  private static func boundsOfText(
-    _ target: String,
     in surface: RasterSurface
   ) -> CellRect? {
     for (row, line) in surface.lines.enumerated() {
@@ -1444,9 +1423,7 @@ struct GalleryTabSwitchTests {
       context: .init(identity: rootIdentity, environmentValues: env),
       proposal: .init(width: terminalSize.width, height: terminalSize.height)
     )
-    let bounds = try #require(
-      Self.boundsOfText(target, in: artifacts.placedTree, chooseTopMost: chooseTopMost)
-    )
+    let bounds = try #require(Self.boundsOfText(target, in: artifacts.rasterSurface))
     return Self.centerPoint(of: bounds)
   }
 
@@ -1475,19 +1452,6 @@ struct GalleryTabSwitchTests {
     return nil
   }
 
-  private static func collectBoundsOfText(
-    _ target: String,
-    in node: PlacedNode,
-    into matches: inout [CellRect]
-  ) {
-    if case .text(let content) = node.drawPayload, content == target {
-      matches.append(node.bounds)
-    }
-    for child in node.children {
-      collectBoundsOfText(target, in: child, into: &matches)
-    }
-  }
-
   private static func centerPoint(of rect: CellRect) -> Point {
     Point(
       CellPoint(
@@ -1495,18 +1459,6 @@ struct GalleryTabSwitchTests {
         y: rect.origin.y + rect.size.height / 2
       )
     )
-  }
-
-  private static func firstShapeBounds(in node: PlacedNode) -> CellRect? {
-    if case .shape = node.drawPayload {
-      return node.bounds
-    }
-    for child in node.children {
-      if let match = firstShapeBounds(in: child) {
-        return match
-      }
-    }
-    return nil
   }
 
   private static func containsBrailleDrawing(_ surface: RasterSurface) -> Bool {

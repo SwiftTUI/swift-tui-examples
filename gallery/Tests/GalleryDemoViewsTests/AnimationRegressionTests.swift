@@ -215,7 +215,7 @@ struct AnimationRegressionTests {
       context: .init(identity: rootIdentity, environmentValues: env),
       proposal: .init(width: terminalSize.width, height: terminalSize.height)
     )
-    let bounds = try #require(Self.boundsOfText(target, in: artifacts.placedTree))
+    let bounds = try #require(Self.boundsOfText(target, in: artifacts.rasterSurface))
     return Point(
       CellPoint(
         x: bounds.origin.x + bounds.size.width / 2,
@@ -226,15 +226,18 @@ struct AnimationRegressionTests {
 
   private static func boundsOfText(
     _ target: String,
-    in node: PlacedNode
+    in surface: RasterSurface
   ) -> CellRect? {
-    if case .text(let content) = node.drawPayload, content == target {
-      return node.bounds
-    }
-    for child in node.children {
-      if let bounds = boundsOfText(target, in: child) {
-        return bounds
+    for (row, line) in surface.lines.enumerated() {
+      guard let range = line.range(of: target) else {
+        continue
       }
+
+      let column = line.distance(from: line.startIndex, to: range.lowerBound)
+      return CellRect(
+        origin: CellPoint(x: column, y: row),
+        size: CellSize(width: target.count, height: 1)
+      )
     }
     return nil
   }

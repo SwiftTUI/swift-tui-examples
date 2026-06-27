@@ -108,7 +108,7 @@ private func render(
   width: Int,
   height: Int,
   id: String = "\(#fileID).\(#function)"
-) -> FrameArtifacts {
+) -> RenderSnapshot {
   var env = EnvironmentValues()
   env.terminalSize = CellSize(width: width, height: height)
   return DefaultRenderer().render(
