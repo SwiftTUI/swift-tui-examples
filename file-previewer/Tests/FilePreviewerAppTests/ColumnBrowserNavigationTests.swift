@@ -57,9 +57,16 @@ struct ColumnBrowserNavigationTests {
 
     _ = try await runLoop.run()
 
-    let rendered = try #require(host.renderedFrames.last).lines.joined(separator: "\n")
-    #expect(rendered.contains("> folder-b/"))
-    #expect(!rendered.contains("> folder-a-child/"))
+    let surface = try #require(host.renderedFrames.last)
+    let rendered = surface.lines.joined(separator: "\n")
+    let selectedRowIndex = try #require(
+      surface.lines.firstIndex { $0.hasPrefix("folder-b/") }
+    )
+    #expect(
+      surface.cells[selectedRowIndex][0].style?.foregroundColor
+        == TerminalAppearance.fallback.foregroundColor
+    )
+    #expect(!rendered.contains("folder-a-child/"))
   }
 }
 

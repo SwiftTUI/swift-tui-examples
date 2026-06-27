@@ -43,14 +43,10 @@ struct FileColumn: View {
   }
 
   private func row(for entry: FileEntry) -> some View {
-    HStack(spacing: 1) {
-      Text(entry.url == selection ? ">" : " ")
-        .foregroundStyle(.tint)
       Text(entry.displayName)
         .foregroundStyle(entry.url == selection ? .foreground : .separator)
         .lineLimit(1)
         .truncationMode(.middle)
-    }
   }
 
   private func keepSelectionVisible(_ selected: URL?) {

@@ -69,6 +69,7 @@ public struct ColumnBrowser: View {
         .foregroundStyle(.separator)
         .lineLimit(1)
         .truncationMode(.middle)
+        .background(.black.opacity(0.1))
   }
 
   @ViewBuilder
@@ -79,9 +80,8 @@ public struct ColumnBrowser: View {
       Divider()
       if let previewSession = previewSessions.current {
         TerminalView(session: previewSession)
-      } else {
-        Spacer()
       }
+      Spacer()
     }
   }
 
