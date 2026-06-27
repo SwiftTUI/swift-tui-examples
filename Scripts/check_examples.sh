@@ -205,7 +205,8 @@ run_xcodebuild_swiftui_example() {
   set -- "$@" \
     CODE_SIGNING_ALLOWED=NO \
     CODE_SIGNING_REQUIRED=NO \
-    CODE_SIGN_IDENTITY=
+    CODE_SIGN_IDENTITY= \
+    SWIFT_SUPPRESS_WARNINGS=NO
 
   if [ "$skip_clean" -eq 0 ]; then
     set -- "$@" clean build

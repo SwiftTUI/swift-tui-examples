@@ -192,6 +192,12 @@ if ! grep -Fq -- "CODE_SIGNING_ALLOWED=NO" "$xcode_log"; then
   exit 1
 fi
 
+if ! grep -Fq -- "SWIFT_SUPPRESS_WARNINGS=NO" "$xcode_log"; then
+  echo "Expected the macOS app build to keep package warnings visible" >&2
+  cat "$xcode_log" >&2
+  exit 1
+fi
+
 : >"$swiftly_log"
 : >"$bun_log"
 : >"$python_log"
