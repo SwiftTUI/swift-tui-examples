@@ -37,9 +37,7 @@ public struct ColumnBrowser: View {
 
   public var body: some View {
     _ = directoryLoadRevision
-    return VStack(alignment: .leading, spacing: 1) {
-      header
-      Divider()
+    return VStack(alignment: .leading, spacing: 0) {
       MillerLayout {
         ForEach(path.indices, id: \.self) { index in
           let directory = path[index]
@@ -50,55 +48,40 @@ public struct ColumnBrowser: View {
             isActive: index == activeColumn,
             isLoading: !entryCache.hasEntries(in: directory)
           )
+          .border(.muted, set: BorderSet.single, sides: Edge.Set.trailing)
         }
-
         previewPane
       }
+      paths
     }
-    .padding(1)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .focusable(true)
     .focused($isFocused)
     .defaultFocus($isFocused, true)
     .onKeyPress(perform: handleKeyPress)
-    .task(id: DirectoryLoadKey(directories: path)) {
-      @MainActor in
+    .task(id: DirectoryLoadKey(directories: path)) { @MainActor in
       await loadVisibleDirectories()
     }
   }
 
-  private var header: some View {
-    HStack(spacing: 2) {
-      Text("File Previewer")
-        .foregroundStyle(.tint)
+  private var paths: some View {
       Text(activeDirectory.path)
         .foregroundStyle(.separator)
         .lineLimit(1)
         .truncationMode(.middle)
-      Spacer()
-      Text(previewedURL?.lastPathComponent ?? "no preview")
-        .foregroundStyle(.muted)
-        .lineLimit(1)
-        .truncationMode(.middle)
-    }
   }
 
   @ViewBuilder
   private var previewPane: some View {
-    if let previewSession = previewSessions.current {
-      TerminalView(session: previewSession)
-        .border(.separator)
-    } else {
-      VStack(alignment: .leading, spacing: 1) {
-        Text("Preview")
-          .foregroundStyle(.muted)
-        Divider()
-        Text("(select a file)")
-          .foregroundStyle(.separator)
+    VStack(alignment: .leading) {
+      Text(previewedURL?.lastPathComponent ?? "")
+        .foregroundStyle(.muted)
+      Divider()
+      if let previewSession = previewSessions.current {
+        TerminalView(session: previewSession)
+      } else {
+        Spacer()
       }
-      .padding(1)
-      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-      .border(.separator)
     }
   }
 

@@ -36,9 +36,7 @@ struct FileColumn: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
       }
     }
-    .padding(1)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    .border(isActive ? .tint : .separator)
     .onChange(of: selection, initial: true) { _, selected in
       keepSelectionVisible(selected)
     }
