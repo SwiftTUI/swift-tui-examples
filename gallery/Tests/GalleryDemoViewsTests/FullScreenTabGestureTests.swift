@@ -271,8 +271,8 @@ struct LogoBreakerGestureTests {
     #expect(body.velocity.dy < 0)
   }
 
-  @Test("dragging through bricks breaks the first reachable one and drops the drag")
-  func dragDropsAtFirstReachableBrick() throws {
+  @Test("dragging through bricks breaks the first reachable one without ending the drag")
+  func dragBreaksFirstReachableBrickWithoutDroppingDrag() throws {
     let bounds = CellSize(width: 80, height: 40)
     let metrics = CellPixelMetrics.estimated
     let world = WorldSpace(metrics: metrics)
@@ -301,7 +301,7 @@ struct LogoBreakerGestureTests {
       metrics: metrics
     )
 
-    #expect(outcome == .dropped)
+    #expect(outcome == .hitBrick)
     #expect(brokenBrickIDs.contains(pair.near.id))
     #expect(!brokenBrickIDs.contains(pair.far.id))
     #expect(body.velocity == .zero)

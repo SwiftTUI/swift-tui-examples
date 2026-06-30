@@ -15,7 +15,6 @@ struct LogoTab: View {
   @State private var didSeedInitialPosition = false
   @State private var isDragging = false
   @State private var dragTranslation = Vector.zero
-  @State private var didDropCurrentDrag = false
 
   var body: some View {
     GeometryReader { proxy in
@@ -61,9 +60,6 @@ struct LogoTab: View {
   ) -> some Gesture {
     DragGesture()
       .onChanged { value in
-        guard !didDropCurrentDrag else {
-          return
-        }
         if !isDragging {
           LogoBreakerGame.stop(&ball)
           dragTranslation = .zero
@@ -84,26 +80,16 @@ struct LogoTab: View {
           metrics: metrics
         )
         switch outcome {
-        case .tracking:
+        case .tracking, .hitBrick:
           ball = nextBall
           brokenBrickIDs = nextBrokenBricks
           dragTranslation = value.translation
-        case .dropped:
-          ball = nextBall
-          brokenBrickIDs = nextBrokenBricks
-          dragTranslation = .zero
-          isDragging = false
-          didDropCurrentDrag = true
         }
       }
       .onEnded { value in
         defer {
           dragTranslation = .zero
           isDragging = false
-          didDropCurrentDrag = false
-        }
-        guard !didDropCurrentDrag else {
-          return
         }
         LogoBreakerGame.release(
           &ball,
@@ -308,7 +294,8 @@ enum LogoBreakerGame {
 
   /// Drags the ball by an incremental cell-space translation. Sweeps the move
   /// against the bricks: a clear move commits (velocity stays zero); a move that
-  /// crosses a brick breaks the first one reached and drops the drag.
+  /// crosses a brick breaks the first one reached while keeping the active drag
+  /// captured until the pointer is released.
   @discardableResult
   static func drag(
     _ body: inout PhysicsBody,
@@ -346,7 +333,7 @@ enum LogoBreakerGame {
         radius: body.radius
       )
       body.velocity = .zero
-      return .dropped
+      return .hitBrick
     }
 
     body.position = target
@@ -448,7 +435,7 @@ struct BallGeometry: Equatable, Sendable {
 /// Outcome of a drag step.
 enum LogoBreakerDragOutcome: Equatable, Sendable {
   case tracking
-  case dropped
+  case hitBrick
 }
 
 private struct BrickCollision: Equatable, Sendable {
