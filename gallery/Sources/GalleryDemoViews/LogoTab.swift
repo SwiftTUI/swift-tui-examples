@@ -28,7 +28,8 @@ struct LogoTab: View {
         brokenBrickIDs: brokenBrickIDs,
         ballCenter: geometry.center,
         ballRadiusX: geometry.radiusX,
-        ballRadiusY: geometry.radiusY
+        ballRadiusY: geometry.radiusY,
+        isGrabbed: isDragging
       )
       let ballRect = CellRect(
         origin: Point(
@@ -450,6 +451,9 @@ private struct LogoBreakerDrawing: CanvasDrawing, Equatable {
   let ballCenter: Point
   let ballRadiusX: Double
   let ballRadiusY: Double
+  /// Whether the ball is currently held by a drag; lights the ball up white as
+  /// grab feedback.
+  let isGrabbed: Bool
 
   func draw(into context: inout CanvasContext) {
     for brick in LogoArt.bricks where !brokenBrickIDs.contains(brick.id) {
@@ -458,7 +462,7 @@ private struct LogoBreakerDrawing: CanvasDrawing, Equatable {
       }
     }
 
-    context.foreground = .cyan
+    context.foreground = isGrabbed ? .white : .cyan
     context.fillEllipse(
       center: ballCenter,
       radiusX: ballRadiusX,
