@@ -5,7 +5,7 @@ shipped to every host. This repo holds runnable examples for
 [`SwiftTUI`](https://github.com/SwiftTUI/swift-tui): one directory per demo, each
 proving a specific capability, each with the exact command to run it.
 
-![Status](https://img.shields.io/badge/status-0.1.3%20pre--release-DAA520)
+![Status](https://img.shields.io/badge/status-0.1.4%20pre--release-DAA520)
 
 ## Start here
 
@@ -49,9 +49,9 @@ bun install
 bun --cwd WebExample run build
 ```
 
-Everything builds from a fresh clone at tag `0.1.3`. Swift packages resolve
+Everything builds from a fresh clone at tag `0.1.4`. Swift packages resolve
 `swift-tui` — and, for the native SwiftUI host, `swift-tui-swiftui` — over tagged
-HTTPS, and WebExample pulls the `swift-tui-web` `0.1.3` release tarballs for
+HTTPS, and WebExample pulls the `swift-tui-web` `0.1.4` release tarballs for
 `@swifttui/web` and `@swifttui/build`. No sibling source checkout required.
 
 ## Roster

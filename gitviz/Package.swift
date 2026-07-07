@@ -8,7 +8,7 @@ let package = Package(
     .executable(name: "gitviz", targets: ["GitViz"])
   ],
   dependencies: [
-    .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.1.3")
+    .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.1.4")
   ],
   targets: [
     .executableTarget(
