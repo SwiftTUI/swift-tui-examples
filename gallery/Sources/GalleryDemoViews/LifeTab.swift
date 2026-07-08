@@ -30,7 +30,7 @@ public struct LifeTab: View {
 
   // Auto-tick state
   @State private var isRunning: Bool = true
-  @State private var tickIntervalMs: Double = 110
+  @State private var tickIntervalMs: Double = 200
 
   // Zoom & rendering
   @State private var zoom: LifeZoom = .halfCell
