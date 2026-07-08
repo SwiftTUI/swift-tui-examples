@@ -381,6 +381,20 @@ run_macos_examples() {
     "Build SwiftUIExample macOS app" \
     "$repo_root" \
     run_xcodebuild_swiftui_example
+
+  # The gallery suite is the only end-to-end coverage of seam-hosted
+  # interactivity, and it has trapped on macOS (signal 5 in the org native
+  # gate) while every remote CI check stayed green because this suite was
+  # build-only. Run it when macOS is the selected suite; a combined run
+  # (suite=all) already covers it once in the roster section above.
+  if [ "$suite" = "macos" ]; then
+    print_section "macOS focused smoke tests"
+
+    run_step \
+      "Test gallery" \
+      "$repo_root" \
+      run_swift test --package-path gallery
+  fi
 }
 
 run_web_examples() {

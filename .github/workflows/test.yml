@@ -130,7 +130,9 @@ jobs:
   macos-examples:
     name: macOS examples
     runs-on: macos-26
-    timeout-minutes: 45
+    # Includes the gallery test suite (macOS focused smoke tests), not just
+    # builds — budget headroom for a cold SwiftPM cache.
+    timeout-minutes: 60
     env:
       SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH: ${{ github.workspace }}/swift-tui-examples/.build/shared-swiftpm-macos
       SWIFTTUI_EXAMPLES_XCODE_DERIVED_DATA: ${{ github.workspace }}/swift-tui-examples/.build/xcode-derived-data
