@@ -1,7 +1,7 @@
 plugins {
   id("com.android.application")
   id("org.jetbrains.kotlin.plugin.compose")
-  id("sh.swifttui.android") version "0.1.5"
+  id("sh.swifttui.android") version "0.1.6"
 }
 
 val ndkVersionPin = "27.3.13750724"
@@ -33,7 +33,7 @@ android {
     minSdk = 28
     targetSdk = 36
     versionCode = 1
-    versionName = "0.1.5"
+    versionName = "0.1.6"
 
     ndk {
       // arm64-v8a only — keep in sync with the host library's Application.mk.
@@ -77,7 +77,7 @@ swiftTuiAndroidHost {
 }
 
 dependencies {
-  implementation("sh.swifttui:android-host:0.1.5")
+  implementation("sh.swifttui:android-host:0.1.6")
 
   implementation(platform("androidx.compose:compose-bom:2026.05.01"))
   implementation("androidx.activity:activity-compose:1.13.0")
