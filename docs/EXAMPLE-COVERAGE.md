@@ -3,7 +3,9 @@
 This matrix is the maintenance contract for the example repo. Each example
 should have a clear product surface, host/build mode, gate status, and audience.
 If an example is not built by an automated gate, mark it manual-only here and
-explain why.
+explain why. The `SwiftTUICharts` product listed below resolves from the
+separate [`swift-tui-charts`](https://github.com/SwiftTUI/swift-tui-charts)
+package; every other SwiftTUI product resolves from `swift-tui`.
 
 ## Example Categories
 

@@ -23,7 +23,8 @@ let package = Package(
     ),
   ],
   dependencies: [
-    .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.1.4"),
+    .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.1.5"),
+    .package(url: "https://github.com/SwiftTUI/swift-tui-charts.git", exact: "0.1.5"),
     .package(url: "https://github.com/swiftlang/swift-syntax.git", exact: "603.0.1"),
   ],
   targets: [
@@ -38,7 +39,7 @@ let package = Package(
       name: "Layouts",
       dependencies: [
         .product(name: "SwiftTUIRuntime", package: "swift-tui"),
-        .product(name: "SwiftTUICharts", package: "swift-tui"),
+        .product(name: "SwiftTUICharts", package: "swift-tui-charts"),
       ],
       plugins: [
         .plugin(name: "LayoutSourceSnippetPlugin")

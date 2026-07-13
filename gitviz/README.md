@@ -20,7 +20,7 @@ and inherit the framework's `--no-color`, `--ascii`, `--reduce-motion`,
 
 ## Demonstrates
 
-- `SwiftTUICharts` — which means a developer gets ready-made terminal chart primitives (heatmaps, sparklines, line/bar/column charts, gauges, timelines) instead of hand-rolling cell drawing. Every chart type in the module is exercised by at least one subcommand.
+- `SwiftTUICharts` (from the separate [`swift-tui-charts`](https://github.com/SwiftTUI/swift-tui-charts) package) — which means a developer gets ready-made terminal chart primitives (heatmaps, sparklines, line/bar/column charts, gauges, timelines) instead of hand-rolling cell drawing. Every chart type in the module is exercised by at least one subcommand.
 - `SwiftTUICLI` argument parsing — a single executable fans out into many named subcommands, each with shared `SwiftTUIOptions` flags.
 - One-shot terminal rendering — each subcommand prints a chart and exits, with no interactive loop, so the output composes cleanly into pipes and scripts.
 
@@ -53,5 +53,5 @@ swiftly run swift test --package-path gitviz
 
 ## See also
 
-- [`SwiftTUICharts` reference](https://swifttui.sh/docs/documentation/) — the chart primitives this example exercises.
+- [`SwiftTUICharts` reference](https://swifttui.sh/docs/charts/documentation/swifttuicharts/) — the chart primitives this example exercises (from the separate [`swift-tui-charts`](https://github.com/SwiftTUI/swift-tui-charts) package).
 - A sibling example in this repo's [README roster](../README.md).

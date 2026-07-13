@@ -19,7 +19,7 @@ Pass `--tab <key>` to land on a specific tab for screenshots or manual checks, f
 ## Demonstrates
 
 - `SwiftTUI` — which means the full app surface: automatic chrome, tabbed panes, sidebar navigation, multiline editing, focus, and terminal-native alert/sheet/popover presentation.
-- `SwiftTUICharts` and `SwiftTUIAnimatedImage` — which means drop-in charting and animated-image playback rendered directly into terminal cells.
+- `SwiftTUICharts` (from the separate [`swift-tui-charts`](https://github.com/SwiftTUI/swift-tui-charts) package) and `SwiftTUIAnimatedImage` — which means drop-in charting and animated-image playback rendered directly into terminal cells.
 - Command-palette-driven workspace patterns (`Ctrl+K`) — which means the same command and presentation surfaces app authors use, composed locally as an example.
 
 ## Tabs

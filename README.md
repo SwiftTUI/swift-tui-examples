@@ -86,7 +86,7 @@ Already know the package you need? Jump straight to an example that uses it.
 | `SwiftTUIRuntime` / host-managed scenes | [gallery](gallery), [WebExample](WebExample) |
 | `SwiftTUICLI` / one-shot rendering and terminal launch | [minimal](minimal), [terminal-runner](terminal-runner), [gitviz](gitviz) |
 | `SwiftTUIArguments` / `SwiftTUICommand` | [argparse](argparse), [gallery](gallery), [gifeditor](gifeditor), [gitviz](gitviz) |
-| `SwiftTUICharts` | [gitviz](gitviz), [gallery](gallery), [layouts](layouts) |
+| `SwiftTUICharts` (separate [`swift-tui-charts`](https://github.com/SwiftTUI/swift-tui-charts) package) | [gitviz](gitviz), [gallery](gallery), [layouts](layouts) |
 | `SwiftTUIAnimatedImage` | Included by `SwiftTUI`; used directly by [gifcat](gifcat), [gallery](gallery) |
 | `SwiftTUITerminal` | [file-previewer](file-previewer) |
 | `SwiftTUITerminalWorkspace` | [terminal-workspace](terminal-workspace) |

@@ -8,8 +8,8 @@ update it there when adding an example.
 
 The maintained, consumer-facing roster of runnable SwiftTUI example apps (one
 directory + README per example). Examples exercise the public products
-(`SwiftTUI`, `SwiftTUIRuntime`, `SwiftTUICharts`, `SwiftUIHost`,
-`SwiftTUIWASI`, …). Use the README roster table for the exact run/test command
+(`SwiftTUI`, `SwiftTUIRuntime`, `SwiftUIHost`, `SwiftTUIWASI`, …) and the
+separate `swift-tui-charts` package's `SwiftTUICharts` product. Use the README roster table for the exact run/test command
 per example.
 
 This repo is public beta. Default manifests must use tagged HTTPS

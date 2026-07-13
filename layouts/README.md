@@ -13,7 +13,7 @@ The app launches directly into the full-screen push/pop picker.
 ## Demonstrates
 
 - `SwiftTUI` measure/place/proposal model — which means you can see each geometry rule (sizing, placement, proposal handling) demonstrated in isolation rather than tangled in a real app.
-- `SwiftTUIRuntime` and `SwiftTUICharts` surfaces — overlays, scrolling, shapes, matched geometry, and custom layouts each get a dedicated entry.
+- `SwiftTUIRuntime` and `SwiftTUICharts` (from the separate [`swift-tui-charts`](https://github.com/SwiftTUI/swift-tui-charts) package) surfaces — overlays, scrolling, shapes, matched geometry, and custom layouts each get a dedicated entry.
 - A self-checking catalog — every entry is pinned by a smoke test, and `.behaviour`-tagged layouts add targeted tests for the specific measure/place rule they exist to show.
 
 ## Scope

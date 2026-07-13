@@ -19,7 +19,8 @@ let package = Package(
     ),
   ],
   dependencies: [
-    .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.1.4")
+    .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.1.5"),
+    .package(url: "https://github.com/SwiftTUI/swift-tui-charts.git", exact: "0.1.5"),
   ],
   targets: [
     .executableTarget(
@@ -34,7 +35,7 @@ let package = Package(
       dependencies: [
         .product(name: "SwiftTUIRuntime", package: "swift-tui"),
         .product(name: "SwiftTUIAnimatedImage", package: "swift-tui"),
-        .product(name: "SwiftTUICharts", package: "swift-tui"),
+        .product(name: "SwiftTUICharts", package: "swift-tui-charts"),
       ]
     ),
     .testTarget(
