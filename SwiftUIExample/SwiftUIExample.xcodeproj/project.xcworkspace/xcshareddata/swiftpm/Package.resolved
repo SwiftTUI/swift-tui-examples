@@ -47,6 +47,15 @@
       }
     },
     {
+      "identity" : "swift-tui-charts",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/SwiftTUI/swift-tui-charts.git",
+      "state" : {
+        "revision" : "dd636d139af6e7c496e224fd5bbe66e2f6d9b279",
+        "version" : "0.1.5"
+      }
+    },
+    {
       "identity" : "swift-tui-swiftui",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/SwiftTUI/swift-tui-swiftui.git",
