@@ -38,7 +38,7 @@ This example app is a full-screen component workbench. It is designed to feel li
 | Calculator | Click targets and compact control layout |
 | Borders & Shapes | Shape drawing, borders, and panel chrome |
 | Presentation Lab | alert, confirmationDialog, sheet, toast, boolean and item popovers, popoverTip, and paletteSheet |
-| Navigation & Collections | Typed NavigationStack paths, navigationDestination, navigationTitle, OutlineGroup, lazy stacks, list selection, and table selection |
+| Navigation & Collections | NavigationStack, navigationDestination, OutlineGroup, lazy stacks, list selection, and table selection |
 | Images | Image attachments, rendered image placement, and `SwiftTUIAnimatedImage` playback |
 | Animations | Runtime invalidation and animated presentation |
 | File Drop | File-drop authoring surface |

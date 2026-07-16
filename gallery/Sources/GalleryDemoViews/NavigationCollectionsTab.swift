@@ -3,10 +3,10 @@ import SwiftTUIRuntime
 struct NavigationCollectionsTab: View {
   @State private var selectedDoc = "overview"
   @State private var selectedTableRow = "queued"
-  @State private var path: [NavigationCollectionsRoute] = []
+  @State private var showingDetail = false
 
   var body: some View {
-    NavigationStack(path: $path) {
+    NavigationStack {
       ScrollView {
         VStack(alignment: .leading, spacing: 1) {
           header
@@ -20,12 +20,12 @@ struct NavigationCollectionsTab: View {
           Divider()
           tableSection
           Button("Open selected detail") {
-            path.append(.selectedDetail)
+            showingDetail = true
           }
           Spacer(minLength: 0)
         }
         .padding(1)
-        .navigationDestination(for: NavigationCollectionsRoute.self) { _ in
+        .navigationDestination(isPresented: $showingDetail) {
           detailView
         }
       }
@@ -37,7 +37,7 @@ struct NavigationCollectionsTab: View {
     VStack(alignment: .leading, spacing: 0) {
       Text("Navigation & Collections").foregroundStyle(.foreground)
       Text(
-        "Typed navigation paths, destination titles, OutlineGroup, lazy stacks, list selection, and table selection."
+        "NavigationStack, navigationDestination, OutlineGroup, lazy stacks, list selection, and table selection."
       )
       .foregroundStyle(.separator)
     }
@@ -122,11 +122,10 @@ struct NavigationCollectionsTab: View {
       Text("List row: \(selectedDoc)")
       Text("Table row: \(selectedTableRow)")
       Button("Done") {
-        path.removeAll()
+        showingDetail = false
       }
     }
     .padding(2)
-    .navigationTitle("Selected detail")
   }
 
   private static let outlineNodes: [OutlineNode] = [
@@ -146,10 +145,6 @@ struct NavigationCollectionsTab: View {
       ]
     ),
   ]
-}
-
-private enum NavigationCollectionsRoute: Hashable, Sendable {
-  case selectedDetail
 }
 
 private struct OutlineNode: Identifiable, Sendable {
