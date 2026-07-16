@@ -3,10 +3,10 @@ import SwiftTUIRuntime
 struct NavigationCollectionsTab: View {
   @State private var selectedDoc = "overview"
   @State private var selectedTableRow = "queued"
-  @State private var showingDetail = false
+  @State private var path: [NavigationCollectionsRoute] = []
 
   var body: some View {
-    NavigationStack(id: "navigation-collections-lab") {
+    NavigationStack(path: $path) {
       ScrollView {
         VStack(alignment: .leading, spacing: 1) {
           header
@@ -20,12 +20,12 @@ struct NavigationCollectionsTab: View {
           Divider()
           tableSection
           Button("Open selected detail") {
-            showingDetail = true
+            path.append(.selectedDetail)
           }
           Spacer(minLength: 0)
         }
         .padding(1)
-        .navigationDestination(isPresented: $showingDetail) {
+        .navigationDestination(for: NavigationCollectionsRoute.self) { _ in
           detailView
         }
       }
@@ -36,8 +36,10 @@ struct NavigationCollectionsTab: View {
   private var header: some View {
     VStack(alignment: .leading, spacing: 0) {
       Text("Navigation & Collections").foregroundStyle(.foreground)
-      Text("NavigationStack, navigationDestination, OutlineGroup, lazy stacks, list selection, and table selection.")
-        .foregroundStyle(.separator)
+      Text(
+        "Typed navigation paths, destination titles, OutlineGroup, lazy stacks, list selection, and table selection."
+      )
+      .foregroundStyle(.separator)
     }
   }
 
@@ -120,10 +122,11 @@ struct NavigationCollectionsTab: View {
       Text("List row: \(selectedDoc)")
       Text("Table row: \(selectedTableRow)")
       Button("Done") {
-        showingDetail = false
+        path.removeAll()
       }
     }
     .padding(2)
+    .navigationTitle("Selected detail")
   }
 
   private static let outlineNodes: [OutlineNode] = [
@@ -143,6 +146,10 @@ struct NavigationCollectionsTab: View {
       ]
     ),
   ]
+}
+
+private enum NavigationCollectionsRoute: Hashable, Sendable {
+  case selectedDetail
 }
 
 private struct OutlineNode: Identifiable, Sendable {
