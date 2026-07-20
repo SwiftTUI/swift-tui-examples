@@ -289,6 +289,7 @@ async function createController(
       environment: {
         TUIGUI_APP_NAME: "WebExample",
         ...(frameDiagnosticsEnabled() ? { TUIGUI_FRAME_DIAGNOSTICS: "1" } : {}),
+        ...resolveProfileOverridesFromQuery(),
       },
       sceneRuntimeFactory: (options) => wasmRuntimeFactory(webExampleRuntimeOptions(options)),
     });
@@ -319,6 +320,20 @@ function frameDiagnosticsEnabled(): boolean {
   } catch {
     return false;
   }
+}
+
+function resolveProfileOverridesFromQuery(): Record<string, string> {
+  const searchParams = new URLSearchParams(window.location.search);
+  const overrides: Record<string, string> = {};
+  const leanProfile = searchParams.get("leanProfile");
+  if (leanProfile === "0" || leanProfile === "1") {
+    overrides.SWIFTTUI_STACK_LEAN_PROFILE = leanProfile;
+  }
+  const depthLimit = searchParams.get("depthLimit");
+  if (depthLimit !== null && /^\d+$/.test(depthLimit)) {
+    overrides.SWIFTTUI_RESOLVE_DEPTH_LIMIT = depthLimit;
+  }
+  return overrides;
 }
 
 function webExampleRuntimeOptions(
