@@ -11,7 +11,7 @@ swift_args=(
   -Xlinker --initial-memory=536870912
   -Xlinker --max-memory=4294967296
   -Xlinker -z
-  -Xlinker stack-size=1048576
+  -Xlinker stack-size=16777216
 )
 
 printf 'WASM_REQUIRED_FLAGS_CONFIRMED=true\n'

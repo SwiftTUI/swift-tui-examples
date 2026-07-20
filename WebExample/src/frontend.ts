@@ -279,6 +279,7 @@ async function createController(
       onSceneResize,
       onRuntimeCreated,
       workerModuleURL: new URL("./wasm-scene-worker.js", import.meta.url),
+      executionMode: executionModeFromQuery(),
     });
 
     return await createWebHostApp({
@@ -320,6 +321,11 @@ function frameDiagnosticsEnabled(): boolean {
   } catch {
     return false;
   }
+}
+
+function executionModeFromQuery(): "worker" | "main-thread" | "auto" {
+  const mode = new URLSearchParams(window.location.search).get("executionMode");
+  return mode === "worker" || mode === "main-thread" ? mode : "auto";
 }
 
 function resolveProfileOverridesFromQuery(): Record<string, string> {
