@@ -1,5 +1,5 @@
 {
-  "originHash" : "de6648f22acfcf534fe0ec6c54b876bae1047c6fb5630f2313c09ed73ca283c5",
+  "originHash" : "98e483f2bc0ac2a75b30de0884620f8246b1022dec1d8282e3e376642d08c62c",
   "pins" : [
     {
       "identity" : "flyingfox",
@@ -60,8 +60,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/SwiftTUI/swift-tui.git",
       "state" : {
-        "revision" : "70feb5cf8ffbd5968425a9e63cd31893b32b9da4",
-        "version" : "0.1.7"
+        "revision" : "d60e6ebba2f544a5178e42029c633b4c51d10c04",
+        "version" : "0.1.8"
       }
     },
     {
@@ -69,8 +69,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/SwiftTUI/swift-tui-charts.git",
       "state" : {
-        "revision" : "3ac36b4e0850b0cf950c574287d2f55af6cff02a",
-        "version" : "0.1.7"
+        "revision" : "b7039a672f4f3a29a14009a8bdbf59d6399b6520",
+        "version" : "0.1.8"
       }
     },
     {
@@ -78,8 +78,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/SwiftTUI/swift-tui-swiftui.git",
       "state" : {
-        "revision" : "61d0260528c99dd61e75e54732f1944e7b62c85d",
-        "version" : "0.1.7"
+        "revision" : "2e47ddc7feadeb9640f6494a9686137075dbc592",
+        "version" : "0.1.8"
       }
     },
     {
