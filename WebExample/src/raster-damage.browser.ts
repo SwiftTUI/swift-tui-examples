@@ -32,35 +32,44 @@ test("WebExample Game of Life emits raster damage on steady frames", async () =>
       configurable: true,
       value: samples,
     });
+    // The WebHost wire carries two surface shapes: full frames (`version: 2`
+    // with complete `rows`) and delta frames (`version: 3, encoding: "delta"`
+    // with `deltaRows` row patches). Steady scenes present deltas — a delta
+    // IS a damage frame, its patched rows are the dirty set.
     JSON.parse = function patchedJSONParse(
       text: string,
       reviver?: Parameters<typeof JSON.parse>[1]
     ) {
       const value = originalParse.call(this, text, reviver);
-      if (isSurfaceFrame(value)) {
-        const damage = (value as { damage?: { textRows?: unknown[] } }).damage;
-        samples.push({
-          timestamp: performance.now(),
-          hasDamage: Boolean(damage),
-          dirtyRows: Array.isArray(damage?.textRows) ? damage.textRows.length : 0,
-        });
+      if (value && typeof value === "object") {
+        const frame = value as {
+          width?: unknown;
+          height?: unknown;
+          rows?: unknown;
+          deltaRows?: unknown[];
+          encoding?: unknown;
+          damage?: { textRows?: unknown[] };
+        };
+        if (typeof frame.width === "number" && typeof frame.height === "number") {
+          if (Array.isArray(frame.rows)) {
+            samples.push({
+              timestamp: performance.now(),
+              hasDamage: Boolean(frame.damage),
+              dirtyRows: Array.isArray(frame.damage?.textRows)
+                ? frame.damage.textRows.length
+                : 0,
+            });
+          } else if (frame.encoding === "delta" && Array.isArray(frame.deltaRows)) {
+            samples.push({
+              timestamp: performance.now(),
+              hasDamage: true,
+              dirtyRows: frame.deltaRows.length,
+            });
+          }
+        }
       }
       return value;
     };
-
-    function isSurfaceFrame(value: unknown): boolean {
-      if (!value || typeof value !== "object") {
-        return false;
-      }
-      const frame = value as {
-        width?: unknown;
-        height?: unknown;
-        rows?: unknown;
-      };
-      return typeof frame.width === "number"
-        && typeof frame.height === "number"
-        && Array.isArray(frame.rows);
-    }
   });
 
   try {

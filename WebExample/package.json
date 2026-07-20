@@ -12,7 +12,7 @@
     "build:dev": "bun run build:terminal:dev && bun build ./src/index.html --outdir=dist --sourcemap --target=browser && bun build ./src/wasm-scene-worker.ts --outfile=dist/wasm-scene-worker.js --target=browser --format=esm && bun run src/build-pages.ts",
     "start": "bun src/start.ts",
     "test": "bun test",
-    "test:browser": "playwright install chromium && bun run build && bun test ./src/browser-integration.browser.ts --timeout 120000 && bun test ./src/frame-cadence.browser.ts --timeout 120000 && bun test ./src/raster-damage.browser.ts --timeout 120000"
+    "test:browser": "playwright install chromium webkit && bun run build && bun test ./src/browser-integration.browser.ts --timeout 120000 && bun test ./src/frame-cadence.browser.ts --timeout 120000 && bun test ./src/raster-damage.browser.ts --timeout 120000 && bun test ./src/webkit-journey.browser.ts --timeout 480000"
   },
   "dependencies": {
     "@swifttui/build": "https://github.com/SwiftTUI/swift-tui-web/releases/download/0.1.7/swifttui-build-0.1.7.tgz",
