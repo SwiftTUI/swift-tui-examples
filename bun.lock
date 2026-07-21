@@ -7,10 +7,10 @@
     },
     "WebExample": {
       "name": "web-example",
-      "version": "0.1.10",
+      "version": "0.1.11",
       "dependencies": {
-        "@swifttui/build": "https://github.com/SwiftTUI/swift-tui-web/releases/download/0.1.10/swifttui-build-0.1.10.tgz",
-        "@swifttui/web": "https://github.com/SwiftTUI/swift-tui-web/releases/download/0.1.10/swifttui-web-0.1.10.tgz",
+        "@swifttui/build": "https://github.com/SwiftTUI/swift-tui-web/releases/download/0.1.11/swifttui-build-0.1.11.tgz",
+        "@swifttui/web": "https://github.com/SwiftTUI/swift-tui-web/releases/download/0.1.11/swifttui-web-0.1.11.tgz",
       },
       "devDependencies": {
         "@types/bun": "1.3.13",
@@ -19,14 +19,14 @@
     },
   },
   "overrides": {
-    "@swifttui/web": "https://github.com/SwiftTUI/swift-tui-web/releases/download/0.1.10/swifttui-web-0.1.10.tgz",
+    "@swifttui/web": "https://github.com/SwiftTUI/swift-tui-web/releases/download/0.1.11/swifttui-web-0.1.11.tgz",
   },
   "packages": {
     "@bjorn3/browser_wasi_shim": ["@bjorn3/browser_wasi_shim@0.4.2", "", {}, "sha512-/iHkCVUG3VbcbmEHn5iIUpIrh7a7WPiwZ3sHy4HZKZzBdSadwdddYDZAII2zBvQYV0Lfi8naZngPCN7WPHI/hA=="],
 
-    "@swifttui/build": ["@swifttui/build@https://github.com/SwiftTUI/swift-tui-web/releases/download/0.1.10/swifttui-build-0.1.10.tgz", { "dependencies": { "@swifttui/web": "0.1.10" }, "bin": { "swifttui-web": "./dist/cli.js" } }, "sha512-nHfyOgz2bg2OMg13gSK+X4jTTAMxP4P4hOrNg+Y6mmSlRzH7FvI03QYFRTkRkZvliryxgHNgHQ65SKc1JklO3w=="],
+    "@swifttui/build": ["@swifttui/build@https://github.com/SwiftTUI/swift-tui-web/releases/download/0.1.11/swifttui-build-0.1.11.tgz", { "dependencies": { "@swifttui/web": "0.1.11" }, "bin": { "swifttui-web": "./dist/cli.js" } }, "sha512-B3v/gBLc+5UCpGtQ/Ah+gp2eDnHGN8/n4ojeb8vDr6qFqHbU6+y9xjjq0q6YWS5qP6bNK4pS0qDWOhsE7Bp9Fw=="],
 
-    "@swifttui/web": ["@swifttui/web@https://github.com/SwiftTUI/swift-tui-web/releases/download/0.1.10/swifttui-web-0.1.10.tgz", { "dependencies": { "@bjorn3/browser_wasi_shim": "^0.4.2" } }, "sha512-roCkG9IMcjDa7HLICMuYgrhvWCdtLGtJMOQz7E4lhc5mBUiuqqRYNCuvuGz2PJxJM1KlKFYXhhntHY8UXwU1ng=="],
+    "@swifttui/web": ["@swifttui/web@https://github.com/SwiftTUI/swift-tui-web/releases/download/0.1.11/swifttui-web-0.1.11.tgz", { "dependencies": { "@bjorn3/browser_wasi_shim": "^0.4.2" } }, "sha512-f0ObDrQVTxjw/CYPfhlFGDqY7T760ozwJpMlU2lGayOEIEXO05ZnnXMxax9A0nm7nbS2aWF5VTovNGz8MkH88Q=="],
 
     "@types/bun": ["@types/bun@1.3.13", "", { "dependencies": { "bun-types": "1.3.13" } }, "sha512-9fqXWk5YIHGGnUau9TEi+qdlTYDAnOj+xLCmSTwXfAIqXr2x4tytJb43E9uCvt09zJURKXwAtkoH4nLQfzeTXw=="],
 
