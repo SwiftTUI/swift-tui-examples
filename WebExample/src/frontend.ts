@@ -339,6 +339,13 @@ function resolveProfileOverridesFromQuery(): Record<string, string> {
   if (depthLimit !== null && /^\d+$/.test(depthLimit)) {
     overrides.SWIFTTUI_RESOLVE_DEPTH_LIMIT = depthLimit;
   }
+  // Allowlisted so a page URL can only select sanctioned completed-frame
+  // disposal policies, never arbitrary runtime modes ("sync" is not a
+  // supported WASI drive shape).
+  const renderMode = searchParams.get("renderMode");
+  if (renderMode === "async" || renderMode === "async-no-cancel") {
+    overrides.TERMUI_RENDER_MODE = renderMode;
+  }
   return overrides;
 }
 
