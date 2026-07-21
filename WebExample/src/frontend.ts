@@ -346,6 +346,10 @@ function resolveProfileOverridesFromQuery(): Record<string, string> {
   if (renderMode === "async" || renderMode === "async-no-cancel") {
     overrides.TERMUI_RENDER_MODE = renderMode;
   }
+  const presentedProgressGuard = searchParams.get("presentedProgressGuard");
+  if (presentedProgressGuard === "0" || presentedProgressGuard === "1") {
+    overrides.SWIFTTUI_PRESENTED_PROGRESS_GUARD = presentedProgressGuard;
+  }
   return overrides;
 }
 

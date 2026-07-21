@@ -61,10 +61,15 @@ test("per-tick frame emission bands across profiles and render modes", async () 
   const server = serveBuiltWebExample();
   const browser = await chromium.launch();
   try {
+    // `presentedProgressGuard=0` pins the un-guarded disposal regime the
+    // fingerprint below witnesses, so a Presented-Progress Guard default flip
+    // in swift-tui cannot silently defuse this control lane (the Stage-4
+    // lean-lane lesson: parameter-less lanes drift with defaults). Builds
+    // predating the guard ignore the unread variable.
     const control = await captureSteadyWindow(
       server.url.href,
       browser,
-      "leanProfile=0&renderMode=async",
+      "leanProfile=0&renderMode=async&presentedProgressGuard=0",
     );
 
     // Red-first witness: the harness must be able to SEE the suppression. If
