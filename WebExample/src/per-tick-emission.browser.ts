@@ -91,7 +91,10 @@ test("per-tick frame emission bands across profiles and render modes", async () 
     );
     expectPerTickCadence(fixMainThread);
 
-    const lean = await captureSteadyWindow(server.url.href, browser, "");
+    // Pinned explicitly: since 0.1.12 the chromium *default* profile is
+    // non-lean (V8 lean-off), so a parameter-less lane would silently stop
+    // measuring the lean band.
+    const lean = await captureSteadyWindow(server.url.href, browser, "leanProfile=1");
 
     // Bounded, never zero-required: a single legitimate cancel+replay is not a
     // regression. What must NOT appear on lean is the non-lean drop cascade.
