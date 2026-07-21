@@ -20,10 +20,13 @@ import { serveBuiltWebExample } from "./built-app-server.ts";
 // per-profile bands are deliberate — the lean profile's healthy baseline is
 // its G1 intent-merge band (~0.67 coverage), NOT the non-lean fix band.
 //
-// Suppression fingerprint assertions live ONLY on the pre-fix control lane
-// (`renderMode=async`), where they are falsifiable — under async-no-cancel a
-// zero-drop assertion is tautological (the mode removes the mechanism), so
-// the fix lanes assert delivered frame cadence instead.
+// Suppression fingerprint assertions live ONLY on lanes where they are
+// falsifiable: the pre-fix control lane (`renderMode=async`, guard off) must
+// KEEP witnessing the drop cascade, and the guard-witness lane (same render
+// mode, guard on) asserts zero drops with the disposal mechanism still armed
+// — the control lane is its red-proof. Under async-no-cancel a zero-drop
+// assertion is tautological (the mode removes the mechanism), so the fix
+// lanes assert delivered frame cadence instead.
 
 declare global {
   interface Window {
@@ -81,6 +84,27 @@ test("per-tick frame emission bands across profiles and render modes", async () 
     // Measured 0.23 under the 2-drop saturation floor. Anything near the fix
     // band would mean the control lane no longer reproduces the defect.
     expect(controlCoverage.coverage).toBeLessThanOrEqual(0.5);
+
+    // Guard-witness lane: the Presented-Progress Guard
+    // (SWIFTTUI_PRESENTED_PROGRESS_GUARD=1, opt-in FeatureGate) must
+    // eliminate disposals in the SAME drop-prone regime the control lane
+    // just witnessed — undelivered presentation damage forces ordered
+    // commits. Zero is asserted (not bounded): every drop the guard misses
+    // is a broken invariant, and the control lane proves this regime
+    // produces the cascade whenever the guard is off. Coverage measured
+    // 0.674 guard-on — above the saturated control (0.23) but below the
+    // async-no-cancel fix band, because `renderMode=async` acquisition
+    // latency (the G1 intent-merge leg) is untouched by the guard; 0.55
+    // keeps CI margin without overlapping the control band.
+    const guardWitness = await captureSteadyWindow(
+      server.url.href,
+      browser,
+      "leanProfile=0&renderMode=async&presentedProgressGuard=1",
+    );
+    expect(countTailState(guardWitness.diagRows, "dropped_completed")).toBe(0);
+    const guardCoverage = distinctGenerationCoverage(guardWitness.samples);
+    expect(guardCoverage.generationDelta).toBeGreaterThanOrEqual(24);
+    expect(guardCoverage.coverage).toBeGreaterThanOrEqual(0.55);
 
     const fixWorker = await captureSteadyWindow(
       server.url.href,
