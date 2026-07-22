@@ -20,13 +20,16 @@ import { serveBuiltWebExample } from "./built-app-server.ts";
 // per-profile bands are deliberate — the lean profile's healthy baseline is
 // its G1 intent-merge band (~0.67 coverage), NOT the non-lean fix band.
 //
-// Suppression fingerprint assertions live ONLY on lanes where they are
-// falsifiable: the pre-fix control lane (`renderMode=async`, guard off) must
-// KEEP witnessing the drop cascade, and the guard-witness lane (same render
-// mode, guard on) asserts zero drops with the disposal mechanism still armed
-// — the control lane is its red-proof. Under async-no-cancel a zero-drop
-// assertion is tautological (the mode removes the mechanism), so the fix
-// lanes assert delivered frame cadence instead.
+// Since the 2026-07-22 granular-observation LifeTab restructure the demo is
+// structurally disposal-immune even under `renderMode=async` (every tick
+// frame carries a `handlerInstallations` drop blocker from the board's
+// re-recorded gesture handlers), so the historical live drop-cascade
+// fingerprint is unreproducible here. The control-regime lanes now pin that
+// immunity (zero drops + healthy cadence); the disposal mechanism's own
+// red-proof is app-independent and lives in swift-tui's
+// PerTickPresentCadenceTests. Under async-no-cancel a zero-drop assertion is
+// tautological (the mode removes the mechanism), so the fix lanes assert
+// delivered frame cadence instead.
 
 declare global {
   interface Window {
@@ -64,38 +67,43 @@ test("per-tick frame emission bands across profiles and render modes", async () 
   const server = serveBuiltWebExample();
   const browser = await chromium.launch();
   try {
-    // `presentedProgressGuard=0` pins the un-guarded disposal regime the
-    // fingerprint below witnesses, so a Presented-Progress Guard default flip
-    // in swift-tui cannot silently defuse this control lane (the Stage-4
-    // lean-lane lesson: parameter-less lanes drift with defaults). Builds
-    // predating the guard ignore the unread variable.
+    // `presentedProgressGuard=0` pins the un-guarded disposal regime, so a
+    // Presented-Progress Guard default flip in swift-tui cannot silently
+    // change this lane's meaning (the Stage-4 lean-lane lesson:
+    // parameter-less lanes drift with defaults). Builds predating the guard
+    // ignore the unread variable.
+    //
+    // LANE SEMANTICS REVISED 2026-07-22 (granular-observation LifeTab):
+    // this lane USED to be the live red-first witness of the 0.1.9 drop
+    // cascade (>= 10 dropped_completed, coverage <= 0.5 saturated). The
+    // restructured demo is structurally disposal-immune in this regime:
+    // every tick re-resolves the board subtree (it reads the grid), whose
+    // gesture/handler registrations re-record and stamp the frame with a
+    // `handlerInstallations` drop blocker (measured 59/60 frames; the old
+    // hoisted-@State shape re-ran only the tab shell while REUSE restored
+    // the board's handlers — no first-registration delta, hence droppable
+    // frames and the cascade). The lane therefore now pins the app's
+    // disposal *immunity* in the historically drop-prone regime: zero
+    // drops with healthy cadence. If a demo restructure ever reintroduces
+    // a droppable tick shape, this lane goes red and forces a conscious
+    // decision. The mechanism-level red-proof of the disposal class itself
+    // is app-independent and lives in swift-tui
+    // (PerTickPresentCadenceTests' deterministic injected supersession).
     const control = await captureSteadyWindow(
       server.url.href,
       browser,
       "leanProfile=0&renderMode=async&presentedProgressGuard=0",
     );
-
-    // Red-first witness: the harness must be able to SEE the suppression. If
-    // this lane stops producing drop records, the control environment drifted
-    // (or disposal policy changed underneath) and the gate lost its meaning.
-    expect(countTailState(control.diagRows, "dropped_completed")).toBeGreaterThanOrEqual(10);
+    expect(countTailState(control.diagRows, "dropped_completed")).toBe(0);
     const controlCoverage = distinctGenerationCoverage(control.samples);
     expect(controlCoverage.generationDelta).toBeGreaterThanOrEqual(24);
-    // Measured 0.23 under the 2-drop saturation floor. Anything near the fix
-    // band would mean the control lane no longer reproduces the defect.
-    expect(controlCoverage.coverage).toBeLessThanOrEqual(0.5);
+    expect(controlCoverage.coverage).toBeGreaterThanOrEqual(0.55);
 
-    // Guard-witness lane: the Presented-Progress Guard
-    // (SWIFTTUI_PRESENTED_PROGRESS_GUARD=1, opt-in FeatureGate) must
-    // eliminate disposals in the SAME drop-prone regime the control lane
-    // just witnessed — undelivered presentation damage forces ordered
-    // commits. Zero is asserted (not bounded): every drop the guard misses
-    // is a broken invariant, and the control lane proves this regime
-    // produces the cascade whenever the guard is off. Coverage measured
-    // 0.674 guard-on — above the saturated control (0.23) but below the
-    // async-no-cancel fix band, because `renderMode=async` acquisition
-    // latency (the G1 intent-merge leg) is untouched by the guard; 0.55
-    // keeps CI margin without overlapping the control band.
+    // Guard lane: the Presented-Progress Guard
+    // (SWIFTTUI_PRESENTED_PROGRESS_GUARD=1, opt-in FeatureGate) must keep
+    // the same zero-disposal shape in the same regime. Its cascade
+    // red-proof no longer lives here (see the control-lane note); the
+    // guard's own red-proof and inverse are the swift-tui composed suite.
     const guardWitness = await captureSteadyWindow(
       server.url.href,
       browser,
