@@ -39,6 +39,12 @@ const soakMilliseconds = Number(
   process.env.WEBEXAMPLE_WEBKIT_SOAK_MS ?? "60000",
 );
 
+// Optional page-query override (e.g. `leanReuse=1` to exercise the
+// stack-lean retained-reuse opt-in before it becomes an engine default) so
+// acceptance runs can pin a profile without editing the spec. Empty keeps
+// the deployed default shape.
+const journeyQuery = process.env.WEBEXAMPLE_WEBKIT_QUERY ?? "";
+
 test("WebExample survives the WebKit journey (Safari-class wasm stack budget)", async () => {
   const server = serveBuiltWebExample();
   const browser = await webkit.launch();
@@ -185,7 +191,10 @@ test("WebExample survives the WebKit journey (Safari-class wasm stack budget)", 
 
   try {
     // 1. Boot: the Game of Life scene is the default.
-    await page.goto(server.url.href, { waitUntil: "domcontentloaded" });
+    const journeyURL = journeyQuery
+      ? `${server.url.href}?${journeyQuery}`
+      : server.url.href;
+    await page.goto(journeyURL, { waitUntil: "domcontentloaded" });
     await page.waitForFunction(() => globalThis.crossOriginIsolated === true, undefined, {
       timeout: 10_000,
     });

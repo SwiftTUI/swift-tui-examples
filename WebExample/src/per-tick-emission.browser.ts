@@ -134,6 +134,23 @@ test("per-tick frame emission bands across profiles and render modes", async () 
     // Lean's healthy baseline is G1 merging only (~0.67 measured); below 0.5
     // means a disposal cascade reached the lean profile.
     expect(leanCoverage.coverage).toBeGreaterThanOrEqual(0.5);
+
+    // Lean + retained reuse (the bounded-depth-reuse program's browser
+    // shape — the stack-lean engines' deployed default once the engine flip
+    // ships): same lean bands, pinned explicitly so the lane cannot drift
+    // with engine defaults. Against wasm builds predating the flag the env
+    // var is unread and this lane measures the bare lean profile — the same
+    // bands hold, so the lane is backward-safe.
+    const leanReuse = await captureSteadyWindow(
+      server.url.href,
+      browser,
+      "leanProfile=1&leanReuse=1",
+    );
+    expect(countTailState(leanReuse.diagRows, "dropped_completed")).toBeLessThanOrEqual(2);
+    expect(countTailState(leanReuse.diagRows, "cancelled_before_start")).toBeLessThanOrEqual(3);
+    const leanReuseCoverage = distinctGenerationCoverage(leanReuse.samples);
+    expect(leanReuseCoverage.generationDelta).toBeGreaterThanOrEqual(24);
+    expect(leanReuseCoverage.coverage).toBeGreaterThanOrEqual(0.5);
   } finally {
     await browser.close();
     server.stop(true);

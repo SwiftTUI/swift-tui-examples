@@ -339,6 +339,14 @@ function resolveProfileOverridesFromQuery(): Record<string, string> {
   if (depthLimit !== null && /^\d+$/.test(depthLimit)) {
     overrides.SWIFTTUI_RESOLVE_DEPTH_LIMIT = depthLimit;
   }
+  // Retained reuse under the stack-lean profile (bounded-depth-reuse
+  // program). Meaningful only when the lean profile is active; the wasm-side
+  // gate ignores it otherwise. Backward-safe against wasm builds that
+  // predate the flag (the env var is simply unread).
+  const leanReuse = searchParams.get("leanReuse");
+  if (leanReuse === "0" || leanReuse === "1") {
+    overrides.SWIFTTUI_LEAN_RETAINED_REUSE = leanReuse;
+  }
   // Allowlisted so a page URL can only select sanctioned completed-frame
   // disposal policies, never arbitrary runtime modes ("sync" is not a
   // supported WASI drive shape).
