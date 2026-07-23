@@ -20,16 +20,13 @@ let package = Package(
   ],
   dependencies: [
     .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.1.15"),
-    .package(path: "../../gallery"),
-    .package(name: "shared-host-scenes", path: "../../SharedHostScenes"),
+    .package(path: "../../three-hosts-demo"),
   ],
   targets: [
     .target(
       name: "WebExampleScenes",
       dependencies: [
-        .product(name: "GalleryDemoViews", package: "gallery"),
-        .product(name: "SharedHostScenes", package: "shared-host-scenes"),
-        .product(name: "SwiftTUIRuntime", package: "swift-tui"),
+        .product(name: "ThreeHostsDemoCore", package: "three-hosts-demo"),
       ],
       path: "Sources/WebExampleScenes"
     ),

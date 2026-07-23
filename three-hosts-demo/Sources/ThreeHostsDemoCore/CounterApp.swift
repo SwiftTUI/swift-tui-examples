@@ -2,8 +2,8 @@ public import SwiftTUIRuntime
 
 /// The visible piece of the demo: a focused counter with one increment button.
 ///
-/// `CounterView` is the exact snippet shown in
-/// the `AuthoringSnippet` block on the marketing site.
+/// `CounterView` is the exact snippet shown in the marketing homepage's
+/// code-to-frame proof.
 public struct CounterView: View {
   @State private var count = 0
   @FocusState private var focused: Bool

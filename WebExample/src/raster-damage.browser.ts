@@ -3,100 +3,126 @@ import { chromium } from "playwright";
 
 import { serveBuiltWebExample } from "./built-app-server.ts";
 
-interface FrameSample {
-  timestamp: number;
+interface DamageSample {
   hasDamage: boolean;
   dirtyRows: number;
+  count: number | undefined;
 }
 
 declare global {
   interface Window {
-    __swiftTUIDamageSamples?: FrameSample[];
+    __swiftTUIDamageSamples?: DamageSample[];
   }
 }
 
-test("WebExample Game of Life emits raster damage on steady frames", async () => {
+test("Counter activation emits raster damage for the changed frame", async () => {
   const server = serveBuiltWebExample();
   const browser = await chromium.launch();
   const page = await browser.newPage({
-    viewport: {
-      width: 1280,
-      height: 900,
-    },
+    viewport: { width: 1280, height: 900 },
   });
 
   await page.addInitScript(() => {
     const originalParse = JSON.parse;
-    const samples: FrameSample[] = [];
+    const samples: DamageSample[] = [];
+    let rows: WebHostSurfaceCell[][] = [];
     Object.defineProperty(window, "__swiftTUIDamageSamples", {
       configurable: true,
       value: samples,
     });
-    // The WebHost wire carries two surface shapes: full frames (`version: 2`
-    // with complete `rows`) and delta frames (`version: 3, encoding: "delta"`
-    // with `deltaRows` row patches). Steady scenes present deltas — a delta
-    // IS a damage frame, its patched rows are the dirty set.
+
     JSON.parse = function patchedJSONParse(
       text: string,
-      reviver?: Parameters<typeof JSON.parse>[1]
+      reviver?: Parameters<typeof JSON.parse>[1],
     ) {
       const value = originalParse.call(this, text, reviver);
-      if (value && typeof value === "object") {
-        const frame = value as {
-          width?: unknown;
-          height?: unknown;
-          rows?: unknown;
-          deltaRows?: unknown[];
-          encoding?: unknown;
-          damage?: { textRows?: unknown[] };
-        };
-        if (typeof frame.width === "number" && typeof frame.height === "number") {
-          if (Array.isArray(frame.rows)) {
-            samples.push({
-              timestamp: performance.now(),
-              hasDamage: Boolean(frame.damage),
-              dirtyRows: Array.isArray(frame.damage?.textRows)
+      const frame = value as {
+        width?: unknown;
+        height?: unknown;
+        rows?: WebHostSurfaceCell[][];
+        deltaRows?: [number, WebHostSurfaceCell[]][];
+        encoding?: unknown;
+        damage?: { textRows?: unknown[] };
+      };
+      if (
+        frame &&
+        typeof frame === "object" &&
+        typeof frame.width === "number" &&
+        typeof frame.height === "number"
+      ) {
+        if (Array.isArray(frame.rows)) rows = frame.rows.slice();
+        else if (frame.encoding === "delta" && Array.isArray(frame.deltaRows)) {
+          for (const [index, row] of frame.deltaRows) rows[index] = row;
+        }
+        const match = rows.map(rowText).join("\n").match(/\bCount:\s*(\d+)/);
+        samples.push({
+          hasDamage:
+            frame.encoding === "delta" ||
+            Boolean(frame.damage),
+          dirtyRows:
+            frame.encoding === "delta" && Array.isArray(frame.deltaRows)
+              ? frame.deltaRows.length
+              : Array.isArray(frame.damage?.textRows)
                 ? frame.damage.textRows.length
                 : 0,
-            });
-          } else if (frame.encoding === "delta" && Array.isArray(frame.deltaRows)) {
-            samples.push({
-              timestamp: performance.now(),
-              hasDamage: true,
-              dirtyRows: frame.deltaRows.length,
-            });
-          }
-        }
+          count: match ? Number(match[1]) : undefined,
+        });
       }
       return value;
     };
+
+    function rowText(row: WebHostSurfaceCell[]): string {
+      let output = "";
+      let cursor = 0;
+      for (const [column, cellText, span] of row ?? []) {
+        if (column > cursor) output += " ".repeat(column - cursor);
+        output += cellText;
+        cursor = column + Math.max(1, span);
+      }
+      return output;
+    }
   });
 
   try {
     await page.goto(server.url.href, { waitUntil: "domcontentloaded" });
-    await page.waitForFunction(() => globalThis.crossOriginIsolated === true, undefined, {
-      timeout: 10_000,
-    });
-    await page.waitForSelector(".webhost-scene__surface", {
+    await page.waitForSelector('[role="button"][data-focused="true"]', {
       state: "attached",
       timeout: 30_000,
     });
     await page.waitForFunction(
-      () => (window.__swiftTUIDamageSamples?.length ?? 0) >= 40,
+      () => window.__swiftTUIDamageSamples?.some((sample) => sample.count === 0),
       undefined,
-      { polling: 100, timeout: 30_000 }
+      { polling: 100, timeout: 30_000 },
+    );
+    const baseline = await page.evaluate(
+      () => window.__swiftTUIDamageSamples?.length ?? 0,
     );
 
-    const samples = await page.evaluate(() => window.__swiftTUIDamageSamples ?? []);
-    const steadySamples = samples.slice(8);
-    const damagedFrames = steadySamples.filter((sample) => sample.hasDamage);
+    await page.locator('[role="button"][data-focused="true"]').press("Enter");
+    await page.waitForFunction(
+      () => window.__swiftTUIDamageSamples?.some((sample) => sample.count === 1),
+      undefined,
+      { polling: 100, timeout: 30_000 },
+    );
 
-    expect(steadySamples.length).toBeGreaterThanOrEqual(24);
-    expect(damagedFrames.length).toBeGreaterThanOrEqual(Math.floor(steadySamples.length * 0.8));
-    expect(damagedFrames.some((sample) => sample.dirtyRows > 0)).toBe(true);
+    const changedSamples = await page.evaluate(
+      (start) => (window.__swiftTUIDamageSamples ?? []).slice(start),
+      baseline,
+    );
+    expect(changedSamples.some((sample) => sample.count === 1)).toBe(true);
+    expect(
+      changedSamples.some((sample) => sample.hasDamage && sample.dirtyRows > 0),
+    ).toBe(true);
   } finally {
     await page.close();
     await browser.close();
     server.stop(true);
   }
 }, 120_000);
+
+type WebHostSurfaceCell = [
+  column: number,
+  text: string,
+  span: number,
+  style: number,
+];

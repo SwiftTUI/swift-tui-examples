@@ -1,27 +1,6 @@
-import GalleryDemoViews
-import SharedHostScenes
-import SwiftTUIRuntime
+public import ThreeHostsDemoCore
 
-public struct WebExampleApp: App {
-  public init() {}
-
-  public var body: some Scene {
-    WindowGroup("Game of Life") {
-      LifeTab()
-    }
-    WindowGroup("Animations", id: WindowIdentifier("animations")) {
-      AnimationsTab()
-    }
-    WindowGroup("Images", id: WindowIdentifier("images")) {
-      ImagesTab()
-    }
-    WindowGroup("Calculator", id: WindowIdentifier("calculator")) {
-      CalculatorTab()
-    }
-  }
-
-  /// Stable, ordered roster of scene titles for tests and the host picker.
-  public nonisolated var sceneTitles: [String] {
-    ["Game of Life", "Animations", "Images", "Calculator"]
-  }
-}
+/// The browser deployment intentionally runs the exact `CounterApp` shared by
+/// the terminal and native SwiftUI hosts. The alias keeps the public
+/// `WebExampleApp` entry point stable while avoiding a second authored app.
+public typealias WebExampleApp = CounterApp

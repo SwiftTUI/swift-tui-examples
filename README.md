@@ -83,7 +83,7 @@ Already know the package you need? Jump straight to an example that uses it.
 | Product or package | Examples |
 | --- | --- |
 | `SwiftTUI` convenience surface | [argparse](argparse), [gallery](gallery), [layouts](layouts), [file-previewer](file-previewer), [terminal-workspace](terminal-workspace), [gifcat](gifcat), [gifeditor](gifeditor), [WebHostExample](WebHostExample) |
-| `SwiftTUIRuntime` / host-managed scenes | [gallery](gallery), [WebExample](WebExample) |
+| `SwiftTUIRuntime` / host-managed scenes | [gallery](gallery), [three-hosts-demo](three-hosts-demo), [WebExample](WebExample) |
 | `SwiftTUICLI` / one-shot rendering and terminal launch | [minimal](minimal), [terminal-runner](terminal-runner), [gitviz](gitviz) |
 | `SwiftTUIArguments` / `SwiftTUICommand` | [argparse](argparse), [gallery](gallery), [gifeditor](gifeditor), [gitviz](gitviz) |
 | `SwiftTUICharts` (separate [`swift-tui-charts`](https://github.com/SwiftTUI/swift-tui-charts) package) | [gitviz](gitviz), [gallery](gallery), [layouts](layouts) |

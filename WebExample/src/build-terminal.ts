@@ -25,9 +25,9 @@ await buildAppWasm({
   packagePath,
   outputDirectory,
   product: appExecutable,
-  // Deep non-lean resolves overflow the default 1 MiB linear-memory stack
-  // (wasm OOB trap in the Animations scene). Explicit until the bumped
-  // @swifttui/build default ships; keep in sync with TerminalApp/build.sh.
+  // Deep non-lean resolves can overflow the default 1 MiB linear-memory stack.
+  // Keep this explicit until the bumped @swifttui/build default ships, and keep
+  // it in sync with TerminalApp/build.sh.
   stackSize: 16777216,
 });
 await mkdir(distDirectory, { recursive: true });

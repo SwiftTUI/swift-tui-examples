@@ -1,95 +1,34 @@
 // frontend.ts
 //
-// The minimal embedding example: mounts a SwiftTUI WASI build into a
-// browser canvas using the WebHost host, with a scene picker.
-//
-// This file is the reference for "how do I embed a SwiftTUI app in the browser?".
-//
-// Boot order:
-//   1. mount WebHost against ../TerminalApp/dist/{scene-manifest.json, app.wasm}.
-//   2. render the scene picker around a viewport-sized canvas.
-//
-// Cross-origin isolation (required for SharedArrayBuffer-backed stdin) is
-// expected to come from the host's HTTP headers — see ../README.md and the
-// COOP/COEP headers set by built-app-server.ts and the deploy host.
+// The reference embedding path for a single SwiftTUI scene. The Swift app is
+// the same CounterApp used by the terminal and native SwiftUI hosts.
 
 import {
   createWebHostApp,
-  WebHostSceneRuntime,
   type WebHostAppController,
   type WebHostSceneRuntimeOptions,
-  type WebHostTerminalStyle,
 } from "@swifttui/web";
-import "./index.css";
-import {
-  defaultStyle,
-  fallbackManifest,
-  marketingStyle,
-  terminalAppManifestPath,
-  terminalAppWasmPath,
-} from "./app-data.ts";
 import {
   createWasmSceneRuntimeFactory,
   type WasmSceneRuntimeHandle,
   type WasmSceneResizeEvent,
 } from "@swifttui/web/wasi";
+import {
+  defaultStyle,
+  marketingStyle,
+  terminalAppManifestPath,
+  terminalAppWasmPath,
+} from "./app-data.ts";
+import "./index.css";
 
 const terminalAppManifestUrl = new URL(terminalAppManifestPath, import.meta.url);
 const terminalAppWasmUrl = new URL(terminalAppWasmPath, import.meta.url);
 const backtabSequence = new TextEncoder().encode("[Z");
-const isPassiveMarketingEmbed = new URLSearchParams(window.location.search).get("embed")
-  === "marketing";
-const activeStyle = isPassiveMarketingEmbed ? marketingStyle : defaultStyle;
+const isMarketingEmbed =
+  new URLSearchParams(window.location.search).get("embed") === "marketing";
+const activeStyle = isMarketingEmbed ? marketingStyle : defaultStyle;
 
-// Responsive font sizing.
-//
-// The WebHost derives the terminal column count from `mountWidth / cellWidth`,
-// and `cellWidth` scales with `fontSize`. At the default font size a narrow
-// phone viewport only yields a few dozen columns — too few for this app's full
-// control row, which then clips at the terminal's right edge. Shrink the font
-// on narrow viewports so the terminal keeps enough columns for the layout,
-// floored at a still-legible size. Wide viewports are unaffected.
-const DEFAULT_FONT_SIZE = 15;
-const MIN_FONT_SIZE = 8;
-const TARGET_COLUMNS = 72;
-// Approximate monospace advance width as a fraction of the font size; matches
-// the WebHost's own fallback ratio in WebHostSceneRuntime.measureCells.
-const CELL_WIDTH_RATIO = 0.62;
-
-function viewportWidth(): number {
-  return window.innerWidth || document.documentElement.clientWidth || 0;
-}
-
-function responsiveFontSize(baseFontSize: number): number {
-  const width = viewportWidth();
-  if (!width) return baseFontSize;
-  const fit = Math.round(width / (TARGET_COLUMNS * CELL_WIDTH_RATIO));
-  return Math.max(MIN_FONT_SIZE, Math.min(baseFontSize, fit));
-}
-
-function withResponsiveFontSize(style: WebHostTerminalStyle): WebHostTerminalStyle {
-  return { ...style, fontSize: responsiveFontSize(style.fontSize ?? DEFAULT_FONT_SIZE) };
-}
-
-function installResponsiveFontSize(
-  controller: WebHostAppController,
-  baseStyle: WebHostTerminalStyle,
-): void {
-  const baseFontSize = baseStyle.fontSize ?? DEFAULT_FONT_SIZE;
-  let current = responsiveFontSize(baseFontSize);
-  let pending = 0;
-  window.addEventListener("resize", () => {
-    if (pending) cancelAnimationFrame(pending);
-    pending = requestAnimationFrame(() => {
-      pending = 0;
-      const next = responsiveFontSize(baseFontSize);
-      if (next !== current) {
-        current = next;
-        controller.setStyle({ fontSize: next });
-      }
-    });
-  });
-}
+document.documentElement.classList.toggle("is-marketing-embed", isMarketingEmbed);
 
 interface WebHostFrameDiagnosticRecord {
   format: "swift-tui-frame-diagnostics-v1";
@@ -105,12 +44,8 @@ try {
   await bootstrap();
 } catch (error: unknown) {
   renderStartupError(error);
-  // eslint-disable-next-line no-console
   console.error("Failed to start WebExample:", error);
 }
-
-// ---------------------------------------------------------------------------
-// Bootstrap
 
 function rootEl(): HTMLDivElement {
   const root = document.querySelector<HTMLDivElement>("#root");
@@ -131,8 +66,12 @@ function el<K extends keyof HTMLElementTagNameMap>(
   const node = document.createElement(tag);
   if (init?.class) node.className = init.class;
   if (init?.text !== undefined) node.textContent = init.text;
-  for (const [k, v] of Object.entries(init?.attrs ?? {})) node.setAttribute(k, v);
-  for (const [k, v] of Object.entries(init?.dataset ?? {})) node.dataset[k] = v;
+  for (const [key, value] of Object.entries(init?.attrs ?? {})) {
+    node.setAttribute(key, value);
+  }
+  for (const [key, value] of Object.entries(init?.dataset ?? {})) {
+    node.dataset[key] = value;
+  }
   for (const child of init?.children ?? []) node.append(child);
   return node;
 }
@@ -143,27 +82,41 @@ function renderStartupError(error: unknown): void {
   root.replaceChildren();
 
   const message = error instanceof Error ? error.message : String(error);
-  const stack = error instanceof Error && error.stack ? `\n\n${error.stack}` : "";
-
-  const codeBlock = el("pre", {
-    class: "example-code-block",
-    children: [el("code", { text: `${message}${stack}` })],
+  const retry = el("button", {
+    class: "example-action",
+    text: "Retry",
+    attrs: { type: "button" },
   });
+  retry.addEventListener("click", () => window.location.reload());
 
   root.append(
-    el("div", {
-      class: "example-shell example-shell--error",
+    el("main", {
+      class: "example-error",
+      attrs: { "aria-live": "assertive" },
       children: [
-        el("main", {
-          class: "example-error",
+        el("p", { class: "example-kicker", text: "SwiftTUIWASI" }),
+        el("h1", { text: "The counter could not start." }),
+        el("p", {
+          text: "Reload the runtime or inspect the browser embedding source.",
+        }),
+        el("pre", {
+          class: "example-code-block",
+          children: [el("code", { text: message })],
+        }),
+        el("div", {
+          class: "example-error-actions",
           children: [
-            el("p", { class: "example-eyebrow", text: "Startup error" }),
-            el("h1", { text: "Could not boot the embedded SwiftTUI app." }),
-            el("p", {
-              text:
-                "The browser runtime did not start. The error is below; reload to retry.",
+            retry,
+            el("a", {
+              class: "example-action example-action--quiet",
+              text: "View source",
+              attrs: {
+                href:
+                  "https://github.com/SwiftTUI/swift-tui-examples/tree/main/WebExample",
+                target: "_blank",
+                rel: "noreferrer noopener",
+              },
             }),
-            codeBlock,
           ],
         }),
       ],
@@ -175,136 +128,155 @@ async function bootstrap(): Promise<void> {
   const root = rootEl();
   root.replaceChildren();
 
-  // Static shell. A host page that adopts this pattern can render whatever
-  // chrome it wants around the .terminal-shell element — only the
-  // .terminal-shell + its data-* hooks are load-bearing.
-  const scenes = el("div", {
-    class: "scene-select",
-    attrs: { "aria-label": "Scene selector" },
-    dataset: { scenes: "true" },
-  });
   const terminalHost = el("div", {
     class: "terminal-host",
     dataset: { terminalHost: "true" },
   });
-  const terminalFrame = el("div", {
-    class: "terminal-frame",
-    dataset: { terminalFrame: "true" },
-    children: [terminalHost],
+  const terminalLabel = el("span", {
+    class: "terminal-label",
+    text: "Counter",
   });
-  const terminalLabel = el("span", { class: "terminal-label" });
-  const terminalCaption = el("span", {
-    class: "terminal-caption",
-    text: "A SwiftTUI app. Running in the Platforms/Web host.",
+  const terminalStatus = el("span", {
+    class: "terminal-status",
+    text: "Starting SwiftTUIWASI",
+    attrs: { "aria-live": "polite" },
   });
-
-  const shell = el("div", {
-    class: "example-shell",
+  const shell = el("main", {
+    class: "terminal-shell",
+    dataset: { state: "loading" },
     children: [
-      el("main", {
-        class: "example-main",
+      el("div", {
+        class: "terminal-topline",
         children: [
           el("div", {
-            class: "terminal-shell",
             children: [
-              el("div", {
-                class: "terminal-topline",
-                children: [
-                  el("div", {
-                    class: "terminal-topline-copy",
-                    children: [terminalLabel, terminalCaption],
-                  }),
-                  scenes,
-                ],
-              }),
-              el("div", {
-                class: "terminal-frame-shell",
-                children: [terminalFrame],
+              terminalLabel,
+              el("span", {
+                class: "terminal-caption",
+                text: "The same CounterApp, hosted in the browser",
               }),
             ],
           }),
+          terminalStatus,
         ],
+      }),
+      el("div", {
+        class: "terminal-frame",
+        dataset: { terminalFrame: "true" },
+        children: [terminalHost],
       }),
     ],
   });
   root.append(shell);
 
-  const sceneSizes = new Map<string, string>();
   const sceneRuntimes = new Map<string, WasmSceneRuntimeHandle>();
   let controller: WebHostAppController | undefined;
-  const updateHostMetadata = () => {
+  let lastResizeEvent: WasmSceneResizeEvent | undefined;
+  const updateMetadata = (event?: WasmSceneResizeEvent) => {
     if (!controller) return;
     const activeScene = controller.scenes.find(
       (scene) => scene.id === controller?.selectedSceneId,
     );
-    const activeLabel = activeScene?.title ?? activeScene?.id ?? controller.selectedSceneId;
-    const sizeLabel = sceneSizes.get(controller.selectedSceneId);
     terminalHost.dataset.sceneId = controller.selectedSceneId;
-    terminalHost.dataset.sceneTitle = activeLabel;
-    terminalHost.dataset.size = sizeLabel ?? "";
-    terminalLabel.textContent = activeLabel;
+    terminalHost.dataset.sceneTitle =
+      activeScene?.title ?? activeScene?.id ?? controller.selectedSceneId;
+    if (event) terminalHost.dataset.size = `${event.columns}x${event.rows}`;
   };
 
   controller = await createController(
     terminalHost,
     (event) => {
-      sceneSizes.set(event.sceneId, `${event.columns}x${event.rows}`);
-      updateHostMetadata();
+      lastResizeEvent = event;
+      updateMetadata(event);
     },
-    (runtime) => {
-      sceneRuntimes.set(runtime.descriptor.id, runtime);
-    },
+    (runtime) => sceneRuntimes.set(runtime.descriptor.id, runtime),
   );
   installShiftTabPassthrough(terminalHost, () => controller, sceneRuntimes);
-  installResponsiveFontSize(controller, activeStyle);
-  const defaultScene =
-    controller.scenes.find((scene) => scene.isDefault)?.id ?? controller.selectedSceneId;
-  await controller.switchScene(defaultScene);
-  renderSceneButtons(controller, scenes, () => {
-    updateHostMetadata();
-  });
-  updateHostMetadata();
-}
 
-// ---------------------------------------------------------------------------
-// Controller wiring
+  const defaultScene =
+    controller.scenes.find((scene) => scene.isDefault)?.id ??
+    controller.scenes[0]?.id ??
+    "counter";
+  await controller.switchScene(defaultScene);
+  updateMetadata(lastResizeEvent);
+
+  await waitForCommittedFrame(terminalHost);
+  shell.dataset.state = "ready";
+  terminalStatus.textContent = "Ready";
+  window.parent.postMessage(
+    { type: "swifttui-demo-ready", sceneId: controller.selectedSceneId },
+    window.location.origin,
+  );
+}
 
 async function createController(
   mount: HTMLElement,
   onSceneResize: (event: WasmSceneResizeEvent) => void,
   onRuntimeCreated: (runtime: WasmSceneRuntimeHandle) => void,
 ): Promise<WebHostAppController> {
-  try {
-    const wasmRuntimeFactory = createWasmSceneRuntimeFactory(terminalAppWasmUrl, {
-      onSceneResize,
-      onRuntimeCreated,
-      workerModuleURL: new URL("./wasm-scene-worker.js", import.meta.url),
-      executionMode: executionModeFromQuery(),
-    });
+  const wasmRuntimeFactory = createWasmSceneRuntimeFactory(terminalAppWasmUrl, {
+    onSceneResize,
+    onRuntimeCreated,
+    workerModuleURL: new URL("./wasm-scene-worker.js", import.meta.url),
+    executionMode: executionModeFromQuery(),
+  });
 
-    return await createWebHostApp({
-      mount,
-      manifestUrl: terminalAppManifestUrl,
-      style: withResponsiveFontSize(activeStyle),
-      initialSceneId: "main",
-      environment: {
-        TUIGUI_APP_NAME: "WebExample",
-        ...(frameDiagnosticsEnabled() ? { TUIGUI_FRAME_DIAGNOSTICS: "1" } : {}),
-        ...resolveProfileOverridesFromQuery(),
-      },
-      sceneRuntimeFactory: (options) => wasmRuntimeFactory(webExampleRuntimeOptions(options)),
-    });
-  } catch (error) {
-    // eslint-disable-next-line no-console
-    console.warn("Falling back to the local preview manifest:", error);
-    return await createWebHostApp({
-      mount,
-      manifest: fallbackManifest,
-      style: withResponsiveFontSize(activeStyle),
-      initialSceneId: fallbackManifest.defaultSceneId,
-      sceneRuntimeFactory: (options) => new WebHostSceneRuntime(webExampleRuntimeOptions(options)),
-    });
+  return await createWebHostApp({
+    mount,
+    manifestUrl: terminalAppManifestUrl,
+    style: activeStyle,
+    initialSceneId: "counter",
+    environment: {
+      TUIGUI_APP_NAME: "SwiftTUI Counter",
+      ...(frameDiagnosticsEnabled() ? { TUIGUI_FRAME_DIAGNOSTICS: "1" } : {}),
+      ...resolveProfileOverridesFromQuery(),
+    },
+    sceneRuntimeFactory: (options) =>
+      wasmRuntimeFactory(webExampleRuntimeOptions(options)),
+  });
+}
+
+function waitForCommittedFrame(
+  terminalHost: HTMLElement,
+  timeoutMilliseconds = 20_000,
+): Promise<void> {
+  const startedAt = performance.now();
+
+  return new Promise((resolve, reject) => {
+    const inspect = () => {
+      const canvas = terminalHost.querySelector<HTMLCanvasElement>(
+        "canvas.webhost-scene__surface",
+      );
+      if (canvas && canvas.width > 0 && canvas.height > 0 && canvasHasContent(canvas)) {
+        resolve();
+        return;
+      }
+      if (performance.now() - startedAt >= timeoutMilliseconds) {
+        reject(new Error("The runtime started, but no committed frame arrived."));
+        return;
+      }
+      window.setTimeout(inspect, 100);
+    };
+    inspect();
+  });
+}
+
+function canvasHasContent(canvas: HTMLCanvasElement): boolean {
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) return false;
+  const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+  const step = Math.max(4, Math.floor(pixels.length / 24_000 / 4) * 4);
+  let baseline: string | undefined;
+  let differences = 0;
+
+  for (let index = 0; index < pixels.length; index += step) {
+    const alpha = pixels[index + 3] ?? 0;
+    if (alpha === 0) continue;
+    const sample = `${pixels[index]}:${pixels[index + 1]}:${pixels[index + 2]}:${alpha}`;
+    if (baseline === undefined) baseline = sample;
+    else if (sample !== baseline && ++differences >= 4) return true;
   }
+  return false;
 }
 
 function frameDiagnosticsEnabled(): boolean {
@@ -315,7 +287,6 @@ function frameDiagnosticsEnabled(): boolean {
   ) {
     return true;
   }
-
   try {
     return localStorage.swiftTUIFrameDiagnostics === "1";
   } catch {
@@ -339,17 +310,10 @@ function resolveProfileOverridesFromQuery(): Record<string, string> {
   if (depthLimit !== null && /^\d+$/.test(depthLimit)) {
     overrides.SWIFTTUI_RESOLVE_DEPTH_LIMIT = depthLimit;
   }
-  // Retained reuse under the stack-lean profile (bounded-depth-reuse
-  // program). Meaningful only when the lean profile is active; the wasm-side
-  // gate ignores it otherwise. Backward-safe against wasm builds that
-  // predate the flag (the env var is simply unread).
   const leanReuse = searchParams.get("leanReuse");
   if (leanReuse === "0" || leanReuse === "1") {
     overrides.SWIFTTUI_LEAN_RETAINED_REUSE = leanReuse;
   }
-  // Allowlisted so a page URL can only select sanctioned completed-frame
-  // disposal policies, never arbitrary runtime modes ("sync" is not a
-  // supported WASI drive shape).
   const renderMode = searchParams.get("renderMode");
   if (renderMode === "async" || renderMode === "async-no-cancel") {
     overrides.TERMUI_RENDER_MODE = renderMode;
@@ -362,46 +326,21 @@ function resolveProfileOverridesFromQuery(): Record<string, string> {
 }
 
 function webExampleRuntimeOptions(
-  options: WebHostSceneRuntimeOptions
+  options: WebHostSceneRuntimeOptions,
 ): WebHostSceneRuntimeOptions {
   const runtimeOptions: WebExampleSceneRuntimeOptions = {
-    ...passiveEmbedOptions(options),
+    ...options,
+    synchronizeAccessibilityFocus: !isMarketingEmbed,
+    wheelMode: isMarketingEmbed ? "chain" : "capture",
     onFrameDiagnostic: collectFrameDiagnostic,
   };
   return runtimeOptions;
-}
-
-function passiveEmbedOptions(
-  options: WebHostSceneRuntimeOptions
-): WebHostSceneRuntimeOptions {
-  if (!isPassiveMarketingEmbed) {
-    return {
-      ...options,
-      // The standalone /webexample/ page is a full-screen app with no page to
-      // scroll past, so it keeps the legacy "capture" behavior (the inner view
-      // always handles the wheel). The library default is "chain", which only
-      // matters for embeds like the marketing iframe below.
-      wheelMode: "capture",
-    };
-  }
-
-  return {
-    ...options,
-    synchronizeAccessibilityFocus: false,
-    // Scroll-chaining: the embedded view captures the wheel only while a
-    // scrollable region under the pointer can still scroll in that direction;
-    // at its edge (or over non-scrollable content) the wheel falls through and
-    // the host page scrolls. Scenes with no ScrollView stay fully passive.
-    // This is also the library default now; set explicitly for clarity.
-    wheelMode: "chain",
-  };
 }
 
 function collectFrameDiagnostic(diagnostic: WebHostFrameDiagnosticRecord): void {
   const row = Object.fromEntries(
     diagnostic.header.map((key, index) => [key, diagnostic.fields[index] ?? ""]),
   );
-  // eslint-disable-next-line no-console
   console.debug("SwiftTUI frame", row);
 }
 
@@ -423,123 +362,14 @@ function installShiftTabPassthrough(
       ) {
         return;
       }
-
-      const path = typeof event.composedPath === "function" ? event.composedPath() : [];
-      const eventOriginatedInTerminal =
-        path.includes(terminalHost) ||
-        (event.target instanceof Node && terminalHost.contains(event.target));
-      if (!eventOriginatedInTerminal) return;
-
       const controller = getController();
-      if (!controller) return;
-
+      if (!controller || !terminalHost.contains(event.target as Node)) return;
       const runtime = sceneRuntimes.get(controller.selectedSceneId);
       if (!runtime) return;
-
       event.preventDefault();
       event.stopPropagation();
       runtime.sendInput(backtabSequence);
     },
     { capture: true },
   );
-}
-
-// ---------------------------------------------------------------------------
-// Scene picker
-
-function renderSceneButtons(
-  controller: WebHostAppController,
-  container: HTMLElement,
-  onSelectionChanged: () => void,
-): void {
-  container.replaceChildren();
-  if (controller.scenes.length === 0) return;
-
-  const activeLabel = () => {
-    const active = controller.scenes.find((s) => s.id === controller.selectedSceneId);
-    return active?.title ?? active?.id ?? controller.selectedSceneId;
-  };
-
-  const sceneValueSpan = el("span", {
-    text: activeLabel(),
-    dataset: { sceneValue: "true" },
-  });
-  const trigger = el("button", {
-    class: "scene-select-trigger",
-    attrs: {
-      type: "button",
-      "aria-haspopup": "listbox",
-      "aria-expanded": "false",
-    },
-    children: [
-      el("span", { class: "scene-select-label", text: "Scene:" }),
-      document.createTextNode(" "),
-      sceneValueSpan,
-      document.createTextNode(" "),
-      el("span", { class: "scene-select-chevron" }),
-    ],
-  });
-
-  const menu = el("div", {
-    class: "scene-select-menu",
-    attrs: { role: "listbox" },
-    dataset: { open: "false" },
-  });
-
-  for (const scene of controller.scenes) {
-    const option = el("button", {
-      class: "scene-select-option",
-      attrs: { type: "button", role: "option" },
-      dataset: { sceneId: scene.id },
-      text: scene.title ?? scene.id,
-    });
-    option.addEventListener("click", async () => {
-      await controller.switchScene(scene.id);
-      updateSceneSelection(controller, container);
-      onSelectionChanged();
-      closeMenu();
-    });
-    menu.append(option);
-  }
-
-  const closeMenu = () => {
-    trigger.setAttribute("aria-expanded", "false");
-    menu.dataset.open = "false";
-  };
-
-  trigger.addEventListener("click", () => {
-    const isOpen = trigger.getAttribute("aria-expanded") === "true";
-    trigger.setAttribute("aria-expanded", String(!isOpen));
-    menu.dataset.open = String(!isOpen);
-  });
-
-  document.addEventListener("click", (event) => {
-    if (!container.contains(event.target as Node)) closeMenu();
-  });
-
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && menu.dataset.open === "true") {
-      closeMenu();
-      trigger.focus();
-    }
-  });
-
-  container.append(trigger, menu);
-  updateSceneSelection(controller, container);
-}
-
-function updateSceneSelection(
-  controller: WebHostAppController,
-  container: HTMLElement,
-): void {
-  const valueEl = container.querySelector<HTMLElement>("[data-scene-value]");
-  if (valueEl) {
-    const active = controller.scenes.find((s) => s.id === controller.selectedSceneId);
-    valueEl.textContent = active?.title ?? active?.id ?? controller.selectedSceneId;
-  }
-
-  for (const option of container.querySelectorAll<HTMLButtonElement>(".scene-select-option")) {
-    const isActive = option.dataset.sceneId === controller.selectedSceneId;
-    option.setAttribute("aria-selected", String(isActive));
-  }
 }

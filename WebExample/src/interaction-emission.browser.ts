@@ -1,33 +1,60 @@
 import { expect, test } from "bun:test";
-import { chromium } from "playwright";
+import { chromium, type Browser } from "playwright";
 
 import { serveBuiltWebExample } from "./built-app-server.ts";
 
 declare global {
   interface Window {
-    __swiftTUICounterFrames?: CounterFrame[];
+    __swiftTUICounterProbe?: {
+      frameCount: number;
+      count: number | undefined;
+    };
   }
 }
 
-interface CounterFrame {
-  timestamp: number;
-  count: number;
-}
+const lanes = [
+  "",
+  "leanProfile=0&renderMode=async&presentedProgressGuard=0",
+  "leanProfile=0&renderMode=async&presentedProgressGuard=1",
+  "leanProfile=0&renderMode=async-no-cancel&executionMode=main-thread",
+  "leanProfile=1&leanReuse=1",
+];
 
-test("WebExample commits every authored counter activation in order", async () => {
+test("counter interactions commit across runtime profiles and render modes", async () => {
   const server = serveBuiltWebExample();
   const browser = await chromium.launch();
-  const page = await browser.newPage({
-    viewport: { width: 1280, height: 900 },
+  try {
+    for (const query of lanes) {
+      await expectCounterSequence(server.url.href, browser, query);
+    }
+  } finally {
+    await browser.close();
+    server.stop(true);
+  }
+}, 200_000);
+
+async function expectCounterSequence(
+  baseURL: string,
+  browser: Browser,
+  query: string,
+): Promise<void> {
+  const context = await browser.newContext({
+    viewport: { width: 1100, height: 760 },
+  });
+  const page = await context.newPage();
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
   });
 
   await page.addInitScript(() => {
     const originalParse = JSON.parse;
-    const samples: CounterFrame[] = [];
+    const probe = { frameCount: 0, count: undefined as number | undefined };
     let rows: WebHostSurfaceCell[][] = [];
-    Object.defineProperty(window, "__swiftTUICounterFrames", {
+    Object.defineProperty(window, "__swiftTUICounterProbe", {
       configurable: true,
-      value: samples,
+      value: probe,
     });
 
     JSON.parse = function patchedJSONParse(
@@ -52,13 +79,9 @@ test("WebExample commits every authored counter activation in order", async () =
         else if (frame.encoding === "delta" && Array.isArray(frame.deltaRows)) {
           for (const [index, row] of frame.deltaRows) rows[index] = row;
         }
+        probe.frameCount += 1;
         const match = rows.map(rowText).join("\n").match(/\bCount:\s*(\d+)/);
-        if (match) {
-          samples.push({
-            timestamp: performance.now(),
-            count: Number(match[1]),
-          });
-        }
+        probe.count = match ? Number(match[1]) : probe.count;
       }
       return value;
     };
@@ -76,38 +99,36 @@ test("WebExample commits every authored counter activation in order", async () =
   });
 
   try {
-    await page.goto(server.url.href, { waitUntil: "domcontentloaded" });
+    const url = query ? `${baseURL}?${query}` : baseURL;
+    await page.goto(url, { waitUntil: "domcontentloaded" });
     await page.waitForSelector('[role="button"][data-focused="true"]', {
       state: "attached",
       timeout: 30_000,
     });
     await page.waitForFunction(
-      () => window.__swiftTUICounterFrames?.some((sample) => sample.count === 0),
+      () => window.__swiftTUICounterProbe?.count === 0,
       undefined,
       { polling: 100, timeout: 30_000 },
     );
 
     const increment = page.locator('[role="button"][data-focused="true"]');
-    for (let expected = 1; expected <= 6; expected += 1) {
+    for (let expected = 1; expected <= 8; expected += 1) {
       await increment.press("Enter");
       await page.waitForFunction(
-        (count) =>
-          window.__swiftTUICounterFrames?.some((sample) => sample.count === count),
+        (count) => window.__swiftTUICounterProbe?.count === count,
         expected,
         { polling: 100, timeout: 30_000 },
       );
     }
 
-    const counts = await page.evaluate(() => [
-      ...new Set((window.__swiftTUICounterFrames ?? []).map((sample) => sample.count)),
-    ]);
-    expect(counts).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    const result = await page.evaluate(() => window.__swiftTUICounterProbe);
+    expect(result?.count).toBe(8);
+    expect(result?.frameCount ?? 0).toBeGreaterThanOrEqual(9);
+    expect(errors).toEqual([]);
   } finally {
-    await page.close();
-    await browser.close();
-    server.stop(true);
+    await context.close();
   }
-}, 120_000);
+}
 
 type WebHostSurfaceCell = [
   column: number,

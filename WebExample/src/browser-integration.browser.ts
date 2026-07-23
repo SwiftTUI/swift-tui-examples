@@ -12,6 +12,7 @@ interface FrameDiagnosticRow {
 declare global {
   interface Window {
     __swiftTUIFrameDiagnostics?: FrameDiagnosticRow[];
+    __swiftTUICounterText?: string;
   }
 }
 
@@ -34,6 +35,49 @@ test("WebExample renders WASI surface frames into a nonblank canvas", async () =
   page.on("console", (message) => {
     if (message.type() === "error") {
       runtimeErrors.push(message.text());
+    }
+  });
+
+  await page.addInitScript(() => {
+    const originalParse = JSON.parse;
+    let rows: WebHostSurfaceCell[][] = [];
+    JSON.parse = function patchedJSONParse(
+      text: string,
+      reviver?: Parameters<typeof JSON.parse>[1],
+    ) {
+      const value = originalParse.call(this, text, reviver);
+      const frame = value as {
+        width?: unknown;
+        height?: unknown;
+        rows?: WebHostSurfaceCell[][];
+        deltaRows?: [number, WebHostSurfaceCell[]][];
+        encoding?: unknown;
+      };
+      if (
+        frame &&
+        typeof frame === "object" &&
+        typeof frame.width === "number" &&
+        typeof frame.height === "number"
+      ) {
+        if (Array.isArray(frame.rows)) {
+          rows = frame.rows.slice();
+        } else if (frame.encoding === "delta" && Array.isArray(frame.deltaRows)) {
+          for (const [index, row] of frame.deltaRows) rows[index] = row;
+        }
+        window.__swiftTUICounterText = rows.map(rowText).join("\n");
+      }
+      return value;
+    };
+
+    function rowText(row: WebHostSurfaceCell[]): string {
+      let output = "";
+      let cursor = 0;
+      for (const [column, cellText, span] of row ?? []) {
+        if (column > cursor) output += " ".repeat(column - cursor);
+        output += cellText;
+        cursor = column + Math.max(1, span);
+      }
+      return output;
     }
   });
 
@@ -162,6 +206,11 @@ test("WebExample renders WASI surface frames into a nonblank canvas", async () =
       opaqueSamples: expect.any(Number),
       differingSamples: expect.any(Number),
     });
+    await page.waitForFunction(
+      () => window.__swiftTUICounterText?.includes("Count: 0") === true,
+      undefined,
+      { polling: 100, timeout: 30_000 },
+    );
 
     if (expectFrameDiagnostics) {
       await page.waitForFunction(
@@ -179,14 +228,12 @@ test("WebExample renders WASI surface frames into a nonblank canvas", async () =
       expect(String(row?.total_ms)).not.toBe("");
     }
 
-    await page.click(".scene-select-trigger");
-    await page.click('.scene-select-option[data-scene-id="animations"]');
     const initialResizeState = await page.waitForFunction(() => {
       const activeScene = document.querySelector(".webhost-scene:not([hidden])");
       const host = document.querySelector<HTMLElement>(".terminal-host");
       const canvas = activeScene?.querySelector<HTMLCanvasElement>(".webhost-scene__surface");
       const size = host?.dataset.size;
-      if (activeScene?.getAttribute("data-scene-id") !== "animations" || !size || !canvas) {
+      if (activeScene?.getAttribute("data-scene-id") !== "counter" || !size || !canvas) {
         return false;
       }
 
@@ -207,13 +254,21 @@ test("WebExample renders WASI surface frames into a nonblank canvas", async () =
       canvasHeight: number;
     };
 
+    const increment = page.locator('[role="button"][data-focused="true"]');
+    await increment.press("Enter");
+    await page.waitForFunction(
+      () => window.__swiftTUICounterText?.includes("Count: 1") === true,
+      undefined,
+      { polling: 100, timeout: 30_000 },
+    );
+
     await page.setViewportSize({ width: 900, height: 620 });
     const resizedState = await page.waitForFunction((initial) => {
       const activeScene = document.querySelector(".webhost-scene:not([hidden])");
       const host = document.querySelector<HTMLElement>(".terminal-host");
       const canvas = activeScene?.querySelector<HTMLCanvasElement>(".webhost-scene__surface");
       const size = host?.dataset.size;
-      if (activeScene?.getAttribute("data-scene-id") !== "animations" || !size || !canvas) {
+      if (activeScene?.getAttribute("data-scene-id") !== "counter" || !size || !canvas) {
         return false;
       }
 
@@ -245,3 +300,10 @@ test("WebExample renders WASI surface frames into a nonblank canvas", async () =
     server.stop(true);
   }
 }, 120_000);
+
+type WebHostSurfaceCell = [
+  column: number,
+  text: string,
+  span: number,
+  style: number,
+];

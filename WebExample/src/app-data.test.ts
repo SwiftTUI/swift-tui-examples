@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 
-import { defaultStyle, fallbackManifest, marketingStyle } from "./app-data.ts";
+import { defaultStyle, marketingStyle } from "./app-data.ts";
 
 test("frontend wires opt-in frame diagnostics without importing unreleased web types", async () => {
   const source = await Bun.file(new URL("./frontend.ts", import.meta.url)).text();
@@ -15,34 +15,26 @@ test("frontend wires opt-in frame diagnostics without importing unreleased web t
   expect(source).not.toContain("type WebHostFrameDiagnostic");
 });
 
-test("fallback manifest provides a default scene", () => {
-  expect(fallbackManifest.defaultSceneId).toBe("main");
-  expect(fallbackManifest.scenes).toHaveLength(2);
-  expect(fallbackManifest.scenes[0]?.isDefault).toBe(true);
-  expect(fallbackManifest.scenes[1]?.id).toBe("details");
-});
-
 test("default style keeps a readable terminal baseline", () => {
-  expect(defaultStyle.fontSize).toBe(15);
+  expect(defaultStyle.fontSize).toBe(16);
   expect(defaultStyle.cursorBlink).toBe(false);
-  expect(defaultStyle.backgroundOpacity).toBe(0.94);
+  expect(defaultStyle.backgroundOpacity).toBe(1);
 });
 
 test("marketing style matches the website palette", () => {
   // Background and foreground match Website/src/styles/site.css --bg / --ink
-  expect(marketingStyle.palette?.background).toBe("#0a0a0a");
-  expect(marketingStyle.palette?.foreground).toBe("#ededed");
-  expect(marketingStyle.theme?.background).toBe("#0a0a0a");
-  expect(marketingStyle.theme?.foreground).toBe("#ededed");
+  expect(marketingStyle.palette?.background).toBe("#101512");
+  expect(marketingStyle.palette?.foreground).toBe("#e8eee9");
+  expect(marketingStyle.theme?.background).toBe("#101512");
+  expect(marketingStyle.theme?.foreground).toBe("#e8eee9");
 
-  // Tint / success / cursor are the site emerald accent (--accent).
-  expect(marketingStyle.theme?.tint).toBe("#34d399");
-  expect(marketingStyle.theme?.success).toBe("#34d399");
-  expect(marketingStyle.palette?.cursor).toBe("#34d399");
-  expect(marketingStyle.palette?.ansi?.green).toBe("#34d399");
+  // Tint / success / cursor use the brighter terminal expression of the site teal.
+  expect(marketingStyle.theme?.tint).toBe("#62d6bf");
+  expect(marketingStyle.theme?.success).toBe("#62d6bf");
+  expect(marketingStyle.palette?.cursor).toBe("#62d6bf");
+  expect(marketingStyle.palette?.ansi?.green).toBe("#62d6bf");
 
-  // Warning is the site amber (--warn).
-  expect(marketingStyle.theme?.warning).toBe("#f59e0b");
+  expect(marketingStyle.theme?.warning).toBe("#d6b66b");
 
   // Marketing embed paints opaque to seam cleanly into the chrome bg.
   expect(marketingStyle.backgroundOpacity).toBe(1);

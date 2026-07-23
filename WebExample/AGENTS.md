@@ -13,11 +13,12 @@ the embedding contract.
 
 Two cooperating parts:
 
-- **`TerminalApp/`** — a Swift package: a reusable `WebExampleScenes` library +
-  a thin `WebExampleApp` executable that calls `WASIRunner.run(...)`.
+- **`TerminalApp/`** — a Swift package: a stable `WebExampleApp` alias for the
+  shared `ThreeHostsDemoCore.CounterApp` + a thin executable that calls
+  `WASIRunner.run(...)`.
 - **`src/`** — a Bun host that runs the Swift WASI build, serves the artifacts
   with COOP/COEP headers, and mounts `WebHost`. The load-bearing bootstrap is
-  ~60 lines in [`src/frontend.ts`](src/frontend.ts).
+  in [`src/frontend.ts`](src/frontend.ts).
 
 Depends on `@swifttui/web` and `@swifttui/build`. Pre-public source checkouts
 may use workspace deps, but the public cutover should use npm versions or

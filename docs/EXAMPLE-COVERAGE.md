@@ -38,11 +38,11 @@ package; every other SwiftTUI product resolves from `swift-tui`.
 | [gifeditor](../gifeditor) | Advanced app; stress/regression sample | `SwiftTUI`, `SwiftTUIWebHostCLI`, `GIFEditorCore`, `GIFEditorUI` | Half-cell canvas, palette, tools, layers, timeline, pointer input, undo/redo, GIF import/export | Terminal app plus optional localhost WebHost | Linux native gate builds debug and release; focused SwiftPM tests in `check:focused` |
 | [SwiftUIExample](../SwiftUIExample) | Host/build configuration sample | `SwiftUIHost`, `SwiftTUI`, `GalleryDemoViews` | Native SwiftUI app embedding reusable SwiftTUI scenes | Xcode macOS app plus terminal package | Linux native gate builds terminal package; macOS native gate builds terminal package and Xcode app |
 | [WebHostExample](../WebHostExample) | Copyable tutorial; host/build configuration sample | `SwiftTUI` convenience host | Smallest app that runs in the terminal by default and localhost browser host with `--web` | Terminal app plus localhost WebHost | Linux native gate builds package and runs smoke tests; focused SwiftPM tests in `check:focused` |
-| [WebExample](../WebExample) | Host/build configuration sample | `SwiftTUIWASI`, `SwiftTUIRuntime`, `@swifttui/web`, `@swifttui/build` | Static browser deployment through WASI and Bun-hosted shell | Browser/WASI app plus reusable terminal scene package | Linux native gate builds terminal package; web gate builds browser app and web host; focused Bun tests in `check:focused` |
+| [WebExample](../WebExample) | Host/build configuration sample | `SwiftTUIWASI`, `SwiftTUIRuntime`, `ThreeHostsDemoCore`, `@swifttui/web`, `@swifttui/build` | Static browser deployment of the shared multi-host counter through WASI and a Bun-hosted shell | Single-scene browser/WASI app plus reusable terminal scene package | Linux native gate builds terminal package; web gate builds browser app and web host; focused Bun tests in `check:focused` |
 
 `SharedHostScenes` is a support package, not a runnable example. It holds host
-details scene UI reused by `SwiftUIExample` and `WebExample` so those host
-configuration examples share tutorial code where their scene sets overlap.
+details scene UI used by `SwiftUIExample`. `WebExample` instead imports the
+shared counter from `three-hosts-demo`.
 
 ## Gate Contract
 

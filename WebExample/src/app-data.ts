@@ -1,76 +1,58 @@
-import type { WebHostSceneManifest, WebHostTerminalStyle } from "@swifttui/web";
-
-export const fallbackManifest: WebHostSceneManifest = {
-  defaultSceneId: "main",
-  scenes: [
-    {
-      id: "main",
-      title: "Component Gallery",
-      isDefault: true,
-    },
-    {
-      id: "details",
-      title: "Details",
-      isDefault: false,
-    },
-  ],
-};
+import type { WebHostTerminalStyle } from "@swifttui/web";
 
 export const defaultStyle: WebHostTerminalStyle = {
-  fontSize: 15,
+  fontSize: 16,
   fontFamily:
-    '"BerkleyMono Nerd Font", "Berkley Mono", "SFMono-Regular", "SF Mono", "Menlo", "Monaco", "Consolas", "Liberation Mono", monospace',
+    '"SFMono-Regular", "SF Mono", "Menlo", "Monaco", "Consolas", "Liberation Mono", monospace',
   cursorBlink: false,
-  backgroundOpacity: 0.94,
+  backgroundOpacity: 1,
 };
 
-// Palette tuned to the marketing Website (Website/src/styles/site.css):
-// neutral near-black surface, zinc text ramp, emerald accent, amber warn.
-// Used only by the `?embed=marketing` iframe; the standalone WebExample
-// keeps `defaultStyle` and its own Nothing-palette chrome.
+// Palette tuned to the Quiet Engine marketing surface. Used only by the
+// `?embed=marketing` iframe; the standalone route keeps the same geometry
+// with a slightly quieter neutral palette.
 export const marketingStyle: WebHostTerminalStyle = {
   ...defaultStyle,
-  backgroundOpacity: 1,
   palette: {
-    foreground: "#ededed",
-    background: "#0a0a0a",
-    cursor: "#34d399",
-    selectionBackground: "#122e24",
-    selectionForeground: "#ededed",
+    foreground: "#e8eee9",
+    background: "#101512",
+    cursor: "#62d6bf",
+    selectionBackground: "#173a33",
+    selectionForeground: "#f4f8f5",
     ansi: {
-      black: "#0a0a0a",
-      red: "#f43f5e",
-      green: "#34d399",
-      yellow: "#f59e0b",
-      blue: "#60a5fa",
-      magenta: "#c084fc",
-      cyan: "#22d3ee",
-      white: "#ededed",
-      brightBlack: "#71717a",
-      brightRed: "#fb7185",
-      brightGreen: "#6ee7b7",
-      brightYellow: "#fbbf24",
-      brightBlue: "#93c5fd",
-      brightMagenta: "#d8b4fe",
-      brightCyan: "#67e8f9",
-      brightWhite: "#ffffff",
+      black: "#101512",
+      red: "#e88383",
+      green: "#62d6bf",
+      yellow: "#d6b66b",
+      blue: "#86a8d6",
+      magenta: "#bda2d6",
+      cyan: "#70c7cf",
+      white: "#d9e1db",
+      brightBlack: "#6f7c73",
+      brightRed: "#f09a9a",
+      brightGreen: "#8be1cf",
+      brightYellow: "#e4cb91",
+      brightBlue: "#a4bddd",
+      brightMagenta: "#cfb9df",
+      brightCyan: "#98d9de",
+      brightWhite: "#f4f8f5",
     },
   },
   theme: {
-    foreground: "#ededed",
-    background: "#0a0a0a",
-    tint: "#34d399",
-    separator: "#1e1e1e",
-    selection: "#122e24",
-    placeholder: "#71717a",
-    link: "#34d399",
-    fill: "#161616",
-    windowBackground: "#0a0a0a",
-    success: "#34d399",
-    warning: "#f59e0b",
-    danger: "#f43f5e",
-    info: "#a1a1aa",
-    muted: "#71717a",
+    foreground: "#e8eee9",
+    background: "#101512",
+    tint: "#62d6bf",
+    separator: "#27302a",
+    selection: "#173a33",
+    placeholder: "#6f7c73",
+    link: "#62d6bf",
+    fill: "#18201b",
+    windowBackground: "#101512",
+    success: "#62d6bf",
+    warning: "#d6b66b",
+    danger: "#e88383",
+    info: "#a8b4ac",
+    muted: "#6f7c73",
   },
 };
 

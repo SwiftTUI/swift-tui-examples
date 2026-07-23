@@ -44,6 +44,10 @@ var targets: [Target] = [
   ),
 ]
 var products: [Product] = [
+  .library(
+    name: "ThreeHostsDemoCore",
+    targets: ["ThreeHostsDemoCore"]
+  ),
   .executable(
     name: "three-hosts-demo",
     targets: ["three-hosts-demo"]

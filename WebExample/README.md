@@ -12,9 +12,9 @@ bun --cwd WebExample dev
 
 ## Demonstrates
 
-- `@swifttui/web` (`createWebHostApp` + `createWasmSceneRuntimeFactory`) — which means a developer can mount a SwiftTUI scene onto a DOM element with ~60 lines of load-bearing bootstrap and no terminal-emulator dependency.
+- `@swifttui/web` (`createWebHostApp` + `createWasmSceneRuntimeFactory`) — which means a developer can mount a SwiftTUI scene onto a DOM element with a small, explicit bootstrap and no terminal-emulator dependency.
 - `@swifttui/build` (`SwiftTUIWASI` / `WASIRunner` in manifest mode) — which means the same `App` declaration is packaged into a static manifest + wasm the WebHost can read, deployable as a plain static bundle.
-- Reuse of `GalleryDemoViews` scene building blocks inside a WASI target — which means existing SwiftTUI view code runs unchanged in the browser.
+- Reuse of `ThreeHostsDemoCore.CounterApp` inside the WASI target — which means the exact app used by the terminal and native SwiftUI hosts also runs unchanged in the browser.
 
 ## What to copy when adopting this pattern
 
@@ -26,11 +26,11 @@ The minimum a host needs:
 4. Dependencies on `@swifttui/web` and `@swifttui/build`.
 5. The mount sequence from `src/frontend.ts:bootstrap()` — `createWebHostApp` + `createWasmSceneRuntimeFactory`.
 
-Everything else in `src/frontend.ts` is page chrome (the scene picker around a viewport-sized mount). A host page can render whatever surrounding chrome it likes — only the `.terminal-shell` element + the `data-*` hooks consumed by WebHost are load-bearing.
+Everything else in `src/frontend.ts` is page chrome and state reporting around a viewport-sized mount. A host page can render whatever surrounding chrome it likes — only the `.terminal-host` mount and WebHost bootstrap are load-bearing.
 
-## Scene relationship to SwiftUIExample
+## App relationship to three-hosts-demo
 
-`WebExample` and `SwiftUIExample` intentionally do not share the same `App` declaration today. `SwiftUIExample` embeds the full component gallery plus a small details scene to prove native `SwiftUIHost` integration. `WebExample` keeps the browser deployment narrow: it reuses gallery view modules where useful but ships a small Game of Life scene and details scene so the WASI build, static manifest, and page host stay easy to inspect.
+`WebExample` imports `ThreeHostsDemoCore` and exposes its `CounterApp` through the stable `WebExampleApp` name. The terminal, native SwiftUI, and static browser hosts therefore compile the exact same `CounterView` and `CounterApp` source. Larger component and stress examples remain in `gallery`; the public browser embedding reference stays deliberately single-scene.
 
 ## Build
 
@@ -59,6 +59,7 @@ Browser-integration specs (Playwright) run separately via `bun --cwd WebExample 
 
 ## See also
 
-- [`SwiftUIExample`](../SwiftUIExample/README.md) — the native `SwiftUIHost` sibling that embeds the same component gallery
+- [`SwiftUIExample`](../SwiftUIExample/README.md) — the larger native `SwiftUIHost` gallery example
+- [`three-hosts-demo`](../three-hosts-demo/README.md) — the shared counter app used by this browser build
 - [`@swifttui/web`](https://github.com/SwiftTUI/swift-tui-web/tree/main/packages/web) — the browser runtime package
 - [DocC reference](https://swifttui.sh/docs/documentation/) — the SwiftTUI API reference

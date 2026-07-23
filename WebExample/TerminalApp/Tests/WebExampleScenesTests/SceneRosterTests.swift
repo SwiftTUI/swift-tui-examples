@@ -1,8 +1,8 @@
 import Testing
 @testable import WebExampleScenes
 
-@Test("WebExampleApp exposes the four-scene gallery tour")
-func sceneRosterIncludesFourTourScenes() {
+@Test("WebExampleApp is the shared multi-host counter")
+func webExampleUsesSharedCounterApp() {
   let app = WebExampleApp()
-  #expect(app.sceneTitles == ["Game of Life", "Animations", "Images", "Calculator"])
+  #expect(String(describing: type(of: app)) == "CounterApp")
 }

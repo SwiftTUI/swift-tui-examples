@@ -1,443 +1,251 @@
-/* WebExample - embedding-focused stylesheet.
- *
- * The site marketing chrome (header, hero, info blocks, parity grid,
- * footer) used to live here. It moved to the top-level Website/ Astro
- * project alongside the doctrine + design + decisions corpus.
- *
- * What stays here is the small surface a host page actually adopts to
- * embed SwiftTUI in a browser app:
- *
- *   .terminal-shell        outer frame around the canvas
- *   .terminal-topline      header strip (label + scene picker)
- *   .terminal-frame        the viewport-sized canvas region
- *   .terminal-host         the WebHost mount target
- *   .scene-select          dropdown for switching between authored Scenes
- *
- * The `.example-*` classes are page chrome only - they exist so this
- * file is browseable on its own. A host page that adopts the embedding
- * pattern can render whatever surrounding chrome it likes; only
- * .terminal-shell + the data-* hooks in frontend.ts are load-bearing.
- */
-
 :root {
   color-scheme: dark;
-
-  /* Marketing palette — warm near-black surface, zinc text ramp, emerald accent.
-   * Matches Website/src/styles/site.css so the standalone URL and the marketing
-   * iframe embed are visually identical. */
-  --bg: #0a0a0a;
-  --surface: #0a0a0a;
-  --surface-raised: #141414;
-  --border: #1c1c1c;
-  --border-visible: #2e2e2e;
-  --text-disabled: #555555;
-  --text-secondary: #b8b8b8;
-  --text-primary: #ededed;
-  --text-display: #ffffff;
-  --accent: #34d399;
-  --accent-subtle: rgba(52, 211, 153, 0.18);
-  --panel: rgba(255,255,255,0.02);    /* matches site palette; reserved for future card/surface tokens */
-  --line: rgba(255,255,255,0.06);     /* matches site palette; reserved for future divider tokens */
-
-  /* Geist Mono prepended to all stacks for TUI grid-aligned visual identity */
-  --font-display: "Geist Mono", "Doto", "Space Mono", "JetBrains Mono", monospace;
-  --font-body: "Geist Mono", "Space Grotesk", "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "Geist Mono", "Space Mono", "JetBrains Mono", "SF Mono", "IBM Plex Mono", monospace;
-
-  --space-xs: 4px;
-  --space-sm: 8px;
-  --space-md: 16px;
-  --space-lg: 24px;
-  --space-xl: 32px;
-  --space-2xl: 48px;
-  --space-3xl: 64px;
-
-  --ease: 180ms cubic-bezier(0.25, 0.1, 0.25, 1);
-  --max-width: 1280px;
-  --label-tracking: 0.12em;
+  --bg: #101512;
+  --surface: #141b16;
+  --line: #2a342d;
+  --line-strong: #3c4940;
+  --text: #e8eee9;
+  --muted: #9aa79e;
+  --quiet: #6f7c73;
+  --accent: #62d6bf;
+  --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "SFMono-Regular", "SF Mono", Menlo, Monaco, Consolas, monospace;
 }
 
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
 html,
-body {
+body,
+#root {
   width: 100%;
   height: 100%;
+  min-height: 100dvh;
+  margin: 0;
 }
 
 body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--text-primary);
-  font-family: var(--font-body);
-  font-size: 16px;
-  line-height: 1.55;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
   overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
 }
 
+button,
 a {
-  color: inherit;
+  font: inherit;
 }
-a:focus-visible,
-button:focus-visible {
-  outline: 1px solid var(--text-display);
+
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--accent);
   outline-offset: 3px;
 }
 
 ::selection {
   background: var(--accent);
-  color: var(--text-display);
+  color: var(--bg);
 }
-
-#root {
-  width: 100vw;
-  height: 100dvh;
-  min-height: 100vh;
-}
-
-/* ============================================================== */
-/* PAGE CHROME (browseable standalone — non-load-bearing)         */
-/* ============================================================== */
-
-.example-shell {
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  margin: 0;
-  padding: 0;
-}
-
-.example-main {
-  display: grid;
-  grid-template-rows: minmax(0, 1fr);
-  gap: 0;
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-}
-
-.example-shell--error {
-  width: min(100%, calc(var(--max-width) + 48px));
-  height: auto;
-  min-height: 100dvh;
-  margin: 0 auto;
-  padding: var(--space-2xl) var(--space-lg);
-}
-
-.example-header {
-  max-width: 70ch;
-  display: grid;
-  gap: var(--space-md);
-}
-
-.example-eyebrow {
-  margin: 0;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: var(--label-tracking);
-  text-transform: uppercase;
-  color: var(--text-secondary);
-}
-
-.example-header h1 {
-  margin: 0;
-  font-family: var(--font-body);
-  font-size: clamp(1.75rem, 3.5vw, 2.5rem);
-  font-weight: 500;
-  letter-spacing: -0.02em;
-  color: var(--text-display);
-}
-
-.example-lede {
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: 1rem;
-  line-height: 1.6;
-}
-
-.example-lede code {
-  padding: 1px 6px;
-  border: 1px solid var(--border-visible);
-  background: var(--surface);
-  font-family: var(--font-mono);
-  font-size: 0.875em;
-  color: var(--text-primary);
-}
-
-.example-lede a {
-  color: var(--text-display);
-  border-bottom: 1px solid var(--border-visible);
-  text-decoration: none;
-}
-.example-lede a:hover {
-  border-bottom-color: var(--accent);
-}
-
-/* Error / loading fallbacks. */
-
-.example-error,
-.example-loading {
-  max-width: 70ch;
-  display: grid;
-  gap: var(--space-md);
-}
-.example-error h1,
-.example-loading h1 {
-  margin: 0;
-  font-family: var(--font-body);
-  font-size: 1.75rem;
-  font-weight: 500;
-  color: var(--text-display);
-}
-.example-error p,
-.example-loading p {
-  margin: 0;
-  color: var(--text-secondary);
-}
-
-.example-code-block {
-  margin: 0;
-  padding: var(--space-md);
-  border: 1px solid var(--border-visible);
-  background: var(--surface);
-  overflow: auto;
-  font-family: var(--font-mono);
-  font-size: 0.875rem;
-  line-height: 1.6;
-  color: var(--text-primary);
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-/* ============================================================== */
-/* TERMINAL SHELL (load-bearing — this is the embedding pattern)   */
-/* ============================================================== */
 
 .terminal-shell {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   width: 100%;
   height: 100%;
   min-height: 0;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: 0;
-  border: 0;
-  background: var(--surface);
-  overflow: hidden;
+  background: var(--bg);
 }
 
 .terminal-topline {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: var(--space-md);
-  padding: var(--space-md) var(--space-lg);
-  border-bottom: 1px solid var(--border);
+  justify-content: space-between;
+  gap: 24px;
+  min-height: 58px;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
 }
 
-.terminal-topline-copy {
-  display: flex;
-  flex-direction: column;
+.terminal-topline > div {
+  display: grid;
   gap: 2px;
 }
 
-.terminal-label {
-  margin: 0;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: var(--label-tracking);
-  text-transform: uppercase;
-  color: var(--text-display);
-}
-
+.terminal-label,
+.terminal-status,
 .terminal-caption {
   font-family: var(--font-mono);
   font-size: 11px;
+}
+
+.terminal-label {
+  color: var(--text);
+  font-weight: 600;
   letter-spacing: 0.04em;
-  color: var(--text-secondary);
 }
 
-/* ---- Scene selector ---- */
-
-.scene-select {
-  position: relative;
+.terminal-caption {
+  color: var(--muted);
 }
 
-.scene-select-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-sm);
-  min-height: 34px;
-  padding: 0 var(--space-md);
-  border: 1px solid var(--border-visible);
-  background: transparent;
-  color: var(--text-primary);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: color var(--ease), border-color var(--ease);
-}
-.scene-select-trigger:hover,
-.scene-select-trigger[aria-expanded="true"] {
-  border-color: var(--text-display);
-  color: var(--text-display);
+.terminal-status {
+  color: var(--quiet);
 }
 
-.scene-select-label {
-  color: var(--text-disabled);
-  margin-right: 2px;
+.terminal-shell[data-state="ready"] .terminal-status {
+  color: var(--accent);
 }
 
-.scene-select-chevron {
-  display: inline-block;
-  width: 0;
-  height: 0;
-  border-left: 4px solid transparent;
-  border-right: 4px solid transparent;
-  border-top: 4px solid currentColor;
-  margin-left: var(--space-xs);
-  transition: transform 150ms ease-out;
-}
-.scene-select-trigger[aria-expanded="true"] .scene-select-chevron {
-  transform: rotate(180deg);
-}
-
-.scene-select-menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  z-index: 20;
-  min-width: 100%;
-  padding: 4px;
-  border: 1px solid var(--border-visible);
-  background: var(--surface-raised);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 150ms ease-out;
-}
-.scene-select-menu[data-open="true"] {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.scene-select-option {
-  display: block;
-  width: 100%;
-  padding: var(--space-sm) var(--space-md);
-  border: 0;
-  background: transparent;
-  color: var(--text-secondary);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  text-align: left;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: color var(--ease);
-}
-.scene-select-option:hover {
-  color: var(--text-display);
-}
-.scene-select-option[aria-selected="true"] {
-  color: var(--text-display);
-  border-left: 2px solid var(--accent);
-  padding-left: calc(var(--space-md) - 2px);
-}
-
-/* ---- Frame ---- */
-
-.terminal-frame-shell {
-  display: grid;
-  min-height: 0;
-  padding: 0;
-}
-
-.terminal-frame {
-  width: 100%;
-  height: 100%;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-  box-sizing: border-box;
-  border: 0;
-  background: var(--bg);
-}
-
-/* ---- WebHost scene mount ---- */
-
-.terminal-host {
+.terminal-frame,
+.terminal-host,
+.terminal-host > .webhost-scene-root,
+.terminal-host .webhost-scene,
+.terminal-host .webhost-scene__terminal {
   width: 100%;
   height: 100%;
   min-width: 0;
   min-height: 0 !important;
-  background: transparent !important;
-  padding: 0 !important;
-  display: block !important;
-  border-top: 0;
-  cursor: default !important;
 }
 
-.terminal-host > .webhost-scene-root {
-  width: 100%;
-  height: 100%;
-  min-width: 0;
-  min-height: 0;
+.terminal-frame {
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.terminal-host {
+  display: block !important;
+  padding: 0 !important;
+  background: transparent !important;
 }
 
 .terminal-host .webhost-scene {
-  width: 100%;
-  height: 100%;
-  min-width: 0;
-  min-height: 0;
+  display: grid !important;
+  grid-template-rows: 1fr !important;
+  gap: 0 !important;
   padding: 0 !important;
   border-radius: 0 !important;
-  box-shadow: none !important;
   background: transparent !important;
-  display: grid !important;
-  gap: 0 !important;
-  grid-template-rows: 1fr !important;
+  box-shadow: none !important;
 }
 
 .terminal-host .webhost-scene__header {
   display: none !important;
 }
 
-.terminal-host .webhost-scene__terminal {
-  width: 100%;
-  height: 100%;
-  min-width: 0;
-  min-height: 0 !important;
-  touch-action: none;
-  -webkit-user-select: none;
-  user-select: none;
-  cursor: default !important;
-}
+.terminal-host .webhost-scene__terminal,
 .terminal-host .webhost-scene__terminal canvas {
   max-width: 100%;
   max-height: 100%;
-  touch-action: none;
   cursor: default !important;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
-/* ============================================================== */
-/* RESPONSIVE                                                      */
-/* ============================================================== */
+.is-marketing-embed .terminal-shell {
+  grid-template-rows: minmax(0, 1fr);
+}
 
-@media (max-width: 900px) {
+.is-marketing-embed .terminal-topline {
+  display: none;
+}
+
+.example-error {
+  display: grid;
+  align-content: center;
+  gap: 14px;
+  width: min(100% - 40px, 620px);
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding: 40px 0;
+}
+
+.example-kicker {
+  margin: 0;
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.example-error h1,
+.example-error p {
+  margin: 0;
+}
+
+.example-error h1 {
+  font-size: clamp(28px, 6vw, 46px);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1;
+}
+
+.example-error p {
+  max-width: 48ch;
+  color: var(--muted);
+}
+
+.example-code-block {
+  max-height: 180px;
+  margin: 8px 0 0;
+  padding: 14px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+.example-error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.example-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: var(--accent);
+  color: var(--bg);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.example-action--quiet {
+  border-color: var(--line-strong);
+  background: transparent;
+  color: var(--text);
+}
+
+@media (max-width: 560px) {
   .terminal-topline {
-    flex-direction: column;
     align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
     animation: none !important;
     transition: none !important;
   }
