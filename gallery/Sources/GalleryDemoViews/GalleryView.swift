@@ -40,7 +40,9 @@ public struct GalleryView: View {
       Tab(Self.descriptor(for: .presentationLab).title, value: GalleryTab.presentationLab) {
         PresentationLabTab()
       }
-      Tab(Self.descriptor(for: .navigationCollections).title, value: GalleryTab.navigationCollections) {
+      Tab(
+        Self.descriptor(for: .navigationCollections).title, value: GalleryTab.navigationCollections
+      ) {
         NavigationCollectionsTab()
       }
       Tab(Self.descriptor(for: .images).title, value: GalleryTab.images) {
@@ -247,7 +249,9 @@ extension GalleryView {
       value: .bordersAndShapes,
       title: "Borders & Shapes",
       key: "borders-and-shapes",
-      coverageTags: ["borders", "shapes", "blend-modes", "canvas"]
+      coverageTags: [
+        "borders", "shapes", "blend-modes", "canvas", "mesh-gradient", "clipboard",
+      ]
     ),
     .init(
       value: .presentationLab,
@@ -316,9 +320,9 @@ extension GalleryView {
   }
 }
 
-private extension ActionScope where Self: View & Sendable {
+extension ActionScope where Self: View & Sendable {
   @MainActor
-  func galleryTabPaletteCommand(
+  fileprivate func galleryTabPaletteCommand(
     _ tab: GalleryView.GalleryTab,
     selection: Binding<GalleryView.GalleryTab>
   ) -> some View & ActionScope & Sendable {

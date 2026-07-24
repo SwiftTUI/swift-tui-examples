@@ -33,8 +33,8 @@ struct GalleryWebHostCompositionTests {
     #expect(!manifest.contains("SwiftTUICLI"))
   }
 
-  @Test("shared gallery and WebExample scenes stay runtime-only for WASI builds")
-  func sharedSceneTargetsStayRuntimeOnlyForWASIBuilds() throws {
+  @Test("gallery stays runtime-only and WebExample reuses the shared three-host scene")
+  func galleryAndWebExampleKeepTheirIntendedRuntimeBoundaries() throws {
     let packageRoot = URL(fileURLWithPath: #filePath)
       .deletingLastPathComponent()
       .deletingLastPathComponent()
@@ -59,8 +59,13 @@ struct GalleryWebHostCompositionTests {
 
     #expect(galleryManifest.contains(".product(name: \"SwiftTUIRuntime\", package: \"swift-tui\")"))
     #expect(
-      webExampleManifest.contains(".product(name: \"SwiftTUIRuntime\", package: \"swift-tui\")"))
-    #expect(webExampleApp.contains("import SwiftTUIRuntime"))
+      webExampleManifest.contains(
+        ".product(name: \"ThreeHostsDemoCore\", package: \"three-hosts-demo\")"))
+    #expect(webExampleManifest.contains(".product(name: \"SwiftTUIWASI\", package: \"swift-tui\")"))
+    #expect(
+      !webExampleManifest.contains(".product(name: \"SwiftTUIRuntime\", package: \"swift-tui\")"))
+    #expect(webExampleApp.contains("public import ThreeHostsDemoCore"))
+    #expect(webExampleApp.contains("public typealias WebExampleApp = CounterApp"))
     #expect(!webExampleApp.contains("import SwiftTUI\n"))
 
     for source in try swiftSources(

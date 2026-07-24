@@ -193,6 +193,10 @@ private struct LayoutComparisonDetail: SwiftUI::View {
   private static let minimumCodeSectionHeight: CGFloat = 160
   private static let minimumPreviewHeight: CGFloat = 220
 
+  init(entry: NativeLayoutEntry) {
+    self.entry = entry
+  }
+
   var body: some SwiftUI::View {
     SwiftUI.VStack(alignment: .leading, spacing: 0) {
       SwiftUI.VStack(alignment: .leading, spacing: 4) {
@@ -337,6 +341,16 @@ private struct CodeSectionResizeHandle: SwiftUI::View {
   @SwiftUI::State private var dragStartHeight: CGFloat?
   @SwiftUI::State private var isHovering = false
 
+  init(
+    codeSectionHeight: SwiftUI.Binding<CGFloat>,
+    minimumHeight: CGFloat,
+    maximumHeight: CGFloat
+  ) {
+    _codeSectionHeight = codeSectionHeight
+    self.minimumHeight = minimumHeight
+    self.maximumHeight = maximumHeight
+  }
+
   var body: some SwiftUI::View {
     SwiftUI.ZStack {
       SwiftUI.Divider()
@@ -390,6 +404,10 @@ private struct EmbeddedTUILayoutSurface: SwiftUI::View {
 
   @SwiftUI::State private var state: SwiftUIHostAppState<TUILayoutComparisonApp>?
   @SwiftUI::State private var launchError: String?
+
+  init(entryID: String) {
+    self.entryID = entryID
+  }
 
   var body: some SwiftUI::View {
     SwiftUI.Group {

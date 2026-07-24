@@ -26,6 +26,9 @@ import SwiftTUIRuntime
 ///      end points to a new orientation, exercising
 ///      ``LinearGradient`` 's `Animatable` conformance through a real
 ///      run loop.
+///   8. Static, point-animated, and color-animated ``MeshGradient``
+///      cards plus a nine-point editor that copies a complete Swift
+///      definition through the active host's clipboard.
 struct BordersAndShapesTab: View {
   @State private var gradientPhase: Double = 0
 
@@ -47,6 +50,8 @@ struct BordersAndShapesTab: View {
         BordersAndShapesCanvasSection()
         Divider()
         BordersAndShapesAnimatedGradientsSection()
+        Divider()
+        BordersAndShapesMeshGradientSection()
         Spacer(minLength: 0)
       }
       .padding(1)
