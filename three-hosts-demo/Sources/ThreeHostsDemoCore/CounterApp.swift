@@ -1,23 +1,37 @@
 public import SwiftTUIRuntime
 
-/// The visible piece of the demo: a focused counter with one increment button.
+/// The visible piece of the demo: an animated counter with one increment button.
 ///
 /// `CounterView` is the exact snippet shown in the marketing homepage's
 /// code-to-frame proof.
-public struct CounterView: View {
+struct CounterView: View {
+  private let palette: [Color] = [.red, .yellow, .green, .blue, .magenta]
+
+  private var displayedColors: [Color] {
+    (0..<2).map { offset in
+      palette[(count + offset) % palette.count]
+    }
+  }
+
   @State private var count = 0
-  @FocusState private var focused: Bool
 
-  public init() {}
-
-  public var body: some View {
+  var body: some View {
     VStack(spacing: 1) {
       Text("Count: \(count)").bold()
       Button("Increment") { count += 1 }
-        .focused($focused)
     }
-    .onAppear { focused = true }
-    .padding(2)
+    .padding(3)
+    .background {
+      Rectangle()
+        .fill(
+          LinearGradient(
+            colors: displayedColors,
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+          )
+        )
+        .animation(.bouncy, value: count)
+    }
   }
 }
 
