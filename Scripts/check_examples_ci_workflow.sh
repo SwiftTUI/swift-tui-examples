@@ -49,7 +49,7 @@ require_text "Scripts/install_swift_toolchain_ci.sh swift-tui-examples/.swift-ve
 require_text "SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH" "$workflow"
 require_text "SWIFTTUI_EXAMPLES_XCODE_DERIVED_DATA" "$workflow"
 require_text "swift sdk install" "$workflow"
-require_text "swift-6.3.1-RELEASE_wasm.artifactbundle.tar.gz" "$workflow"
+require_text "swift-6.3.3-RELEASE_wasm.artifactbundle.tar.gz" "$workflow"
 require_text "binaryen" "$workflow"
 require_text "CODE_SIGNING_ALLOWED=NO" "$repo_root/Scripts/check_examples.sh"
 

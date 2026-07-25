@@ -47,7 +47,7 @@ bun --cwd WebExample start   # serve a production build
 
 `pages-dist/` is what the website repository deploys under `/webexample/` so the public site can iframe it as the live demo.
 
-The WASI build flags and COOP/COEP header requirements are load-bearing and non-obvious; they are documented once in [`AGENTS.md`](AGENTS.md) and captured in the build script (`src/build-terminal.ts`). See the SwiftTUI package [`docs/DEVELOPMENT.md`](https://github.com/SwiftTUI/swift-tui/blob/main/docs/DEVELOPMENT.md) for the canonical toolchain story (Swift 6.3.1 + the `swift-6.3.1-RELEASE_wasm` SDK, via `swiftly`).
+The WASI build flags and COOP/COEP header requirements are load-bearing and non-obvious; they are documented once in [`AGENTS.md`](AGENTS.md) and captured in the build script (`src/build-terminal.ts`). See the SwiftTUI package [`docs/DEVELOPMENT.md`](https://github.com/SwiftTUI/swift-tui/blob/main/docs/DEVELOPMENT.md) for the canonical toolchain story (Swift 6.3.3 + the `swift-6.3.3-RELEASE_wasm` SDK, via `swiftly`).
 
 ## Test
 

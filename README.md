@@ -24,7 +24,7 @@ proves, or jump straight to a package in [By product](#by-product).
 
 ## Prerequisites
 
-- **Swift 6.3.x** (`.swift-version` pins 6.3.1), plus **[Bun](https://bun.sh)**
+- **Swift 6.3.x** (`.swift-version` pins 6.3.3), plus **[Bun](https://bun.sh)**
   for the browser/WASI example.
 - Commands below use **[`swiftly`](https://swiftly.dev)** so every example builds
   against the repo's pinned toolchain. Already have Swift 6.3.x active (Xcode 26,

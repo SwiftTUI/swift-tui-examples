@@ -21,7 +21,7 @@ Build the **static WASI bundle** for the browser host (separate product; see Bui
 ```bash
 swiftly run swift build \
   --package-path three-hosts-demo \
-  --swift-sdk swift-6.3.1-RELEASE_wasm \
+  --swift-sdk swift-6.3.3-RELEASE_wasm \
   -c release \
   -Xswiftc -Osize \
   -Xswiftc -Xfrontend -Xswiftc -disable-llvm-merge-functions-pass \

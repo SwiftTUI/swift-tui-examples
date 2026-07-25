@@ -27,7 +27,7 @@ public release tarballs.
 ## Toolchains
 
 - **Bun** for the web app, bundler, and test runner.
-- **`swiftly`** Swift 6.3.1 + the `swift-6.3.1-RELEASE_wasm` SDK for the WASI
+- **`swiftly`** Swift 6.3.3 + the `swift-6.3.3-RELEASE_wasm` SDK for the WASI
   build. Use `swiftly run swift ...`, not bare `swift`.
 
 ## Commands
