@@ -389,12 +389,7 @@ public struct AnimationsTab: View {
           withAnimation(.easeInOut(duration: .milliseconds(1200))) {
             completionAccent.toggle()
           } completion: {
-            // The controller fires this from its tick loop on the
-            // main actor; Swift 6 strict concurrency requires an
-            // explicit hop since the closure signature is @Sendable.
-            MainActor.assumeIsolated {
-              completionRuns += 1
-            }
+            completionRuns += 1
           }
         }
       }
