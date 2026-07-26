@@ -80,10 +80,14 @@ jobs:
       - name: Cache Swiftly toolchain
         uses: actions/cache@v5
         with:
+          # Deliberately no restore-keys. macOS installs toolchains into
+          # ~/Library/Developer/Toolchains, which is not cached here, so a
+          # prefix-matched cache from a different .swift-version restores a
+          # swiftly registry with no toolchain behind it — swiftly then reports
+          # the toolchain as installed and fails to select it. Only an exact
+          # key is safe; a miss just reinstalls swiftly, which is cheap.
           path: ~/.swiftly
           key: ${{ runner.os }}-swiftly-${{ env.SWIFTLY_VERSION }}-${{ hashFiles('swift-tui-examples/.swift-version') }}
-          restore-keys: |
-            ${{ runner.os }}-swiftly-${{ env.SWIFTLY_VERSION }}-
       - name: Install swiftly and Swift toolchain
         shell: bash
         run: swift-tui-examples/Scripts/install_swift_toolchain_ci.sh swift-tui-examples/.swift-version
@@ -144,10 +148,14 @@ jobs:
       - name: Cache Swiftly toolchain
         uses: actions/cache@v5
         with:
+          # Deliberately no restore-keys. macOS installs toolchains into
+          # ~/Library/Developer/Toolchains, which is not cached here, so a
+          # prefix-matched cache from a different .swift-version restores a
+          # swiftly registry with no toolchain behind it — swiftly then reports
+          # the toolchain as installed and fails to select it. Only an exact
+          # key is safe; a miss just reinstalls swiftly, which is cheap.
           path: ~/.swiftly
           key: ${{ runner.os }}-swiftly-${{ env.SWIFTLY_VERSION }}-${{ hashFiles('swift-tui-examples/.swift-version') }}
-          restore-keys: |
-            ${{ runner.os }}-swiftly-${{ env.SWIFTLY_VERSION }}-
       - name: Install swiftly and Swift toolchain
         shell: bash
         run: swift-tui-examples/Scripts/install_swift_toolchain_ci.sh swift-tui-examples/.swift-version

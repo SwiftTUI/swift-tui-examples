@@ -104,4 +104,90 @@ if ! grep -Fq -- "args=uninstall 6.3.1 --assume-yes" "$swiftly_log"; then
   exit 1
 fi
 
+# Regression: a restored cache can carry a swiftly registry whose toolchains are
+# not on disk (macOS caches ~/.swiftly but not ~/Library/Developer/Toolchains).
+# swiftly then reports the toolchain as installed yet cannot select it, and
+# `uninstall` cannot repair it. The script must throw the state away and
+# reinstall swiftly rather than retrying against the same poisoned registry.
+stale_home="$tmpdir/home-stale"
+stale_swiftly_home="$stale_home/.swiftly"
+stale_swiftly_bin="$stale_swiftly_home/bin"
+mkdir -p "$stale_swiftly_bin"
+printf 'export PATH="%s:$PATH"\n' "$stale_swiftly_bin" >"$stale_swiftly_home/env.sh"
+
+# The poisoned swiftly: install always "succeeds" (already installed), the
+# toolchain never runs, and uninstall fails. Its marker lives in the swiftly
+# home, so a state reset removes it along with the rest of the registry.
+write_stale_swiftly() {
+  cat >"$1" <<'EOF'
+#!/usr/bin/env bash
+printf 'args=%s\n' "$*" >> "$SWIFTTUI_EXAMPLES_TOOLCHAIN_LOG"
+if [[ -f "$SWIFTLY_HOME_DIR/poisoned-registry" ]]; then
+  if [[ "${1:-}" == "run" ]]; then
+    printf 'Error: Toolchain Swift 6.3.1 could not be located\n' >&2
+    exit 1
+  fi
+  if [[ "${1:-}" == "uninstall" ]]; then
+    printf 'Error: Toolchain Swift 6.3.1 could not be located\n' >&2
+    exit 1
+  fi
+  exit 0
+fi
+if [[ "${1:-}" == "init" ]]; then
+  mkdir -p "$SWIFTLY_BIN_DIR" "$SWIFTLY_HOME_DIR"
+  [[ "$0" -ef "$SWIFTLY_BIN_DIR/swiftly" ]] || cp "$0" "$SWIFTLY_BIN_DIR/swiftly"
+  printf 'export PATH="%s:$PATH"\n' "$SWIFTLY_BIN_DIR" >"$SWIFTLY_HOME_DIR/env.sh"
+  exit 0
+fi
+if [[ "${1:-}" == "run" && "${2:-}" == "swift" && "${3:-}" == "--version" ]]; then
+  printf 'Swift version 6.3.1 (fake)\n'
+  exit 0
+fi
+exit 0
+EOF
+  chmod +x "$1"
+}
+
+write_stale_swiftly "$stale_swiftly_bin/swiftly"
+touch "$stale_swiftly_home/poisoned-registry"
+
+# The macOS swiftly reinstall path runs `installer`; have it drop a healthy
+# swiftly into the (now empty) swiftly home, mirroring the real pkg.
+cat >"$fake_bin/installer" <<EOF
+#!/usr/bin/env bash
+printf 'installer %s\n' "\$*" >> "\$SWIFTTUI_EXAMPLES_TOOLCHAIN_LOG"
+mkdir -p "\$HOME/.swiftly/bin"
+cp "$tmpdir/healthy-swiftly" "\$HOME/.swiftly/bin/swiftly"
+chmod +x "\$HOME/.swiftly/bin/swiftly"
+EOF
+chmod +x "$fake_bin/installer"
+write_stale_swiftly "$tmpdir/healthy-swiftly"
+
+: >"$swiftly_log"
+env -u SWIFTLY_HOME_DIR -u SWIFTLY_BIN_DIR \
+  PATH="$fake_bin:$stale_swiftly_bin:$PATH" \
+  HOME="$stale_home" \
+  SWIFTLY_VERSION=1.1.1 \
+  SWIFTTUI_EXAMPLES_CI_HOST_OS=Darwin \
+  SWIFTTUI_EXAMPLES_TOOLCHAIN_LOG="$swiftly_log" \
+  "$repo_root/Scripts/install_swift_toolchain_ci.sh" "$version_root/.swift-version" >/dev/null
+
+if [[ -f "$stale_swiftly_home/poisoned-registry" ]]; then
+  echo "Expected the stale swiftly registry to be discarded, not reused" >&2
+  cat "$swiftly_log" >&2
+  exit 1
+fi
+
+if ! grep -Fq -- 'installer -pkg swiftly.pkg' "$swiftly_log"; then
+  echo "Expected swiftly to be reinstalled after an unusable cached registry" >&2
+  cat "$swiftly_log" >&2
+  exit 1
+fi
+
+if ! tail -n 1 "$swiftly_log" | grep -Fq -- 'args=run swift --version'; then
+  echo "Expected the recovered toolchain to be verified last" >&2
+  cat "$swiftly_log" >&2
+  exit 1
+fi
+
 printf '[install_swift_toolchain_ci_test] ok\n'
