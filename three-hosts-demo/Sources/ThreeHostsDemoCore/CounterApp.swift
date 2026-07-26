@@ -20,7 +20,7 @@ struct CounterView: View {
       Text("Count: \(count)").bold()
       Button("Increment") { count += 1 }
     }
-    .padding(3)
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
     .background {
       Rectangle()
         .fill(
@@ -32,6 +32,8 @@ struct CounterView: View {
         )
         .animation(.bouncy, value: count)
     }
+    .padding(.horizontal, 6)
+    .padding(.vertical, 3)
   }
 }
 
