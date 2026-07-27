@@ -1,12 +1,53 @@
 import Foundation
 import SwiftTUI
 
+enum FileColumnWindowPolicy {
+  static let minimumAuthoredRows = 48
+  static let viewportOverscanRows = 8
+
+  static func authoredRange(
+    entryCount: Int,
+    viewportTop: Int,
+    viewportHeight: Int = 0
+  ) -> Range<Int> {
+    let authoredRowCount = min(
+      entryCount,
+      max(
+        minimumAuthoredRows,
+        max(0, viewportHeight) + viewportOverscanRows
+      )
+    )
+    guard entryCount > authoredRowCount else {
+      return 0..<max(0, entryCount)
+    }
+    let clampedViewportTop = min(max(0, viewportTop), entryCount - 1)
+    let maximumLowerBound = entryCount - authoredRowCount
+    let lowerBound = min(
+      clampedViewportTop,
+      maximumLowerBound
+    )
+    return lowerBound..<(lowerBound + authoredRowCount)
+  }
+
+  static func selectionIndex(
+    entries: [BrowserItem],
+    selection: BrowserItemID?
+  ) -> Int? {
+    guard let selection else {
+      return nil
+    }
+    return entries.firstIndex(where: { $0.id == selection })
+  }
+}
+
 struct FileColumn: View {
   var directory: URL
-  var entries: [FileEntry]
-  var selection: URL?
+  var entries: [BrowserItem]
+  var selection: BrowserItemID?
   var isActive: Bool
   var isLoading: Bool = false
+  var emptyLabel: String = "(empty)"
+  var onSelect: (BrowserItemID) -> Void = { _ in }
 
   @State private var scrollPosition = ScrollPosition.zero
 
@@ -19,43 +60,73 @@ struct FileColumn: View {
       Divider()
 
       if entries.isEmpty {
-        Text(isLoading ? "(loading)" : "(empty)")
+        Text(isLoading ? "(loading)" : emptyLabel)
           .foregroundStyle(.separator)
       } else {
-        ScrollView(
-          .vertical,
-          showsIndicators: true,
-          position: $scrollPosition
-        ) {
-          LazyVStack(alignment: .leading, spacing: 0) {
-            ForEach(entries, id: \.url) { entry in
-              row(for: entry)
+        GeometryReader { proxy in
+          let window = authoredEntryWindow(
+            viewportHeight: proxy.size.height
+          )
+          ScrollView(
+            .vertical,
+            showsIndicators: true,
+            position: $scrollPosition
+          ) {
+            LazyVStack(alignment: .leading, spacing: 0) {
+              if window.lowerBound > 0 {
+                Spacer().frame(height: window.lowerBound)
+              }
+              ForEach(window.entries) { entry in
+                row(for: entry)
+              }
+              if window.upperBound < entries.count {
+                Spacer().frame(height: entries.count - window.upperBound)
+              }
             }
           }
+          .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    .onChange(of: selection, initial: true) { _, selected in
-      keepSelectionVisible(selected)
+    .onChange(of: selectedEntryIndex, initial: true) { _, index in
+      scrollPosition = ScrollPosition(y: max(0, (index ?? 0) - 1))
     }
   }
 
-  private func row(for entry: FileEntry) -> some View {
-      Text(entry.displayName)
-        .foregroundStyle(entry.url == selection ? .foreground : .separator)
-        .lineLimit(1)
-        .truncationMode(.middle)
+  private func row(for entry: BrowserItem) -> some View {
+    Text(entry.name + (entry.kind.isDirectoryLike ? "/" : ""))
+      .foregroundStyle(entry.id == selection ? .foreground : .separator)
+      .lineLimit(1)
+      .truncationMode(.middle)
+      .onTapGesture {
+        onSelect(entry.id)
+      }
   }
 
-  private func keepSelectionVisible(_ selected: URL?) {
-    guard let selected,
-      let index = entries.firstIndex(where: { $0.url == selected })
-    else {
-      scrollPosition = .zero
-      return
-    }
-    scrollPosition = ScrollPosition(y: max(0, index - 1))
+  private var selectedEntryIndex: Int? {
+    FileColumnWindowPolicy.selectionIndex(
+      entries: entries,
+      selection: selection
+    )
+  }
+
+  private func authoredEntryWindow(
+    viewportHeight: Int
+  ) -> (
+    lowerBound: Int,
+    upperBound: Int,
+    entries: ArraySlice<BrowserItem>
+  ) {
+    let range = FileColumnWindowPolicy.authoredRange(
+      entryCount: entries.count,
+      viewportTop: scrollPosition.y,
+      viewportHeight: viewportHeight
+    )
+    return (
+      range.lowerBound,
+      range.upperBound,
+      entries[range]
+    )
   }
 }

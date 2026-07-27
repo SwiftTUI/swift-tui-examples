@@ -2,6 +2,9 @@ public import SwiftTUI
 
 public struct MillerLayout: Layout, Sendable {
   public static let preferredColumnWidth = 30
+  public static let browserMinimumWidth = 22
+  public static let previewMinimumWidth = 40
+  public static let separatorWidth = 1
 
   public init() {}
 
@@ -19,10 +22,25 @@ public struct MillerLayout: Layout, Sendable {
       return [totalWidth]
     }
 
-    let nonLastWidth = min(preferredColumnWidth, totalWidth / columnCount)
-    let leftWidths = Array(repeating: nonLastWidth, count: columnCount - 1)
-    let lastWidth = max(0, totalWidth - leftWidths.reduce(0, +))
-    return leftWidths + [lastWidth]
+    let browserCount = columnCount - 1
+    let minimumBrowserAllocation = browserMinimumWidth + separatorWidth
+    let availableBrowserWidth = totalWidth - previewMinimumWidth
+    let browserWidth = min(
+      preferredColumnWidth,
+      availableBrowserWidth / browserCount
+    )
+    if browserWidth >= minimumBrowserAllocation {
+      let browserWidths = Array(repeating: browserWidth, count: browserCount)
+      return browserWidths
+        + [totalWidth - browserWidths.reduce(0, +)]
+    }
+
+    // This shape is unreachable through BrowserLayoutPolicy's breakpoints,
+    // but a fair fallback keeps the Layout total-preserving for arbitrary
+    // direct composition.
+    let fairWidth = totalWidth / columnCount
+    let leading = Array(repeating: fairWidth, count: columnCount - 1)
+    return leading + [totalWidth - leading.reduce(0, +)]
   }
 
   public func sizeThatFits(

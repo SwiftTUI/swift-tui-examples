@@ -2,13 +2,14 @@ import Sextant
 import Testing
 
 struct MillerLayoutTests {
-  @Test("two columns keep the left column at thirty cells")
+  @Test("two columns reserve the preview minimum at the split breakpoint")
   func twoColumnWidthAllocation() {
-    #expect(MillerLayout.columnWidths(totalWidth: 100, columnCount: 2) == [30, 70])
+    #expect(MillerLayout.columnWidths(totalWidth: 63, columnCount: 2) == [23, 40])
   }
 
-  @Test("three columns keep non-last columns fixed and assign the remainder to preview")
+  @Test("three columns honor both browser and preview minima at the wide breakpoint")
   func threeColumnWidthAllocation() {
+    #expect(MillerLayout.columnWidths(totalWidth: 86, columnCount: 3) == [23, 23, 40])
     #expect(MillerLayout.columnWidths(totalWidth: 100, columnCount: 3) == [30, 30, 40])
   }
 
