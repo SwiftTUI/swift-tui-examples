@@ -8,13 +8,20 @@ import SwiftTUI
 /// The chips are decorative readouts; swapping primary/secondary is a
 /// click away in the tool-options bar and the tool dock (and on the
 /// `x` keyboard shortcut), so the inspector stays a compact readout.
+///
+/// Under ``EditorLayoutDensity/compact`` the heading goes: the two rows
+/// under it are already labelled `P` and `S`, so it is a row spent saying
+/// what the rows say themselves.
 struct ColorPanelView: View {
   let primaryColor: EditorColor
   let secondaryColor: EditorColor
+  var density: EditorLayoutDensity = .regular
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
-      Text("Color").foregroundStyle(.muted)
+      if density.showsColorPanelHeading {
+        Text("Color").foregroundStyle(.muted)
+      }
       colorRow(label: "P", color: primaryColor)
       colorRow(label: "S", color: secondaryColor)
     }

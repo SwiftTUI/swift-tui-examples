@@ -26,6 +26,17 @@ public struct PixelSize: Hashable, Sendable, Codable {
 
   public var area: Int { width * height }
 
+  /// The same extent with its axes swapped — the shape a quarter turn of
+  /// this one produces.
+  ///
+  /// Spelled once here because `PixelSize(width: height, height: width)`
+  /// is a literal whose two arguments are exactly the transposition the
+  /// compiler cannot check, and because the rotate path needs it in three
+  /// places that must agree.
+  public var transposed: PixelSize {
+    PixelSize(width: height, height: width)
+  }
+
   /// This extent as a rect anchored at the origin — the "whole canvas"
   /// every clipping operation intersects against.
   ///

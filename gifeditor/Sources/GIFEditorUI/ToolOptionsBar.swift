@@ -12,11 +12,38 @@ import SwiftTUI
 ///
 /// Every clickable target inside the bar mirrors a keyboard shortcut,
 /// so the bar can be driven entirely by mouse or entirely by keyboard.
+///
+/// The box around it is the second rung of ``EditorLayoutDensity``'s
+/// compression ladder: under `.compact` the bar keeps every control and
+/// loses only the two rows of border, which is the cheapest two rows in the
+/// editor — the menu bar above it and the body row's own border below it
+/// already bound it on both sides.
 struct ToolOptionsBar: View {
   let model: EditorViewModel
   let refresh: @MainActor @Sendable () -> Void
+  var density: EditorLayoutDensity = .regular
 
   var body: some View {
+    boxedBar
+      // The bar is one row of controls and must claim exactly that.
+      // Without this the `Spacer` that pushes the swap button to the
+      // trailing edge reads, from the enclosing vertical stack, as an
+      // *unbounded* child on the vertical axis too — so the editor's stack
+      // hands this bar the terminal's spare rows instead of the canvas, and
+      // the spare rows end up as dead space under the status strip.
+      .fixedSize(horizontal: false, vertical: true)
+  }
+
+  @ViewBuilder
+  private var boxedBar: some View {
+    if density.boxesToolOptionsBar {
+      bar.border(.separator, set: .single)
+    } else {
+      bar
+    }
+  }
+
+  private var bar: some View {
     HStack(alignment: .center, spacing: 2) {
       Text(model.tool.iconGlyph + " " + model.tool.label)
         .foregroundStyle(.tint)
@@ -26,7 +53,6 @@ struct ToolOptionsBar: View {
     }
     .padding(.horizontal, 1)
     .frame(maxWidth: .infinity, alignment: .leading)
-    .border(.separator, set: .single)
   }
 
   // MARK: - Tool-specific options

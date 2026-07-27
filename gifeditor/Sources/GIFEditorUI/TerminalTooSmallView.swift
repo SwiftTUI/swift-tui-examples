@@ -1,13 +1,17 @@
 import SwiftTUI
 
-/// What the editor shows instead of itself when the terminal is too narrow to
+/// What the editor shows instead of itself when the terminal is too small to
 /// hold it.
 ///
 /// Every line is short on purpose. This view is only ever on screen *below*
-/// ``EditorLayoutFloor/minimumWidth``, which is the one place a long line
-/// would be broken mid-word by the wrapper — so the longest string here is
-/// twenty cells including its padding, and the message still reads at half
-/// the width it is complaining about.
+/// the editor's own floor, which is the one place a long line would be broken
+/// mid-word by the wrapper — so the longest string here is twenty-odd cells
+/// including its padding, and the message still reads at half the width it is
+/// complaining about.
+///
+/// It names both dimensions rather than only the one that is short. A terminal
+/// that is 60×30 and one that is 80×12 fail for opposite reasons, and an
+/// author dragging a window corner needs to know which way to drag.
 ///
 /// The colors are semantic (`.warning`, `.foreground`, `.muted`) rather than
 /// literal, so this screen follows the terminal's own light or dark palette
@@ -17,20 +21,37 @@ struct TerminalTooSmallView: View {
   /// they drag the window.
   let available: CellSize
   let requiredWidth: Int
+  let requiredHeight: Int
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
       Text("Terminal too small")
         .foregroundStyle(.warning)
       Text("needs \(requiredWidth) columns")
-        .foregroundStyle(.foreground)
+        .foregroundStyle(shortOfWidth ? .warning : .foreground)
+      Text("needs \(requiredHeight) rows")
+        .foregroundStyle(shortOfHeight ? .warning : .foreground)
       Text("this one is \(available.width)×\(available.height)")
         .foregroundStyle(.muted)
-      Text("widen it to continue")
+      Text(hint)
         .foregroundStyle(.muted)
     }
     .padding(.horizontal, 1)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+  }
+
+  private var shortOfWidth: Bool { available.width < requiredWidth }
+  private var shortOfHeight: Bool { available.height < requiredHeight }
+
+  /// Which way to drag. Named for the axis that is actually short, because
+  /// "resize it" is advice the author already has.
+  private var hint: String {
+    switch (shortOfWidth, shortOfHeight) {
+    case (true, true): "grow it to continue"
+    case (true, false): "widen it to continue"
+    case (false, true): "make it taller"
+    case (false, false): "resize it to continue"
+    }
   }
 }
 
@@ -54,7 +75,8 @@ struct TerminalFitGate<Content: View>: View {
     } else {
       TerminalTooSmallView(
         available: available,
-        requiredWidth: EditorLayoutFloor.minimumWidth
+        requiredWidth: EditorLayoutFloor.minimumWidth,
+        requiredHeight: EditorLayoutFloor.minimumHeight
       )
     }
   }

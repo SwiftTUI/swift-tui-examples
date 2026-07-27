@@ -462,45 +462,102 @@ public enum ToolOps {
     flip(on: buffer, rect: rect, horizontally: false)
   }
 
+  /// Where a quarter turn put the region it turned, alongside the
+  /// buffer it produced.
+  ///
+  /// A `w × h` region turns into an `h × w` one, so the caller's idea of
+  /// *what is selected* stops being true the instant the pixels move.
+  /// Handing the new rect back with the buffer is what keeps a marquee
+  /// and the pixels under it from silently disagreeing — the pair is
+  /// produced by one function so neither can be computed without the
+  /// other.
+  public struct QuarterTurn: Hashable, Sendable {
+    /// The whole buffer after the turn.
+    public var buffer: PixelBuffer
+    /// The rect the turned content now occupies, always inside the
+    /// canvas. Equal to the region that was turned whenever it was
+    /// square.
+    public var region: PixelRect
+
+    public init(buffer: PixelBuffer, region: PixelRect) {
+      self.buffer = buffer
+      self.region = region
+    }
+  }
+
+  /// Turns `rect` (the whole buffer when nil) a quarter turn clockwise,
+  /// reporting where the turned region landed. See
+  /// ``quarterTurnCounterClockwise(on:rect:)`` for the placement rule.
+  public static func quarterTurnClockwise(
+    on buffer: PixelBuffer,
+    rect: PixelRect? = nil
+  ) -> QuarterTurn {
+    rotateQuarterTurn(on: buffer, rect: rect, clockwise: true)
+  }
+
+  /// Turns `rect` (the whole buffer when nil) a quarter turn
+  /// counter-clockwise, reporting where the turned region landed.
+  ///
+  /// **Non-square regions.** A quarter turn of a `w × h` region needs an
+  /// `h × w` region to land in. The canvas cannot grow — ``PixelBuffer``
+  /// has a fixed size and every layer of a frame shares the document's —
+  /// but the *region* can move, so the rule is:
+  ///
+  /// 1. The turned region keeps the source region's top-left corner and
+  ///    takes the transposed size. Pinning the corner rather than the
+  ///    centre is what makes the operation exact: a region whose sides
+  ///    sum to an odd number has its centre on a half cell, and every
+  ///    consistent way of rounding that half cell drifts the region one
+  ///    place per half turn, so repeated rotation would walk a marquee
+  ///    off the canvas and start losing pixels for real.
+  /// 2. If that rect hangs off an edge it is nudged back inside the
+  ///    canvas — the least translation that fits.
+  /// 3. Only when the turned region *cannot* fit at all — its transposed
+  ///    side is longer than the canvas, which for a whole-canvas region
+  ///    means any non-square canvas — does the historical rule apply:
+  ///    rotate about the region's centre and clip, dropping what turns
+  ///    past the edge. Rotating the whole of a non-square canvas
+  ///    losslessly would mean resizing the *document*, which is
+  ///    ``resizeCanvas``-shaped work and a much bigger claim than moving
+  ///    a marquee; see ``PixelBuffer/resized(to:)``.
+  ///
+  /// Consequences worth knowing:
+  ///
+  /// * A region that fits turns losslessly: every pixel that was in it is
+  ///   still there afterwards, four turns are the identity, and the two
+  ///   directions undo each other. Transparent cells travel like any
+  ///   other value.
+  /// * The turn is a *move*, not a paint: the cells the region vacates
+  ///   are cleared to transparent, and whatever sat under the turned
+  ///   region is overwritten — including by transparent cells. Only the
+  ///   undo stack gives that back.
+  /// * The clipping fallback is lossy and therefore not self-inverse.
+  public static func quarterTurnCounterClockwise(
+    on buffer: PixelBuffer,
+    rect: PixelRect? = nil
+  ) -> QuarterTurn {
+    rotateQuarterTurn(on: buffer, rect: rect, clockwise: false)
+  }
+
   /// Rotates `rect` (the whole buffer when nil) a quarter turn
-  /// clockwise about the centre of that region. See
-  /// ``rotateCounterClockwise(on:rect:)`` for the non-square rule.
+  /// clockwise, discarding where the region landed — for callers with no
+  /// selection to keep in step. See
+  /// ``quarterTurnCounterClockwise(on:rect:)`` for the placement rule.
   public static func rotateClockwise(
     on buffer: PixelBuffer,
     rect: PixelRect? = nil
   ) -> PixelBuffer {
-    rotateQuarterTurn(on: buffer, rect: rect, clockwise: true)
+    quarterTurnClockwise(on: buffer, rect: rect).buffer
   }
 
   /// Rotates `rect` (the whole buffer when nil) a quarter turn
-  /// counter-clockwise about the centre of that region.
-  ///
-  /// **Non-square regions.** The buffer has a fixed size, so a quarter
-  /// turn of a `w × h` region would need an `h × w` region to land in.
-  /// Rather than refusing the edit, the rule is uniform for every
-  /// region: *rotate about the region's centre and clip*. Pixels that
-  /// turn past the region edge are dropped, and cells inside the region
-  /// that nothing rotates onto are cleared to transparent. The
-  /// alternative — rejecting non-square selections — would also reject
-  /// a whole-canvas rotate on any non-square canvas, which is the one
-  /// case users reach for most.
-  ///
-  /// Consequences worth knowing:
-  ///
-  /// * A square region rotates losslessly: four clockwise turns are the
-  ///   identity, and a counter-clockwise turn undoes a clockwise one.
-  /// * A non-square region loses the pixels that turn past its edge, so
-  ///   the operation is not self-inverse — only the undo stack restores
-  ///   them.
-  /// * When `w + h` is odd the region centre falls on a half cell. The
-  ///   destination is then biased one cell down/right, the same bias
-  ///   the even-diameter square brush in
-  ///   ``line(on:from:to:color:thickness:selection:)`` already uses.
+  /// counter-clockwise, discarding where the region landed. See
+  /// ``quarterTurnCounterClockwise(on:rect:)`` for the placement rule.
   public static func rotateCounterClockwise(
     on buffer: PixelBuffer,
     rect: PixelRect? = nil
   ) -> PixelBuffer {
-    rotateQuarterTurn(on: buffer, rect: rect, clockwise: false)
+    quarterTurnCounterClockwise(on: buffer, rect: rect).buffer
   }
 
   /// Clears `rect` (the whole buffer when nil) to transparent — the
@@ -729,9 +786,70 @@ public enum ToolOps {
     on buffer: PixelBuffer,
     rect: PixelRect?,
     clockwise: Bool
-  ) -> PixelBuffer {
+  ) -> QuarterTurn {
     let canvas = buffer.bounds
-    guard let bounds = (rect ?? canvas).intersected(with: canvas) else { return buffer }
+    // A region entirely off-canvas turns nothing, so the caller's region
+    // is handed straight back — a no-op must not move the marquee either.
+    guard let source = (rect ?? canvas).intersected(with: canvas) else {
+      return QuarterTurn(buffer: buffer, region: rect ?? canvas)
+    }
+    guard let destination = turnedPlacement(of: source, in: canvas) else {
+      return QuarterTurn(
+        buffer: clippedQuarterTurn(on: buffer, bounds: source, clockwise: clockwise),
+        region: source
+      )
+    }
+    // `source` is inside the canvas, so the crop is non-nil; the fallback
+    // keeps the op total rather than forcing the optional.
+    guard let region = buffer.cropped(to: source) else {
+      return QuarterTurn(buffer: buffer, region: source)
+    }
+    var copy = clear(on: buffer, rect: source)
+    // `respectingTransparency: false`: a turned transparent cell has to
+    // punch through whatever it lands on, or the turn would only be
+    // lossless for opaque pixels.
+    copy.stamp(
+      region.rotatedQuarterTurn(clockwise: clockwise),
+      at: destination.origin,
+      respectingTransparency: false
+    )
+    return QuarterTurn(buffer: copy, region: destination)
+  }
+
+  /// Where the quarter turn of `source` lands: the transposed rect
+  /// pinned to `source`'s top-left corner, nudged the least distance
+  /// that puts it back inside `canvas`. `nil` when no translation can
+  /// fit it — a transposed side longer than the canvas — which is the
+  /// one case that falls back to clipping.
+  private static func turnedPlacement(of source: PixelRect, in canvas: PixelRect) -> PixelRect? {
+    let turned = source.size.transposed
+    let lastX = canvas.maxX - turned.width
+    let lastY = canvas.maxY - turned.height
+    guard lastX >= canvas.minX, lastY >= canvas.minY else { return nil }
+    return PixelRect(
+      origin: PixelPoint(
+        x: min(max(source.minX, canvas.minX), lastX),
+        y: min(max(source.minY, canvas.minY), lastY)
+      ),
+      size: turned
+    )
+  }
+
+  /// The pre-existing rule, kept for the regions a turn cannot fit on the
+  /// canvas: rotate about the region's centre and drop what turns past
+  /// its edge, clearing the cells nothing lands on.
+  ///
+  /// Lossy by construction, and deliberately so — the alternative for a
+  /// whole-canvas turn of a non-square canvas is to refuse the edit, and
+  /// a silent no-op on the case users reach for most is worse than a turn
+  /// that keeps the middle of the image. Centred rather than
+  /// corner-pinned for the same reason: when something has to be thrown
+  /// away, the edges are the better thing to lose.
+  private static func clippedQuarterTurn(
+    on buffer: PixelBuffer,
+    bounds: PixelRect,
+    clockwise: Bool
+  ) -> PixelBuffer {
     let width = bounds.size.width
     let height = bounds.size.height
 

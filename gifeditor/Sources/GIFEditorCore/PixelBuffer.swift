@@ -87,6 +87,36 @@ public struct PixelBuffer: Hashable, Sendable, Codable {
     return out
   }
 
+  /// A quarter turn of the *whole* buffer into a new buffer of the
+  /// transposed size — `w × h` in, `h × w` out.
+  ///
+  /// This is the transposable-buffer half of a lossless rotation, and it
+  /// is why ``size`` can stay `let`: a turned buffer is a *new* buffer
+  /// built through ``init(size:pixels:)``, exactly as ``cropped(to:)``
+  /// and ``resized(to:)`` already build theirs, so the
+  /// `pixels.count == size.area` precondition that ``setUnchecked(_:to:)``
+  /// leans on is established rather than mutated around.
+  ///
+  /// The mapping is the exact one: cell `(x, y)` lands at
+  /// `(height - 1 - y, x)` clockwise and `(y, width - 1 - x)`
+  /// counter-clockwise. It is a bijection, so nothing is dropped, four
+  /// turns are the identity, and the two directions undo each other —
+  /// including for transparent cells, which travel like any other value.
+  public func rotatedQuarterTurn(clockwise: Bool) -> PixelBuffer {
+    let turned = size.transposed
+    var out = [PaletteIndex?](repeating: nil, count: pixels.count)
+    for y in 0..<size.height {
+      for x in 0..<size.width {
+        let destination =
+          clockwise
+          ? PixelPoint(x: size.height - 1 - y, y: x)
+          : PixelPoint(x: y, y: size.width - 1 - x)
+        out[turned.indexOf(destination)] = pixels[size.indexOf(PixelPoint(x: x, y: y))]
+      }
+    }
+    return PixelBuffer(size: turned, pixels: out)
+  }
+
   /// Stamps `other` into this buffer with its top-left at `origin`.
   /// `respectingTransparency` skips `nil` pixels in `other` — the natural
   /// "alpha" paste semantic. When `false`, `nil` pixels punch through.

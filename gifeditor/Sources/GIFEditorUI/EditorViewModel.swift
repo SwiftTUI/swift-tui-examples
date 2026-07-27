@@ -1201,7 +1201,7 @@ public final class EditorViewModel {
   /// Mirrors the selection (or the layer) about its vertical centre line.
   public func flipHorizontally() {
     applyTransform("Flip horizontally", verb: "Flipped", detail: "left ↔ right") {
-      ToolOps.flipHorizontal(on: $0, rect: $1)
+      (ToolOps.flipHorizontal(on: $0, rect: $1), $1)
     }
   }
 
@@ -1209,17 +1209,20 @@ public final class EditorViewModel {
   /// line.
   public func flipVertically() {
     applyTransform("Flip vertically", verb: "Flipped", detail: "top ↔ bottom") {
-      ToolOps.flipVertical(on: $0, rect: $1)
+      (ToolOps.flipVertical(on: $0, rect: $1), $1)
     }
   }
 
-  /// Turns the selection (or the layer) a quarter turn clockwise about
-  /// its own centre. A non-square region loses whatever turns past its
-  /// edge — see ``ToolOps/rotateCounterClockwise(on:rect:)`` for why the
-  /// rule is clip-rather-than-refuse.
+  /// Turns the selection (or the layer) a quarter turn clockwise.
+  ///
+  /// A non-square marquee turns *losslessly* into the transposed rect,
+  /// and the marquee moves with its pixels. Only a region too big to turn
+  /// on the canvas — the whole of a non-square layer, most of all — falls
+  /// back to clipping; see ``ToolOps/quarterTurnCounterClockwise(on:rect:)``.
   public func rotateClockwise() {
     applyTransform("Rotate clockwise", verb: "Rotated", detail: "a quarter turn clockwise") {
-      ToolOps.rotateClockwise(on: $0, rect: $1)
+      let turn = ToolOps.quarterTurnClockwise(on: $0, rect: $1)
+      return (turn.buffer, turn.region)
     }
   }
 
@@ -1228,7 +1231,8 @@ public final class EditorViewModel {
     applyTransform(
       "Rotate counter-clockwise", verb: "Rotated", detail: "a quarter turn counter-clockwise"
     ) {
-      ToolOps.rotateCounterClockwise(on: $0, rect: $1)
+      let turn = ToolOps.quarterTurnCounterClockwise(on: $0, rect: $1)
+      return (turn.buffer, turn.region)
     }
   }
 
@@ -1237,16 +1241,34 @@ public final class EditorViewModel {
   ///
   /// The scope is `.frameContent`, from ``mutateCurrentLayer(_:)``: every
   /// one of these rewrites pixels on exactly one layer of one frame.
+  ///
+  /// `transform` hands back the region its result occupies as well as the
+  /// pixels. A flip hands back the region it was given; a quarter turn of
+  /// a non-square region hands back the transposed rect, and the marquee
+  /// is re-pointed at it *inside the same undoable edit*. Splitting the
+  /// two would leave one undo step that puts the pixels back and another
+  /// that puts the marquee back — the state the palette work already
+  /// ruled out.
   private func applyTransform(
     _ label: String,
     verb: String,
     detail: String,
-    _ transform: (PixelBuffer, PixelRect?) -> PixelBuffer
+    _ transform: (PixelBuffer, PixelRect?) -> (pixels: PixelBuffer, region: PixelRect?)
   ) {
     let region = transformRegion
     let regionLabel = transformRegionLabel
     recordUndoableEdit(label) {
-      mutateCurrentLayer { transform($0, region) }
+      var turnedRegion = region
+      mutateCurrentLayer { buffer in
+        let result = transform(buffer, region)
+        turnedRegion = result.region
+        return result.pixels
+      }
+      // Only when there was a marquee: with none, the region was the
+      // whole layer and there is nothing to keep in step.
+      if selection != nil, let turnedRegion {
+        selection = Selection(rect: turnedRegion)
+      }
     }
     announce("\(verb) \(regionLabel) \(detail)")
   }

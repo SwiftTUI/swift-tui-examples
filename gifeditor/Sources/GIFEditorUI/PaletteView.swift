@@ -1,8 +1,10 @@
 import GIFEditorCore
 import SwiftTUI
 
-/// Middle sub-panel of the right column — a 4×8 grid of the first 32
-/// palette slots. Every swatch is a clickable `Button` that sets the
+/// Middle sub-panel of the right column — a grid of the first 32 palette
+/// slots, eight to a row, and of the first 16 where the terminal is too
+/// short for four rows of them (see ``rows``). Every swatch is a clickable
+/// `Button` that sets the
 /// primary color slot. The active primary slot wears a `P` overlay,
 /// the secondary slot wears `S`, and slots 1..9 carry a trailing digit
 /// label that advertises the keyboard shortcut. `Alt+1..9` continues
@@ -29,9 +31,22 @@ struct PaletteView: View {
   let model: EditorViewModel
   let refresh: @MainActor @Sendable () -> Void
   var fidelity: EditorColorFidelity = .full
+  var density: EditorLayoutDensity = .regular
 
   private static let columns = 8
-  private static let rows = 4
+
+  /// Grid rows at this density — four (32 slots) where there is height for
+  /// them, two (16) where there is not.
+  ///
+  /// Halving the grid is the fourth rung of the compression ladder and the
+  /// first one that costs the author anything, which is why it comes after
+  /// the rules, the box and the thumbnails: 16 swatches leave, and what
+  /// makes that affordable is that they are the *quietest* 16. Slots 1–9
+  /// carry the digit labels that advertise their own keyboard shortcut and
+  /// all sit in the first two rows, and every slot in the palette — all 256
+  /// of them, not just these 32 — stays reachable with the eyedropper and in
+  /// the palette editor.
+  private var rows: Int { density.paletteRows }
 
   /// The glyph that stands in for a boundary the colors stopped drawing.
   static let collisionMarker: Character = "▏"
@@ -39,7 +54,7 @@ struct PaletteView: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
       Text("Palette").foregroundStyle(.muted)
-      ForEach(0..<Self.rows, id: \.self) { row in
+      ForEach(0..<rows, id: \.self) { row in
         HStack(spacing: 0) {
           ForEach(0..<Self.columns, id: \.self) { column in
             let slot = row * Self.columns + column

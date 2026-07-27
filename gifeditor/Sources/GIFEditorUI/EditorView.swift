@@ -29,6 +29,17 @@ import SwiftTUI
 /// The options bar is full-width top chrome — not nested in the right
 /// inspector — so its tool-contextual controls never widen the side
 /// column or reflow the canvas when the active tool changes.
+///
+/// ## How the stack answers to the terminal's height
+///
+/// Every region above is a fixed number of rows except the body row, which
+/// takes whatever is left; that is what puts the status strip on the bottom
+/// line of a 40-row terminal and gives every row the chrome saves to the
+/// canvas. When even the fixed rows do not fit — and at the 24 rows a default
+/// terminal opens at, they did not — ``EditorLayoutDensity`` is what they
+/// compress by, in the order set out there. Below the compressed layout's own
+/// measured floor, ``TerminalFitGate`` shows a sentence instead of a surface
+/// the terminal cannot hold.
 public struct EditorView: View {
   // The view-model is a reference type, so we just hold it as an
   // @State (the Reference Box pattern). Mutating @MainActor methods on
@@ -101,17 +112,6 @@ public struct EditorView: View {
   @State private var isUnsavedChangesPresented = false
   @State private var pendingDocumentAction: PendingDocumentAction?
   @State private var queuedAfterSave: PendingDocumentAction?
-
-  /// Fixed width of the right inspector column. Pinning it (rather than
-  /// `.fixedSize`) keeps the canvas the sole flexible child of the body
-  /// row, so reclaimed horizontal space flows to the canvas instead of
-  /// pooling as dead margin to the right of the panel.
-  ///
-  /// Not `private` because it is also a term in ``EditorLayoutFloor`` — the
-  /// body row cannot be narrower than this panel plus the tool dock — and a
-  /// floor computed from a copy of the number would drift from the layout it
-  /// claims to describe.
-  static let rightPanelWidth = 28
 
   /// How much color the terminal can show, resolved once per process.
   ///
@@ -307,6 +307,12 @@ public struct EditorView: View {
       saveAs: { presentSaveAsSheet(nil) },
       exportGIF: presentExportSheet
     )
+    // How much of the terminal's height the chrome may spend. Read from the
+    // live `terminalSize`, so a resize picks the other layout up on the next
+    // frame without this view watching for one — and derived from the
+    // regular layout's own measured minimum rather than from a threshold
+    // somebody chose. See `EditorLayoutDensity`.
+    let density = EditorLayoutFloor.density(for: terminalSize)
     // One memoized compositing pass feeds both the canvas (current frame) and
     // every timeline thumbnail. During a stroke only the edited frame
     // recomposites; the rest are served from the model's content-keyed cache.
@@ -318,7 +324,11 @@ public struct EditorView: View {
       showsTimeline
       ? composites.indices.map { index in
         TimelineFrame(
-          thumbnail: Self.thumbnail(from: composites[index], sourceSize: model.document.size),
+          thumbnail: Self.thumbnail(
+            from: composites[index],
+            sourceSize: model.document.size,
+            side: density.timelineThumbnailSide
+          ),
           delayCentiseconds: model.document.frames[index].delayCentiseconds
         )
       }
@@ -359,6 +369,11 @@ public struct EditorView: View {
 
     return ZStack(alignment: .topLeading) {
       TerminalFitGate(fits: fitsTerminal, available: terminalSize) {
+        // `maxHeight: .infinity` on the stack, and on the body row inside it,
+        // are what make the editor *fill* the terminal rather than sit in the
+        // top of it: without them the stack is as tall as the sum of its
+        // regions' ideals and a 40-row terminal shows the status strip on row
+        // 21 with a band of dead rows under it.
         VStack(alignment: .leading, spacing: 0) {
           MenuBarView(
             openMenu: $openMenu,
@@ -372,7 +387,8 @@ public struct EditorView: View {
           )
           ToolOptionsBar(
             model: model,
-            refresh: refresh
+            refresh: refresh,
+            density: density
           )
           HStack(alignment: .top, spacing: 1) {
             if showsToolDock {
@@ -381,7 +397,8 @@ public struct EditorView: View {
                 primaryColor: primaryColor,
                 secondaryColor: secondaryColor,
                 model: model,
-                refresh: refresh
+                refresh: refresh,
+                density: density
               )
               .frame(maxHeight: .infinity, alignment: .top)
               .fixedSize(horizontal: true, vertical: false)
@@ -407,37 +424,27 @@ public struct EditorView: View {
             .border(.separator, set: .single)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             if showsRightPanel {
-              VStack(alignment: .leading, spacing: 0) {
-                ColorPanelView(
-                  primaryColor: primaryColor,
-                  secondaryColor: secondaryColor
-                )
-                .frame(maxWidth: .infinity, alignment: .leading)
-                Divider()
-                PaletteView(
-                  palette: model.document.palette,
-                  primaryIndex: model.primaryColorIndex,
-                  secondaryIndex: model.secondaryColorIndex,
-                  model: model,
-                  refresh: refresh,
-                  fidelity: theme.fidelity
-                )
-                .frame(maxWidth: .infinity, alignment: .leading)
-                Divider()
-                LayerListView(
-                  layers: model.currentFrame.layers,
-                  selectedIndex: model.currentLayerIndex,
-                  model: model,
-                  refresh: refresh
-                )
-                .frame(maxWidth: .infinity, alignment: .leading)
-              }
-              .border(.separator, set: .single)
-              .frame(width: Self.rightPanelWidth)
+              InspectorColumnView(
+                primaryColor: primaryColor,
+                secondaryColor: secondaryColor,
+                palette: model.document.palette,
+                primaryIndex: model.primaryColorIndex,
+                secondaryIndex: model.secondaryColorIndex,
+                layers: model.currentFrame.layers,
+                selectedLayerIndex: model.currentLayerIndex,
+                model: model,
+                refresh: refresh,
+                fidelity: theme.fidelity,
+                density: density
+              )
               .frame(maxHeight: .infinity, alignment: .top)
             }
           }
-          .frame(maxWidth: .infinity, alignment: .leading)
+          // The body row is the editor's one flexible region: every other
+          // region is a fixed number of rows, so the terminal's spare height
+          // has exactly one place to go and the status strip stays on the
+          // bottom line instead of floating above a band of dead rows.
+          .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
           if showsTimeline {
             TimelineView(
               frames: timelineFrames,
@@ -446,9 +453,12 @@ public struct EditorView: View {
               refresh: refresh
             )
           }
-          Divider()
+          if density.drawsRedundantRules {
+            Divider()
+          }
           footer
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
       }
 
       // Only reachable while the editor itself is on screen: the menu bar is
@@ -799,28 +809,19 @@ public struct EditorView: View {
     )
   }
 
-  /// Single-row status strip at the bottom of the editor. Holds the
-  /// transient `statusMessage` from the model on the left and the
-  /// cursor / layer / brush-size / render-mode readout on the right.
-  /// Document identity and dirty state live in the menu bar's
-  /// trailing slot instead.
+  /// The status strip, filled in from the model. The row itself lives in
+  /// ``EditorStatusStripView`` so the floor can measure it.
   private var footer: some View {
-    HStack(spacing: 2) {
-      Text(model.statusMessage.isEmpty ? "Ready" : model.statusMessage)
-        .foregroundStyle(.muted)
-      Spacer(minLength: 1)
-      Text(
-        playbackLabel
-          + "F\(model.currentFrameIndex + 1)/\(model.document.frames.count)  "
-          + "[\(model.cursor.x),\(model.cursor.y)]  "
-          + "L\(model.currentLayerIndex + 1)/\(model.currentFrame.layers.count)  "
-          + "B\(model.brushSize)  \(canvasViewport.level.label)  "
-          + onionSkinLabel
-          + gridModeLabel
-      )
-      .foregroundStyle(.separator)
-    }
-    .padding(.horizontal, 1)
+    EditorStatusStripView(
+      message: model.statusMessage,
+      readout: playbackLabel
+        + "F\(model.currentFrameIndex + 1)/\(model.document.frames.count)  "
+        + "[\(model.cursor.x),\(model.cursor.y)]  "
+        + "L\(model.currentLayerIndex + 1)/\(model.currentFrame.layers.count)  "
+        + "B\(model.brushSize)  \(canvasViewport.level.label)  "
+        + onionSkinLabel
+        + gridModeLabel
+    )
   }
 
   private var playbackLabel: String {
@@ -857,15 +858,23 @@ public struct EditorView: View {
     }
   }
 
-  /// 6×6 thumbnail sampled nearest-neighbor from an already-composited frame.
-  /// Takes the composited colors (rather than a frame index) so the caller can
-  /// reuse the model's memoized composites instead of re-flattening per frame.
+  /// Square thumbnail sampled nearest-neighbor from an already-composited
+  /// frame. Takes the composited colors (rather than a frame index) so the
+  /// caller can reuse the model's memoized composites instead of re-flattening
+  /// per frame.
+  ///
+  /// `side` is the third rung of the compression ladder: 6 where the timeline
+  /// has the rows for three half-block rows of picture, 4 where it has two.
+  /// Every frame stays in the strip either way — this shrinks the pictures,
+  /// not the film. ``TimelineDragMath/slotPitch(thumbnailWidth:)`` reads the
+  /// width back off the thumbnail, so drag-to-reorder follows it.
   private static func thumbnail(
     from composited: [EditorColor?],
-    sourceSize: GIFEditorCore.PixelSize
+    sourceSize: GIFEditorCore.PixelSize,
+    side: Int
   ) -> TimelineFrame.Thumbnail {
-    let thumbWidth = 6
-    let thumbHeight = 6
+    let thumbWidth = side
+    let thumbHeight = side
     var out: [EditorColor?] = []
     out.reserveCapacity(thumbWidth * thumbHeight)
     for ty in 0..<thumbHeight {

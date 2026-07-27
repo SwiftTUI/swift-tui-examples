@@ -62,11 +62,17 @@ Flip, rotate and cut act on the marquee selection when there is one and on the
 whole current layer when there is not — the same rule `Ctrl+C` follows, so all
 four verbs answer "what if nothing is selected?" the same way.
 
-A quarter turn needs an `h × w` region to land a `w × h` one in, which a
-fixed-size canvas does not have. The rule is uniform rather than special-cased:
-rotate about the region's centre and clip. A square region therefore turns
-losslessly and four turns are the identity, while a non-square one drops
-whatever turns past its edge — undo is what brings those pixels back.
+A quarter turn lands a `w × h` selection in an `h × w` one: the canvas is fixed
+but the selection is not, so the marquee moves with its pixels rather than the
+pixels being clipped to fit it. The turned region keeps the old one's top-left
+corner, nudged back on if that would hang it off an edge — corner-pinned rather
+than centred because a region whose sides sum to an odd number has its centre
+on a half cell, and rounding that half cell would drift the rect a place every
+half turn. So four turns are the identity and the two directions are inverses,
+for any region. A turn that cannot fit at all — which for the whole canvas
+means any non-square one — falls back to rotating about the centre and
+clipping, because when something must be lost the edges are the better thing to
+lose. Undo brings those pixels back.
 
 ## Cursor
 

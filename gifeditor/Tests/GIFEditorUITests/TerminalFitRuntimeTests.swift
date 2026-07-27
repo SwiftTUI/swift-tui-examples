@@ -19,6 +19,15 @@ import Testing
 ///
 /// The pair is deliberately one column apart. A guard that fires at 40 and not
 /// at 63 would pass a test written at 20.
+///
+/// The height cases are here for a sharper reason. Every runtime test in this
+/// package runs at 80×24 and, for as long as they existed, every one of them
+/// was asserting against a **28-row surface presented into a 24-row terminal**
+/// — the run loop handed the host a surface taller than the screen and nothing
+/// clipped it, so the four rows that fell off the bottom were invisible to a
+/// test that only ever asked what the frame *contained*. So the test that
+/// would have caught it asks the one question none of them did: how tall is
+/// the surface the run loop presented.
 @MainActor
 @Suite("GIF editor terminal fit runtime")
 struct TerminalFitRuntimeTests {
@@ -96,15 +105,141 @@ struct TerminalFitRuntimeTests {
     #expect(terminal.frames.allSatisfy { !$0.contains("Terminal too small") })
   }
 
+  // MARK: - Height
+
+  /// **The test the defect survived the absence of.**
+  ///
+  /// 80×24 is the terminal a default window opens at and the size every other
+  /// runtime test in this package runs at. What is checked here is not what
+  /// the frame says but what shape it is: every surface the run loop presents
+  /// has to fit inside the terminal it is presented into, on both axes, and
+  /// every region of the editor has to still be in it.
+  ///
+  /// The document is deliberately not the blank one — six layers and twelve
+  /// frames, so the layer list is past its window and the timeline strip has
+  /// to scroll. A blank document is the *easiest* case, and the editor's
+  /// height has to be a property of the layout rather than of the file.
+  @Test("at 80×24 the presented surface fits the terminal", .timeLimit(.minutes(1)))
+  func theEditorFitsTheDefaultTerminal() async throws {
+    let terminal = FitRecordingTerminalHost(surfaceSize: .init(width: 80, height: 24))
+
+    let result = try await run(
+      terminal: terminal,
+      identity: "gifeditor.terminal-fit.eighty-by-twentyfour",
+      document: Self.crowdedDocument,
+      until: { terminal.latestFrame?.contains("Ready") == true }
+    )
+    #expect(result.exitReason == .inputEnded)
+
+    let surfaces = terminal.surfaces
+    #expect(!surfaces.isEmpty, "the run loop presented nothing to measure")
+    for surface in surfaces {
+      #expect(
+        surface.size.height <= 24,
+        """
+        the run loop presented a \(surface.size.height)-row surface into a \
+        24-row terminal. The rows past the 24th are not clipped by anything — \
+        they are simply not on screen, and nothing in the editor says so.
+        """
+      )
+      #expect(
+        surface.size.width <= 80,
+        "the run loop presented a \(surface.size.width)-column surface into 80 columns"
+      )
+    }
+
+    // And it is the editor, whole — not a shorter surface that fits because
+    // something fell off it.
+    let frame = try #require(terminal.latestFrame)
+    #expect(!frame.contains("Terminal too small"))
+    #expect(frame.contains("File ▾"), "the menu bar is missing")
+    #expect(frame.contains("Pen"), "the tool options bar is missing")
+    #expect(frame.contains("Palette"), "the inspector is missing")
+    #expect(frame.contains("Layers"), "the layer list is missing")
+    #expect(frame.contains("New layer"), "the inspector's last row fell off the bottom")
+    #expect(frame.contains("Frames"), "the timeline is missing")
+    #expect(frame.contains("Ready"), "the status strip is missing")
+    for tool in ActiveTool.allCases {
+      #expect(
+        frame.contains(tool.iconGlyph),
+        "\(tool.label)'s dock icon is not on screen at 80×24"
+      )
+    }
+  }
+
+  /// The height floor, both sides of it, through the run loop — the same pair
+  /// the width cases make, on the axis that had no answer at all until the
+  /// editor learned to compress.
+  @Test("one row under the height floor, the editor says so", .timeLimit(.minutes(1)))
+  func belowTheHeightFloorTheEditorExplainsItself() async throws {
+    let height = EditorLayoutFloor.minimumHeight - 1
+    let terminal = FitRecordingTerminalHost(surfaceSize: .init(width: 80, height: height))
+
+    _ = try await run(
+      terminal: terminal,
+      identity: "gifeditor.terminal-fit.under-height-floor",
+      document: Self.crowdedDocument,
+      until: { terminal.latestFrame?.contains("Terminal too small") == true }
+    )
+
+    let frame = try #require(terminal.latestFrame)
+    #expect(frame.contains("\(EditorLayoutFloor.minimumHeight) rows"))
+    #expect(frame.contains("80×\(height)"))
+    #expect(!frame.contains("Palette"), "the editor is still on screen under its own floor")
+    for surface in terminal.surfaces {
+      #expect(surface.size.height <= height, "even the apology overran the terminal")
+    }
+  }
+
+  @Test("at the height floor exactly, the editor lays out", .timeLimit(.minutes(1)))
+  func atTheHeightFloorTheEditorRuns() async throws {
+    let height = EditorLayoutFloor.minimumHeight
+    let terminal = FitRecordingTerminalHost(surfaceSize: .init(width: 80, height: height))
+
+    _ = try await run(
+      terminal: terminal,
+      identity: "gifeditor.terminal-fit.at-height-floor",
+      document: Self.crowdedDocument,
+      until: { terminal.latestFrame?.contains("Ready") == true }
+    )
+
+    let frame = try #require(terminal.latestFrame)
+    #expect(!frame.contains("Terminal too small"))
+    #expect(frame.contains("Palette"))
+    #expect(frame.contains("Frames"))
+    #expect(frame.contains("New layer"))
+    for surface in terminal.surfaces {
+      #expect(
+        surface.size.height <= height,
+        "the editor presented \(surface.size.height) rows into its own \(height)-row floor"
+      )
+    }
+  }
+
   // MARK: - Harness
+
+  /// Six layers and twelve frames: the two things in a document that make the
+  /// editor taller, both past the point where the layout has to bound them.
+  private static let crowdedDocument: GIFDocument = {
+    let size = GIFEditorCore.PixelSize(width: 8, height: 8)
+    let frame = EditorFrame(
+      layers: (0..<6).map {
+        EditorLayer(name: "Layer \($0 + 1)", pixels: PixelBuffer(size: size))
+      },
+      delayCentiseconds: 10
+    )
+    return GIFDocument(size: size, frames: Array(repeating: frame, count: 12))
+  }()
 
   private func run(
     terminal: FitRecordingTerminalHost,
     identity: String,
+    document: GIFDocument = GIFDocument.blank(
+      size: GIFEditorCore.PixelSize(width: 8, height: 8)
+    ),
     until predicate: @escaping @MainActor () -> Bool
   ) async throws -> RunLoopResult<Int> {
     let rootIdentity = Identity(components: [identity])
-    let document = GIFDocument.blank(size: GIFEditorCore.PixelSize(width: 8, height: 8))
     return try await RunLoop(
       rootIdentity: rootIdentity,
       presentationSurface: terminal,
@@ -141,6 +276,14 @@ private final class FitRecordingTerminalHost: PresentationSurface {
   let capabilityProfile: TerminalCapabilityProfile = .previewUnicode
   let appearance: TerminalAppearance = .fallback
   private(set) var frames: [String] = []
+  /// Every surface the run loop handed over, kept unrendered.
+  ///
+  /// The rendered string cannot answer the question the height cases ask: a
+  /// terminal renderer emits escape sequences, so counting its lines counts
+  /// styling as well as rows. The surface knows its own size, and that size —
+  /// against the size of the terminal it was presented into — is the whole
+  /// claim.
+  private(set) var surfaces: [RasterSurface] = []
 
   var latestFrame: String? { frames.last }
 
@@ -157,6 +300,7 @@ private final class FitRecordingTerminalHost: PresentationSurface {
 
   @discardableResult
   func present(_ surface: RasterSurface) throws -> TerminalPresentationMetrics {
+    surfaces.append(surface)
     let rendered = TerminalSurfaceRenderer(capabilityProfile: capabilityProfile).render(surface)
     append(rendered)
     return TerminalPresentationMetrics(

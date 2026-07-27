@@ -625,6 +625,41 @@ struct ToolOpsTests {
     #expect(counter == buffer)
   }
 
+  @Test("Four quarter turns of a non-square region are the identity too")
+  func rotateFourTimesIsIdentityOnNonSquareRegions() {
+    // The region alternates 4×2 ↔ 2×4 and has to come back to where it
+    // started, both in content and in shape. Odd-perimeter regions (3×2)
+    // are the ones a centre-anchored rule would drift, so they are here
+    // as well.
+    for rect in [
+      PixelRect(x: 1, y: 1, width: 4, height: 2),
+      PixelRect(x: 0, y: 0, width: 3, height: 2),
+      PixelRect(x: 1, y: 0, width: 1, height: 5),
+    ] {
+      let buffer = Self.isolatedRegion(canvas: PixelSize(width: 6, height: 6), rect: rect)
+
+      var clockwise = buffer
+      var region = rect
+      for _ in 0..<4 {
+        let turn = ToolOps.quarterTurnClockwise(on: clockwise, rect: region)
+        clockwise = turn.buffer
+        region = turn.region
+      }
+      #expect(clockwise == buffer, "\(rect) did not come back after four clockwise turns")
+      #expect(region == rect, "\(rect) did not come back to its own shape")
+
+      var counter = buffer
+      region = rect
+      for _ in 0..<4 {
+        let turn = ToolOps.quarterTurnCounterClockwise(on: counter, rect: region)
+        counter = turn.buffer
+        region = turn.region
+      }
+      #expect(counter == buffer, "\(rect) did not come back after four counter-clockwise turns")
+      #expect(region == rect)
+    }
+  }
+
   @Test("A counter-clockwise turn undoes a clockwise one on a square region")
   func rotateRoundTripsOnSquareRegions() {
     let buffer = Self.patterned(width: 6, height: 6)
@@ -669,8 +704,8 @@ struct ToolOpsTests {
     #expect(ToolOps.rotateClockwise(on: buffer) == ToolOps.rotateClockwise(on: buffer, rect: whole))
   }
 
-  @Test("A non-square selection rotates about its centre and clips the overhang")
-  func rotateNonSquareSelectionClipsAboutTheCentre() {
+  @Test("A non-square selection turns losslessly into the transposed rect")
+  func rotateNonSquareSelectionKeepsEveryPixel() {
     var buffer = PixelBuffer(size: PixelSize(width: 6, height: 6), fill: 99)
     var value: PaletteIndex = 1
     for y in 1..<3 {
@@ -682,33 +717,69 @@ struct ToolOpsTests {
     // Selection holds  1 2 3 4
     //                  5 6 7 8
     let rect = PixelRect(x: 1, y: 1, width: 4, height: 2)
-    let turned = ToolOps.rotateClockwise(on: buffer, rect: rect)
+    let turn = ToolOps.quarterTurnClockwise(on: buffer, rect: rect)
+    let turned = turn.buffer
 
-    // Only the centred 2×2 block stays inside the region after the
-    // quarter turn; the outer two columns turn past the top and bottom
-    // edges and are dropped, and the cells nothing lands on are cleared.
-    #expect(turned[PixelPoint(x: 3, y: 1)] == 2)
-    #expect(turned[PixelPoint(x: 3, y: 2)] == 3)
-    #expect(turned[PixelPoint(x: 2, y: 1)] == 6)
-    #expect(turned[PixelPoint(x: 2, y: 2)] == 7)
-    #expect(turned[PixelPoint(x: 1, y: 1)] == nil)
-    #expect(turned[PixelPoint(x: 4, y: 1)] == nil)
-    #expect(turned[PixelPoint(x: 1, y: 2)] == nil)
-    #expect(turned[PixelPoint(x: 4, y: 2)] == nil)
+    // The turned region is the transposed rect pinned to the same
+    // top-left corner, and every one of the eight pixels is still there:
+    //   5 1
+    //   6 2
+    //   7 3
+    //   8 4
+    #expect(turn.region == PixelRect(x: 1, y: 1, width: 2, height: 4))
+    for row in 0..<4 {
+      #expect(turned[PixelPoint(x: 1, y: 1 + row)] == PaletteIndex(5 + row))
+      #expect(turned[PixelPoint(x: 2, y: 1 + row)] == PaletteIndex(1 + row))
+    }
+    let carried = Set((1...8).map { PaletteIndex($0) })
+    #expect(Set(turned.pixels.compactMap { $0 }).isSuperset(of: carried))
 
-    // Nothing outside the selection moves.
+    // The cells the region vacated are cleared, and the cells it turned
+    // onto are overwritten — a turn is a move, not a paint.
+    for x in 3...4 {
+      #expect(turned[PixelPoint(x: x, y: 1)] == nil)
+      #expect(turned[PixelPoint(x: x, y: 2)] == nil)
+    }
+    #expect(turned[PixelPoint(x: 1, y: 3)] == 7)
+    #expect(turned[PixelPoint(x: 2, y: 4)] == 4)
+
+    // Outside the union of the two rects nothing moved at all.
+    let union = PixelRect(x: 1, y: 1, width: 4, height: 4)
     for y in 0..<6 {
-      for x in 0..<6 where !rect.contains(PixelPoint(x: x, y: y)) {
+      for x in 0..<6 where !union.contains(PixelPoint(x: x, y: y)) {
         #expect(turned[PixelPoint(x: x, y: y)] == 99)
       }
     }
-
-    // The clipping rule is lossy, so the turn is not self-inverse.
-    #expect(ToolOps.rotateCounterClockwise(on: turned, rect: rect) != buffer)
   }
 
-  @Test("An odd-perimeter selection biases the half-cell centre down/right")
-  func rotateOddPerimeterSelectionBiasesDownRight() {
+  @Test("The two directions undo each other on a non-square region")
+  func rotateDirectionsAreInversesOnNonSquareRegions() {
+    // The region's own pixels always round-trip; the buffer as a whole
+    // does when the cells the turn lands on were transparent, which is
+    // what makes this the honest statement of "lossless".
+    for rect in [
+      PixelRect(x: 1, y: 1, width: 4, height: 2),
+      PixelRect(x: 0, y: 0, width: 3, height: 2),
+      PixelRect(x: 2, y: 2, width: 2, height: 3),
+    ] {
+      let buffer = Self.isolatedRegion(canvas: PixelSize(width: 6, height: 6), rect: rect)
+
+      let clockwise = ToolOps.quarterTurnClockwise(on: buffer, rect: rect)
+      let back = ToolOps.quarterTurnCounterClockwise(
+        on: clockwise.buffer, rect: clockwise.region
+      )
+      #expect(back.buffer == buffer, "CCW did not undo CW for \(rect)")
+      #expect(back.region == rect)
+
+      let counter = ToolOps.quarterTurnCounterClockwise(on: buffer, rect: rect)
+      let forward = ToolOps.quarterTurnClockwise(on: counter.buffer, rect: counter.region)
+      #expect(forward.buffer == buffer, "CW did not undo CCW for \(rect)")
+      #expect(forward.region == rect)
+    }
+  }
+
+  @Test("An odd-perimeter selection turns with no half-cell to round")
+  func rotateOddPerimeterSelectionKeepsEveryPixel() {
     var buffer = PixelBuffer(size: PixelSize(width: 4, height: 4))
     var value: PaletteIndex = 1
     for y in 0..<2 {
@@ -720,26 +791,131 @@ struct ToolOpsTests {
     // Selection holds  1 2 3
     //                  4 5 6
     let rect = PixelRect(x: 0, y: 0, width: 3, height: 2)
-    let turned = ToolOps.rotateClockwise(on: buffer, rect: rect)
+    let turn = ToolOps.quarterTurnClockwise(on: buffer, rect: rect)
 
-    // width + height is odd, so the turned coordinates land between
-    // cells and round down/right: destinations shift one column right,
-    // which drops the last source column and empties the first
-    // destination column.
-    #expect(turned[PixelPoint(x: 2, y: 0)] == 1)
-    #expect(turned[PixelPoint(x: 2, y: 1)] == 2)
-    #expect(turned[PixelPoint(x: 1, y: 0)] == 4)
-    #expect(turned[PixelPoint(x: 1, y: 1)] == 5)
-    #expect(turned[PixelPoint(x: 0, y: 0)] == nil)
-    #expect(turned[PixelPoint(x: 0, y: 1)] == nil)
+    // width + height is odd, so the region's centre sits on a half cell.
+    // Pinning the corner instead means there is nothing to round: the
+    // 3×2 becomes a 2×3 at the same origin and keeps all six pixels.
+    //   4 1
+    //   5 2
+    //   6 3
+    #expect(turn.region == PixelRect(x: 0, y: 0, width: 2, height: 3))
+    for row in 0..<3 {
+      #expect(turn.buffer[PixelPoint(x: 0, y: row)] == PaletteIndex(4 + row))
+      #expect(turn.buffer[PixelPoint(x: 1, y: row)] == PaletteIndex(1 + row))
+    }
+    #expect(turn.buffer.pixels.compactMap { $0 }.count == 6)
   }
 
-  @Test("A rotate rect fully outside the canvas is a no-op")
+  @Test("Transparency survives a non-square turn as a value, not a hole")
+  func rotateNonSquareCarriesTransparency() {
+    // Only the region is painted, so the cells the turn lands on start
+    // out transparent and the round trip below can be exact.
+    var buffer = PixelBuffer(size: PixelSize(width: 5, height: 5))
+    let rect = PixelRect(x: 0, y: 0, width: 4, height: 2)
+    for y in 0..<2 {
+      for x in 0..<4 {
+        buffer[PixelPoint(x: x, y: y)] = 3
+      }
+    }
+    buffer[PixelPoint(x: 0, y: 0)] = nil
+    buffer[PixelPoint(x: 3, y: 1)] = nil
+
+    let turn = ToolOps.quarterTurnClockwise(on: buffer, rect: rect)
+
+    // (0,0) turns to the region's top-right, (3,1) to its bottom-left.
+    #expect(turn.region == PixelRect(x: 0, y: 0, width: 2, height: 4))
+    #expect(turn.buffer[PixelPoint(x: 1, y: 0)] == nil)
+    #expect(turn.buffer[PixelPoint(x: 0, y: 3)] == nil)
+    // Both holes are still holes and no third one appeared inside the
+    // turned region: the transparent cells moved rather than being
+    // filled in or punched out.
+    var holes = 0
+    for y in 0..<4 {
+      for x in 0..<2 where turn.buffer[PixelPoint(x: x, y: y)] == nil {
+        holes += 1
+      }
+    }
+    #expect(holes == 2)
+
+    let back = ToolOps.quarterTurnCounterClockwise(on: turn.buffer, rect: turn.region)
+    #expect(back.buffer == buffer)
+  }
+
+  @Test("A turned region that would leave the canvas is nudged back inside")
+  func rotateNudgesTheTurnedRegionOntoTheCanvas() {
+    let rect = PixelRect(x: 4, y: 0, width: 2, height: 4)
+    let buffer = Self.isolatedRegion(canvas: PixelSize(width: 6, height: 6), rect: rect)
+
+    // Transposed in place the region would span x 4…7 on a 6-wide
+    // canvas, so it shifts left the two columns that puts it back on.
+    let turn = ToolOps.quarterTurnClockwise(on: buffer, rect: rect)
+    #expect(turn.region == PixelRect(x: 2, y: 0, width: 4, height: 2))
+    // Nudged, not clipped: all eight pixels are still there.
+    #expect(turn.buffer.pixels.compactMap { $0 }.count == 8)
+    #expect(Set(turn.buffer.pixels.compactMap { $0 }) == Set((1...8).map { PaletteIndex($0) }))
+  }
+
+  @Test("A region too big to turn on the canvas still rotates about its centre and clips")
+  func rotateFallsBackToClippingWhenTheTurnCannotFit() {
+    // 4×2 whole canvas: the turn needs a 2×4 region and the canvas is
+    // only 2 tall, so no placement fits and the historical rule applies.
+    // Resizing the *document* to 2×4 is `resizeCanvas`-shaped work and
+    // deliberately out of scope here, so this case stays lossy.
+    var buffer = PixelBuffer(size: PixelSize(width: 4, height: 2))
+    var value: PaletteIndex = 1
+    for y in 0..<2 {
+      for x in 0..<4 {
+        buffer[PixelPoint(x: x, y: y)] = value
+        value += 1
+      }
+    }
+    // Buffer holds  1 2 3 4
+    //               5 6 7 8
+    let turn = ToolOps.quarterTurnClockwise(on: buffer)
+
+    #expect(turn.region == PixelRect(x: 0, y: 0, width: 4, height: 2))
+    #expect(turn.buffer[PixelPoint(x: 2, y: 0)] == 2)
+    #expect(turn.buffer[PixelPoint(x: 2, y: 1)] == 3)
+    #expect(turn.buffer[PixelPoint(x: 1, y: 0)] == 6)
+    #expect(turn.buffer[PixelPoint(x: 1, y: 1)] == 7)
+    // The two outer columns turn past the top and bottom edges and are
+    // dropped; the cells nothing lands on are cleared.
+    #expect(turn.buffer[PixelPoint(x: 0, y: 0)] == nil)
+    #expect(turn.buffer[PixelPoint(x: 3, y: 0)] == nil)
+    #expect(turn.buffer[PixelPoint(x: 0, y: 1)] == nil)
+    #expect(turn.buffer[PixelPoint(x: 3, y: 1)] == nil)
+    // Lossy, so this one is not self-inverse — only undo restores it.
+    #expect(ToolOps.rotateCounterClockwise(on: turn.buffer) != buffer)
+  }
+
+  @Test("A square region turns in place, region and all")
+  func rotateSquareRegionKeepsItsRect() {
+    let buffer = Self.patterned(width: 6, height: 6)
+    let rect = PixelRect(x: 2, y: 1, width: 4, height: 4)
+    let turn = ToolOps.quarterTurnClockwise(on: buffer, rect: rect)
+    #expect(turn.region == rect)
+    #expect(turn.buffer == ToolOps.rotateClockwise(on: buffer, rect: rect))
+  }
+
+  @Test("A rotate rect fully outside the canvas is a no-op that leaves the region alone")
   func rotateOffCanvasIsNoOp() {
     let buffer = Self.patterned(width: 4, height: 4)
     let away = PixelRect(x: -20, y: -20, width: 3, height: 3)
     #expect(ToolOps.rotateClockwise(on: buffer, rect: away) == buffer)
     #expect(ToolOps.rotateCounterClockwise(on: buffer, rect: away) == buffer)
+    // Nothing turned, so the caller's marquee must not move either.
+    #expect(ToolOps.quarterTurnClockwise(on: buffer, rect: away).region == away)
+  }
+
+  @Test("A partly off-canvas region turns the part that is on it")
+  func rotateClampsAPartlyOffCanvasRegion() {
+    let buffer = PixelBuffer(size: PixelSize(width: 6, height: 6), fill: 2)
+    let straddling = PixelRect(x: -2, y: 0, width: 4, height: 4)
+    let turn = ToolOps.quarterTurnClockwise(on: buffer, rect: straddling)
+    // Only the on-canvas 2×4 part is a region at all, and it turns into
+    // the 4×2 the canvas can hold.
+    #expect(turn.region == PixelRect(x: 0, y: 0, width: 4, height: 2))
   }
 
   // MARK: - Clear / cut
@@ -893,6 +1069,26 @@ struct ToolOpsTests {
   }
 
   // MARK: - Fixtures
+
+  /// A canvas that is transparent everywhere except `rect`, where every
+  /// cell holds a distinct value.
+  ///
+  /// A quarter turn is a *move*: it clears the cells the region leaves
+  /// and overwrites the ones it lands on. Round-trip properties are
+  /// therefore statements about the region plus the ground it turns
+  /// onto, and this fixture is what makes that ground empty so "the
+  /// buffer came back" means exactly "no pixel was lost".
+  private static func isolatedRegion(canvas: PixelSize, rect: PixelRect) -> PixelBuffer {
+    var buffer = PixelBuffer(size: canvas)
+    var value: PaletteIndex = 1
+    for y in rect.minY..<rect.maxY {
+      for x in rect.minX..<rect.maxX {
+        buffer[PixelPoint(x: x, y: y)] = value
+        value += 1
+      }
+    }
+    return buffer
+  }
 
   /// A buffer with a distinct value in every cell plus regular
   /// transparent holes, so a transform can be checked cell by cell and
