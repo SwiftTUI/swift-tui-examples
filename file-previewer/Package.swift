@@ -18,7 +18,7 @@ let package = Package(
     )
   ],
   dependencies: [
-    .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.3.3")
+    .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.3.6")
   ],
   targets: [
     .target(
@@ -34,6 +34,8 @@ let package = Package(
       dependencies: [
         "FilePreviewerApp",
         .product(name: "SwiftTUI", package: "swift-tui"),
+        .product(name: "SwiftTUICLI", package: "swift-tui"),
+        .product(name: "SwiftTUIRuntime", package: "swift-tui"),
       ],
       swiftSettings: swiftSettings
     ),
@@ -42,6 +44,8 @@ let package = Package(
       dependencies: [
         "FilePreviewerApp",
         .product(name: "SwiftTUI", package: "swift-tui"),
+        .product(name: "SwiftTUITerminal", package: "swift-tui"),
+        .product(name: "SwiftTUITestSupport", package: "swift-tui"),
       ],
       swiftSettings: swiftSettings
     ),

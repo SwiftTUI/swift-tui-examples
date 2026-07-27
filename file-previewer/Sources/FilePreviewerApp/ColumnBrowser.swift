@@ -10,29 +10,47 @@ public struct ColumnBrowser: View {
   @State private var previewedURL: URL?
   @State private var entryCache: DirectoryEntryCache
   @State private var directoryLoadRevision = 0
-  @FocusState private var isFocused: Bool
+  @State private var semanticFocus: BrowserFocus?
+  @FocusState private var runtimeFocus: BrowserFocus?
 
   private let registry: PreviewerRegistry
+  private let onPreviewSessionCreated: (@MainActor @Sendable (TerminalProcessSession) -> Void)?
 
   public init(
     path: [URL],
     registry: PreviewerRegistry = .defaults,
-    entryCache: DirectoryEntryCache = DirectoryEntryCache()
+    entryCache: DirectoryEntryCache = DirectoryEntryCache(),
+    previewSessions: PreviewSessionSlot<TerminalProcessSession> = .terminalProcesses()
+  ) {
+    self.init(
+      path: path,
+      registry: registry,
+      entryCache: entryCache,
+      previewSessions: previewSessions,
+      onPreviewSessionCreated: nil
+    )
+  }
+
+  init(
+    path: [URL],
+    registry: PreviewerRegistry,
+    entryCache: DirectoryEntryCache,
+    previewSessions: PreviewSessionSlot<TerminalProcessSession> = .terminalProcesses(),
+    onPreviewSessionCreated:
+      (@MainActor @Sendable (TerminalProcessSession) -> Void)?
   ) {
     let normalizedPath =
       path.isEmpty
       ? [URL(fileURLWithPath: FileManager.default.currentDirectoryPath)]
       : path
     _path = State(initialValue: normalizedPath)
-    _previewSessions = State(
-      initialValue: PreviewSessionSlot<TerminalProcessSession> { session in
-        Task {
-          await session.terminate()
-        }
-      }
-    )
+    _previewSessions = State(initialValue: previewSessions)
     _entryCache = State(initialValue: entryCache)
+    _semanticFocus = State(
+      initialValue: .browser(DirectoryID(normalizedPath[0]))
+    )
     self.registry = registry
+    self.onPreviewSessionCreated = onPreviewSessionCreated
   }
 
   public var body: some View {
@@ -49,27 +67,49 @@ public struct ColumnBrowser: View {
             isLoading: !entryCache.hasEntries(in: directory)
           )
           .border(.muted, set: BorderSet.single, sides: Edge.Set.trailing)
+          .focusable(index == activeColumn)
+          .focused($runtimeFocus, equals: .browser(DirectoryID(directory)))
         }
         previewPane
       }
       paths
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    .focusable(true)
-    .focused($isFocused)
-    .defaultFocus($isFocused, true)
+    .defaultFocus($runtimeFocus, .browser(DirectoryID(activeDirectory)))
+    .onChange(of: runtimeFocus) { _, next in
+      semanticFocus = next
+    }
     .onKeyPress(perform: handleKeyPress)
+    .onDisappear {
+      Task {
+        await clearPreview()
+      }
+    }
     .task(id: DirectoryLoadKey(directories: path)) { @MainActor in
       await loadVisibleDirectories()
     }
   }
 
   private var paths: some View {
+    HStack(spacing: 1) {
       Text(activeDirectory.path)
         .foregroundStyle(.separator)
         .lineLimit(1)
         .truncationMode(.middle)
-        .background(.black.opacity(0.1))
+      Spacer()
+      Text(focusLabel)
+        .foregroundStyle(.muted)
+    }
+    .background(.black.opacity(0.1))
+  }
+
+  private var focusLabel: String {
+    switch semanticFocus {
+    case .preview:
+      "PREVIEW"
+    default:
+      "BROWSER"
+    }
   }
 
   @ViewBuilder
@@ -79,7 +119,19 @@ public struct ColumnBrowser: View {
         .foregroundStyle(.muted)
       Divider()
       if let previewSession = previewSessions.current {
-        TerminalView(session: previewSession)
+        TerminalView(
+          session: previewSession,
+          keyRouting: routePreviewKey
+        )
+        .hostFocused($runtimeFocus, equals: .preview)
+        .focusable(semanticFocus == .preview)
+        .onAppear {
+          setFocus(
+            semanticFocus == .preview
+              ? .preview
+              : .browser(DirectoryID(activeDirectory))
+          )
+        }
       }
       Spacer()
     }
@@ -107,9 +159,33 @@ public struct ColumnBrowser: View {
     case KeyPress(.arrowRight), KeyPress(.return):
       advanceOrPreview(directory: activeDirectory, selected: selection[activeDirectory])
       return .handled
+    case KeyPress(.tab):
+      guard previewSessions.current != nil else {
+        return .ignored
+      }
+      setFocus(.preview)
+      return .handled
+    case KeyPress(.character("d"), modifiers: .ctrl):
+      Task {
+        await clearPreview()
+      }
+      return .ignored
     default:
       return .ignored
     }
+  }
+
+  private func routePreviewKey(_ keyPress: KeyPress) -> TerminalViewKeyDisposition {
+    guard keyPress == KeyPress(.escape) else {
+      return .forwardToChild
+    }
+    setFocus(.browser(DirectoryID(activeDirectory)))
+    return .handledByHost
+  }
+
+  private func setFocus(_ next: BrowserFocus?) {
+    semanticFocus = next
+    runtimeFocus = next
   }
 
   private func moveSelection(by delta: Int) {
@@ -117,7 +193,9 @@ public struct ColumnBrowser: View {
     let fileEntries = entries(in: directory)
     guard !fileEntries.isEmpty else {
       selection[directory] = nil
-      clearPreview()
+      Task {
+        await clearPreview()
+      }
       clearDescendants(after: directory)
       return
     }
@@ -139,7 +217,10 @@ public struct ColumnBrowser: View {
     }
     activeColumn -= 1
     clearDescendants(after: activeDirectory)
-    clearPreview()
+    Task {
+      await clearPreview()
+    }
+    setFocus(.browser(DirectoryID(activeDirectory)))
   }
 
   private func advanceOrPreview(
@@ -162,7 +243,9 @@ public struct ColumnBrowser: View {
     activatesDirectory: Bool
   ) {
     guard let selected else {
-      clearPreview()
+      Task {
+        await clearPreview()
+      }
       clearDescendants(after: directory)
       return
     }
@@ -178,28 +261,46 @@ public struct ColumnBrowser: View {
         ? max(0, path.count - 1)
         : max(0, prefix.count - 1)
       entryCache.retainOnly(Set(path))
-      clearPreview()
+      Task {
+        await clearPreview()
+      }
+      setFocus(.browser(DirectoryID(activeDirectory)))
     } else {
       clearDescendants(after: directory)
-      showPreview(for: selected)
+      showPreview(for: selected, shouldFocus: activatesDirectory)
     }
   }
 
-  private func clearPreview() {
-    previewSessions.clear()
+  private func clearPreview() async {
+    await previewSessions.clear()
     previewedURL = nil
   }
 
-  private func showPreview(for selected: URL) {
+  private func showPreview(for selected: URL, shouldFocus: Bool) {
+    if previewedURL == selected, previewSessions.current != nil {
+      if shouldFocus {
+        setFocus(.preview)
+      }
+      return
+    }
     let command = registry.command(for: selected)
-    previewSessions.replace(
-      with: TerminalProcessSession(
-        command: command.executable,
-        arguments: command.arguments(selected),
-        initialSize: CellSize(width: 80, height: 40)
-      )
+    let session = TerminalProcessSession(
+      command: command.executable,
+      arguments: command.arguments(selected),
+      initialSize: CellSize(width: 80, height: 40)
     )
-    previewedURL = selected
+    Task {
+      guard await previewSessions.replace(with: session) else {
+        return
+      }
+      onPreviewSessionCreated?(session)
+      previewedURL = selected
+      setFocus(
+        shouldFocus
+          ? .preview
+          : .browser(DirectoryID(activeDirectory))
+      )
+    }
   }
 
   private func pathPrefix(through directory: URL) -> [URL] {
@@ -216,6 +317,9 @@ public struct ColumnBrowser: View {
   }
 
   private func loadVisibleDirectories() async {
+    if runtimeFocus == nil {
+      runtimeFocus = semanticFocus
+    }
     let directories = path
     var didChange = false
     for directory in directories {
@@ -234,8 +338,50 @@ public struct ColumnBrowser: View {
       directoryLoadRevision &+= 1
     }
   }
+
 }
 
 private struct DirectoryLoadKey: Equatable, Sendable {
   var directories: [URL]
+}
+
+private func terminatePreviewSession(_ session: TerminalProcessSession) async {
+  await session.terminate()
+  if await waitForPreviewExit(session, timeout: .milliseconds(750)) {
+    return
+  }
+  await session.terminate(signal: 9)
+  await waitForPreviewExit(session)
+}
+
+extension PreviewSessionSlot where Session == TerminalProcessSession {
+  public static func terminalProcesses() -> PreviewSessionSlot<TerminalProcessSession> {
+    PreviewSessionSlot<TerminalProcessSession> { session in
+      await terminatePreviewSession(session)
+    }
+  }
+}
+
+private func waitForPreviewExit(
+  _ session: TerminalProcessSession,
+  timeout: Duration
+) async -> Bool {
+  let clock = ContinuousClock()
+  let deadline = clock.now + timeout
+  while clock.now < deadline {
+    if case .exited = await session.currentLifecycle() {
+      return true
+    }
+    await Task.yield()
+  }
+  return false
+}
+
+private func waitForPreviewExit(_ session: TerminalProcessSession) async {
+  while true {
+    if case .exited = await session.currentLifecycle() {
+      return
+    }
+    await Task.yield()
+  }
 }

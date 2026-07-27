@@ -5,7 +5,7 @@ shipped to every host. This repo holds runnable examples for
 [`SwiftTUI`](https://github.com/SwiftTUI/swift-tui): one directory per demo, each
 proving a specific capability, each with the exact command to run it.
 
-![Status](https://img.shields.io/badge/status-0.3.3%20pre--release-DAA520)
+![Status](https://img.shields.io/badge/status-0.3.x%20pre--release-DAA520)
 
 ## Start here
 
@@ -49,10 +49,13 @@ bun install
 bun --cwd WebExample run build
 ```
 
-Everything builds from a fresh clone at tag `0.3.3`. Swift packages resolve
-`swift-tui` — and, for the native SwiftUI host, `swift-tui-swiftui` — over tagged
-HTTPS, and WebExample pulls the `swift-tui-web` `0.3.3` release tarballs for
-`@swifttui/web` and `@swifttui/build`. No sibling source checkout required.
+Everything builds from a fresh clone using tagged HTTPS dependencies. Most
+examples remain on the `0.3.3` release graph; Gallery uses the matching
+`swift-tui`/`swift-tui-charts` `0.3.4` patch pair, and File Previewer uses
+`swift-tui` `0.3.6` for host-bound embedded-terminal focus and start-safe
+terminal shutdown. WebExample pulls the
+`swift-tui-web` `0.3.3` release tarballs for `@swifttui/web` and
+`@swifttui/build`. No sibling source checkout is required.
 
 ## Roster
 
