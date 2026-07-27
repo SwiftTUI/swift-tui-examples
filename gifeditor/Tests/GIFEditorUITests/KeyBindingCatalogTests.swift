@@ -205,14 +205,10 @@ struct KeyBindingCatalogTests {
   /// Reads the sources; writes nothing.
   @Test("no binding site bypasses the catalog")
   func noBindingSiteBypassesTheCatalog() throws {
-    let directory = Self.sourceDirectory
-    let names = try FileManager.default.contentsOfDirectory(atPath: directory.path)
-      .filter { $0.hasSuffix(".swift") }
-      .sorted()
-    #expect(!names.isEmpty, "expected to find GIFEditorUI sources at \(directory.path)")
+    let sources = try Self.everySourceFile()
+    #expect(!sources.isEmpty, "expected to find sources under \(Self.sourcesRoot.path)")
 
-    for name in names {
-      let text = try String(contentsOf: directory.appendingPathComponent(name), encoding: .utf8)
+    for (name, text) in sources {
       // The catalog-routed overload takes a `.command` case; only the
       // raw SwiftTUI one takes a description string.
       #expect(
@@ -224,6 +220,73 @@ struct KeyBindingCatalogTests {
         """
       )
     }
+  }
+
+  /// `.exitOnKeys` is the one binding route the catalog cannot install:
+  /// it is declared on the `Scene` in `GIFEditorApp`, which `GIFEditorUI`
+  /// cannot see. The catalog carries those keys as `.runLoopExitKey`
+  /// entries so the `?` overlay and the docs still list them, but nothing
+  /// made the two agree — the entry was documented and unverified.
+  ///
+  /// Counting is the strongest check available from here without parsing
+  /// Swift: adding an exit key without cataloguing it, or dropping one
+  /// while leaving its row behind, fails the suite.
+  @Test("every run-loop exit key is catalogued")
+  func everyRunLoopExitKeyIsCatalogued() throws {
+    let declared = try Self.everySourceFile()
+      .filter { $0.text.contains(".exitOnKeys(") }
+      .reduce(into: 0) { total, file in
+        // Count the `KeyPress(` literals inside each `.exitOnKeys([...])`.
+        var remainder = Substring(file.text)
+        while let open = remainder.range(of: ".exitOnKeys(") {
+          guard let close = remainder[open.upperBound...].range(of: "])") else { break }
+          total +=
+            remainder[open.upperBound..<close.lowerBound]
+            .components(separatedBy: "KeyPress(").count - 1
+          remainder = remainder[close.upperBound...]
+        }
+      }
+
+    let catalogued = EditorCommand.allCases.filter {
+      KeyBindingCatalog.entry(for: $0).dispatch == .runLoopExitKey
+    }
+
+    #expect(
+      declared == catalogued.count,
+      """
+      \(declared) key(s) are registered via .exitOnKeys but \(catalogued.count) \
+      command(s) in KeyBindingCatalog dispatch as .runLoopExitKey. An exit key \
+      that is not catalogued never reaches the ? overlay or \
+      docs/KEYBINDINGS.md; a catalogued one that is no longer registered is a \
+      shortcut the docs promise and the app does not honour.
+      """
+    )
+    #expect(declared > 0, "expected at least one .exitOnKeys registration to verify against")
+  }
+
+  /// Every `.swift` file under `Sources/`, not just `GIFEditorUI` — a
+  /// binding registered from another module is exactly the hole these
+  /// checks exist to close.
+  static func everySourceFile() throws -> [(name: String, text: String)] {
+    let root = sourcesRoot
+    guard
+      let walker = FileManager.default.enumerator(
+        at: root, includingPropertiesForKeys: nil)
+    else { return [] }
+    return try walker.compactMap { $0 as? URL }
+      .filter { $0.pathExtension == "swift" }
+      .sorted { $0.path < $1.path }
+      .map { (name: $0.lastPathComponent, text: try String(contentsOf: $0, encoding: .utf8)) }
+  }
+
+  /// `Sources/`, located from this file rather than from the working
+  /// directory, which `swift test` does not promise.
+  static var sourcesRoot: URL {
+    URL(fileURLWithPath: #filePath)  // …/Tests/GIFEditorUITests/<this file>
+      .deletingLastPathComponent()  // …/Tests/GIFEditorUITests
+      .deletingLastPathComponent()  // …/Tests
+      .deletingLastPathComponent()  // …/gifeditor
+      .appendingPathComponent("Sources")
   }
 
   /// `Sources/GIFEditorUI`, located from this file rather than from the
