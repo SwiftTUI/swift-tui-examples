@@ -64,6 +64,23 @@ public struct EditorView: View {
   @State private var isExporting = false
   @State private var openMenu: MenuBarMenu?
 
+  // MARK: - Terminal environment
+  //
+  // Both are refreshed by the run loop on every frame from the live
+  // presentation surface, so a resize or a terminal that answers the
+  // background-color query late is picked up on the next render without the
+  // editor watching for either.
+
+  /// The terminal's own foreground/background/palette, as SwiftTUI resolved
+  /// them (an `OSC 11` query, then `COLORFGBG`, then a dark default). The
+  /// editor spends it on one question — light terminal or dark — through
+  /// ``EditorBackgroundAppearance``.
+  @Environment(\.terminalAppearance) private var terminalAppearance
+  /// The whole terminal, which is what ``EditorLayoutFloor`` is a floor on.
+  /// The canvas region's own budget comes from the `GeometryReader` below and
+  /// is a different question.
+  @Environment(\.terminalSize) private var terminalSize
+
   // MARK: - File lifecycle state
 
   /// Which of New / Open / Save As is up. One optional rather than three
@@ -89,7 +106,19 @@ public struct EditorView: View {
   /// `.fixedSize`) keeps the canvas the sole flexible child of the body
   /// row, so reclaimed horizontal space flows to the canvas instead of
   /// pooling as dead margin to the right of the panel.
-  private static let rightPanelWidth = 28
+  ///
+  /// Not `private` because it is also a term in ``EditorLayoutFloor`` — the
+  /// body row cannot be narrower than this panel plus the tool dock — and a
+  /// floor computed from a copy of the number would drift from the layout it
+  /// claims to describe.
+  static let rightPanelWidth = 28
+
+  /// How much color the terminal can show, resolved once per process.
+  ///
+  /// A stored property rather than a read of ``EditorColorFidelity/detected``
+  /// at every use site, so a test can build an editor pinned to `.reduced`
+  /// without a true-color terminal to run it in.
+  private let colorFidelity: EditorColorFidelity
 
   /// How often the autosave node snapshots the document. A parameter so
   /// a test can drive the real timer at a millisecond scale instead of
@@ -101,12 +130,35 @@ public struct EditorView: View {
   /// `EditorViewModel`'s `stateDirectory` is: a default argument in a
   /// `public` declaration may only name things at least as visible as
   /// the declaration, and the ticker is internal.
+  ///
+  /// The internal overload below adds `colorFidelity`, which is off this
+  /// signature for the same reason and answers the same need: a test has to
+  /// be able to build the 256-color editor without a 256-color terminal to
+  /// run it in.
   public init(
     document: GIFDocument,
     initialStatusMessage: String = "",
     stateDirectory: URL? = nil,
     recoveredUnsavedWork: Bool = false,
     autosaveInterval: Duration? = nil
+  ) {
+    self.init(
+      document: document,
+      initialStatusMessage: initialStatusMessage,
+      stateDirectory: stateDirectory,
+      recoveredUnsavedWork: recoveredUnsavedWork,
+      autosaveInterval: autosaveInterval,
+      colorFidelity: nil
+    )
+  }
+
+  init(
+    document: GIFDocument,
+    initialStatusMessage: String = "",
+    stateDirectory: URL? = nil,
+    recoveredUnsavedWork: Bool = false,
+    autosaveInterval: Duration? = nil,
+    colorFidelity: EditorColorFidelity?
   ) {
     _model = State(
       initialValue: EditorViewModel(
@@ -117,6 +169,7 @@ public struct EditorView: View {
       )
     )
     self.autosaveInterval = autosaveInterval ?? AutosaveTicker.defaultInterval
+    self.colorFidelity = colorFidelity ?? .detected
   }
 
   public var body: some View {
@@ -270,6 +323,15 @@ public struct EditorView: View {
         )
       }
       : []
+    // The terminal's own appearance and color depth, resolved into the
+    // checkerboard shades, overlay-mark colors and onion tints the canvas
+    // draws with. Rebuilt per body evaluation because
+    // `\.terminalAppearance` is refreshed per frame: a background-color
+    // query that answers late lands on the next render rather than never.
+    let theme = EditorTheme(
+      appearance: EditorBackgroundAppearance(terminalAppearance),
+      fidelity: colorFidelity
+    )
     // Onion-skin ghosts, drawn from the same memoized composites the canvas
     // and the timeline already read. Adjacent frames are in that cache
     // because the timeline needs their thumbnails, so a ghost costs no
@@ -277,104 +339,122 @@ public struct EditorView: View {
     // bounded loop.
     let ghostLayers = onionSkin.ghostLayers(
       around: model.currentFrameIndex,
-      composites: composites
+      composites: composites,
+      theme: theme
     )
     let primaryColor = model.document.palette[model.primaryColorIndex]
     let secondaryColor = model.document.palette[model.secondaryColorIndex]
     let viewportCommands = self.viewportCommands(model: model)
     let onionSkinCommands = self.onionSkinCommands(model: model, refresh: refresh)
+    // Below `EditorLayoutFloor.minimumWidth` the layout stops shrinking and
+    // starts overflowing the terminal instead — the inspector runs off the
+    // right edge, the timeline's labels stack a letter per row, and the
+    // status strip breaks words mid-syllable. `TerminalFitGate` swaps the
+    // whole stack for a sentence there. It sits inside the `ZStack`, around
+    // the body's content, rather than around `body` itself: the root's
+    // modifier chain is at its resolve-stack budget (see the note after this
+    // `ZStack`), and wrapping that chain in a conditional would spend depth
+    // this view does not have.
+    let fitsTerminal = EditorLayoutFloor.fits(terminalSize)
 
     return ZStack(alignment: .topLeading) {
-      VStack(alignment: .leading, spacing: 0) {
-        MenuBarView(
-          openMenu: $openMenu,
-          model: model,
-          showsToolDock: $showsToolDock,
-          showsRightPanel: $showsRightPanel,
-          showsTimeline: $showsTimeline,
-          pixelGridMode: $pixelGridMode,
-          isResizeSheetPresented: $isResizeSheetPresented,
-          refresh: refresh
-        )
-        ToolOptionsBar(
-          model: model,
-          refresh: refresh
-        )
-        HStack(alignment: .top, spacing: 1) {
-          if showsToolDock {
-            ToolboxView(
-              tool: model.tool,
-              primaryColor: primaryColor,
-              secondaryColor: secondaryColor,
-              model: model,
-              refresh: refresh
-            )
-            .frame(maxHeight: .infinity, alignment: .top)
-            .fixedSize(horizontal: true, vertical: false)
-          }
-          // No `ScrollView` here any more. The viewport clips in source-pixel
-          // space *before* colors are resolved, so a second clipping authority
-          // would only double-scroll the same content — and would reintroduce
-          // the "materialize the whole canvas, then throw most of it away"
-          // cost the viewport exists to delete.
-          GeometryReader { proxy in
-            canvasRegion(
-              cellBudget: proxy.size,
-              model: model,
-              frameColors: frameColors,
-              ghosts: ghostLayers,
-              viewportCommands: viewportCommands,
-              onionSkinCommands: onionSkinCommands,
-              presentKeyboardHelp: presentKeyboardHelp,
-              refresh: refresh
-            )
-          }
-          .border(.separator, set: .single)
-          .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-          if showsRightPanel {
-            VStack(alignment: .leading, spacing: 0) {
-              ColorPanelView(
-                primaryColor: primaryColor,
-                secondaryColor: secondaryColor
-              )
-              .frame(maxWidth: .infinity, alignment: .leading)
-              Divider()
-              PaletteView(
-                palette: model.document.palette,
-                primaryIndex: model.primaryColorIndex,
-                secondaryIndex: model.secondaryColorIndex,
-                model: model,
-                refresh: refresh
-              )
-              .frame(maxWidth: .infinity, alignment: .leading)
-              Divider()
-              LayerListView(
-                layers: model.currentFrame.layers,
-                selectedIndex: model.currentLayerIndex,
-                model: model,
-                refresh: refresh
-              )
-              .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .border(.separator, set: .single)
-            .frame(width: Self.rightPanelWidth)
-            .frame(maxHeight: .infinity, alignment: .top)
-          }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        if showsTimeline {
-          TimelineView(
-            frames: timelineFrames,
-            currentFrameIndex: model.currentFrameIndex,
+      TerminalFitGate(fits: fitsTerminal, available: terminalSize) {
+        VStack(alignment: .leading, spacing: 0) {
+          MenuBarView(
+            openMenu: $openMenu,
+            model: model,
+            showsToolDock: $showsToolDock,
+            showsRightPanel: $showsRightPanel,
+            showsTimeline: $showsTimeline,
+            pixelGridMode: $pixelGridMode,
+            isResizeSheetPresented: $isResizeSheetPresented,
+            refresh: refresh
+          )
+          ToolOptionsBar(
             model: model,
             refresh: refresh
           )
+          HStack(alignment: .top, spacing: 1) {
+            if showsToolDock {
+              ToolboxView(
+                tool: model.tool,
+                primaryColor: primaryColor,
+                secondaryColor: secondaryColor,
+                model: model,
+                refresh: refresh
+              )
+              .frame(maxHeight: .infinity, alignment: .top)
+              .fixedSize(horizontal: true, vertical: false)
+            }
+            // No `ScrollView` here any more. The viewport clips in source-pixel
+            // space *before* colors are resolved, so a second clipping authority
+            // would only double-scroll the same content — and would reintroduce
+            // the "materialize the whole canvas, then throw most of it away"
+            // cost the viewport exists to delete.
+            GeometryReader { proxy in
+              canvasRegion(
+                cellBudget: proxy.size,
+                model: model,
+                frameColors: frameColors,
+                ghosts: ghostLayers,
+                theme: theme,
+                viewportCommands: viewportCommands,
+                onionSkinCommands: onionSkinCommands,
+                presentKeyboardHelp: presentKeyboardHelp,
+                refresh: refresh
+              )
+            }
+            .border(.separator, set: .single)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            if showsRightPanel {
+              VStack(alignment: .leading, spacing: 0) {
+                ColorPanelView(
+                  primaryColor: primaryColor,
+                  secondaryColor: secondaryColor
+                )
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Divider()
+                PaletteView(
+                  palette: model.document.palette,
+                  primaryIndex: model.primaryColorIndex,
+                  secondaryIndex: model.secondaryColorIndex,
+                  model: model,
+                  refresh: refresh,
+                  fidelity: theme.fidelity
+                )
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Divider()
+                LayerListView(
+                  layers: model.currentFrame.layers,
+                  selectedIndex: model.currentLayerIndex,
+                  model: model,
+                  refresh: refresh
+                )
+                .frame(maxWidth: .infinity, alignment: .leading)
+              }
+              .border(.separator, set: .single)
+              .frame(width: Self.rightPanelWidth)
+              .frame(maxHeight: .infinity, alignment: .top)
+            }
+          }
+          .frame(maxWidth: .infinity, alignment: .leading)
+          if showsTimeline {
+            TimelineView(
+              frames: timelineFrames,
+              currentFrameIndex: model.currentFrameIndex,
+              model: model,
+              refresh: refresh
+            )
+          }
+          Divider()
+          footer
         }
-        Divider()
-        footer
       }
 
-      if let openMenu {
+      // Only reachable while the editor itself is on screen: the menu bar is
+      // what opens a dropdown, and it is the first thing the fit gate takes
+      // away.
+      if fitsTerminal, let openMenu {
         MenuBarDropdownView(
           menu: openMenu,
           openMenu: $openMenu,
@@ -633,6 +713,7 @@ public struct EditorView: View {
     model: EditorViewModel,
     frameColors: [EditorColor?],
     ghosts: [CanvasGhostLayer],
+    theme: EditorTheme,
     viewportCommands: CanvasViewportCommands,
     onionSkinCommands: OnionSkinCommands,
     presentKeyboardHelp: @escaping @MainActor @Sendable () -> Void,
@@ -653,7 +734,8 @@ public struct EditorView: View {
       refresh: refresh,
       mode: pixelGridMode,
       viewport: viewport,
-      ghosts: ghosts
+      ghosts: ghosts,
+      theme: theme
     )
     .applyFocusedEditorBindings(
       model: model,

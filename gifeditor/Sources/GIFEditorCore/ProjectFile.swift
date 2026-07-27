@@ -45,6 +45,13 @@ public enum ProjectDecodeError: Error, Hashable, Sendable, CustomStringConvertib
   /// palette rather than reporting a damaged file.
   case emptyPalette
 
+  /// The palette's `usedCount` disagrees with the colors it carries.
+  /// ``ColorPalette/usedColors`` takes a prefix of that length (a
+  /// negative one traps) and ``ColorPalette/nearestIndex(to:)`` scans
+  /// `0..<usedCount` (an oversized one reads past the end), so the
+  /// number is checked against the array rather than trusted.
+  case invalidPaletteUsedCount(found: Int, available: Int)
+
   /// The document carried no frames — `frames[currentFrameIndex]` traps
   /// on the first render.
   case emptyFrameList
@@ -76,6 +83,8 @@ public enum ProjectDecodeError: Error, Hashable, Sendable, CustomStringConvertib
       return "pixel plane '\(field)' has \(found) bytes, expected \(expected)"
     case .emptyPalette:
       return "project file carries an empty palette"
+    case .invalidPaletteUsedCount(let found, let available):
+      return "palette declares \(found) used slots but carries \(available) colors"
     case .emptyFrameList:
       return "project file carries no frames"
     case .emptyLayerList(let frameIndex):

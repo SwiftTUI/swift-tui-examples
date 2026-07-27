@@ -88,6 +88,20 @@ extension Color {
     max(0.0, min(1.0, value))
   }
 
+  /// Black or white, whichever the eye can still read when it is laid over
+  /// `self`.
+  ///
+  /// Every place the editor prints a character *on top of* a color it does
+  /// not choose — the `P`/`S` markers and slot digits on a palette swatch,
+  /// the role letter on the options bar's color chip — used to print it in
+  /// the theme's foreground and hope. That works until the swatch is the same
+  /// color as the ink, which for a white slot on a light terminal is exactly
+  /// what happens. `accessibleTextColor` picks by WCAG contrast, so the ink
+  /// flips at the same luminance ``EditorBackgroundAppearance`` splits on.
+  var legibleInk: Color {
+    accessibleTextColor()
+  }
+
   /// Converts to the editor's 8-bit-per-channel sRGB representation.
   /// Out-of-gamut components are clamped.
   func toEditorColor() -> EditorColor {

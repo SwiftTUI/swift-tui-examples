@@ -100,6 +100,30 @@ public enum GIFEncoder {
     return try GIF.Encoder.encode(image)
   }
 
+  /// Whether ``FrameCoding/deltaFrames`` can be applied to `document` at
+  /// all, or whether an export would silently fall back to full frames.
+  ///
+  /// Two documents are declined:
+  ///
+  /// - **Single-frame documents**, where there is no previous composite to
+  ///   diff against and the two codings would agree anyway.
+  /// - **Documents with an authored disposal other than `.background`.**
+  ///   Delta coding *derives* disposal from the diff, so it can only be
+  ///   applied where the authored sequence is the one the editor produces
+  ///   (every frame `.background` — the `EditorFrame` default, and what
+  ///   `GIFLoader` stamps on every imported frame). Anything else is the
+  ///   author saying something specific about compositing, and is written
+  ///   through verbatim rather than reinterpreted.
+  ///
+  /// This is public because it is also a *fact about the document a user
+  /// is editing*: setting one frame to `.keep` costs the whole export its
+  /// delta coding, which is a surprise worth warning about before the file
+  /// size does it. The encoder is the authority and the UI asks it, rather
+  /// than keeping a second copy of the rule that can drift.
+  public static func supportsDeltaCoding(_ document: GIFDocument) -> Bool {
+    document.frames.count > 1 && document.frames.allSatisfy { $0.disposal == .background }
+  }
+
   // MARK: - Global color table
 
   /// The palette entries the file actually needs.
@@ -167,23 +191,14 @@ public enum GIFEncoder {
   /// Returns the delta-coded frames, or `nil` when the document is not a
   /// candidate and the caller should fall back to full frames.
   ///
-  /// Two documents are declined:
-  ///
-  /// - **Single-frame documents**, where there is no previous composite to
-  ///   diff against and the two codings would agree anyway.
-  /// - **Documents with an authored disposal other than `.background`.**
-  ///   Delta coding *derives* disposal from the diff, so it can only be
-  ///   applied where the authored sequence is the one the editor produces
-  ///   (every frame `.background` — the `EditorFrame` default, and what
-  ///   `GIFLoader` stamps on every imported frame). Anything else is the
-  ///   author saying something specific about compositing, and is written
-  ///   through verbatim rather than reinterpreted.
+  /// See ``supportsDeltaCoding(_:)`` for which documents are declined and
+  /// why. `encodedFrames` is one entry per frame (the caller asserts it),
+  /// so that predicate answers for this array too.
   private static func deltaCodedFrames(
     document: GIFDocument,
     encodedFrames: [[UInt8]]
   ) -> [GIF.IndexedFrame]? {
-    guard encodedFrames.count > 1 else { return nil }
-    guard document.frames.allSatisfy({ $0.disposal == .background }) else { return nil }
+    guard supportsDeltaCoding(document) else { return nil }
 
     let size = document.size
     let plan = planDelta(size: size, encodedFrames: encodedFrames)
@@ -197,7 +212,7 @@ public enum GIFEncoder {
       let indices: [UInt8]
 
       if plan.isFullCanvas[index] {
-        rect = PixelRect(x: 0, y: 0, width: size.width, height: size.height)
+        rect = size.bounds
         indices = current
       } else {
         let previous = encodedFrames[index - 1]

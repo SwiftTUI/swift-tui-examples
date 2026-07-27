@@ -109,9 +109,7 @@ public enum ToolOps {
     if seed == color { return buffer }
     var copy = buffer
     var stack: [PixelPoint] = [point]
-    let canvas = PixelRect(
-      x: 0, y: 0, width: buffer.size.width, height: buffer.size.height
-    )
+    let canvas = buffer.bounds
     guard let bounds = (selection?.rect ?? canvas).intersected(with: canvas)
     else { return buffer }
     while let p = stack.popLast() {
@@ -146,9 +144,7 @@ public enum ToolOps {
     let lengthSquared = dx * dx + dy * dy
     guard lengthSquared > 0 else { return copy }
 
-    let canvas = PixelRect(
-      x: 0, y: 0, width: buffer.size.width, height: buffer.size.height
-    )
+    let canvas = buffer.bounds
     guard let bounds = (selection?.rect ?? canvas).intersected(with: canvas)
     else { return copy }
 
@@ -257,10 +253,11 @@ public enum ToolOps {
     let lowOffset = (diameter - 1) / 2
     let highOffset = diameter / 2
     for dy in -lowOffset...highOffset {
+      let y = center.y + dy
       for dx in -lowOffset...highOffset {
-        let point = PixelPoint(x: center.x + dx, y: center.y + dy)
-        if let bounds, !bounds.contains(point) { continue }
-        buffer[point] = color
+        let x = center.x + dx
+        if let bounds, !bounds.contains(x: x, y: y) { continue }
+        buffer[PixelPoint(x: x, y: y)] = color
       }
     }
   }
@@ -298,7 +295,7 @@ public enum ToolOps {
       return buffer
     }
 
-    let canvas = PixelRect(x: 0, y: 0, width: buffer.size.width, height: buffer.size.height)
+    let canvas = buffer.bounds
     guard let source = (rect ?? canvas).intersected(with: canvas) else {
       return buffer
     }
@@ -515,7 +512,7 @@ public enum ToolOps {
     on buffer: PixelBuffer,
     rect: PixelRect? = nil
   ) -> PixelBuffer {
-    let canvas = canvasRect(of: buffer)
+    let canvas = buffer.bounds
     guard let bounds = (rect ?? canvas).intersected(with: canvas) else { return buffer }
     var copy = buffer
     for y in bounds.minY..<bounds.maxY {
@@ -572,7 +569,7 @@ public enum ToolOps {
     var copy = buffer
     let diameter = max(1, thickness)
     let bounds = selection?.rect
-    let region = axisRegion ?? canvasRect(of: buffer)
+    let region = axisRegion ?? buffer.bounds
     drawLine(
       into: &copy, from: a, to: b, color: color, diameter: diameter, bounds: bounds
     )
@@ -598,14 +595,10 @@ public enum ToolOps {
   /// magnitude, so clamping it changes nothing visible.
   private static let maxOvershoot = 4096
 
-  private static func canvasRect(of buffer: PixelBuffer) -> PixelRect {
-    PixelRect(x: 0, y: 0, width: buffer.size.width, height: buffer.size.height)
-  }
-
   /// The canvas, narrowed to `selection` when one is active. `nil` when
   /// the selection lies entirely off-canvas — nothing can be painted.
   private static func clipRect(of buffer: PixelBuffer, selection: Selection?) -> PixelRect? {
-    let canvas = canvasRect(of: buffer)
+    let canvas = buffer.bounds
     guard let selection else { return canvas }
     return selection.rect.intersected(with: canvas)
   }
@@ -716,7 +709,7 @@ public enum ToolOps {
     rect: PixelRect?,
     horizontally: Bool
   ) -> PixelBuffer {
-    let canvas = canvasRect(of: buffer)
+    let canvas = buffer.bounds
     guard let bounds = (rect ?? canvas).intersected(with: canvas) else { return buffer }
     var copy = buffer
     for y in bounds.minY..<bounds.maxY {
@@ -737,7 +730,7 @@ public enum ToolOps {
     rect: PixelRect?,
     clockwise: Bool
   ) -> PixelBuffer {
-    let canvas = canvasRect(of: buffer)
+    let canvas = buffer.bounds
     guard let bounds = (rect ?? canvas).intersected(with: canvas) else { return buffer }
     let width = bounds.size.width
     let height = bounds.size.height

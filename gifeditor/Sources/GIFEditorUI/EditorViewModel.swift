@@ -882,25 +882,19 @@ public final class EditorViewModel {
 
   /// Whether a GIF export of this document will be delta-coded.
   ///
-  /// Re-states, from the UI side, the two documents
-  /// `GIFEncoder.deltaCodedFrames` declines: a single-frame document, and
-  /// **any document carrying an authored disposal other than
-  /// `.background`**. Delta coding *derives* disposal from the frame diff,
-  /// so it cannot also honour a sequence the author wrote by hand, and it
-  /// backs out of the whole document rather than half-honouring it.
+  /// Asks the encoder rather than restating its rule: this used to be a
+  /// hand-copied mirror of `GIFEncoder`'s own test, and two copies of a
+  /// predicate that decides file size is two copies that can disagree.
+  /// ``GIFEncoder/supportsDeltaCoding(_:)`` is the authority; this is the
+  /// name the UI knows it by.
   ///
   /// The consequence is worth stating plainly because it is the surprise
   /// this property exists to prevent: setting one frame to `.keep` makes
   /// the *entire* export fall back to full-canvas frames, which is
   /// typically several times larger. That is a real trade an author may
   /// want to make, but not one they should discover from a file size.
-  ///
-  /// FOLLOW-UP: the rule lives in two places now. `GIFEncoder` is the
-  /// authority and this is a mirror; the fix is a `GIFEncoder`-side
-  /// predicate both call, which is out of scope here because
-  /// `GIFEncoder.swift` was not in this change's file set.
   public var exportUsesDeltaFrames: Bool {
-    document.frames.count > 1 && document.frames.allSatisfy { $0.disposal == .background }
+    GIFEncoder.supportsDeltaCoding(document)
   }
 
   /// Whether an authored disposal — rather than merely having one frame —
@@ -908,7 +902,7 @@ public final class EditorViewModel {
   /// warning, which would be noise on a one-frame document that never had
   /// anything to delta against.
   public var authoredDisposalDisablesDeltaCoding: Bool {
-    document.frames.count > 1 && !document.frames.allSatisfy { $0.disposal == .background }
+    document.frames.count > 1 && !exportUsesDeltaFrames
   }
 
   private func disposalStatus(for disposal: EditorFrame.FrameDisposal) -> String {

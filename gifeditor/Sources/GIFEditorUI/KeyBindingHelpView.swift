@@ -10,13 +10,19 @@ import SwiftTUI
 /// means the overlay is wrong only if the bindings are wrong.
 ///
 /// A standalone binary cannot assume the repo's `docs/` directory is on
-/// disk beside it, so this is the copy that ships.
+/// disk beside it, so this is the copy that ships. It is a reference
+/// *card*: rows are clipped to one line each, and the handful of labels
+/// long enough to be truncated read in full in `docs/KEYBINDINGS.md`.
 struct KeyBindingHelpView: View {
   let onClose: @MainActor @Sendable () -> Void
 
   /// Height of the scrolling region. Sized so the title, the footer and
   /// the sheet's own chrome still fit an 80×24 terminal, which is the
   /// smallest surface the editor targets.
+  ///
+  /// Twelve sections and seventy-odd rows do not fit in thirteen, and
+  /// they never will — the fold is permanent, so what matters is that
+  /// everything below it is *reachable*. See ``scrolled(from:by:)``.
   private static let visibleRows = 13
 
   /// Width of the shortcut column, taken from the widest chord in the
@@ -26,9 +32,44 @@ struct KeyBindingHelpView: View {
     .map(\.display.count)
     .max() ?? 0
 
+  /// The footer's scroll legend. Kept to one short line: the sheet is
+  /// already as wide as its widest catalog row, and the footer must not
+  /// be what decides its width.
+  private static let scrollLegend = "↑↓ · PgUp/PgDn · Home/End"
+
+  /// Rows the list renders: a title, its entries, and a blank spacer per
+  /// section.
+  ///
+  /// This is an exact count, not an estimate, and the `.lineLimit(1)` on
+  /// each row in ``sectionView(_:)`` is what makes it one: the longest
+  /// label is 79 columns against a text column of about 60, so without
+  /// the clip a handful of rows would wrap and every arithmetic below
+  /// would be short by however many wrapped. `End` would then stop a
+  /// section shy of the end, which is the failure this whole item is
+  /// about. Clipping also keeps the card scannable, and the full text of
+  /// a truncated row is one `docs/KEYBINDINGS.md` away.
+  private static let contentRows: Int = KeyBindingCatalog.populatedSections.reduce(into: 0) {
+    total, section in
+    total += 2 + KeyBindingCatalog.entries(in: section).count
+  }
+
+  /// The offset at which the last row sits on the last line.
+  private static var maximumScroll: Int { max(0, contentRows - visibleRows) }
+
+  @State private var scroll = ScrollPosition.zero
+  /// Focus starts on the list rather than on the sheet's close button.
+  ///
+  /// This is the whole fix, and it is not cosmetic. Key presses bubble
+  /// from the *focused* node upward, and the sheet's own chrome button is
+  /// a sibling of this content, not a descendant — so with focus left
+  /// where the sheet puts it, neither the scroll view's built-in arrow
+  /// handling nor the handler below is on the path a key travels, and
+  /// every row past the thirteenth is unreachable.
+  @FocusState private var listIsFocused: Bool
+
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
-      ScrollView(.vertical) {
+      ScrollView(.vertical, position: $scroll) {
         VStack(alignment: .leading, spacing: 0) {
           ForEach(KeyBindingCatalog.populatedSections, id: \.rawValue) { section in
             sectionView(section)
@@ -36,15 +77,67 @@ struct KeyBindingHelpView: View {
         }
       }
       .frame(height: Self.visibleRows)
+      .focusable()
+      .focused($listIsFocused)
       Divider()
       HStack(spacing: 1) {
-        Text("↑ / ↓ scrolls").foregroundStyle(.separator)
+        Text(Self.scrollLegend).foregroundStyle(.separator)
         Spacer(minLength: 1)
         Button("Close", action: onClose)
           .systemHint("Esc")
       }
     }
     .padding(1)
+    // The focus request has to be imperative: a sheet seats focus on its
+    // own chrome button as it opens, and neither that seating nor
+    // `.defaultFocus` can be out-voted from inside the content during the
+    // same resolve. Asking for it here lands it on the following frame —
+    // a millisecond after `?`, and long before a hand reaches the next
+    // key.
+    .task { listIsFocused = true }
+    // Above the scroll view rather than on it, so the handler is on the
+    // bubble path from whatever inside the sheet holds focus, and so it
+    // covers the keys the scroll view's own handling does not (`PgUp` and
+    // `PgDn`).
+    .onKeyPress(.any) { press in
+      guard press.modifiers.isEmpty,
+        let next = Self.scrolled(from: scroll, by: press.key)
+      else {
+        return .ignored
+      }
+      scroll = next
+      // Handled even when the offset did not change. Letting an exhausted
+      // `↓` fall through would hand it to the editor root behind the
+      // sheet, which moves the canvas cursor under an overlay the author
+      // is still reading.
+      return .handled
+    }
+  }
+
+  /// Where a bare key scrolls to, or `nil` when the key is not one of
+  /// ours.
+  ///
+  /// A page is the viewport height rather than a rounder number so that
+  /// `PgDn` twice shows every row exactly once, with no skipped band and
+  /// no re-read.
+  private static func scrolled(
+    from position: ScrollPosition,
+    by key: KeyEvent
+  ) -> ScrollPosition? {
+    let delta: Int
+    switch key {
+    case .arrowUp: delta = -1
+    case .arrowDown: delta = 1
+    case .pageUp: delta = -visibleRows
+    case .pageDown: delta = visibleRows
+    case .home: return ScrollPosition(x: position.x, y: 0)
+    case .end: return ScrollPosition(x: position.x, y: maximumScroll)
+    default: return nil
+    }
+    return ScrollPosition(
+      x: position.x,
+      y: min(max(0, position.y + delta), maximumScroll)
+    )
   }
 
   @ViewBuilder
@@ -55,6 +148,8 @@ struct KeyBindingHelpView: View {
         Text(Self.paddedShortcut(entry.display))
           .foregroundStyle(.muted)
         Text(entry.label)
+          .lineLimit(1)
+          .truncationMode(.tail)
         Spacer(minLength: 0)
       }
     }

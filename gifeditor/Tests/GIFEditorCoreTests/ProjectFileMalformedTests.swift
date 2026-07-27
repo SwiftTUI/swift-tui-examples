@@ -269,6 +269,146 @@ struct ProjectFileMalformedTests {
   }
 }
 
+/// The same gate, applied to ``ColorPalette`` on its own.
+///
+/// The project format writes the palette as a plain array of used colors,
+/// so the suite above only ever exercises the *document's* re-normalizing
+/// read. The type has its own coded form — `colors` plus `usedCount` —
+/// and until it had its own `init(from:)` that form was the one hole the
+/// document could not cover: anything else that decoded a `ColorPalette`
+/// got the synthesized initializer, which assigns both stored properties
+/// verbatim.
+///
+/// Each case here names the operation that would trap on the shape it
+/// feeds in, and — where the shape is *accepted* — runs that operation on
+/// the decoded value, so a green run is the proof rather than the claim.
+@Suite("ColorPalette — decoded on its own")
+struct ColorPaletteDecodingTests {
+
+  @Test("its own coded form round-trips")
+  func codedFormRoundTrips() throws {
+    for palette in [ColorPalette.default, ColorPalette(colors: [.transparent, .white])] {
+      let data = try JSONEncoder().encode(palette)
+      let decoded = try JSONDecoder().decode(ColorPalette.self, from: data)
+      #expect(decoded == palette)
+      #expect(decoded.usedCount == palette.usedCount)
+      #expect(decoded.colors.count == ColorPalette.capacity)
+    }
+  }
+
+  @Test("a short colors array is padded, and a high slot does not trap")
+  func shortColorsArrayIsPadded() throws {
+    // `subscript(_:)` indexes `colors` directly. A synthesized decode of
+    // this object leaves a 3-element array, so *any* index above 2 is an
+    // out-of-bounds read — including the one this test performs.
+    let decoded = try PaletteCorpus.decode([
+      "colors": [
+        PaletteCorpus.color(0, 0, 0, 0),
+        PaletteCorpus.color(255, 0, 0, 255),
+        PaletteCorpus.color(0, 255, 0, 255),
+      ],
+      "usedCount": 3,
+    ])
+
+    #expect(decoded.colors.count == ColorPalette.capacity)
+    #expect(decoded.usedCount == 3)
+    #expect(decoded[200] == EditorColor(red: 0, green: 255, blue: 0, alpha: 255))
+    #expect(decoded[PaletteIndex(ColorPalette.capacity - 1)] == decoded[200])
+    // The other two would-be traps, run on an accepted value.
+    #expect(decoded.usedColors.count == 3)
+    #expect(decoded.nearestIndex(to: .white) < ColorPalette.capacity)
+  }
+
+  @Test("a negative usedCount is rejected, not taken as a prefix length")
+  func negativeUsedCount() throws {
+    // `usedColors` is `colors.prefix(usedCount)`, and `Array.prefix` traps
+    // on a negative length.
+    for negative in [-1, -7, Int.min] {
+      #expect(
+        PaletteCorpus.decodeError([
+          "colors": [PaletteCorpus.color(0, 0, 0, 0), PaletteCorpus.color(1, 2, 3, 255)],
+          "usedCount": negative,
+        ]) == .invalidPaletteUsedCount(found: negative, available: 2),
+        "usedCount \(negative)"
+      )
+    }
+  }
+
+  @Test("a usedCount past the end of the colors is rejected, not scanned")
+  func oversizedUsedCount() throws {
+    // `nearestIndex(to:)` scans `0..<usedCount` reading `colors[i]`.
+    #expect(
+      PaletteCorpus.decodeError([
+        "colors": [PaletteCorpus.color(0, 0, 0, 0), PaletteCorpus.color(1, 2, 3, 255)],
+        "usedCount": 9,
+      ]) == .invalidPaletteUsedCount(found: 9, available: 2)
+    )
+    // Including the shape a synthesized encode of a *valid* palette would
+    // have, with only the count corrupted.
+    #expect(
+      PaletteCorpus.decodeError([
+        "colors": [PaletteCorpus.color(0, 0, 0, 0)],
+        "usedCount": ColorPalette.capacity + 1,
+      ]) == .invalidPaletteUsedCount(found: ColorPalette.capacity + 1, available: 1)
+    )
+  }
+
+  @Test("a zero usedCount is rejected")
+  func zeroUsedCount() throws {
+    // `init(colors:)` promises `usedCount` in `1...capacity`; a palette
+    // with no used slots renders nothing and matches nothing.
+    #expect(
+      PaletteCorpus.decodeError([
+        "colors": [PaletteCorpus.color(0, 0, 0, 0)],
+        "usedCount": 0,
+      ]) == .invalidPaletteUsedCount(found: 0, available: 1)
+    )
+  }
+
+  @Test("an empty colors array is rejected rather than silently substituted")
+  func emptyColors() throws {
+    // `init(colors:)` would substitute a single transparent slot, which
+    // discards the author's palette instead of reporting a damaged file.
+    #expect(
+      PaletteCorpus.decodeError(["colors": [] as [Any], "usedCount": 0]) == .emptyPalette
+    )
+  }
+}
+
+/// JSON surgery for ``ColorPaletteDecodingTests``.
+private enum PaletteCorpus {
+  static func color(_ r: Int, _ g: Int, _ b: Int, _ a: Int) -> [String: Any] {
+    ["red": r, "green": g, "blue": b, "alpha": a]
+  }
+
+  static func decode(_ object: [String: Any]) throws -> ColorPalette {
+    let data = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+    return try JSONDecoder().decode(ColorPalette.self, from: data)
+  }
+
+  /// Decodes `object`, expecting a rejection. Records an issue and returns
+  /// `nil` when it decodes instead, so a case that stops being malformed
+  /// fails loudly rather than asserting against `nil`.
+  static func decodeError(
+    _ object: [String: Any],
+    sourceLocation: SourceLocation = #_sourceLocation
+  ) -> ProjectDecodeError? {
+    do {
+      _ = try decode(object)
+      Issue.record(
+        "expected a ProjectDecodeError, but the palette decoded successfully",
+        sourceLocation: sourceLocation
+      )
+      return nil
+    } catch let error as ProjectDecodeError {
+      return error
+    } catch {
+      Issue.record("expected a ProjectDecodeError, got \(error)", sourceLocation: sourceLocation)
+      return nil
+    }
+  }
+}
+
 // MARK: - Corpus construction
 
 /// Builds malformed files by taking a *valid* encode apart and damaging

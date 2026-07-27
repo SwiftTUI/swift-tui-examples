@@ -196,18 +196,16 @@ extension GIFDocument {
   ///   the first render cannot trap, and no frame is layerless;
   /// - the palette is re-normalized through ``ColorPalette/init(colors:)``.
   ///
-  /// That last one is a deliberate stand-in. `ColorPalette` still has a
-  /// synthesized `init(from:)`, which would happily produce a palette
-  /// with fewer than `capacity` entries (its `subscript` then traps on
-  /// any higher index) or with a `usedCount` that disagrees with its
-  /// storage (`usedColors` traps on a negative one, `nearestIndex(to:)`
-  /// reads out of bounds on an oversized one). Decoding the palette as
-  /// a plain color array and pushing it back through the type's single
-  /// normalizing entry point closes the hole from this side and never
-  /// trusts a decoded `usedCount`. FOLLOW-UP: give `ColorPalette` its
-  /// own hand-written `init(from:)` routing through `init(colors:)`, so
-  /// the type is safe to decode wherever it appears — this document is
-  /// currently the only thing standing between it and untrusted input.
+  /// That last one is not a workaround, and it stays. The palette is
+  /// *written* as a plain `[EditorColor]` of used colors (see
+  /// ``encode(to:)`` above), so this side never decodes a
+  /// `ColorPalette` at all — there is no `usedCount` on the wire to
+  /// trust or distrust, and re-deriving the padding through the type's
+  /// single normalizing entry point is simply how the format reads.
+  /// ``ColorPalette/init(from:)`` now hardens the type's *own* coded
+  /// form for every other decode site; the two are independent, and
+  /// collapsing either into the other would mean storing a computation
+  /// in the file.
   public init(from decoder: any Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     let size = try container.decode(PixelSize.self, forKey: .size)

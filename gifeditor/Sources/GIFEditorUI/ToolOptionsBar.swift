@@ -236,6 +236,10 @@ struct ToolOptionsBar: View {
 /// Compact, inline color swatch with a 1-character role marker (P/S)
 /// overlaid on a 2-cell color block. Used by the options bar to show
 /// the active primary/secondary color for tools that consume them.
+///
+/// The role letter takes its color from the chip rather than from the theme,
+/// for the same reason the palette grid's markers do: a chip showing the
+/// terminal's own foreground color would otherwise swallow the letter whole.
 private struct ColorChip: View {
   let role: String
   let color: EditorColor
@@ -245,7 +249,7 @@ private struct ColorChip: View {
       Rectangle()
         .fill(color.toTerminalColor())
         .frame(width: 4, height: 1)
-      Text(role).foregroundStyle(.foreground)
+      Text(role).foregroundStyle(color.toTerminalColor().legibleInk)
     }
   }
 }

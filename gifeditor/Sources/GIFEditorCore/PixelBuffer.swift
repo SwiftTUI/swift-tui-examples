@@ -22,6 +22,10 @@ public struct PixelBuffer: Hashable, Sendable, Codable {
     self.pixels = pixels
   }
 
+  /// The whole buffer as a rect — what a tool intersects a selection
+  /// against before it writes anything.
+  public var bounds: PixelRect { size.bounds }
+
   public subscript(point: PixelPoint) -> PaletteIndex? {
     get {
       guard size.contains(point) else { return nil }
@@ -69,7 +73,6 @@ public struct PixelBuffer: Hashable, Sendable, Codable {
   /// Crops to the given rect (clamped to bounds). Returns `nil` when the
   /// rect is fully outside the buffer.
   public func cropped(to rect: PixelRect) -> PixelBuffer? {
-    let bounds = PixelRect(x: 0, y: 0, width: size.width, height: size.height)
     guard let clamped = rect.intersected(with: bounds) else { return nil }
     var out = PixelBuffer(size: clamped.size)
     for dy in 0..<clamped.size.height {

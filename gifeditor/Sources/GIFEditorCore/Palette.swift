@@ -81,9 +81,9 @@ public struct ColorPalette: Hashable, Sendable, Codable {
   public static let transparentSlot: PaletteIndex = 0
 
   /// The single normalizing entry point. Everything else — the mutating
-  /// API below, and (later) decoding — routes through here so the
-  /// "exactly `capacity` entries, padding duplicates the last used
-  /// color" invariant has one owner.
+  /// API below, and decoding — routes through here so the "exactly
+  /// `capacity` entries, padding duplicates the last used color"
+  /// invariant has one owner.
   public init(colors: [EditorColor]) {
     var bounded = Array(colors.prefix(Self.capacity))
     if bounded.isEmpty {
@@ -305,4 +305,53 @@ public struct ColorPalette: Hashable, Sendable, Codable {
     ]
     return ColorPalette(colors: entries)
   }()
+}
+
+// MARK: - Coding
+
+extension ColorPalette {
+  /// Spelled out so the synthesized `encode(to:)` and the hardened
+  /// `init(from:)` below are provably reading the same two keys, the
+  /// same way ``PixelSize`` pins its pair.
+  private enum CodingKeys: String, CodingKey {
+    case colors
+    case usedCount
+  }
+
+  /// Hardened decoding, routed through ``init(colors:)``.
+  ///
+  /// A synthesized `init(from:)` assigns the two stored properties
+  /// verbatim, and every guarantee the rest of this type relies on comes
+  /// from ``init(colors:)`` rather than from the properties themselves.
+  /// Three decoded shapes reach an operation that traps:
+  ///
+  /// - **fewer than `capacity` colors** — ``subscript(_:)`` indexes
+  ///   `colors` directly, so any pixel referencing a higher slot is an
+  ///   out-of-bounds read;
+  /// - **a negative `usedCount`** — ``usedColors`` takes a prefix of
+  ///   that length, and `Array.prefix` traps on a negative one;
+  /// - **a `usedCount` past the end of `colors`** —
+  ///   ``nearestIndex(to:)`` scans `0..<usedCount`.
+  ///
+  /// So `usedCount` is checked against the array that came with it and
+  /// never trusted, and the leading `usedCount` colors are pushed back
+  /// through the normalizing initializer, which re-establishes the
+  /// padding. A short-but-consistent palette — the shape a hand-written
+  /// file naturally has — is accepted and padded rather than refused;
+  /// only a `usedCount` the colors cannot support is a rejection.
+  public init(from decoder: any Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    let colors = try container.decode([EditorColor].self, forKey: .colors)
+    let usedCount = try container.decode(Int.self, forKey: .usedCount)
+
+    guard !colors.isEmpty else { throw ProjectDecodeError.emptyPalette }
+    guard usedCount > 0, usedCount <= colors.count else {
+      throw ProjectDecodeError.invalidPaletteUsedCount(
+        found: usedCount,
+        available: colors.count
+      )
+    }
+
+    self.init(colors: Array(colors.prefix(usedCount)))
+  }
 }

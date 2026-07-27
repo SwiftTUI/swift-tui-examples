@@ -29,6 +29,12 @@ struct CanvasView: View {
   var mode: CanvasPixelGridMode = .verticalHalfBlock
   var viewport: CanvasViewport? = nil
   var ghosts: [CanvasGhostLayer] = []
+  /// The checkerboard shades and overlay-mark colors, resolved against the
+  /// terminal's own background and color depth. Defaulted to
+  /// ``EditorTheme/fallback`` — the dark, true-color pair the canvas drew
+  /// unconditionally before there was a theme — so a caller that has no
+  /// environment to read from renders exactly what it used to.
+  var theme: EditorTheme = .fallback
 
   var body: some View {
     CanvasSurfaceView(
@@ -41,7 +47,8 @@ struct CanvasView: View {
       hover: hover,
       mode: mode,
       viewport: viewport ?? .wholeCanvas(size),
-      ghosts: ghosts
+      ghosts: ghosts,
+      theme: theme
     )
     .border(.separator, set: .single)
   }
@@ -60,6 +67,7 @@ struct CanvasSurfaceView: View {
   /// Onion-skin layers, farthest ghost first. Empty when onion skin is off,
   /// which is the only state that has to cost nothing.
   var ghosts: [CanvasGhostLayer] = []
+  var theme: EditorTheme = .fallback
 
   var body: some View {
     // Resolve the pixel colors once and share them between the base grid and
@@ -87,7 +95,8 @@ struct CanvasSurfaceView: View {
           pendingMarqueeAnchor: pendingMarqueeAnchor,
           pendingGradientAnchor: pendingGradientAnchor,
           hover: hover,
-          mode: mode
+          mode: mode,
+          theme: theme
         )
       )
       .frame(width: logical.width, height: mode.cellHeight(for: logical.height))
@@ -149,9 +158,9 @@ struct CanvasSurfaceView: View {
     if let index, let color = cells[index] {
       return color.toTerminalColor()
     }
-    // Checkerboard for transparent.
-    let shade = ((logicalX + logicalY) & 1) == 0 ? 0.18 : 0.10
-    var resolved = Color(red: shade, green: shade, blue: shade, alpha: 1.0)
+    // Checkerboard for transparent, in whichever pair the terminal can
+    // actually show two of — see `EditorTheme.checkerShade(atParity:)`.
+    var resolved = theme.checkerShade(atParity: ((logicalX + logicalY) & 1) == 0)
     guard let index, !ghosts.isEmpty else {
       return resolved
     }
@@ -180,6 +189,7 @@ private struct CanvasOverlayDrawing: CanvasDrawing, Equatable {
   var pendingGradientAnchor: GIFEditorCore.PixelPoint?
   var hover: GIFEditorCore.PixelPoint?
   var mode: CanvasPixelGridMode
+  var theme: EditorTheme = .fallback
 
   func draw(into context: inout CanvasContext) {
     if let hover, hover != cursor {
@@ -189,10 +199,10 @@ private struct CanvasOverlayDrawing: CanvasDrawing, Equatable {
       drawSelection(selection.rect, into: &context)
     }
     if let anchor = pendingMarqueeAnchor {
-      mark(anchor, kind: .anchor(color: .yellow), into: &context)
+      mark(anchor, kind: .anchor(color: theme.marqueeAnchorColor), into: &context)
     }
     if let anchor = pendingGradientAnchor {
-      mark(anchor, kind: .anchor(color: .green), into: &context)
+      mark(anchor, kind: .anchor(color: theme.gradientAnchorColor), into: &context)
     }
     mark(cursor, kind: .cursor, into: &context)
   }
@@ -230,14 +240,15 @@ private struct CanvasOverlayDrawing: CanvasDrawing, Equatable {
           mode: mode,
           isTopHalf: viewport.halfBlockGlyphIsTop(forLogicalY: logicalY)
         ),
-        color: kind.color,
+        color: kind.color(in: theme),
         into: &context
       )
       return
     }
+    let color = kind.color(in: theme)
     for y in block.origin.y..<block.maxY {
-      write(CellPoint(x: block.origin.x, y: y), character: "▌", color: kind.color, into: &context)
-      write(CellPoint(x: block.maxX - 1, y: y), character: "▐", color: kind.color, into: &context)
+      write(CellPoint(x: block.origin.x, y: y), character: "▌", color: color, into: &context)
+      write(CellPoint(x: block.maxX - 1, y: y), character: "▐", color: color, into: &context)
     }
   }
 
@@ -310,7 +321,7 @@ private struct CanvasOverlayDrawing: CanvasDrawing, Equatable {
     into context: inout CanvasContext
   ) {
     let block = viewport.cellRect(forSource: point, mode: mode)
-    let color = OverlayMark.selection.color
+    let color = OverlayMark.selection.color(in: theme)
     switch edge {
     case .top:
       for x in block.origin.x..<block.maxX {
@@ -391,11 +402,14 @@ private enum OverlayMark: Equatable {
   case selection
   case anchor(color: Color)
 
-  var color: Color {
+  /// The mark's color in `theme`. The two anchors carry theirs already — the
+  /// drawing resolved them from the same theme before it built the case — so
+  /// only the three fixed marks look it up here.
+  func color(in theme: EditorTheme) -> Color {
     switch self {
-    case .cursor: .cyan
-    case .hover: .magenta
-    case .selection: .blue
+    case .cursor: theme.cursorColor
+    case .hover: theme.hoverColor
+    case .selection: theme.selectionColor
     case .anchor(let color): color
     }
   }
@@ -428,6 +442,7 @@ struct InteractiveCanvasView: View {
   /// handlers below address source pixels through the viewport and the model,
   /// and never read these.
   var ghosts: [CanvasGhostLayer] = []
+  var theme: EditorTheme = .fallback
 
   @State private var dragAnchor: GIFEditorCore.PixelPoint?
   @State private var lastDragPoint: GIFEditorCore.PixelPoint?
@@ -446,7 +461,8 @@ struct InteractiveCanvasView: View {
         hover: hover,
         mode: mode,
         viewport: viewport,
-        ghosts: ghosts
+        ghosts: ghosts,
+        theme: theme
       )
       .contentShape(
         canvasPointerTargetPath(viewport.cellSize(mode: mode))

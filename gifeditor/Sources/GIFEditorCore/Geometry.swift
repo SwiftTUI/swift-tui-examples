@@ -26,6 +26,16 @@ public struct PixelSize: Hashable, Sendable, Codable {
 
   public var area: Int { width * height }
 
+  /// This extent as a rect anchored at the origin — the "whole canvas"
+  /// every clipping operation intersects against.
+  ///
+  /// It was open-coded as `PixelRect(x: 0, y: 0, width: …, height: …)`
+  /// at half a dozen call sites, which is five chances to transpose the
+  /// two dimensions in a literal the compiler cannot check.
+  public var bounds: PixelRect {
+    PixelRect(x: 0, y: 0, width: width, height: height)
+  }
+
   public func contains(_ point: PixelPoint) -> Bool {
     point.x >= 0 && point.y >= 0 && point.x < width && point.y < height
   }
@@ -100,8 +110,18 @@ public struct PixelRect: Hashable, Sendable, Codable {
   public var maxX: Int { origin.x + size.width }
   public var maxY: Int { origin.y + size.height }
 
+  /// Membership in loose coordinates.
+  ///
+  /// The scan loops walk `x` and `y` as plain `Int`s, so the point-taking
+  /// overload made them build a ``PixelPoint`` per cell purely to ask a
+  /// question about two numbers — and, on the clipped cells, throw it
+  /// away again.
+  public func contains(x: Int, y: Int) -> Bool {
+    x >= minX && x < maxX && y >= minY && y < maxY
+  }
+
   public func contains(_ point: PixelPoint) -> Bool {
-    point.x >= minX && point.x < maxX && point.y >= minY && point.y < maxY
+    contains(x: point.x, y: point.y)
   }
 
   /// Intersection of two rects, normalized into the smaller bounds.
