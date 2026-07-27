@@ -4,25 +4,33 @@ struct CounterView: View {
 
   @Environment(\.terminalSize) private var terminalSize
   @State private var count = 0
-  @State private var rippleProgress: Double = 1
+  @State private var rippleIDs: [Int] = []
+
+  private let maximumInFlightRipples = 8
 
   var body: some View {
     VStack(spacing: 1) {
-      Text("Count: \(count)").bold()
+      TextFigure("\(count)", font: .future)
+        .frame(minWidth: 14, alignment: .center)
       Button("Increment") {
         count += 1
-        rippleProgress = 0
+        rippleIDs.append(count)
+        if rippleIDs.count > maximumInFlightRipples {
+          rippleIDs.removeFirst(rippleIDs.count - maximumInFlightRipples)
+        }
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .background {
-      Rectangle()
-        .fill(ripple)
-    }
-    .onChange(of: count) {
-      withAnimation(.linear(duration: .milliseconds(1600))) {
-        rippleProgress = 1
+      ZStack {
+        ForEach(rippleIDs, id: \.self) { rippleID in
+          RippleLayer(reach: reach) {
+            rippleIDs.removeAll { $0 == rippleID }
+          }
+          .blendMode(.screen)
+        }
       }
+      .compositingGroup()
     }
   }
 
@@ -31,9 +39,36 @@ struct CounterView: View {
     let vertical = Double(terminalSize.height)
     return (horizontal * horizontal + vertical * vertical).squareRoot()
   }
+}
+
+private struct RippleLayer: View {
+  @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+  @State private var progress: Double = 0
+
+  let reach: Double
+  let onCompletion: @MainActor @Sendable () -> Void
+
+  var body: some View {
+    Rectangle()
+      .fill(ripple)
+      .task {
+        @MainActor in
+        if accessibilityReduceMotion {
+          try? await Task.sleep(nanoseconds: 240_000_000)
+        } else {
+          withAnimation(.linear(duration: .milliseconds(1600))) {
+            progress = 1
+          }
+          try? await Task.sleep(nanoseconds: 1_600_000_000)
+        }
+
+        guard !Task.isCancelled else { return }
+        onCompletion()
+      }
+  }
 
   private var ripple: RadialGradient {
-    let innerEdge = rippleProgress * reach
+    let innerEdge = progress * reach
     return RadialGradient(
       gradient: Gradient(stops: [
         .init(color: .clear, location: 0),

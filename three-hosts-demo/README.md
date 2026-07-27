@@ -9,6 +9,9 @@ swiftly run swift run --package-path three-hosts-demo three-hosts-demo
 ```
 
 Increment the counter with `Space` or `Return`; quit with `Ctrl-C`.
+The value uses the Gallery counter's `TextFigure` treatment.
+Each press launches its own ripple, so rapid presses leave several rings in
+flight; overlapping rings brighten through screen blending.
 
 Run the same scene on a **native SwiftUI surface** (macOS-only SwiftPM target):
 
@@ -34,6 +37,7 @@ swiftly run swift build \
 - `SwiftTUI` umbrella runner on native (terminal + WebHost) — which means the terminal host is a thin `@main` wrapper over the shared scene using the batteries-included `SwiftTUI.App` runner.
 - `SwiftUIHost` (`swift-tui-swiftui`) — which means the identical scene mounts inside a native `SwiftUI.Scene`/`WindowGroup` as a real macOS app surface.
 - `SwiftTUIWASI` — which means the browser host runs the same scene via `WASIRunner.run` with a dependency closure that stops short of FlyingFox/Dispatch, keeping the wasm server/runtime-stack-free.
+- Identity-preserving `ForEach` animation layers and `.screen` compositing — which let independently timed ripples overlap consistently on every host.
 
 ## Layout
 
