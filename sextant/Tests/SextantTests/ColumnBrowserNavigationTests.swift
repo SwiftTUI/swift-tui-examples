@@ -1,4 +1,4 @@
-@testable import FilePreviewerApp
+@testable import Sextant
 import Foundation
 import SwiftTUI
 import Testing
@@ -39,7 +39,7 @@ struct ColumnBrowserNavigationTests {
       .key(.arrowDown),
       .key(.character("d"), modifiers: .ctrl),
     ])
-    let rootIdentity = Identity(components: ["file-previewer.navigation.tests"])
+    let rootIdentity = Identity(components: ["sextant.navigation.tests"])
     let runLoop = SwiftTUI.RunLoop(
       rootIdentity: rootIdentity,
       presentationSurface: host,
@@ -117,7 +117,7 @@ private final class RecordingPresentationSurface: PresentationSurface {
 
 private func temporaryDirectory() throws -> URL {
   let root = FileManager.default.temporaryDirectory
-    .appendingPathComponent("file-previewer-\(UUID().uuidString)", isDirectory: true)
+    .appendingPathComponent("sextant-\(UUID().uuidString)", isDirectory: true)
   try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
   return root
 }

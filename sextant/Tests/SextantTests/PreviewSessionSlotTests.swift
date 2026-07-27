@@ -1,7 +1,7 @@
 import Synchronization
 import Testing
 
-@testable import FilePreviewerApp
+@testable import Sextant
 
 @MainActor
 struct PreviewSessionSlotTests {

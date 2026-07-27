@@ -2,7 +2,7 @@ public import Foundation
 public import SwiftTUI
 import SwiftTUITerminal
 
-public struct FilePreviewerRootView: View {
+public struct SextantRootView: View {
   private let root: URL
   private let registry: PreviewerRegistry
   private let previewSessions: PreviewSessionSlot<TerminalProcessSession>

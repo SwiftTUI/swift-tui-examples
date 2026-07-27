@@ -1,11 +1,11 @@
-# File Previewer
+# Sextant
 
 A Miller-column file browser that previews the selected file by launching the right external tool inside an embedded terminal — open it on any directory and arrow through your tree with live previews. Runs in the terminal (with embedded child processes).
 
 ## Run
 
 ```bash
-swiftly run swift run --package-path file-previewer FilePreviewerApp
+swiftly run swift run --package-path sextant sextant
 ```
 
 Run it from the directory you want to browse — the app opens on the current working directory.
@@ -45,7 +45,7 @@ requirements.
 ## Test
 
 ```bash
-swiftly run swift test --package-path file-previewer
+swiftly run swift test --package-path sextant
 ```
 
 The tests cover preview-command lookup, Miller-column width allocation,

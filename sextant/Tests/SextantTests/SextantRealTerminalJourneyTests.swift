@@ -5,7 +5,7 @@ import SwiftTUITerminal
 @_spi(Testing) import SwiftTUITestSupport
 import Testing
 
-@testable import FilePreviewerApp
+@testable import Sextant
 
 #if canImport(Darwin)
   import Darwin
@@ -15,7 +15,7 @@ import Testing
 
 @MainActor
 @Suite(.serialized)
-struct FilePreviewerRealTerminalJourneyTests {
+struct SextantRealTerminalJourneyTests {
   @Test("preview focus routes child arrows, consumes Escape, resizes, and shuts down")
   func previewFocusRoutesKeysAndShutsDown() async throws {
     let root = try temporaryDirectory()
@@ -45,7 +45,7 @@ struct FilePreviewerRealTerminalJourneyTests {
       byExtension: [:],
       fallback: PreviewCommand(executable: "/bin/cat", arguments: { _ in ["-v"] })
     )
-    let rootIdentity = Identity(components: ["file-previewer.real-terminal"])
+    let rootIdentity = Identity(components: ["sextant.real-terminal"])
 
     let runTask = Task {
       do {
@@ -355,7 +355,7 @@ private enum JourneyFailure: Error {
 
 private func temporaryDirectory() throws -> URL {
   let root = FileManager.default.temporaryDirectory
-    .appendingPathComponent("file-previewer-pty-\(UUID().uuidString)", isDirectory: true)
+    .appendingPathComponent("sextant-pty-\(UUID().uuidString)", isDirectory: true)
   try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
   return root
 }

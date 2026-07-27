@@ -1,4 +1,4 @@
-@testable import FilePreviewerApp
+@testable import Sextant
 import Foundation
 import Testing
 

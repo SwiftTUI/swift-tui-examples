@@ -231,7 +231,7 @@ run_linux_examples() {
       "equatable-demo" \
       "terminal-runner" \
       "argparse" \
-      "file-previewer" \
+      "sextant" \
       "gallery" \
       "gifcat" \
       "gifeditor" \
@@ -256,7 +256,7 @@ run_linux_examples() {
     "equatable-demo" \
     "terminal-runner" \
     "argparse" \
-    "file-previewer" \
+    "sextant" \
     "gifcat" \
     "gifeditor" \
     "gitviz" \

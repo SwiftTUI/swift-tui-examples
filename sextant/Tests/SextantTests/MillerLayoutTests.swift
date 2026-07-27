@@ -1,4 +1,4 @@
-import FilePreviewerApp
+import Sextant
 import Testing
 
 struct MillerLayoutTests {

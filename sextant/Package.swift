@@ -7,14 +7,14 @@ let swiftSettings: [SwiftSetting] = [
 ]
 
 let package = Package(
-  name: "file-previewer",
+  name: "sextant",
   platforms: [
     .macOS(.v15)
   ],
   products: [
     .executable(
-      name: "FilePreviewerApp",
-      targets: ["FilePreviewerAppRunner"]
+      name: "sextant",
+      targets: ["SextantCommand"]
     )
   ],
   dependencies: [
@@ -22,7 +22,7 @@ let package = Package(
   ],
   targets: [
     .target(
-      name: "FilePreviewerApp",
+      name: "Sextant",
       dependencies: [
         .product(name: "SwiftTUI", package: "swift-tui"),
         .product(name: "SwiftTUITerminal", package: "swift-tui"),
@@ -30,9 +30,9 @@ let package = Package(
       swiftSettings: swiftSettings
     ),
     .executableTarget(
-      name: "FilePreviewerAppRunner",
+      name: "SextantCommand",
       dependencies: [
-        "FilePreviewerApp",
+        "Sextant",
         .product(name: "SwiftTUI", package: "swift-tui"),
         .product(name: "SwiftTUICLI", package: "swift-tui"),
         .product(name: "SwiftTUIRuntime", package: "swift-tui"),
@@ -40,9 +40,9 @@ let package = Package(
       swiftSettings: swiftSettings
     ),
     .testTarget(
-      name: "FilePreviewerAppTests",
+      name: "SextantTests",
       dependencies: [
-        "FilePreviewerApp",
+        "Sextant",
         .product(name: "SwiftTUI", package: "swift-tui"),
         .product(name: "SwiftTUITerminal", package: "swift-tui"),
         .product(name: "SwiftTUITestSupport", package: "swift-tui"),
