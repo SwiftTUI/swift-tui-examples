@@ -1,5 +1,5 @@
-import Foundation
 import EditorGIF
+import Foundation
 import Testing
 
 @testable import GIFEditorCore
@@ -142,6 +142,92 @@ struct GIFEncoderTests {
         #expect(actual.b == expectedColor.blue)
       }
     }
+  }
+
+  // MARK: - Global color table sizing
+
+  @Test("The emitted color table is sized to the palette the document uses")
+  func colorTableIsTrimmedToTheUsedPalette() throws {
+    // `ColorPalette` is always 256 entries in memory. Writing all of them
+    // cost every export a 768-byte table and a 9-bit LZW start, whatever
+    // the document held; five used slots should buy an eight-entry table.
+    let palette = ColorPalette(
+      colors: [
+        .transparent,
+        .black,
+        .white,
+        EditorColor(rgbHex: 0xFF0000),
+        EditorColor(rgbHex: 0x00FF00),
+      ]
+    )
+    #expect(palette.colors.count == ColorPalette.capacity)
+
+    let size = PixelSize(width: 4, height: 2)
+    var pixels = PixelBuffer(size: size)
+    // Slot 0 is the transparency sentinel, so the painted pixels use
+    // 1...4 and the holes are the editor's `nil`.
+    for x in 0..<size.width {
+      pixels[PixelPoint(x: x, y: 0)] = PaletteIndex(1 + x % 4)
+      pixels[PixelPoint(x: x, y: 1)] = x == 0 ? nil : PaletteIndex(1 + (x + 2) % 4)
+    }
+    let document = GIFDocument(
+      size: size,
+      palette: palette,
+      frames: [EditorFrame(layers: [EditorLayer(name: "L", pixels: pixels)])]
+    )
+
+    let bytes = try GIFEncoder.encode(document: document)
+    var source = ArraySource(bytes: bytes)
+    let decoded = try GIF.Image.decompress(stream: &source)
+
+    // Five used slots pad to the next power of two, and the whole table
+    // is 24 bytes rather than 768.
+    #expect(decoded.frames[0].palette.count == 8)
+    #expect(bytes.count < 128)
+
+    // And not one pixel moved.
+    let composited = decoded.composited(frameIndex: 0, as: GIF.RGBA<UInt8>.self)
+    for y in 0..<size.height {
+      for x in 0..<size.width {
+        let actual = composited[y * size.width + x]
+        guard let index = pixels[PixelPoint(x: x, y: y)] else {
+          #expect(actual.a == 0)
+          continue
+        }
+        let expected = palette[index]
+        #expect(actual == GIF.RGBA<UInt8>(expected.red, expected.green, expected.blue, 255))
+      }
+    }
+  }
+
+  @Test("A pixel indexing past the used palette still encodes")
+  func indexPastUsedCountWidensTheTable() throws {
+    // The palette's subscript setter writes padding slots verbatim
+    // without growing `usedCount`, so a buffer can legitimately reference
+    // an index the used range does not cover. The table has to cover it
+    // anyway, or the encoder rejects the document.
+    var palette = ColorPalette(colors: [.transparent, .black])
+    palette[9] = EditorColor(rgbHex: 0x00FFFF)
+    #expect(palette.usedCount == 2)
+
+    let size = PixelSize(width: 2, height: 1)
+    var pixels = PixelBuffer(size: size)
+    pixels[PixelPoint(x: 0, y: 0)] = 1
+    pixels[PixelPoint(x: 1, y: 0)] = 9
+    let document = GIFDocument(
+      size: size,
+      palette: palette,
+      frames: [EditorFrame(layers: [EditorLayer(name: "L", pixels: pixels)])]
+    )
+
+    let bytes = try GIFEncoder.encode(document: document)
+    var source = ArraySource(bytes: bytes)
+    let decoded = try GIF.Image.decompress(stream: &source)
+
+    #expect(decoded.frames[0].palette.count == 16)
+    let composited = decoded.composited(frameIndex: 0, as: GIF.RGBA<UInt8>.self)
+    #expect(composited[0] == GIF.RGBA<UInt8>(0, 0, 0, 255))
+    #expect(composited[1] == GIF.RGBA<UInt8>(0, 255, 255, 255))
   }
 }
 

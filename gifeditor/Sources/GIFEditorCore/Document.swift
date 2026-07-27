@@ -49,6 +49,32 @@ public struct EditorFrame: Hashable, Sendable, Codable, Identifiable {
     case background = 2
     case previous = 3
   }
+
+  private enum CodingKeys: String, CodingKey {
+    case id
+    case layers
+    case delayCentiseconds
+    case disposal
+  }
+
+  /// Routes through the memberwise initializer so a decoded delay gets
+  /// the same `max(0, …)` clamp an authored one does. The frame has no
+  /// invariant worth *rejecting* a file over — a nonsense delay is a
+  /// nonsense animation, not a crash — but it should not be possible to
+  /// hold a `EditorFrame` whose delay could never have been typed.
+  public init(from decoder: any Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    let id = try container.decode(UUID.self, forKey: .id)
+    let layers = try container.decode([EditorLayer].self, forKey: .layers)
+    let delayCentiseconds = try container.decode(Int.self, forKey: .delayCentiseconds)
+    let disposal = try container.decode(FrameDisposal.self, forKey: .disposal)
+    self.init(
+      id: id,
+      layers: layers,
+      delayCentiseconds: delayCentiseconds,
+      disposal: disposal
+    )
+  }
 }
 
 /// The complete editor document. Everything else in the editor reads
@@ -125,5 +151,93 @@ public struct GIFDocument: Hashable, Sendable, Codable {
   public func flattenedColors(frameIndex: Int) -> [EditorColor?] {
     precondition(frames.indices.contains(frameIndex), "frame index out of range")
     return flattenedColors(for: frames[frameIndex])
+  }
+}
+
+// MARK: - Project-file coding
+
+extension GIFDocument {
+  private enum CodingKeys: String, CodingKey {
+    case size
+    case palette
+    case frames
+    case loopCount
+  }
+
+  /// `path` is deliberately absent from the coding keys: it records
+  /// where *this* machine keeps the file, not anything about the
+  /// artwork, and a project handed to someone else must not carry the
+  /// author's home directory. The open path sets it from the URL it
+  /// just read.
+  ///
+  /// The palette is written as its *used* colors — the array an author
+  /// would recognise — rather than as the padded 256-entry storage.
+  /// Padding is derived (every slot past `usedCount` duplicates the last
+  /// used color), so writing it would be storing a computation, and
+  /// re-deriving it on read is what re-establishes the "exactly
+  /// `capacity` entries" invariant.
+  public func encode(to encoder: any Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(size, forKey: .size)
+    try container.encode(palette.usedColors, forKey: .palette)
+    try container.encode(frames, forKey: .frames)
+    try container.encode(loopCount, forKey: .loopCount)
+  }
+
+  /// Hardened decoding. Everything a renderer indexes without asking is
+  /// established here, by the checked initializers, before the document
+  /// escapes:
+  ///
+  /// - the canvas size is positive and within the format's sanity
+  ///   limits (``PixelSize/init(from:)``);
+  /// - every layer's pixel count matches its size
+  ///   (``PixelBuffer/init(from:)``) and its size matches the canvas;
+  /// - the frame list is non-empty, so `frames[currentFrameIndex]` on
+  ///   the first render cannot trap, and no frame is layerless;
+  /// - the palette is re-normalized through ``ColorPalette/init(colors:)``.
+  ///
+  /// That last one is a deliberate stand-in. `ColorPalette` still has a
+  /// synthesized `init(from:)`, which would happily produce a palette
+  /// with fewer than `capacity` entries (its `subscript` then traps on
+  /// any higher index) or with a `usedCount` that disagrees with its
+  /// storage (`usedColors` traps on a negative one, `nearestIndex(to:)`
+  /// reads out of bounds on an oversized one). Decoding the palette as
+  /// a plain color array and pushing it back through the type's single
+  /// normalizing entry point closes the hole from this side and never
+  /// trusts a decoded `usedCount`. FOLLOW-UP: give `ColorPalette` its
+  /// own hand-written `init(from:)` routing through `init(colors:)`, so
+  /// the type is safe to decode wherever it appears — this document is
+  /// currently the only thing standing between it and untrusted input.
+  public init(from decoder: any Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    let size = try container.decode(PixelSize.self, forKey: .size)
+
+    let colors = try container.decode([EditorColor].self, forKey: .palette)
+    guard !colors.isEmpty else { throw ProjectDecodeError.emptyPalette }
+
+    let frames = try container.decode([EditorFrame].self, forKey: .frames)
+    guard !frames.isEmpty else { throw ProjectDecodeError.emptyFrameList }
+    for (frameIndex, frame) in frames.enumerated() {
+      guard !frame.layers.isEmpty else {
+        throw ProjectDecodeError.emptyLayerList(frameIndex: frameIndex)
+      }
+      for layer in frame.layers where layer.pixels.size != size {
+        throw ProjectDecodeError.layerSizeMismatch(canvas: size, layer: layer.pixels.size)
+      }
+    }
+
+    // Clamped rather than rejected, matching `EditorFrame`'s delay: a
+    // negative loop count is meaningless but harmless, and the GIF
+    // encoder clamps it too.
+    let decodedLoopCount = try container.decode(Int.self, forKey: .loopCount)
+    let loopCount = max(0, decodedLoopCount)
+
+    self.init(
+      size: size,
+      palette: ColorPalette(colors: colors),
+      frames: frames,
+      path: nil,
+      loopCount: loopCount
+    )
   }
 }

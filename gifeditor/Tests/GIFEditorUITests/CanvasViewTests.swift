@@ -165,46 +165,177 @@ struct CanvasViewTests {
   func canvasPixelMappingUsesSubCellPrecision() {
     let metrics = CellPixelMetrics(width: 10, height: 20, source: .reported)
     let precision = PointerPrecision.subCell(source: .terminalPixels, metrics: metrics)
-    let size = GIFEditorCore.PixelSize(width: 4, height: 4)
+    let viewport = CanvasViewport.wholeCanvas(
+      GIFEditorCore.PixelSize(width: 4, height: 4)
+    )
 
     #expect(
-      canvasPixelPoint(
+      viewport.sourcePoint(
         forLocalCell: Point(x: 1.25, y: 0.20),
         precision: precision,
-        mode: .verticalHalfBlock,
-        size: size
+        mode: .verticalHalfBlock
       ) == GIFEditorCore.PixelPoint(x: 1, y: 0)
     )
     #expect(
-      canvasPixelPoint(
+      viewport.sourcePoint(
         forLocalCell: Point(x: 1.25, y: 0.75),
         precision: precision,
-        mode: .verticalHalfBlock,
-        size: size
+        mode: .verticalHalfBlock
       ) == GIFEditorCore.PixelPoint(x: 1, y: 1)
     )
     #expect(
-      canvasPixelPoint(
+      viewport.sourcePoint(
         forLocalCell: Point(x: 1.25, y: 1.25),
         precision: precision,
-        mode: .verticalHalfBlock,
-        size: size
+        mode: .verticalHalfBlock
       ) == GIFEditorCore.PixelPoint(x: 1, y: 2)
     )
   }
 
   @Test("Canvas pixel mapping anchors cell-only input to a stable half-cell")
   func canvasPixelMappingCellFallbackUsesCellOrigin() {
-    let size = GIFEditorCore.PixelSize(width: 4, height: 4)
+    let viewport = CanvasViewport.wholeCanvas(
+      GIFEditorCore.PixelSize(width: 4, height: 4)
+    )
 
     #expect(
-      canvasPixelPoint(
+      viewport.sourcePoint(
         forLocalCell: Point(x: 1.5, y: 0.5),
         precision: .cell,
-        mode: .verticalHalfBlock,
-        size: size
+        mode: .verticalHalfBlock
       ) == GIFEditorCore.PixelPoint(x: 1, y: 0)
     )
+  }
+
+  @Test("Cull-then-scale: the resolved array tracks the viewport, not the canvas")
+  func resolvedPixelCountIsIndependentOfCanvasArea() {
+    // 4x into a 40x20-cell region: 40 logical columns and 40 logical rows,
+    // i.e. 10x10 source pixels magnified fourfold. The same budget must
+    // produce the same array whether the document is 256x256 or 512x512 —
+    // that is the whole F3 fix in one assertion.
+    let budget = CellSize(width: 40, height: 20)
+    let state = CanvasViewportState(level: .x4)
+
+    func resolvedCount(canvas: GIFEditorCore.PixelSize) -> Int {
+      let viewport = state.resolved(
+        in: CanvasViewportContext(
+          canvasSize: canvas,
+          cellBudget: budget,
+          mode: .verticalHalfBlock
+        )
+      )
+      return CanvasSurfaceView(
+        size: canvas,
+        cells: Array(repeating: nil, count: canvas.area),
+        cursor: .zero,
+        selection: nil,
+        pendingMarqueeAnchor: nil,
+        pendingGradientAnchor: nil,
+        mode: .verticalHalfBlock,
+        viewport: viewport
+      ).resolvedPixels.count
+    }
+
+    let large = resolvedCount(canvas: GIFEditorCore.PixelSize(width: 256, height: 256))
+    let larger = resolvedCount(canvas: GIFEditorCore.PixelSize(width: 512, height: 512))
+
+    #expect(large == 40 * 40)
+    #expect(large == larger)
+    // The rendered grid must also still fit the region it was measured for.
+    #expect(large <= budget.width * budget.height * 2)
+  }
+
+  @Test("EditorView sizes its canvas from the layout proposal, not the canvas size")
+  func editorCanvasIsProposalDriven() throws {
+    // A 64x64 document in an 80x24 terminal cannot fit at 1x. Without a
+    // proposal-driven viewport the canvas would either overflow the region
+    // (the old `ScrollView` shape) or collapse to `GeometryReader`'s 10x10
+    // unspecified ideal. It must instead be clipped to the region it was
+    // measured into.
+    let artifacts = render(
+      EditorView(document: GIFDocument.blank(size: .init(width: 64, height: 64))),
+      width: 80,
+      height: 24
+    )
+    let canvasRegion = try #require(
+      artifacts.semanticSnapshot.interactionRegions.first { $0.captureOnPress }
+    )
+
+    #expect(canvasRegion.rect.size.width < 64)
+    #expect(canvasRegion.rect.size.width > 10)
+    #expect(canvasRegion.rect.size.height > 5)
+    #expect(canvasRegion.rect.maxX <= 80)
+    #expect(canvasRegion.rect.maxY <= 24)
+  }
+
+  @Test("At 2x the cursor brackets its block instead of covering it")
+  func zoomedCursorDrawsAnOutline() {
+    let red = EditorColor(rgbHex: 0xE05757)
+    let size = GIFEditorCore.PixelSize(width: 4, height: 4)
+    let raster = render(
+      CanvasView(
+        size: size,
+        cells: Array(repeating: red, count: size.area),
+        cursor: GIFEditorCore.PixelPoint(x: 1, y: 1),
+        selection: nil,
+        pendingMarqueeAnchor: nil,
+        pendingGradientAnchor: nil,
+        mode: .verticalHalfBlock,
+        viewport: CanvasViewport(
+          zoom: .magnified(2),
+          origin: .zero,
+          visibleSize: size
+        )
+      ),
+      width: 12,
+      height: 8
+    ).rasterSurface
+
+    // Source pixel (1, 1) at 2x half-block owns cells (2..3, 1) inside the
+    // 1-cell border, so raster columns 3-4 of raster row 2.
+    #expect(raster.cells[2][3].character == "▌")
+    #expect(raster.cells[2][3].style?.foregroundColor == Color.cyan)
+    #expect(raster.cells[2][3].style?.backgroundColor == red.toTerminalColor())
+    #expect(raster.cells[2][4].character == "▐")
+    #expect(raster.cells[2][4].style?.foregroundColor == Color.cyan)
+    // Neighbouring blocks are untouched by the cursor.
+    #expect(raster.cells[2][2].style?.foregroundColor != Color.cyan)
+    #expect(raster.cells[2][5].style?.foregroundColor != Color.cyan)
+    #expect(raster.cells[1][3].style?.foregroundColor != Color.cyan)
+  }
+
+  @Test("At 4x the cursor's bracket leaves the block's interior visible")
+  func fourTimesCursorLeavesInteriorVisible() {
+    let red = EditorColor(rgbHex: 0xE05757)
+    let size = GIFEditorCore.PixelSize(width: 2, height: 2)
+    let raster = render(
+      CanvasView(
+        size: size,
+        cells: Array(repeating: red, count: size.area),
+        cursor: GIFEditorCore.PixelPoint(x: 0, y: 0),
+        selection: nil,
+        pendingMarqueeAnchor: nil,
+        pendingGradientAnchor: nil,
+        mode: .verticalHalfBlock,
+        viewport: CanvasViewport(
+          zoom: .magnified(4),
+          origin: .zero,
+          visibleSize: size
+        )
+      ),
+      width: 14,
+      height: 8
+    ).rasterSurface
+
+    // (0, 0) at 4x half-block is 4 cells wide and 2 cells tall: raster
+    // columns 1-4, raster rows 1-2.
+    for row in 1...2 {
+      #expect(raster.cells[row][1].character == "▌")
+      #expect(raster.cells[row][4].character == "▐")
+      // Interior columns keep the pixel, unobscured.
+      #expect(raster.cells[row][2].style?.foregroundColor != Color.cyan)
+      #expect(raster.cells[row][3].style?.foregroundColor != Color.cyan)
+    }
   }
 }
 

@@ -2,8 +2,9 @@ import GIFEditorCore
 
 /// Immutable capture of every piece of editor state an undo step must
 /// restore: the document plus the selection-context fields (cursor,
-/// frame/layer index, marquee selection) and the history generation in
-/// effect when the snapshot was taken.
+/// frame/layer index, marquee selection), the palette-index holders that
+/// live outside the document, and the history generation in effect when
+/// the snapshot was taken.
 ///
 /// Kept here next to `EditorHistory` because the history stack is the
 /// only thing that reads or writes whole snapshots; the coordinator
@@ -15,6 +16,20 @@ struct EditorSnapshot: Equatable {
   var currentLayerIndex: Int
   var cursor: GIFEditorCore.PixelPoint
   var selection: Selection?
+  /// The colour selection in effect when the snapshot was taken.
+  ///
+  /// These are `PaletteIndex` holders that live *outside* the document,
+  /// and the palette edits renumber slots: sorting the palette rewrites
+  /// every index in every layer **and** these two selections **and** the
+  /// clipboard, deliberately as one edit. A snapshot that carried only
+  /// the document would undo the artwork correctly and leave the colour
+  /// selection pointing at the slot the sort moved it to — the next
+  /// stroke would then paint a colour the author never picked.
+  var primaryColorIndex: PaletteIndex
+  var secondaryColorIndex: PaletteIndex
+  /// The clipboard, for the same reason: its pixels are palette indices
+  /// into the palette that was in effect when they were copied.
+  var clipboard: PixelBuffer?
   var historyGeneration: Int
 }
 
@@ -74,6 +89,19 @@ struct EditorHistory {
   /// Marks the present generation clean (called after a successful save).
   mutating func markClean() {
     cleanGeneration = currentGeneration
+  }
+
+  /// Marks the present state as unsaved work without recording an undo
+  /// step.
+  ///
+  /// Adopting a recovered autosave is the one arrival that is already
+  /// diverged from disk: there is nothing to undo *back* to, because the
+  /// history the crash interrupted is gone, but the document on screen
+  /// is not the one in the file. The dirty indicator has to say so, or
+  /// the author quits over the work they just recovered.
+  mutating func markDirty() {
+    currentGeneration = nextGeneration
+    nextGeneration += 1
   }
 
   /// Whether a grouped edit is currently open. Single edits made while a

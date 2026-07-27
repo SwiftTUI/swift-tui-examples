@@ -52,50 +52,73 @@ public typealias PaletteIndex = UInt8
 /// drawing color; we just guarantee at least one slot is available for
 /// the transparency role.
 public struct ColorPalette: Hashable, Sendable, Codable {
-  /// Always exactly `Self.capacity` entries; unused slots are duplicates
-  /// of the last meaningful color so nearest-color matching never returns
-  /// undefined indices.
+  /// Always exactly `Self.capacity` entries; slots at or past
+  /// ``usedCount`` are padding — duplicates of the last used color — so
+  /// ``subscript(_:)`` can never trap and the GIF global color table is
+  /// always a full 256 entries.
   public private(set) var colors: [EditorColor]
   public static let capacity: Int = 256
+
+  /// How many leading slots the author is actually using. Always in
+  /// `1...capacity`.
+  ///
+  /// Padding used to be indistinguishable from real content, which made
+  /// nearest-color matching lean toward whatever color happened to get
+  /// duplicated into the tail, and left "add a color" with no meaning.
+  /// The count is taken from the array handed to ``init(colors:)``
+  /// *before* padding, and every structural edit below re-derives it
+  /// through that same initializer.
+  public private(set) var usedCount: Int
 
   /// Reserved slot used to represent "transparent" when flattening a
   /// document for GIF export. Authors editing this slot will see that
   /// the GIF's transparent pixels recolor accordingly.
+  ///
+  /// The slot is *pinned*: ``sorted(by:)`` never moves it and
+  /// ``remove(at:)`` refuses to delete it, because pixels stored as
+  /// `nil` carry no index and so cannot be carried across by an index
+  /// permutation — they always land back on slot 0 at export time.
   public static let transparentSlot: PaletteIndex = 0
 
+  /// The single normalizing entry point. Everything else — the mutating
+  /// API below, and (later) decoding — routes through here so the
+  /// "exactly `capacity` entries, padding duplicates the last used
+  /// color" invariant has one owner.
   public init(colors: [EditorColor]) {
     var bounded = Array(colors.prefix(Self.capacity))
     if bounded.isEmpty {
       bounded = [.transparent]
     }
+    self.usedCount = bounded.count
     while bounded.count < Self.capacity {
       bounded.append(bounded.last ?? .black)
     }
     self.colors = bounded
   }
 
+  /// Raw slot access. The setter writes the slot verbatim and does *not*
+  /// grow ``usedCount`` — a write at or past `usedCount` lands in
+  /// padding, stays invisible to ``nearestIndex(to:)``, and is
+  /// overwritten by the next structural edit. Use ``append(_:)`` to add
+  /// a color.
   public subscript(index: PaletteIndex) -> EditorColor {
     get { colors[Int(index)] }
     set { colors[Int(index)] = newValue }
   }
 
-  /// The number of "meaningful" colors before we started padding. The
-  /// authoring UI uses this to decide how many palette swatches to
-  /// render; the encoder pads up to a power of two.
-  public var distinctColorCount: Int {
-    var seen = Set<EditorColor>()
-    for color in colors {
-      seen.insert(color)
-      if seen.count == Self.capacity { break }
-    }
-    return seen.count
+  /// The used slots only, in order — what a palette editor renders and
+  /// what a `.hex` / `.gpl` export would write.
+  public var usedColors: [EditorColor] {
+    Array(colors.prefix(usedCount))
   }
 
-  /// Nearest color in the palette by squared RGB distance, ignoring
-  /// transparent slots (alpha == 0).
+  /// Nearest color among the *used* slots by squared RGB distance,
+  /// ignoring transparent slots (alpha == 0). Falls back to slot 0 when
+  /// every used slot is transparent.
   public func nearestIndex(to color: EditorColor) -> PaletteIndex {
     var best: (index: PaletteIndex, distance: Int) = (0, .max)
-    for (i, candidate) in colors.enumerated() {
+    for i in 0..<usedCount {
+      let candidate = colors[i]
       if candidate.alpha == 0 { continue }
       let d = color.distanceSquared(to: candidate)
       if d < best.distance {
@@ -104,6 +127,142 @@ public struct ColorPalette: Hashable, Sendable, Codable {
       }
     }
     return best.index
+  }
+
+  // MARK: - Editing
+  //
+  // `remove(at:)`, `compact()`, and `sorted(by:)` each return the index
+  // permutation they imply alongside the new palette, indexed by the
+  // *old* slot: `permutation[old] == new`. The array is always
+  // `capacity` long so a caller can remap any `PaletteIndex` —
+  // `permutation[Int(oldIndex)]` — without a bounds check. Applying it
+  // document-wide (every `PixelBuffer`, the primary/secondary selection,
+  // the clipboard) is the caller's job; handing back a correct
+  // permutation is ours.
+
+  /// Adds a color in the first unused slot and returns its index, or
+  /// `nil` when all `capacity` slots are already in use. A full palette
+  /// is left untouched.
+  public mutating func append(_ color: EditorColor) -> PaletteIndex? {
+    guard usedCount < Self.capacity else { return nil }
+    let index = PaletteIndex(usedCount)
+    self = ColorPalette(colors: usedColors + [color])
+    return index
+  }
+
+  /// Removes a used slot, shifting everything after it down one.
+  ///
+  /// The removed index has no successor of its own, so it maps to the
+  /// **nearest surviving color** — `nearestIndex(to:)` on the resulting
+  /// palette — and pixels that referenced it recolor to the closest
+  /// remaining choice instead of shifting arbitrarily. Padding indices
+  /// follow the last used slot.
+  ///
+  /// A no-op returning the identity permutation when `index` is the
+  /// pinned ``transparentSlot``, is not a used slot, or would empty the
+  /// palette.
+  public func remove(
+    at index: PaletteIndex
+  ) -> (palette: ColorPalette, permutation: [PaletteIndex]) {
+    let slot = Int(index)
+    guard slot != Int(Self.transparentSlot), slot < usedCount, usedCount > 1 else {
+      return (self, Self.identityPermutation)
+    }
+
+    var entries = usedColors
+    entries.remove(at: slot)
+    let result = ColorPalette(colors: entries)
+
+    var permutation = Self.identityPermutation
+    for old in 0..<usedCount {
+      if old < slot {
+        permutation[old] = PaletteIndex(old)
+      } else if old > slot {
+        permutation[old] = PaletteIndex(old - 1)
+      } else {
+        permutation[old] = result.nearestIndex(to: colors[old])
+      }
+    }
+    Self.extendPadding(&permutation, usedCount: usedCount)
+    return (result, permutation)
+  }
+
+  /// Collapses duplicate colors among the used slots, keeping the first
+  /// occurrence of each. Every old index maps to the surviving slot that
+  /// holds its exact color, so a compact never changes a single rendered
+  /// pixel — it only shortens the palette.
+  ///
+  /// Core cannot see the document's pixels, so this deliberately does
+  /// *not* drop colors that merely go unreferenced; that is a caller's
+  /// decision, made with a usage census in hand.
+  public func compact() -> (palette: ColorPalette, permutation: [PaletteIndex]) {
+    var entries: [EditorColor] = []
+    var firstOccurrence: [EditorColor: PaletteIndex] = [:]
+    var permutation = Self.identityPermutation
+
+    for old in 0..<usedCount {
+      let color = colors[old]
+      if let existing = firstOccurrence[color] {
+        permutation[old] = existing
+      } else {
+        let new = PaletteIndex(entries.count)
+        firstOccurrence[color] = new
+        entries.append(color)
+        permutation[old] = new
+      }
+    }
+    Self.extendPadding(&permutation, usedCount: usedCount)
+    return (ColorPalette(colors: entries), permutation)
+  }
+
+  /// Reorders the used slots. Slot 0 stays pinned (see
+  /// ``transparentSlot``) and only `1..<usedCount` is sorted.
+  ///
+  /// The sort is stable — equal colors keep their relative order — so
+  /// the permutation is deterministic across platforms and a golden test
+  /// can pin it.
+  public func sorted(
+    by areInIncreasingOrder: (EditorColor, EditorColor) -> Bool
+  ) -> (palette: ColorPalette, permutation: [PaletteIndex]) {
+    let pinned = Int(Self.transparentSlot)
+    guard usedCount > pinned + 1 else { return (self, Self.identityPermutation) }
+
+    var order = Array((pinned + 1)..<usedCount)
+    order.sort { lhs, rhs in
+      if areInIncreasingOrder(colors[lhs], colors[rhs]) { return true }
+      if areInIncreasingOrder(colors[rhs], colors[lhs]) { return false }
+      return lhs < rhs
+    }
+
+    var entries = [colors[pinned]]
+    entries.append(contentsOf: order.map { colors[$0] })
+
+    var permutation = Self.identityPermutation
+    for (offset, old) in order.enumerated() {
+      permutation[old] = PaletteIndex(pinned + 1 + offset)
+    }
+    Self.extendPadding(&permutation, usedCount: usedCount)
+    return (ColorPalette(colors: entries), permutation)
+  }
+
+  /// `permutation[i] == i` for every slot — what the no-op edits return.
+  ///
+  /// Public because a caller that builds its *own* index map (adopting an
+  /// imported palette remaps by nearest color, which is not a
+  /// permutation of the old slots) needs the same `capacity`-long shape
+  /// the editing API hands back, so one remap routine can consume both.
+  public static var identityPermutation: [PaletteIndex] {
+    (0..<capacity).map { PaletteIndex($0) }
+  }
+
+  /// Padding slots hold a copy of the last used color, so they follow
+  /// wherever that slot went.
+  private static func extendPadding(_ permutation: inout [PaletteIndex], usedCount: Int) {
+    guard usedCount < capacity else { return }
+    let lastUsed = permutation[usedCount - 1]
+    for old in usedCount..<capacity {
+      permutation[old] = lastUsed
+    }
   }
 
   /// The default 32-color authoring palette. Slot 0 is transparent; the

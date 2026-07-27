@@ -34,9 +34,17 @@ struct ToolOptionsBar: View {
   @ViewBuilder
   private var contextualOptions: some View {
     switch model.tool {
-    case .pen, .eraser:
+    case .core(.pen), .core(.eraser):
       brushSizeStepper
-    case .fill:
+      mirrorXToggle
+    case .shape:
+      // The brush size is the outline's thickness, so the stepper stays
+      // in reach; `filled` is the one option that is only a shape's.
+      ColorChip(role: "P", color: primary)
+      brushSizeStepper
+      filledShapeToggle
+      shapeAnchorStatus
+    case .core(.fill):
       ColorChip(role: "P", color: primary)
       Text(hex(primary)).foregroundStyle(.separator)
       respectSelectionToggle(
@@ -45,7 +53,7 @@ struct ToolOptionsBar: View {
         model.fillRespectsSelection.toggle()
         refresh()
       }
-    case .gradient:
+    case .core(.gradient):
       ColorChip(role: "P", color: primary)
       Text("→").foregroundStyle(.muted)
       ColorChip(role: "S", color: secondary)
@@ -55,13 +63,13 @@ struct ToolOptionsBar: View {
         model.gradientRespectsSelection.toggle()
         refresh()
       }
-    case .marquee:
+    case .core(.marquee):
       marqueeStatus
       confirmButton
       clearButton
-    case .select:
+    case .core(.select):
       selectStatus
-    case .eyedropper:
+    case .core(.eyedropper):
       ColorChip(role: "P", color: primary)
       Text("#\(hex(primary))").foregroundStyle(.separator)
     }
@@ -94,19 +102,57 @@ struct ToolOptionsBar: View {
     .buttonStyle(.plain)
   }
 
+  // MARK: - Shape and symmetry toggles
+
+  /// Mirror-X, shown beside the brush size because it is the same kind of
+  /// thing: a modifier every pen and eraser stroke reads, not a tool.
+  private var mirrorXToggle: some View {
+    checkboxButton(isOn: model.strokesMirrorX, label: "mirror-X") {
+      model.toggleStrokeMirrorX()
+      refresh()
+    }
+  }
+
+  private var filledShapeToggle: some View {
+    checkboxButton(isOn: model.shapeFillsInterior, label: "filled") {
+      model.toggleShapeFill()
+      refresh()
+    }
+  }
+
+  /// Where a half-finished shape is anchored, which the canvas has no
+  /// marker for. Without it the two-press path has nothing on screen
+  /// between the two presses.
+  @ViewBuilder
+  private var shapeAnchorStatus: some View {
+    if let anchor = model.pendingShapeAnchor {
+      Text("anchor (\(anchor.x),\(anchor.y))").foregroundStyle(.foreground)
+    } else {
+      Text("drag or Space to anchor").foregroundStyle(.muted)
+    }
+  }
+
+  private func checkboxButton(
+    isOn: Bool,
+    label: String,
+    action: @escaping @MainActor () -> Void
+  ) -> some View {
+    Button(action: action) {
+      HStack(spacing: 1) {
+        Text(isOn ? "[✓]" : "[ ]").foregroundStyle(isOn ? .tint : .muted)
+        Text(label).foregroundStyle(.muted)
+      }
+    }
+    .buttonStyle(.plain)
+  }
+
   // MARK: - Respect-selection toggle
 
   private func respectSelectionToggle(
     isOn: Bool,
     action: @escaping @MainActor () -> Void
   ) -> some View {
-    Button(action: action) {
-      HStack(spacing: 1) {
-        Text(isOn ? "[✓]" : "[ ]").foregroundStyle(isOn ? .tint : .muted)
-        Text("respect selection").foregroundStyle(.muted)
-      }
-    }
-    .buttonStyle(.plain)
+    checkboxButton(isOn: isOn, label: "respect selection", action: action)
   }
 
   // MARK: - Marquee status + Confirm/Clear

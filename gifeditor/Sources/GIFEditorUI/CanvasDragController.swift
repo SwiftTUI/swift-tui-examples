@@ -12,12 +12,13 @@ import GIFEditorCore
 /// view tree binds to).
 @MainActor
 protocol CanvasDragContext: AnyObject {
-  var tool: EditorTool { get }
+  var tool: ActiveTool { get }
   var cursor: GIFEditorCore.PixelPoint { get set }
   var selection: Selection? { get set }
   var primaryColorIndex: PaletteIndex { get }
   var pendingMarqueeAnchor: GIFEditorCore.PixelPoint? { get set }
   var pendingGradientAnchor: GIFEditorCore.PixelPoint? { get set }
+  var pendingShapeAnchor: GIFEditorCore.PixelPoint? { get set }
 
   var canvasSize: GIFEditorCore.PixelSize { get }
   var currentLayerPixels: PixelBuffer { get }
@@ -68,29 +69,36 @@ struct CanvasDragController {
   mutating func begin(at point: GIFEditorCore.PixelPoint, context: some CanvasDragContext) {
     context.cursor = point
     switch context.tool {
-    case .pen:
+    case .core(.pen):
       context.beginUndoGroup("Paint stroke")
       context.strokeCurrentLayer(from: point, to: point, color: context.primaryColorIndex)
       context.announce("Painting \(point.x),\(point.y)")
-    case .eraser:
+    case .core(.eraser):
       context.beginUndoGroup("Erase stroke")
       context.strokeCurrentLayer(from: point, to: point, color: nil)
       context.announce("Erasing \(point.x),\(point.y)")
-    case .fill, .eyedropper:
+    case .core(.fill), .core(.eyedropper):
       context.announce("Target \(point.x),\(point.y)")
-    case .gradient:
+    case .core(.gradient):
       context.beginUndoGroup("Apply gradient")
       context.pendingGradientAnchor = point
       context.announce("Gradient anchor \(point.x),\(point.y)")
-    case .marquee:
+    case .core(.marquee):
       context.pendingMarqueeAnchor = point
       context.selection = Selection(rect: PixelRect.bounding(point, point))
       context.announce("Selecting from \(point.x),\(point.y)")
-    case .select:
+    case .core(.select):
       context.beginUndoGroup("Move pixels")
       beginSelectMove(context: context)
       updateSelectMove(startingAt: point, to: point, context: context)
       context.announce(selectMoveStatus(to: point, from: point))
+    case .shape(let shape):
+      // Anchor now, paint on release — the gradient's lifecycle exactly.
+      // The group opened here is what makes the whole drag one undo step
+      // even though the commit happens in `applyToolAtCursor`.
+      context.beginUndoGroup("Draw \(shape.label.lowercased())")
+      context.pendingShapeAnchor = point
+      context.announce("\(shape.label) anchor \(point.x),\(point.y)")
     }
   }
 
@@ -102,23 +110,26 @@ struct CanvasDragController {
   ) {
     context.cursor = point
     switch context.tool {
-    case .pen:
+    case .core(.pen):
       context.strokeCurrentLayer(
         from: previous ?? anchor, to: point, color: context.primaryColorIndex)
       context.announce("Painting \(point.x),\(point.y)")
-    case .eraser:
+    case .core(.eraser):
       context.strokeCurrentLayer(from: previous ?? anchor, to: point, color: nil)
       context.announce("Erasing \(point.x),\(point.y)")
-    case .fill, .eyedropper:
+    case .core(.fill), .core(.eyedropper):
       context.announce("Target \(point.x),\(point.y)")
-    case .gradient:
+    case .core(.gradient):
       context.pendingGradientAnchor = anchor
       context.announce("Gradient \(anchor.x),\(anchor.y) -> \(point.x),\(point.y)")
-    case .marquee:
+    case .core(.marquee):
       context.pendingMarqueeAnchor = anchor
       context.selection = Selection(rect: PixelRect.bounding(anchor, point))
       context.announce("Selection \(anchor.x),\(anchor.y) -> \(point.x),\(point.y)")
-    case .select:
+    case .shape(let shape):
+      context.pendingShapeAnchor = anchor
+      context.announce("\(shape.label) \(anchor.x),\(anchor.y) -> \(point.x),\(point.y)")
+    case .core(.select):
       if activeSelectMove == nil {
         context.beginUndoGroup("Move pixels")
         beginSelectMove(context: context)
@@ -140,28 +151,32 @@ struct CanvasDragController {
 
     context.cursor = point
     switch context.tool {
-    case .pen:
+    case .core(.pen):
       if let previous, previous != point {
         context.strokeCurrentLayer(from: previous, to: point, color: context.primaryColorIndex)
       }
       context.finishUndoGroup()
       context.announce("Painted to \(point.x),\(point.y)")
-    case .eraser:
+    case .core(.eraser):
       if let previous, previous != point {
         context.strokeCurrentLayer(from: previous, to: point, color: nil)
       }
       context.finishUndoGroup()
       context.announce("Erased to \(point.x),\(point.y)")
-    case .fill, .eyedropper:
+    case .core(.fill), .core(.eyedropper):
       context.applyToolAtCursor()
-    case .gradient:
+    case .core(.gradient):
       context.pendingGradientAnchor = anchor
       context.applyToolAtCursor()
       context.finishUndoGroup()
-    case .marquee:
+    case .core(.marquee):
       context.pendingMarqueeAnchor = anchor
       context.applyToolAtCursor()
-    case .select:
+    case .shape:
+      context.pendingShapeAnchor = anchor
+      context.applyToolAtCursor()
+      context.finishUndoGroup()
+    case .core(.select):
       if activeSelectMove == nil {
         context.beginUndoGroup("Move pixels")
         beginSelectMove(context: context)

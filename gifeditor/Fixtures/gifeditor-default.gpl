@@ -1,0 +1,36 @@
+GIMP Palette
+Name: GIFEditor Default
+Columns: 8
+# Exported from GIFEditor's built-in palette, slots 1...31.
+# Slot 0 is the transparency sentinel and has no .gpl representation.
+  0   0   0	black
+255 255 255	white
+128 128 128	grey
+ 64  64  64	dark grey
+192 192 192	light grey
+224  87  87	red
+235 122  60	orange
+235 179  60	yellow
+ 97 198 123	green
+ 46 139  87	dark green
+ 91 163 255	blue
+ 30  90 174	dark blue
+ 86 182 194	cyan
+180 110 255	magenta
+255 143 180	pink
+139  90  43	brown
+201 168 120	tan
+245 222 179	wheat
+255 215 228	light pink
+255 239 170	light yellow
+206 235 193	mint
+196 222 255	light blue
+227 211 255	lavender
+122  31  31	wine
+ 64  34  15	espresso
+ 20  61  42	forest
+ 13  44 102	navy
+110  27 140	royal purple
+255   0  93	hot pink
+  0 200 150	teal
+192 255  51	lime

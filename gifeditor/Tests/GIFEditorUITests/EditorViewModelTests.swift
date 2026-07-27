@@ -419,50 +419,142 @@ struct EditorViewModelTests {
     #expect(model.currentLayerIndex == 0)
   }
 
+  /// The clean-generation contract, now stated on the verb that owns it.
+  ///
+  /// `Save` means the project format; the GIF path became an *export*
+  /// and deliberately no longer marks anything clean (see
+  /// `exportingGIFLeavesTheDocumentDirtyAndUnmoved`).
   @Test("Undo after save marks the restored older state dirty")
-  func undoAfterSaveMarksOlderStateDirty() {
-    let url = FileManager.default.temporaryDirectory
-      .appendingPathComponent("gifeditor-history-\(UUID().uuidString).gif")
-    defer {
-      try? FileManager.default.removeItem(at: url)
+  func undoAfterSaveMarksOlderStateDirty() throws {
+    try withTemporaryStateDirectory { directory in
+      let url = directory.appendingPathComponent("history.halfcell")
+
+      var document = GIFDocument.blank(size: GIFEditorCore.PixelSize(width: 2, height: 2))
+      document.path = url
+      let model = EditorViewModel(document: document, stateDirectory: directory)
+      model.primaryColorIndex = 6
+      model.applyToolAtCursor()
+      #expect(model.isDirty)
+
+      model.saveProject(to: url, overwriteExisting: false)
+      #expect(!model.isDirty)
+
+      model.undo()
+      #expect(model.isDirty)
+
+      model.redo()
+      #expect(!model.isDirty)
     }
-
-    var document = GIFDocument.blank(size: GIFEditorCore.PixelSize(width: 2, height: 2))
-    document.path = url
-    let model = EditorViewModel(document: document)
-    model.primaryColorIndex = 6
-    model.applyToolAtCursor()
-    #expect(model.isDirty)
-
-    model.save(to: url, overwriteExisting: false)
-    #expect(!model.isDirty)
-
-    model.undo()
-    #expect(model.isDirty)
-
-    model.redo()
-    #expect(!model.isDirty)
   }
 
   @Test("Saving to an existing file requires overwrite confirmation")
   func saveToExistingFileRequiresOverwriteConfirmation() throws {
-    let url = FileManager.default.temporaryDirectory
-      .appendingPathComponent("gifeditor-overwrite-\(UUID().uuidString).gif")
-    try Data("existing".utf8).write(to: url)
-    defer {
-      try? FileManager.default.removeItem(at: url)
+    try withTemporaryStateDirectory { directory in
+      let url = directory.appendingPathComponent("occupied.halfcell")
+      try Data("existing".utf8).write(to: url)
+
+      let model = EditorViewModel(
+        document: GIFDocument.blank(size: GIFEditorCore.PixelSize(width: 2, height: 2)),
+        stateDirectory: directory
+      )
+
+      #expect(!model.saveProject(to: url, overwriteExisting: false))
+      #expect(try Data(contentsOf: url) == Data("existing".utf8))
+      #expect(model.statusMessage == "Confirm overwrite before saving")
+
+      #expect(model.saveProject(to: url, overwriteExisting: true))
+      #expect(try Data(contentsOf: url) != Data("existing".utf8))
+      #expect(!model.isDirty)
     }
+  }
 
-    let model = EditorViewModel(
-      document: GIFDocument.blank(size: GIFEditorCore.PixelSize(width: 2, height: 2))
-    )
+  // MARK: - Frame reordering
 
-    #expect(!model.save(to: url, overwriteExisting: false))
-    #expect(try Data(contentsOf: url) == Data("existing".utf8))
-    #expect(model.statusMessage == "Confirm overwrite before saving")
+  @Test("Moving a frame reorders the timeline and keeps the selection on it")
+  func moveCurrentFrameFollowsTheMovedFrame() {
+    let model = EditorViewModel(document: multiFrameDocument(count: 3))
+    let original = model.document.frames.map(\.id)
 
-    #expect(model.save(to: url, overwriteExisting: true))
-    #expect(try Data(contentsOf: url) != Data("existing".utf8))
+    model.moveCurrentFrame(by: 1)
+
+    #expect(model.document.frames.map(\.id) == [original[1], original[0], original[2]])
+    #expect(model.currentFrameIndex == 1)
+    #expect(model.currentFrame.id == original[0])
+    #expect(model.isDirty)
+
+    // A multi-step move lands on the clamped destination, not on a swap
+    // with the immediate neighbour.
+    model.moveCurrentFrame(by: -1)
+
+    #expect(model.document.frames.map(\.id) == original)
+    #expect(model.currentFrameIndex == 0)
+    #expect(model.currentFrame.id == original[0])
+  }
+
+  @Test("Moving a frame past either end is a no-op that records no history")
+  func moveCurrentFrameAtBoundaryIsNoOp() {
+    let model = EditorViewModel(document: multiFrameDocument(count: 3))
+    let original = model.document.frames.map(\.id)
+
+    model.moveCurrentFrame(by: -1)
+
+    #expect(model.document.frames.map(\.id) == original)
+    #expect(model.currentFrameIndex == 0)
+    #expect(!model.canUndo)
     #expect(!model.isDirty)
+
+    model.selectFrame(at: 2)
+    model.moveCurrentFrame(by: 1)
+
+    #expect(model.document.frames.map(\.id) == original)
+    #expect(model.currentFrameIndex == 2)
+    #expect(!model.canUndo)
+    #expect(!model.isDirty)
+  }
+
+  @Test("Undo restores frame order and index after a move; redo re-applies both")
+  func moveCurrentFrameUndoRedoRestoresOrderAndIndex() {
+    let model = EditorViewModel(document: multiFrameDocument(count: 3))
+    let original = model.document.frames.map(\.id)
+    model.selectFrame(at: 2)
+
+    model.moveCurrentFrame(by: -2)
+    let reordered = model.document.frames.map(\.id)
+
+    #expect(reordered == [original[2], original[0], original[1]])
+    #expect(model.currentFrameIndex == 0)
+    #expect(model.canUndo)
+    #expect(model.isDirty)
+
+    model.undo()
+
+    #expect(model.document.frames.map(\.id) == original)
+    #expect(model.currentFrameIndex == 2)
+    #expect(!model.isDirty)
+
+    model.redo()
+
+    #expect(model.document.frames.map(\.id) == reordered)
+    #expect(model.currentFrameIndex == 0)
+    #expect(model.isDirty)
+  }
+
+  /// Builds a document of `count` single-layer frames, each carrying a
+  /// distinct fill and delay so a reorder is observable by identity as
+  /// well as by content.
+  private func multiFrameDocument(count: Int) -> GIFDocument {
+    let size = GIFEditorCore.PixelSize(width: 2, height: 2)
+    let frames = (0..<count).map { index in
+      EditorFrame(
+        layers: [
+          EditorLayer(
+            name: "Layer 1",
+            pixels: PixelBuffer(size: size, fill: PaletteIndex(index + 1))
+          )
+        ],
+        delayCentiseconds: index + 1
+      )
+    }
+    return GIFDocument(size: size, frames: frames)
   }
 }

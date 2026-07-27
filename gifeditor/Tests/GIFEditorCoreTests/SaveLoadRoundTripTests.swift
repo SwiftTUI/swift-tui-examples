@@ -1,5 +1,5 @@
-import Foundation
 import EditorGIF
+import Foundation
 import Testing
 
 @testable import GIFEditorCore

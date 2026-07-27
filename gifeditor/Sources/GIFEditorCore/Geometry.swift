@@ -39,6 +39,48 @@ public struct PixelSize: Hashable, Sendable, Codable {
   }
 }
 
+extension PixelSize {
+  /// Hardened decoding. `width` and `height` are the two numbers every
+  /// other bound in the model is derived from — ``indexOf(_:)`` and
+  /// ``point(at:)`` divide by `width`, and ``area`` is what every buffer
+  /// allocation is sized to — so this is where an untrusted file gets
+  /// checked, not where it gets trusted.
+  ///
+  /// The order matters: the per-axis limit is applied *before* the area
+  /// is multiplied out, so a header claiming 100000 x 100000 is refused
+  /// without ever computing (let alone allocating) 10^10 elements.
+  public init(from decoder: any Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    let width = try container.decode(Int.self, forKey: .width)
+    let height = try container.decode(Int.self, forKey: .height)
+
+    guard width > 0, height > 0 else {
+      throw ProjectDecodeError.invalidCanvasSize(width: width, height: height)
+    }
+    guard
+      width <= ProjectFile.maximumCanvasDimension,
+      height <= ProjectFile.maximumCanvasDimension,
+      width * height <= ProjectFile.maximumCanvasArea
+    else {
+      throw ProjectDecodeError.canvasTooLarge(
+        width: width,
+        height: height,
+        dimensionLimit: ProjectFile.maximumCanvasDimension,
+        areaLimit: ProjectFile.maximumCanvasArea
+      )
+    }
+
+    self.init(width: width, height: height)
+  }
+
+  /// Spelled out so the synthesized `encode(to:)` and the hardened
+  /// `init(from:)` above are provably reading the same two keys.
+  private enum CodingKeys: String, CodingKey {
+    case width
+    case height
+  }
+}
+
 /// Inclusive-exclusive rectangular region in pixel space.
 public struct PixelRect: Hashable, Sendable, Codable {
   public var origin: PixelPoint

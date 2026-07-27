@@ -1,3 +1,4 @@
+import Foundation
 import GIFEditorCore
 import SwiftTUI
 import Testing
@@ -24,7 +25,6 @@ struct MenuBarViewTests {
             showsTimeline: .constant(true),
             pixelGridMode: .constant(.verticalHalfBlock),
             isResizeSheetPresented: .constant(false),
-            presentSaveSheet: {},
             refresh: {}
           )
           Text("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
@@ -42,19 +42,59 @@ struct MenuBarViewTests {
           showsTimeline: .constant(true),
           pixelGridMode: .constant(.verticalHalfBlock),
           isResizeSheetPresented: .constant(false),
-          presentSaveSheet: {},
           refresh: {}
         )
         .offset(x: MenuBarMenu.file.dropdownOffset + 1, y: 1)
       },
-      width: 40,
-      height: 8
+      width: 44,
+      height: 14
     )
 
-    let lines = rendered.rasterSurface.lines
-    #expect(lines[1].contains("Save"))
-    #expect(!rendered.rasterSurface.lines.joined(separator: "\n").contains("Save As"))
-    #expect(lines[3].contains("Resize Canvas"))
+    let text = rendered.rasterSurface.lines.joined(separator: "\n")
+    #expect(rendered.rasterSurface.lines[1].contains("New…"))
+    #expect(text.contains("Open…"))
+    #expect(text.contains("Resize Canvas"))
+  }
+
+  /// `Save`, `Save As…` and `Export GIF…` are three rows, not one.
+  ///
+  /// They were one "Save…" row before the project format existed, and
+  /// collapsing them is exactly what let the editor write a flattened
+  /// GIF over a layered document under a verb that promises the
+  /// opposite. The menu is where an author learns the three are
+  /// different, so the separation is worth pinning.
+  @Test("the File menu separates Save, Save As and Export GIF")
+  func fileMenuSeparatesSaveVerbs() {
+    let model = EditorViewModel(
+      document: GIFDocument.blank(size: GIFEditorCore.PixelSize(width: 4, height: 4))
+    )
+    let rendered = render(
+      MenuBarDropdownView(
+        menu: .file,
+        openMenu: .constant(.file),
+        model: model,
+        showsToolDock: .constant(true),
+        showsRightPanel: .constant(true),
+        showsTimeline: .constant(true),
+        pixelGridMode: .constant(.verticalHalfBlock),
+        isResizeSheetPresented: .constant(false),
+        refresh: {}
+      ),
+      width: 44,
+      height: 14
+    )
+
+    let text = rendered.rasterSurface.lines.joined(separator: "\n")
+    #expect(text.contains("Save As…"))
+    #expect(text.contains("Export GIF…"))
+    // `Save` on its own row, which "Save As…" would satisfy vacuously.
+    #expect(rendered.rasterSurface.lines.contains { $0.trimmed() == "Save" })
+  }
+}
+
+extension String {
+  fileprivate func trimmed() -> String {
+    trimmingCharacters(in: .whitespaces)
   }
 }
 

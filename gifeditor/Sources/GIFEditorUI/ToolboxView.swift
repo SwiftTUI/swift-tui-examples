@@ -15,7 +15,7 @@ import SwiftTUI
 /// with 1 cell of slack on either side so the icon sits visually
 /// centred whether or not it is the active tool.
 struct ToolboxView: View {
-  let tool: EditorTool
+  let tool: ActiveTool
   let primaryColor: EditorColor
   let secondaryColor: EditorColor
   let model: EditorViewModel
@@ -23,7 +23,7 @@ struct ToolboxView: View {
 
   var body: some View {
     VStack(alignment: .center, spacing: 0) {
-      ForEach(EditorTool.allCases, id: \.self) { entry in
+      ForEach(ActiveTool.allCases, id: \.self) { entry in
         toolButton(entry)
       }
       Divider()
@@ -41,7 +41,7 @@ struct ToolboxView: View {
     .border(.separator, set: .single)
   }
 
-  private func toolButton(_ entry: EditorTool) -> some View {
+  private func toolButton(_ entry: ActiveTool) -> some View {
     Button {
       model.selectTool(entry)
       refresh()

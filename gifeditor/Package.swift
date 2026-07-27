@@ -96,6 +96,7 @@ let package = Package(
     .testTarget(
       name: "GIFEditorUITests",
       dependencies: [
+        "GIFEditor",
         "GIFEditorUI",
         .product(name: "SwiftTUI", package: "swift-tui"),
         .product(name: "SwiftTUITestSupport", package: "swift-tui"),

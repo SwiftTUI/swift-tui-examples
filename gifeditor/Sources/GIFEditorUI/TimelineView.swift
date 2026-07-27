@@ -4,13 +4,20 @@ import SwiftTUI
 /// Bottom-strip timeline. Renders the playback / navigation cluster,
 /// a horizontally-scrolling row of clickable frame
 /// thumbnails (the active frame is wrapped in `[ ]` and tinted),
-/// frame operations (`＋ ⎘ ✕`), and a delay readout / stepper
-/// (`⊖ ⊕`) plus an `=all` equalize button.
+/// frame operations (`＋ ⎘ ✕`), a delay readout / stepper
+/// (`⊖ ⊕`) plus an `=all` equalize button, and the export-metadata
+/// column (`TimelineExportSettingsView`).
 ///
 /// Every visible affordance is a `.plain`-styled `Button` that calls
 /// the same model method as its keyboard shortcut, so users can drive
 /// the timeline entirely via mouse, entirely via keyboard, or any
 /// mix.
+///
+/// Two affordances are drags rather than buttons, because both are
+/// continuous values a stepper expresses badly: the delay readout scrubs
+/// horizontally, and a thumbnail can be dragged along the strip to
+/// reorder it. Both map pointer travel to a value through
+/// ``TimelineDragMath``, which is where that arithmetic is tested.
 struct TimelineView: View {
   let frames: [TimelineFrame]
   let currentFrameIndex: Int
@@ -36,6 +43,7 @@ struct TimelineView: View {
         frameOperations
         delayCluster
       }
+      TimelineExportSettingsView(model: model, refresh: refresh)
     }
     .padding(.horizontal, 1)
     .frame(maxWidth: .infinity, alignment: .leading)
@@ -94,7 +102,7 @@ struct TimelineView: View {
   private var delayCluster: some View {
     HStack(spacing: 1) {
       Text("delay").foregroundStyle(.muted)
-      Text("\(currentDelay) cs").foregroundStyle(.foreground)
+      delayReadout
       navButton("-") { model.adjustCurrentFrameDelay(by: -10) }
       navButton("+") { model.adjustCurrentFrameDelay(by: 10) }
       Button {
@@ -107,6 +115,37 @@ struct TimelineView: View {
     }
   }
 
+  /// The delay, scrubbable by dragging horizontally across it.
+  ///
+  /// The whole drag is one undo step: `beginDelayScrub()` opens an undo
+  /// group that `endDelayScrub()` closes, so an author who drags twenty
+  /// cells presses undo once rather than twenty times. `beginDelayScrub()`
+  /// is idempotent, which is what lets both callbacks open the scrub
+  /// without the handler having to track whether the drag has started —
+  /// including the case where a drag ends without ever reporting a change.
+  private var delayReadout: some View {
+    Text("\(currentDelay) cs")
+      .foregroundStyle(model.isScrubbingDelay ? .tint : .foreground)
+      .gesture(
+        DragGesture(minimumDistance: 0, coordinateSpace: .local)
+          .onChanged { value in
+            model.beginDelayScrub()
+            model.updateDelayScrub(
+              by: TimelineDragMath.delayDelta(translationCells: value.translation.dx)
+            )
+            refresh()
+          }
+          .onEnded { value in
+            model.beginDelayScrub()
+            model.updateDelayScrub(
+              by: TimelineDragMath.delayDelta(translationCells: value.translation.dx)
+            )
+            model.endDelayScrub()
+            refresh()
+          }
+      )
+  }
+
   private var currentDelay: Int {
     guard frames.indices.contains(currentFrameIndex) else { return 0 }
     return frames[currentFrameIndex].delayCentiseconds
@@ -114,6 +153,15 @@ struct TimelineView: View {
 
   // MARK: - Thumbnails
 
+  /// One frame slot: a click target that selects, and a drag that reorders.
+  ///
+  /// The drag is a `simultaneousGesture` so it composes with the button
+  /// rather than replacing it — a click still selects the frame. The
+  /// reorder is committed only on `.onEnded`, and only when the pointer
+  /// travelled far enough to name a different slot, so a click (whose
+  /// translation is zero) resolves to `index` and takes
+  /// ``EditorViewModel/moveCurrentFrame(by:)``'s no-op branch. That is
+  /// what keeps a plain click from recording an empty undo step.
   private func thumbnail(frame: TimelineFrame, index: Int) -> some View {
     let active = index == currentFrameIndex
     let pixels = frame.thumbnail.pixels.map { $0?.toTerminalColor() }
@@ -135,6 +183,20 @@ struct TimelineView: View {
       // }
     }
     .buttonStyle(.plain)
+    .simultaneousGesture(
+      DragGesture(minimumDistance: 1, coordinateSpace: .local)
+        .onEnded { value in
+          let destination = TimelineDragMath.reorderDestination(
+            source: index,
+            translationCells: value.translation.dx,
+            thumbnailWidth: frame.thumbnail.width,
+            frameCount: frames.count
+          )
+          guard destination != index else { return }
+          model.moveFrame(from: index, to: destination)
+          refresh()
+        }
+    )
   }
 }
 

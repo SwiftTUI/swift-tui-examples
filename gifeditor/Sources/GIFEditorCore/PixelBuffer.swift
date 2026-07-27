@@ -105,3 +105,60 @@ public struct PixelBuffer: Hashable, Sendable, Codable {
     }
   }
 }
+
+// MARK: - Project-file coding
+
+extension PixelBuffer {
+  private enum CodingKeys: String, CodingKey {
+    case size
+    case indices
+    case opaqueMask
+  }
+
+  /// `[PaletteIndex?]` is the right *in-memory* representation — a
+  /// layer's `nil` pixel is what lets deeper layers show through — but
+  /// it is a poor wire representation: as a JSON array it costs 4-5
+  /// bytes of text per pixel. It is written instead as two base64
+  /// planes, one byte and one bit per pixel; see ``ProjectPixelPayload``
+  /// for the layout and the arithmetic.
+  public func encode(to encoder: any Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    let packed = ProjectPixelPayload.pack(pixels)
+    try container.encode(size, forKey: .size)
+    try container.encode(Data(packed.indices).base64EncodedString(), forKey: .indices)
+    try container.encode(Data(packed.opaqueMask).base64EncodedString(), forKey: .opaqueMask)
+  }
+
+  /// Hardened decoding: the planes are length-checked against the
+  /// decoded ``size`` before a buffer is built, and the result goes
+  /// through ``init(size:pixels:)`` so the `pixels.count == size.area`
+  /// invariant that ``setUnchecked(_:to:)`` and ``PixelSize/indexOf(_:)``
+  /// depend on is established by the same initializer everything else
+  /// uses.
+  ///
+  /// The base64 strings are decoded by hand rather than through
+  /// `Data`'s own `Codable` conformance so that malformed base64
+  /// surfaces as a ``ProjectDecodeError`` naming the plane, instead of
+  /// as a generic "data corrupted" from whatever
+  /// `JSONDecoder.dataDecodingStrategy` happens to be set to.
+  public init(from decoder: any Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    let size = try container.decode(PixelSize.self, forKey: .size)
+    let indicesText = try container.decode(String.self, forKey: .indices)
+    let maskText = try container.decode(String.self, forKey: .opaqueMask)
+
+    guard let indices = Data(base64Encoded: indicesText) else {
+      throw ProjectDecodeError.invalidBase64(field: "indices")
+    }
+    guard let opaqueMask = Data(base64Encoded: maskText) else {
+      throw ProjectDecodeError.invalidBase64(field: "opaqueMask")
+    }
+
+    let pixels = try ProjectPixelPayload.unpack(
+      indices: [UInt8](indices),
+      opaqueMask: [UInt8](opaqueMask),
+      count: size.area
+    )
+    self.init(size: size, pixels: pixels)
+  }
+}

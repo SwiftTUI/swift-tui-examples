@@ -19,7 +19,6 @@ struct MenuBarView: View {
   @Binding var showsTimeline: Bool
   @Binding var pixelGridMode: CanvasPixelGridMode
   @Binding var isResizeSheetPresented: Bool
-  let presentSaveSheet: @MainActor @Sendable () -> Void
   let refresh: @MainActor @Sendable () -> Void
 
   var body: some View {
@@ -66,17 +65,51 @@ struct MenuBarDropdownView: View {
   @Binding var showsTimeline: Bool
   @Binding var pixelGridMode: CanvasPixelGridMode
   @Binding var isResizeSheetPresented: Bool
-  let presentSaveSheet: @MainActor @Sendable () -> Void
+  /// The onion-skin settings the View menu toggles.
+  ///
+  /// Spelled as a defaulted `Binding` rather than a `@Binding` property for
+  /// the same reason `fileActions` is defaulted: the dropdown-layout tests
+  /// build this view to check rows and offsets, and should not have to invent
+  /// state for a control they are not exercising.
+  var onionSkin: Binding<OnionSkinSettings> = .constant(OnionSkinSettings())
+  /// Defaulted so a caller with no file verbs to run — the menu-bar
+  /// render tests, which exercise dropdown layout rather than behavior —
+  /// can build the dropdown without wiring six closures.
+  var fileActions: FileMenuActions = .inert
+  /// Defaulted so a caller with no palette sheet to open — the menu-bar
+  /// render tests, which exercise dropdown layout rather than behavior —
+  /// can build the dropdown without one.
+  var presentPaletteSheet: @MainActor @Sendable () -> Void = {}
+  /// Defaulted for the same reason `presentPaletteSheet` is — the
+  /// dropdown-layout tests build this view without any presentations to
+  /// raise.
+  var presentKeyboardHelp: @MainActor @Sendable () -> Void = {}
   let refresh: @MainActor @Sendable () -> Void
+
+  /// How many recent documents the File menu lists. The stored list
+  /// holds ten; a dropdown that runs off the bottom of an 80×24 terminal
+  /// is worse than a short one plus an Open… sheet that shows the rest.
+  private static let visibleRecentCount = 5
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
       switch menu {
       case .file:
-        menuItem("Save…") {
-          presentSaveSheet()
-          refresh()
-        }
+        // `Save` and `Save As…` are separate rows because they are
+        // separate verbs: `Save` writes back to a project file and
+        // otherwise falls through to this same `Save As…`, and `Export
+        // GIF…` is neither — it writes a flattened copy and leaves the
+        // document unsaved. Collapsing them into one "Save…" is what let
+        // the old build overwrite a GIF with a layered document's
+        // shadow.
+        menuItem("New…", action: refreshAfter(fileActions.new))
+        menuItem("Open…", action: refreshAfter(fileActions.open))
+        recentItems
+        menuGap
+        menuItem("Save", action: refreshAfter(fileActions.save))
+        menuItem("Save As…", action: refreshAfter(fileActions.saveAs))
+        menuGap
+        menuItem("Export GIF…", action: refreshAfter(fileActions.exportGIF))
         menuGap
         menuItem("Resize Canvas…") {
           isResizeSheetPresented = true
@@ -88,10 +121,25 @@ struct MenuBarDropdownView: View {
         menuItem("Redo", action: refreshAfter(model.redo))
           .disabled(!model.canRedo)
         menuGap
+        menuItem("Cut", action: refreshAfter(model.cutSelection))
         menuItem("Copy", action: refreshAfter(model.copySelection))
         menuItem("Paste", action: refreshAfter(model.paste))
         menuGap
+        // The four region rewrites. Under Edit rather than a menu of
+        // their own: they act on the selection exactly as Cut and Copy
+        // do, and a seventh menu trigger costs columns an 80-wide menu
+        // bar does not have.
+        menuItem("Flip Horizontal", action: refreshAfter(model.flipHorizontally))
+        menuItem("Flip Vertical", action: refreshAfter(model.flipVertically))
+        menuItem("Rotate Clockwise", action: refreshAfter(model.rotateClockwise))
+        menuItem("Rotate Counter-Clockwise", action: refreshAfter(model.rotateCounterClockwise))
+        menuGap
         menuItem("Clear Selection", action: refreshAfter(model.clearSelection))
+        menuGap
+        menuItem("Palette…") {
+          presentPaletteSheet()
+          refresh()
+        }
       case .layer:
         menuItem("New Layer", action: refreshAfter(model.addLayer))
         menuItem("Delete Layer", action: refreshAfter(model.deleteCurrentLayer))
@@ -116,6 +164,17 @@ struct MenuBarDropdownView: View {
         menuItem("Duplicate Frame", action: refreshAfter(model.duplicateCurrentFrame))
         menuItem("Delete Frame", action: refreshAfter(model.deleteCurrentFrame))
         menuGap
+        menuItem("Move Frame Left") {
+          model.moveCurrentFrame(by: -1)
+          refresh()
+        }
+        menuItem("Move Frame Right") {
+          model.moveCurrentFrame(by: 1)
+          refresh()
+        }
+        menuItem("Move Frame to Start", action: refreshAfter(model.moveCurrentFrameToStart))
+        menuItem("Move Frame to End", action: refreshAfter(model.moveCurrentFrameToEnd))
+        menuGap
         menuItem(model.isPlaybackActive ? "Pause Playback" : "Play Playback") {
           model.togglePlayback()
           refresh()
@@ -133,6 +192,24 @@ struct MenuBarDropdownView: View {
           refresh()
         }
         menuItem("Equalize Delays", action: refreshAfter(model.setAllFrameDelaysToCurrent))
+        menuItem("Reset Delay", action: refreshAfter(model.resetCurrentFrameDelay))
+        menuGap
+        // Export metadata: what the written GIF will say, rather than what
+        // the editor is showing. The disposal row names the mode it will
+        // move to, because a row that names the current one reads as a
+        // report rather than a verb.
+        menuItem(
+          "Disposal: \(EditorViewModel.disposalLabel(model.currentFrame.disposal))",
+          action: refreshAfter(model.cycleCurrentFrameDisposal)
+        )
+        menuItem(
+          "Loop: \(EditorViewModel.loopDescription(model.document.loopCount))",
+          action: refreshAfter(model.toggleLoopsForever)
+        )
+        menuItem("Play Once") {
+          model.setLoopCount(GIFLoader.playsOnce)
+          refresh()
+        }
       case .view:
         // Visibility toggles — narrow terminals can claim canvas space
         // back by hiding non-essential chrome.
@@ -160,15 +237,63 @@ struct MenuBarDropdownView: View {
           refresh()
         }
         menuGap
+        // Onion skin — the same three controls the `o` / `O` / `{` / `}`
+        // keys drive. The two settings rows show their current value
+        // rather than a submenu: a dropdown row is one click, so each
+        // cycles.
+        menuItem(checkmark(onionSkin.wrappedValue.isEnabled) + " Onion Skin") {
+          onionSkin.wrappedValue.toggle()
+          refresh()
+        }
+        menuItem("  Ghosted Sides: \(onionSkin.wrappedValue.sides.menuLabel)") {
+          onionSkin.wrappedValue.cycleSides()
+          refresh()
+        }
+        menuItem("  Ghost Frames: \(onionSkin.wrappedValue.depth)") {
+          onionSkin.wrappedValue.cycleDepth()
+          refresh()
+        }
+        menuGap
         menuItem("Increase Brush Size", action: refreshAfter(model.increaseBrushSize))
         menuItem("Decrease Brush Size", action: refreshAfter(model.decreaseBrushSize))
         menuItem("Swap Primary/Secondary", action: refreshAfter(model.swapPrimaryAndSecondary))
+        menuGap
+        // Under View rather than behind a seventh menu trigger: `?` is
+        // the discoverable route (the first-run hint says so), and a
+        // "Help" trigger costs six columns of an 80-column menu bar to
+        // hold one row.
+        menuItem("Keyboard Shortcuts…") {
+          presentKeyboardHelp()
+          refresh()
+        }
       }
     }
     .background {
       Rectangle().fill(.terminalSurfaceBackground)
     }
     .fixedSize(horizontal: true, vertical: true)
+  }
+
+  /// The recent-documents rows, or nothing at all on a first run.
+  ///
+  /// An empty "Open Recent" section that only ever says "(none)" is
+  /// chrome that advertises a feature the author cannot use yet, so the
+  /// heading and the rows appear together or not at all.
+  @ViewBuilder
+  private var recentItems: some View {
+    let recents = model.recentDocuments.urls.prefix(Self.visibleRecentCount)
+    if !recents.isEmpty {
+      menuGap
+      Text("Recent")
+        .foregroundStyle(.separator)
+        .fixedSize(horizontal: true, vertical: true)
+      ForEach(Array(recents), id: \.path) { url in
+        menuItem(url.lastPathComponent) {
+          fileActions.openRecent(url)
+          refresh()
+        }
+      }
+    }
   }
 
   private func menuItem(

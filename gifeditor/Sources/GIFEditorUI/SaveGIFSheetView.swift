@@ -205,7 +205,8 @@ struct SaveGIFSheetView: View {
   }
 
   private var canSave: Bool {
-    targetURL != nil && preview?.canSave == true && (!requiresOverwriteConfirmation || overwriteConfirmed)
+    targetURL != nil && preview?.canSave == true
+      && (!requiresOverwriteConfirmation || overwriteConfirmed)
   }
 
   private var previewSummary: String {
