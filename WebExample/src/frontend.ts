@@ -227,8 +227,8 @@ async function createController(
     style: activeStyle,
     initialSceneId: "counter",
     environment: {
-      TUIGUI_APP_NAME: "SwiftTUI Counter",
-      ...(frameDiagnosticsEnabled() ? { TUIGUI_FRAME_DIAGNOSTICS: "1" } : {}),
+      SWIFTTUI_APP_NAME: "SwiftTUI Counter",
+      ...(frameDiagnosticsEnabled() ? { SWIFTTUI_FRAME_DIAGNOSTICS: "1" } : {}),
       ...resolveProfileOverridesFromQuery(),
     },
     sceneRuntimeFactory: (options) =>
@@ -316,7 +316,7 @@ function resolveProfileOverridesFromQuery(): Record<string, string> {
   }
   const renderMode = searchParams.get("renderMode");
   if (renderMode === "async" || renderMode === "async-no-cancel") {
-    overrides.TERMUI_RENDER_MODE = renderMode;
+    overrides.SWIFTTUI_RENDER_MODE = renderMode;
   }
   const presentedProgressGuard = searchParams.get("presentedProgressGuard");
   if (presentedProgressGuard === "0" || presentedProgressGuard === "1") {

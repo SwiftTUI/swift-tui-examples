@@ -9,7 +9,7 @@ test("frontend wires opt-in frame diagnostics without importing unreleased web t
   expect(source).toContain('searchParams.get("frameDiagnostics") === "1"');
   expect(source).toContain('searchParams.get("diagnostics") === "1"');
   expect(source).toContain('localStorage.swiftTUIFrameDiagnostics === "1"');
-  expect(source).toContain('TUIGUI_FRAME_DIAGNOSTICS: "1"');
+  expect(source).toContain('SWIFTTUI_FRAME_DIAGNOSTICS: "1"');
   expect(source).toContain("onFrameDiagnostic");
   expect(source).toContain('console.debug("SwiftTUI frame", row)');
   expect(source).not.toContain("type WebHostFrameDiagnostic");
