@@ -162,56 +162,11 @@ public struct ExportCommand: ParsableCommand {
   }
 }
 
-/// Routes a headless verb before swift-argument-parser's own descent gets
-/// the chance to misread it.
-///
-/// The root command takes an optional `<path>` — `gifeditor foo.gif` opens
-/// that file — and the parser resolves a leading bare value in favour of a
-/// positional *before* it looks for a subcommand. So `halfcell info x.gif`
-/// parses as "open the file named `info`", and then reports `x.gif` as an
-/// unexpected extra argument. Every subcommand of a root with a positional
-/// is unreachable for the same reason: SwiftTUI hit this with `completions`
-/// and solved it by matching the verb against the raw arguments in
-/// `parseSwiftTUIRootCommand`. This is that same move for the verbs this
-/// module adds.
-///
-/// The verbs stay registered in the root's `CommandConfiguration` regardless,
-/// because that is what `--help` lists and what the generated completion
-/// scripts are built from.
-public enum HeadlessDispatch {
-  /// The verbs this dispatcher owns, in the order `--help` should list them.
-  public static let subcommands: [any ParsableCommand.Type] = [
-    InfoCommand.self,
-    OptimizeCommand.self,
-    ExportCommand.self,
-  ]
-
-  /// The command type named by `verb`, or `nil`.
-  public static func subcommandType(named verb: String) -> (any ParsableCommand.Type)? {
-    subcommands.first { $0.configuration.commandName == verb }
-  }
-
-  /// Runs the headless verb named by the first argument and **exits the
-  /// process**, or returns having done nothing when there is no such verb.
-  ///
-  /// Exiting rather than returning a result is what keeps the caller a
-  /// one-liner, and it is also correct: a headless run and an editor launch
-  /// are alternatives, never a sequence. Errors go through the *subcommand's*
-  /// `exit(withError:)` so `halfcell export --help` prints `export`'s usage
-  /// rather than the editor's.
-  public static func runIfRequested(
-    arguments: [String] = Array(CommandLine.arguments.dropFirst())
-  ) {
-    guard let verb = arguments.first, let type = subcommandType(named: verb) else { return }
-    do {
-      var command = try type.parseAsRoot(Array(arguments.dropFirst()))
-      try command.run()
-      type.exit()
-    } catch {
-      type.exit(withError: error)
-    }
-  }
-}
+// Routing these verbs used to need a dispatcher here, because a root command
+// that declares a positional argument shadows its own subcommands. SwiftTUI now
+// owns that: `GIFEditorApp.swiftTUIRootSubcommand(forRawArguments:)` claims the
+// verb from the raw arguments, and the framework's own launch sequence runs it
+// and attributes any failure to the verb rather than to the editor.
 
 /// The three-line body every subcommand shares: run the pure work, print
 /// what it produced, and turn a ``HeadlessError`` into the exit status it
