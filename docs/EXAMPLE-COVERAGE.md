@@ -31,6 +31,7 @@ package; every other SwiftTUI product resolves from `swift-tui`.
 | [layouts](../layouts) | Focused product sample; stress/regression sample | `SwiftTUI`, `SwiftTUIRuntime`, `SwiftTUICharts` | Layout catalog for stacks, frames, geometry, scrolling, overlays, shapes, matched geometry, and custom layouts | Terminal app | Linux native gate builds debug and release; focused SwiftPM tests in `check:focused` |
 | [LayoutsSwiftUI](../LayoutsSwiftUI) | Host/build configuration sample | `SwiftTUIRuntime`, `SwiftUIHost`, `Layouts` | Native SwiftUI comparison app for the `layouts` catalog | Native Apple app via SwiftPM executable | macOS native gate builds the package |
 | [AndroidGallery](../AndroidGallery) | Host/build configuration sample | `SwiftTUIAndroidHost`, `SwiftTUIRuntime`, `GalleryDemoViews` | Native Android Compose app embedding the reusable SwiftTUI gallery scene with styled raster cells, image payloads, accessibility semantics, and basic input bridging | Android app via Gradle/Swift Android SDK, `arm64-v8a` only | Manual local gate: `./gradlew :app:assembleDebug`; emulator smoke remains local-only |
+| [sextant](../sextant) | Focused product sample | `SwiftTUI`, `SwiftTUITerminal` | Miller-column browser and embedded terminal process previews | Terminal app plus child processes | Linux native gate builds debug and release; focused SwiftPM tests in `check:focused` |
 | [terminal-workspace](../terminal-workspace) | Focused product sample | `SwiftTUI`, `SwiftTUITerminalWorkspace` | Tabs, splits, retained sessions, command palette actions, persisted workspace metadata | Terminal workspace app | Linux native gate builds debug and release; focused SwiftPM tests in `check:focused` |
 | [gitviz](../gitviz) | Copyable tutorial; focused product sample | `SwiftTUI`, `SwiftTUICLI`, `SwiftTUICharts` | Non-interactive git reporting and chart primitives | Terminal CLI report generator | Linux native gate builds debug and release; focused SwiftPM tests in `check:focused` |
 | [gifcat](../gifcat) | Copyable tutorial; focused product sample | `SwiftTUI`, `SwiftTUIAnimatedImage` | GIF playback, source delays, image attachments, row-major tiling | Terminal app | Linux native gate builds debug and release; focused SwiftPM tests in `check:focused` |
@@ -57,8 +58,8 @@ shared counter from `three-hosts-demo`.
 - `bun run check:web`: browser/WASI build gate for `WebExample` and the
   `swift-tui-web` host package.
 - `bun run check:focused`: slower behavior-test gate for examples with real test
-  targets: `gallery`, `layouts`, `gifeditor`, `gitviz`, `terminal-runner`,
-  `gifcat`, `terminal-workspace`, `WebHostExample`, and
+  targets: `gallery`, `layouts`, `gifeditor`, `gitviz`, `sextant`,
+  `terminal-runner`, `gifcat`, `terminal-workspace`, `WebHostExample`, and
   `WebExample`.
 
 ## New Example Checklist

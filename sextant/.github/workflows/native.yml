@@ -1,0 +1,16 @@
+name: Native Gate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install pinned Swift
+        run: Scripts/install_swift_toolchain_ci.sh
+      - name: Test and release build
+        run: Scripts/check.sh

@@ -51,8 +51,9 @@ bun --cwd WebExample run build
 
 Everything builds from a fresh clone using tagged HTTPS dependencies. Most
 examples remain on the `0.3.3` release graph; Gallery uses the matching
-`swift-tui`/`swift-tui-charts` `0.3.4` patch pair, as do its SwiftUI and
-Android host examples. WebExample pulls the
+`swift-tui`/`swift-tui-charts` `0.3.4` patch pair, and Sextant uses
+`swift-tui` `0.3.6` for host-bound embedded-terminal focus and start-safe
+terminal shutdown. WebExample pulls the
 `swift-tui-web` `0.3.3` release tarballs for `@swifttui/web` and
 `@swifttui/build`. No sibling source checkout is required.
 
@@ -68,7 +69,7 @@ Android host examples. WebExample pulls the
 | [layouts](layouts) | Terminal | SwiftTUI layout catalog with behavior tests for stacks, frames, geometry, scrolling, overlays, shapes, matched geometry, and custom layouts | `swiftly run swift run --package-path layouts layouts-demo` |
 | [LayoutsSwiftUI](LayoutsSwiftUI) | Native SwiftUI | Native SwiftUI layout catalog beside the embedded SwiftTUI catalog through `SwiftUIHost` | `swiftly run swift run --package-path LayoutsSwiftUI layouts-swiftui-demo` |
 | [AndroidGallery](AndroidGallery) | Android | Compose host app embedding the SwiftTUI gallery through `SwiftTUIAndroidHost` and the Swift Android SDK | `(cd AndroidGallery && ./gradlew :app:assembleDebug)` |
-| [Sextant](https://github.com/SwiftTUI/sextant) | Standalone terminal product | Preview-first Miller-column inspector built with `SwiftTUITerminal` / `TerminalProcessSession` | `git clone https://github.com/SwiftTUI/sextant.git && cd sextant && swiftly run swift run sextant` |
+| [sextant](sextant) | Terminal | Miller-column browser and file previews through `SwiftTUITerminal` / `TerminalProcessSession` | `swiftly run swift run --package-path sextant sextant` |
 | [terminal-workspace](terminal-workspace) | Terminal | First-party `SwiftTUITerminalWorkspace` surface: tabs, splits, retained sessions, command-palette actions, and persisted layout metadata | `swiftly run swift run --package-path terminal-workspace terminal-workspace` |
 | [gitviz](gitviz) | CLI | `SwiftTUICharts` over real git data, with a command for every chart primitive | `swiftly run swift run --package-path gitviz gitviz dashboard --path .` |
 | [gifcat](gifcat) | Terminal | `SwiftTUIAnimatedImage` playback, source GIF delays, regular-size image attachments, and row-major tiling of multiple GIFs | `swiftly run swift run --package-path gifcat gifcat nyan.gif` |
@@ -84,12 +85,13 @@ Already know the package you need? Jump straight to an example that uses it.
 
 | Product or package | Examples |
 | --- | --- |
-| `SwiftTUI` convenience surface | [argparse](argparse), [gallery](gallery), [layouts](layouts), [terminal-workspace](terminal-workspace), [gifcat](gifcat), [gifeditor](gifeditor), [WebHostExample](WebHostExample) |
+| `SwiftTUI` convenience surface | [argparse](argparse), [gallery](gallery), [layouts](layouts), [sextant](sextant), [terminal-workspace](terminal-workspace), [gifcat](gifcat), [gifeditor](gifeditor), [WebHostExample](WebHostExample) |
 | `SwiftTUIRuntime` / host-managed scenes | [gallery](gallery), [three-hosts-demo](three-hosts-demo), [WebExample](WebExample) |
 | `SwiftTUICLI` / one-shot rendering and terminal launch | [minimal](minimal), [terminal-runner](terminal-runner), [gitviz](gitviz) |
 | `SwiftTUIArguments` / `SwiftTUICommand` | [argparse](argparse), [gallery](gallery), [gifeditor](gifeditor), [gitviz](gitviz) |
 | `SwiftTUICharts` (separate [`swift-tui-charts`](https://github.com/SwiftTUI/swift-tui-charts) package) | [gitviz](gitviz), [gallery](gallery), [layouts](layouts) |
 | `SwiftTUIAnimatedImage` | Included by `SwiftTUI`; used directly by [gifcat](gifcat), [gallery](gallery) |
+| `SwiftTUITerminal` | [sextant](sextant) |
 | `SwiftTUITerminalWorkspace` | [terminal-workspace](terminal-workspace) |
 | `SwiftUIHost` | [SwiftUIExample](SwiftUIExample), [three-hosts-demo](three-hosts-demo) |
 | `SwiftTUIAndroidHost` | [AndroidGallery](AndroidGallery) |
