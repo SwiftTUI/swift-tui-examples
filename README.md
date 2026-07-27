@@ -51,7 +51,8 @@ bun --cwd WebExample run build
 
 Everything builds from a fresh clone using tagged HTTPS dependencies. Most
 examples remain on the `0.3.3` release graph; Gallery uses the matching
-`swift-tui`/`swift-tui-charts` `0.3.4` patch pair. WebExample pulls the
+`swift-tui`/`swift-tui-charts` `0.3.4` patch pair, as do its SwiftUI and
+Android host examples. WebExample pulls the
 `swift-tui-web` `0.3.3` release tarballs for `@swifttui/web` and
 `@swifttui/build`. No sibling source checkout is required.
 
