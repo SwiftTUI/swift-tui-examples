@@ -9,6 +9,101 @@ import Testing
 @MainActor
 @Suite("GIF editor presentation runtime")
 struct PresentationRuntimeTests {
+  /// A menu trigger changing from `▾` to `▴` proves only that the button
+  /// mutated `openMenu`. The user-facing contract is that the dropdown is
+  /// painted over the editor on that same click.
+  @Test("clicking File opens its dropdown", .timeLimit(.minutes(1)))
+  func clickingFileOpensItsDropdown() async throws {
+    let terminal = GIFEditorPresentationRecordingTerminalHost(
+      surfaceSize: .init(width: 80, height: 24)
+    )
+    let rootIdentity = Identity(components: ["gifeditor.presentation-runtime.file-menu-click"])
+
+    let inputReader = GIFEditorPresentationInputReader(
+      frameSignal: terminal.frameSignal,
+      steps: [
+        .click(CellPoint(x: 3, y: 0)),
+        // The arrow is the known regression outcome, so accepting it keeps a
+        // failure red instead of waiting forever for the missing dropdown.
+        .awaitCondition {
+          terminal.latestFrame?.contains("File ▴") == true
+        },
+      ])
+
+    let result = try await RunLoop(
+      rootIdentity: rootIdentity,
+      presentationSurface: terminal,
+      terminalInputReader: inputReader,
+      signalReader: GIFEditorPresentationEmptySignalReader(),
+      stateContainer: StateContainer(
+        initialState: 0,
+        invalidationIdentities: [rootIdentity]
+      ),
+      focusTracker: FocusTracker(invalidationIdentities: [rootIdentity]),
+      proposal: .init(width: 80, height: 24),
+      viewBuilder: { _, _ in
+        EditorView(
+          document: GIFDocument.blank(size: .init(width: 16, height: 16)),
+          stateDirectory: sharedStateDirectory
+        )
+      }
+    ).run()
+
+    let openedFrame = terminal.latestFrame ?? ""
+    #expect(result.exitReason == .inputEnded)
+    #expect(openedFrame.contains("File ▴"))
+    #expect(openedFrame.contains("New…"))
+    #expect(openedFrame.contains("Open…"))
+  }
+
+  /// The frame operation buttons and thumbnail buttons share the timeline,
+  /// but only a thumbnail composes its button tap with a reorder drag. Select
+  /// frame 2, then use the known-working duplicate command as the control:
+  /// duplicating the selected second frame must land on frame 3, not frame 2.
+  @Test("clicking a timeline thumbnail selects that frame", .timeLimit(.minutes(1)))
+  func clickingATimelineThumbnailSelectsThatFrame() async throws {
+    let terminal = GIFEditorPresentationRecordingTerminalHost(
+      surfaceSize: .init(width: 80, height: 24)
+    )
+    let rootIdentity = Identity(components: ["gifeditor.presentation-runtime.frame-click"])
+
+    let inputReader = GIFEditorPresentationInputReader(
+      frameSignal: terminal.frameSignal,
+      steps: [
+        // At 80×24 the compact timeline starts on row 16. Its second 4×4
+        // thumbnail occupies columns 30...35 and rows 18...21.
+        .click(CellPoint(x: 32, y: 19)),
+        .press(KeyPress(.character("d"), modifiers: .ctrl)),
+        .awaitCondition {
+          terminal.latestFrame?.contains("Duplicated frame") == true
+        },
+      ])
+
+    let result = try await RunLoop(
+      rootIdentity: rootIdentity,
+      presentationSurface: terminal,
+      terminalInputReader: inputReader,
+      signalReader: GIFEditorPresentationEmptySignalReader(),
+      stateContainer: StateContainer(
+        initialState: 0,
+        invalidationIdentities: [rootIdentity]
+      ),
+      focusTracker: FocusTracker(invalidationIdentities: [rootIdentity]),
+      proposal: .init(width: 80, height: 24),
+      viewBuilder: { _, _ in
+        EditorView(document: playbackDocument(), stateDirectory: sharedStateDirectory)
+      }
+    ).run()
+
+    let duplicatedFrame = terminal.latestFrame ?? ""
+    #expect(result.exitReason == .inputEnded)
+    #expect(duplicatedFrame.contains("Duplicated frame"))
+    #expect(
+      duplicatedFrame.contains("F3/3"),
+      "the click must select frame 2 before duplication inserts after it"
+    )
+  }
+
   /// `Ctrl+E` is the GIF export, and it is the sheet that keeps the
   /// encoded preview — export is a lossy *conversion*, so seeing the
   /// bytes before committing is the whole affordance.

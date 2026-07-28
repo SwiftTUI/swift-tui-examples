@@ -67,11 +67,21 @@ struct TerminalTooSmallView: View {
 struct TerminalFitGate<Content: View>: View {
   let fits: Bool
   let available: CellSize
-  @ViewBuilder let content: () -> Content
+  let content: Content
+
+  init(
+    fits: Bool,
+    available: CellSize,
+    @ViewBuilder content: () -> Content
+  ) {
+    self.fits = fits
+    self.available = available
+    self.content = content()
+  }
 
   var body: some View {
     if fits {
-      content()
+      content
     } else {
       TerminalTooSmallView(
         available: available,
