@@ -7,6 +7,29 @@ enum FileSystemIdentity: Hashable, Sendable {
   static func pathFallback(for url: URL) -> Self {
     .path(url.standardizedFileURL.path)
   }
+
+  /// Builds an inode identity out of raw POSIX `stat` fields, whose concrete
+  /// integer types differ by platform.
+  static func posixInode(
+    device: some BinaryInteger,
+    inode: some BinaryInteger
+  ) -> Self {
+    .inode(device: identityToken(device), inode: identityToken(inode))
+  }
+
+  /// Widens one raw `stat` identity field to `UInt64` without trapping.
+  ///
+  /// `dev_t` is a *signed* `Int32` on Darwin, and devfs and autofs mounts are
+  /// handed negative device numbers — `/dev` is one of them, so a plain
+  /// `UInt64(st_dev)` trapped on every listing of `/`. These numbers are
+  /// opaque identity tokens here, never arithmetic operands, so a
+  /// two's-complement widening is the conversion this wants: total for any
+  /// fixed-width integer, and injective within a single field's platform type,
+  /// which is all a `Hashable` identity asks for. Nonnegative values keep
+  /// their arithmetic value.
+  static func identityToken(_ value: some BinaryInteger) -> UInt64 {
+    UInt64(bitPattern: Int64(truncatingIfNeeded: value))
+  }
 }
 
 struct DirectoryID: Hashable, Sendable {

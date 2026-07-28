@@ -146,6 +146,34 @@ struct FileSystemClientTests {
     }
   }
 
+  /// The filesystem root is the one directory a user always reaches by holding
+  /// the parent key, and on Darwin it is also the only one that lists a devfs
+  /// mount — whose `dev_t` is negative. Reading it is the end-to-end guard on
+  /// that widening; before the fix this trapped rather than failing.
+  @Test("the live adapter lists the filesystem root, devfs mounts and all")
+  func liveAdapterListsFilesystemRoot() async throws {
+    let client = LocalFileSystemClient()
+    let rootURL = URL(fileURLWithPath: "/", isDirectory: true)
+
+    let result = await client.readDirectory(
+      request(1, url: rootURL, policy: DirectoryPolicy(showsHiddenFiles: true))
+    )
+    let snapshot = try #require(result.successValue)
+    #expect(!snapshot.items.isEmpty)
+
+    // Every entry's identity has to be readable on its own too — that is the
+    // path `climbAboveTrail` takes when it resolves the node it is inserting.
+    for item in snapshot.items {
+      guard case .inode = item.listingMetadata.identity else {
+        continue
+      }
+      #expect(item.id.identity == item.listingMetadata.identity)
+    }
+    #expect(
+      client.identity(at: rootURL, followingSymbolicLinks: true).successValue != nil
+    )
+  }
+
   @Test("live metadata and prefix reads preserve filesystem truth")
   func liveMetadataAndPrefix() async throws {
     try await withTemporaryDirectory { root in

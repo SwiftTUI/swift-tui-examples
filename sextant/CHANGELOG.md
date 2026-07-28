@@ -17,8 +17,14 @@ All notable Sextant changes are recorded here.
   root still anchors root-relative path copies and recursive search.
 - Moved the filter field into the status bar; it no longer displaces the
   browser.
-- The active column's header and its selected row are drawn as accent bars, and
-  the title is now a single `∢` glyph on an accent background.
+- The active column's selected row is drawn as an accent bar, and the title is
+  now a single `∢` glyph on an accent background. Column headers stay plain —
+  the active one is marked by its accent foreground, not by a background.
+- Entry rows read in the primary foreground instead of the separator tone; the
+  trail column's selected row keeps the accent foreground as its marker.
+- Fixed a crash on reaching `/`, which is where holding `←`/`h` always ends up.
+  Darwin's `dev_t` is signed and devfs mounts carry negative device numbers, so
+  building a filesystem identity for `/dev` trapped on the widening conversion.
 
 ## 0.1.0
 

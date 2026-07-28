@@ -252,7 +252,7 @@ private func specialKind(for fileType: UInt32) -> SpecialFileKind {
 }
 
 private func fileSystemIdentity(from info: stat) -> FileSystemIdentity {
-  .inode(device: UInt64(info.st_dev), inode: UInt64(info.st_ino))
+  .posixInode(device: info.st_dev, inode: info.st_ino)
 }
 
 private func itemMetadata(

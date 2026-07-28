@@ -91,6 +91,44 @@ struct FileSystemTypesTests {
     #expect(descending.contains { $0.name == "line\nbreak" })
     #expect(descending.contains { $0.name == "-leading-dash" })
   }
+
+  @Test("posix identities survive the negative device numbers devfs hands out")
+  func negativeDeviceNumbersAreRepresentable() {
+    // Darwin's `dev_t` is a signed `Int32`, and devfs and autofs mount points
+    // carry negative device numbers — `/dev` is one, which is why every
+    // listing of `/` used to trap on the widening conversion.
+    let devfs = FileSystemIdentity.posixInode(
+      device: Int32(-755_755_819),
+      inode: UInt64(333)
+    )
+    // The same number `stat(1)` and Python's `os.stat` report for `/dev`:
+    // 2^64 - 755_755_819.
+    #expect(
+      devfs == .inode(device: 18_446_744_072_953_795_797, inode: 333)
+    )
+  }
+
+  @Test("posix identity widening is total and injective within a stat field type")
+  func identityWideningIsInjective() {
+    // Distinctness is the only property `FileSystemIdentity` needs from these
+    // fields — they are opaque tokens, never arithmetic operands. Each `stat`
+    // field has one concrete type per platform, so injectivity is required
+    // within a type, not across them.
+    let darwinDevices: [Int32] = [
+      -755_755_819, -1, Int32.min, 0, 1, 16_777_234, Int32.max,
+    ]
+    let darwinTokens = darwinDevices.map { FileSystemIdentity.identityToken($0) }
+    #expect(Set(darwinTokens).count == darwinDevices.count)
+
+    let linuxDevices: [UInt64] = [0, 1, 2049, UInt64(UInt32.max), UInt64.max]
+    let linuxTokens = linuxDevices.map { FileSystemIdentity.identityToken($0) }
+    #expect(Set(linuxTokens).count == linuxDevices.count)
+
+    // Nonnegative values keep their arithmetic value, so identities recorded
+    // before this widening existed still compare equal.
+    #expect(FileSystemIdentity.identityToken(Int32(16_777_234)) == 16_777_234)
+    #expect(FileSystemIdentity.identityToken(UInt64.max) == UInt64.max)
+  }
 }
 
 private func listing(

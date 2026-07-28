@@ -60,12 +60,10 @@ struct FileColumn: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
-      accentBar(
+      columnTitle(
         directory.lastPathComponent.isEmpty
           ? directory.path
-          : directory.lastPathComponent,
-        isHighlighted: isActive,
-        idleStyle: mutedStyle
+          : directory.lastPathComponent
       )
       Divider()
 
@@ -104,15 +102,30 @@ struct FileColumn: View {
     }
   }
 
+  /// The directory name above the column.
+  ///
+  /// Deliberately plain: the active column is already marked by its barred
+  /// selection and by the breadcrumb, so a second full-width bar up here only
+  /// competed with it. The accent foreground still says which column is
+  /// active without painting a block of background across the title.
+  private func columnTitle(_ label: String) -> some View {
+    Text(label)
+      .foregroundStyle(isActive ? accentStyle : mutedStyle)
+      .lineLimit(1)
+      .truncationMode(.middle)
+  }
+
   /// A full-width accent bar drawn as one `Text` node.
   ///
   /// The obvious spelling — `.frame(maxWidth: .infinity)` then
   /// `.background { Rectangle() }` — is what the framework's own controls use,
-  /// but each decoration measured ~4.5 ms into this column's 50 ms interaction
-  /// budget at 10,000 entries, and there are two of them. Padding the string to
-  /// the column width and letting the terminal swap foreground and background
-  /// paints the same bar with no extra layout node at all, and gets the
-  /// contrast from the terminal's real colors rather than a guessed pairing.
+  /// but that decoration measured ~4.5 ms into this column's 50 ms interaction
+  /// budget at 10,000 entries. Padding the string to the column width and
+  /// letting the terminal swap foreground and background paints the same bar
+  /// with no extra layout node at all, and gets the contrast from the
+  /// terminal's real colors rather than a guessed pairing. Only the active
+  /// column's selected row is barred, so at most one row per column pays the
+  /// padding.
   private func accentBar(
     _ label: String,
     isHighlighted: Bool,
@@ -139,9 +152,12 @@ struct FileColumn: View {
   ///
   /// `FileColumn` authors up to 48 rows at once and `FileColumnRenderingTests`
   /// holds the whole column under 80 resolved nodes, so every row has to stay
-  /// a single `Text`. Only the active column's selection is barred; a
-  /// selection in a column you have navigated out of stays a plain
-  /// foreground/separator contrast.
+  /// a single `Text`. Ordinary entries read in the primary foreground — these
+  /// are the content, not chrome, so dimming them to the separator tone made
+  /// the whole browser look disabled. Only the active column's selection is
+  /// barred; the trail column's selection, which is the directory you came out
+  /// of, keeps the accent foreground so it stays legible as a marker without a
+  /// second bar on screen.
   private func row(for entry: BrowserItem) -> some View {
     let label = entry.name + (entry.kind.isDirectoryLike ? "/" : "")
     let isSelected = entry.id == selection
@@ -149,8 +165,8 @@ struct FileColumn: View {
       label,
       isHighlighted: isActive && isSelected,
       idleStyle: isSelected
-        ? AnyShapeStyle(SemanticShapeStyle(.foreground))
-        : AnyShapeStyle(SemanticShapeStyle(.separator))
+        ? accentStyle
+        : AnyShapeStyle(SemanticShapeStyle(.foreground))
     )
     .onTapGesture {
       onSelect(entry.id)

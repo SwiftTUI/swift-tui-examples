@@ -134,7 +134,7 @@ struct FileColumnRenderingTests {
     #expect(artifacts.diagnostics.counts.placedNodes < 80)
   }
 
-  @Test("the active column bars its header and its selection across the column")
+  @Test("the active column bars its selection only, never its header")
   func activeColumnAccentBars() {
     let entries = makeEntries(count: 3)
     let artifacts = DefaultRenderer().render(
@@ -151,7 +151,8 @@ struct FileColumnRenderingTests {
     let cells = artifacts.rasterSurface.cells
 
     // Row 0 is the column header, row 1 the divider, rows 2... the entries.
-    #expect(isBarred(cells[0], width: 30))
+    // The header stays plain — only the selected entry is barred.
+    #expect(!isBarred(cells[0], width: 30))
     #expect(isBarred(cells[3], width: 30))
     #expect(!isBarred(cells[2], width: 30))
     #expect(!isBarred(cells[4], width: 30))
@@ -175,6 +176,49 @@ struct FileColumnRenderingTests {
     #expect(
       artifacts.rasterSurface.cells.allSatisfy { !isBarred($0, width: 30) }
     )
+  }
+
+  @Test("ordinary entries read in the primary foreground, not the separator tone")
+  func unselectedRowsUsePrimaryForeground() throws {
+    let primary = try #require(probeForeground(SemanticShapeStyle(.foreground)))
+    let separator = try #require(probeForeground(SemanticShapeStyle(.separator)))
+    #expect(primary != separator)
+
+    let entries = makeEntries(count: 3)
+    let artifacts = DefaultRenderer().render(
+      FileColumn(
+        directory: URL(fileURLWithPath: "/tmp/large"),
+        entries: entries,
+        selection: entries[1].id,
+        isActive: true,
+        contentWidth: 30
+      ),
+      context: .init(identity: Identity(components: ["PrimaryRows"])),
+      proposal: .init(width: 30, height: 10)
+    )
+    let cells = artifacts.rasterSurface.cells
+
+    // Row 0 is the header, row 1 the divider, row 3 the barred selection —
+    // rows 2 and 4 are the ordinary entries this covers.
+    for row in [2, 4] {
+      let glyphs = cells[row].filter { $0.character != " " }
+      #expect(!glyphs.isEmpty)
+      #expect(glyphs.allSatisfy { $0.style?.foregroundColor == primary })
+    }
+  }
+
+  /// The color a semantic role resolves to under the renderer's own theme,
+  /// harvested by rendering a single glyph in it. Naming the hex here instead
+  /// would pin the assertion to a palette this demo does not own.
+  private func probeForeground(_ style: SemanticShapeStyle) -> Color? {
+    DefaultRenderer().render(
+      Text("X").foregroundStyle(style),
+      context: .init(
+        identity: Identity(components: ["Probe", "\(style.role)"])
+      ),
+      proposal: .init(width: 1, height: 1)
+    )
+    .rasterSurface.cells.first?.first?.style?.foregroundColor
   }
 
   /// Whether every cell across the column carries the accent bar, which is
