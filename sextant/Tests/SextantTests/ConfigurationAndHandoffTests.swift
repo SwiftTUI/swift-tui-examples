@@ -200,7 +200,6 @@ struct ConfigurationAndHandoffTests {
     }
   }
 
-
   @MainActor
   @Test("versioned preview content rules map into runtime adapter policy")
   func previewAdapterRules() throws {

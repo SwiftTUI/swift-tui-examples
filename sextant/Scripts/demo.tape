@@ -3,7 +3,13 @@ Output docs/assets/sextant-journey.gif
 Require .build/release/sextant
 
 Set Shell "zsh"
-Set FontFamily "SF Mono"
+# Menlo, not SF Mono. vhs renders through xterm.js in headless Chrome, which
+# resolves this name against Chrome's font list — and macOS ships SF Mono inside
+# Terminal.app/Xcode rather than a directory Chrome enumerates. It does not
+# error; it silently falls back to a proportional serif, which xterm.js then
+# measures for its cell advance. Every recording before this one shipped with
+# letter-spaced glyphs ("S e x t a n t") because of it.
+Set FontFamily "Menlo"
 Set FontSize 18
 Set Width 1400
 # Tall enough for the whole generated help panel. `?` used to be a dead

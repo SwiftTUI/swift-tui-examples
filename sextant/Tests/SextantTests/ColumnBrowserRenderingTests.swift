@@ -195,4 +195,43 @@ struct ColumnBrowserRenderingTests {
     #expect(rendered.contains("RECENTS"))
     #expect(rendered.contains("/fixture/recent"))
   }
+
+  /// An open overlay squeezes the browser/preview region to a couple of rows,
+  /// and the column content is taller than the rows it is handed. Without a
+  /// clip the surplus lines paint straight over the status bar: the shipped
+  /// 0.3.8 build rendered `/tmp/…/demo-v0.1` immediately followed by the tail
+  /// of the preview's `File · 5100 bytes · modified …` on the status row.
+  ///
+  /// The status bar is the last row, so its right-hand mode word is the probe:
+  /// nothing from the column region may share that row.
+  @Test("an open overlay never lets column content paint over the status bar")
+  func overlaySqueezeDoesNotOverflowStatusBar() {
+    let root = URL(fileURLWithPath: "/fixture")
+    let rootID = DirectoryID(identity: .path(root.path))
+    let model = BrowserModel(
+      root: root,
+      rootID: rootID,
+      policy: DirectoryPolicy(),
+      dependencies: BrowserModelDependencies(
+        loadDirectory: { _ in .failure(.cancelled) }
+      )
+    )
+    model.send(.showHelp)
+
+    // Deliberately short: the help panel alone is taller than this, which is
+    // exactly the squeeze that produced the overflow.
+    let artifacts = DefaultRenderer().render(
+      ColumnBrowser(model: model),
+      context: .init(identity: Identity(components: ["Root"])),
+      proposal: .init(width: 100, height: 12)
+    )
+    let lines = artifacts.rasterSurface.lines
+    let statusRow = try? #require(lines.last)
+
+    // The status row carries the path on the left and the mode on the right.
+    // Any column content that escaped its region lands between them.
+    #expect(statusRow?.contains("/fixture") == true)
+    #expect(statusRow?.contains("Preview") == false)
+    #expect(statusRow?.contains("(loading)") == false)
+  }
 }

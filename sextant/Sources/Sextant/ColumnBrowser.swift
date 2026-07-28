@@ -40,6 +40,12 @@ struct ColumnBrowser: View {
       // bar leave behind.
       responsiveSurfaces(width: terminalSize.width)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        // Clip, because an open overlay squeezes this region to a couple of
+        // rows and the column content is taller than what it is handed. Without
+        // this the preview's metadata lines paint straight over the status bar
+        // — visibly, `/tmp/…/demo-v0.1` followed by the tail of
+        // `File · 5100 bytes · modified …` on the same row.
+        .clipped()
       statusBar
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -703,8 +709,9 @@ struct ColumnBrowser: View {
     // The embedded child sees every key the catalog does not claim. Because
     // the context reports the preview as focused, dispatch already restricts
     // itself to the preview section.
-    guard case .perform(let action)? =
-      commandCatalog.dispatch(keyPress, context: commandContext)
+    guard
+      case .perform(let action)? =
+        commandCatalog.dispatch(keyPress, context: commandContext)
     else {
       return .forwardToChild
     }
