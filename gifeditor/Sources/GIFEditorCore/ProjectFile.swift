@@ -160,9 +160,8 @@ public struct ProjectFile: Hashable, Sendable {
 
   /// Encodes `document` into project-file bytes.
   ///
-  /// `document.path` is not written: it is where *this* machine keeps
-  /// the file, not part of the artwork, and a project passed to someone
-  /// else must not carry the author's home directory.
+  /// Source provenance and Project backing are lifecycle state, not part of
+  /// the artwork, so neither appears in these bytes.
   public static func data(for document: GIFDocument) throws -> Data {
     let encoder = JSONEncoder()
     // Sorted keys make a re-save of unchanged content byte-stable,

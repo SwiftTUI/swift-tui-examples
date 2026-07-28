@@ -5,79 +5,52 @@ import SwiftTUI
 
 /// Composition root for the editor.
 ///
-/// It resolves a document from an optional file path, offers back any
-/// unsaved work a previous session left behind, and hands the result to
-/// `EditorView`. A future SwiftUI port would have a sibling factory
-/// function that returns a SwiftUI view fed the same `GIFDocument`.
-///
-/// Recovery is settled *before* the editor exists rather than as a sheet
-/// over it. The alternative — build the editor around the on-disk
-/// document and swap the document out from under it when the author
-/// accepts — means a recovery's first act is to discard a freshly built
-/// view model, and means there is a moment where the editor is showing
-/// work nobody has been offered yet.
+/// It asks `DocumentLifecycle` to resolve an optional launch path and any
+/// recovery snapshot, then hands that same lifecycle to `EditorView`.
 public struct GIFEditor: View {
   let path: String?
-  /// Where the recents list and the recovery file live. A parameter so a
-  /// test never reads or writes the developer's real
-  /// `~/.config/halfcell/`.
-  let stateDirectory: URL
-  @State private var loadedDocument: GIFEditorDocumentLoad?
-  @State private var recovery: GIFEditorRecoveryOffer?
+  let stateDirectory: URL?
+  @State private var lifecycle: DocumentLifecycle?
+  @State private var revision = 0
 
   public init(path: String? = nil, stateDirectory: URL? = nil) {
     self.path = path
-    self.stateDirectory = stateDirectory ?? EditorViewModel.stateDirectory()
+    self.stateDirectory = stateDirectory
   }
 
   public var body: some View {
+    _ = revision
     content
       .task(id: path) {
         @MainActor in
-        loadedDocument = nil
-        recovery = nil
-        let autosaveURL = EditorViewModel.autosaveURL(inStateDirectory: stateDirectory)
-        let loaded = await Self.loadDocument(path: path, autosaveURL: autosaveURL)
+        lifecycle = nil
+        let prepared = await DocumentLifecycle.launch(
+          path: path,
+          stateDirectory: stateDirectory
+        )
         guard !Task.isCancelled else {
           return
         }
-        if let snapshot = loaded.recoverable {
-          recovery = GIFEditorRecoveryOffer(snapshot: snapshot, fallback: loaded)
-        } else {
-          loadedDocument = loaded
-        }
+        lifecycle = prepared
       }
   }
 
   @ViewBuilder
   private var content: some View {
-    if let recovery {
+    if let lifecycle, let snapshot = lifecycle.recoverySnapshot {
       RecoveryPromptView(
-        offer: recovery,
+        snapshot: snapshot,
         onRecover: {
-          loadedDocument = GIFEditorDocumentLoad(
-            document: recovery.snapshot.document,
-            statusMessage: "Recovered unsaved changes",
-            recoverable: nil,
-            recoveredUnsavedWork: true
-          )
-          self.recovery = nil
+          lifecycle.resolveRecovery(.recover)
+          revision &+= 1
         },
         onDiscard: {
-          try? AutosaveStore.clear(
-            at: EditorViewModel.autosaveURL(inStateDirectory: stateDirectory)
-          )
-          loadedDocument = recovery.fallback
-          self.recovery = nil
+          lifecycle.resolveRecovery(.discard)
+          revision &+= 1
         }
       )
-    } else if let loadedDocument {
-      EditorView(
-        document: loadedDocument.document,
-        initialStatusMessage: loadedDocument.statusMessage,
-        stateDirectory: stateDirectory,
-        recoveredUnsavedWork: loadedDocument.recoveredUnsavedWork
-      )
+    } else if let lifecycle {
+      EditorView(lifecycle: lifecycle)
     } else {
       VStack(alignment: .leading, spacing: 1) {
         Text("gifeditor").foregroundStyle(.foreground)
@@ -88,94 +61,6 @@ public struct GIFEditor: View {
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
   }
-
-  private nonisolated static func loadDocument(
-    path: String?,
-    autosaveURL: URL
-  ) async -> GIFEditorDocumentLoad {
-    await Task.detached(priority: .userInitiated) {
-      loadDocumentSynchronously(path: path, autosaveURL: autosaveURL)
-    }.value
-  }
-
-  /// Internal rather than private so the launch-path tests can exercise
-  /// all three recovery outcomes without driving a terminal.
-  nonisolated static func loadDocumentSynchronously(
-    path: String?,
-    autosaveURL: URL
-  ) -> GIFEditorDocumentLoad {
-    var load = loadRequestedDocument(path: path)
-
-    // The three outcomes of `recover` are three different things to say.
-    //
-    //   nil   — the normal launch. No file, no prompt, and no mention of
-    //           a feature the author never used.
-    //   value — there is work to offer back; the caller raises the
-    //           prompt.
-    //   throw — a file existed and this build cannot turn it back into a
-    //           document. That is unsaved work being lost, and folding
-    //           it into a clean-looking launch is the one response that
-    //           is definitely wrong.
-    do {
-      load.recoverable = try AutosaveStore.recover(from: autosaveURL)
-    } catch {
-      load.recoverable = nil
-      // Left on disk deliberately. The bytes may still be worth
-      // something to a person with a text editor, and deleting the only
-      // copy of unrecovered work on the author's behalf is not this
-      // build's call to make.
-      load.statusMessage =
-        "Recovery file at \(autosaveURL.path) is damaged and was left in place — \(error)"
-    }
-    return load
-  }
-
-  private nonisolated static func loadRequestedDocument(
-    path: String?
-  ) -> GIFEditorDocumentLoad {
-    guard let path else {
-      return GIFEditorDocumentLoad(
-        document: GIFDocument.blank(size: GIFEditorCore.PixelSize(width: 32, height: 32)),
-        statusMessage: ""
-      )
-    }
-    let url = URL(fileURLWithPath: path)
-    do {
-      // Routed through the sniffing loader rather than straight at
-      // `GIFLoader`, so a `.halfcell` named on the command line opens as
-      // the project it is instead of being handed to the GIF importer.
-      return GIFEditorDocumentLoad(
-        document: try EditorViewModel.loadDocument(contentsOf: url),
-        statusMessage: "Loaded \(url.path)"
-      )
-    } catch {
-      // Fall back to a blank document anchored at the requested path so
-      // a later Save has somewhere to start from.
-      var doc = GIFDocument.blank(size: GIFEditorCore.PixelSize(width: 32, height: 32))
-      doc.path = url
-      return GIFEditorDocumentLoad(
-        document: doc,
-        statusMessage: "Load failed: \(error)"
-      )
-    }
-  }
-}
-
-/// What the launch path resolved, before the recovery question is asked.
-struct GIFEditorDocumentLoad: Sendable {
-  var document: GIFDocument
-  var statusMessage: String
-  /// Unsaved work a previous session left behind, if any.
-  var recoverable: AutosaveSnapshot?
-  /// True once the author has accepted a recovery, so the editor knows
-  /// to open dirty.
-  var recoveredUnsavedWork: Bool = false
-}
-
-/// A recovery offer, plus the document to fall back to if it is declined.
-struct GIFEditorRecoveryOffer: Sendable {
-  var snapshot: AutosaveSnapshot
-  var fallback: GIFEditorDocumentLoad
 }
 
 /// The launch-time prompt for unsaved work a previous session left
@@ -186,15 +71,15 @@ struct GIFEditorRecoveryOffer: Sendable {
 /// "changes to nyan.halfcell, 14 minute(s) ago" is a decision they can
 /// actually make.
 struct RecoveryPromptView: View {
-  let offer: GIFEditorRecoveryOffer
+  let snapshot: AutosaveSnapshot
   let onRecover: @MainActor @Sendable () -> Void
   let onDiscard: @MainActor @Sendable () -> Void
 
   var body: some View {
     VStack(alignment: .leading, spacing: 1) {
       Text("Unsaved work was found").foregroundStyle(.tint)
-      Text(Self.describe(offer.snapshot)).foregroundStyle(.foreground)
-      Text(Self.describeContents(offer.snapshot)).foregroundStyle(.muted)
+      Text(Self.describe(snapshot)).foregroundStyle(.foreground)
+      Text(Self.describeContents(snapshot)).foregroundStyle(.muted)
       HStack(spacing: 2) {
         Button("Recover", action: onRecover)
         Button("Discard", action: onDiscard)

@@ -440,11 +440,8 @@ struct EditorLayoutFloorTests {
     editor(layers: density.visibleLayerRows + 3, frames: 12)
   }
 
-  private func viewModel(layers: Int = 1) -> EditorViewModel {
-    EditorViewModel(
-      document: Self.document(layers: layers, frames: 1),
-      stateDirectory: Self.throwawayStateDirectory
-    )
+  private func viewModel(layers: Int = 1) -> EditingSession {
+    EditingSession(document: Self.document(layers: layers, frames: 1))
   }
 
   private static func document(layers: Int, frames: Int) -> GIFDocument {
@@ -460,7 +457,7 @@ struct EditorLayoutFloorTests {
   }
 
   private func inspector(
-    model: EditorViewModel,
+    model: EditingSession,
     density: EditorLayoutDensity
   ) -> InspectorColumnView {
     InspectorColumnView(

@@ -39,9 +39,8 @@ struct ToolDockLayoutTests {
 
   @Test("a shape tool's options row leaves the trailing controls their columns")
   func shapeOptionsFitTheEightyColumnBar() {
-    let model = EditorViewModel(
-      document: GIFDocument.blank(size: GIFEditorCore.PixelSize(width: 16, height: 16)),
-      stateDirectory: Self.throwawayStateDirectory
+    let model = EditingSession(
+      document: GIFDocument.blank(size: GIFEditorCore.PixelSize(width: 16, height: 16))
     )
     model.selectTool(.rectangle)
     model.cursor = GIFEditorCore.PixelPoint(x: 15, y: 15)
@@ -64,9 +63,8 @@ struct ToolDockLayoutTests {
 
   @Test("the pen's options row still fits once mirror-X joins it")
   func penOptionsFitTheEightyColumnBar() {
-    let model = EditorViewModel(
-      document: GIFDocument.blank(size: GIFEditorCore.PixelSize(width: 16, height: 16)),
-      stateDirectory: Self.throwawayStateDirectory
+    let model = EditingSession(
+      document: GIFDocument.blank(size: GIFEditorCore.PixelSize(width: 16, height: 16))
     )
     model.toggleStrokeMirrorX()
 

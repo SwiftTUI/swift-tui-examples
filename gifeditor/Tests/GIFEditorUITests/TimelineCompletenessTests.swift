@@ -24,7 +24,7 @@ struct TimelineCompletenessTests {
 
   @Test("Setting the loop count is undoable and clamped to the format's range")
   func loopCountIsUndoableAndClamped() {
-    let model = EditorViewModel(document: filledDocument(frames: 2))
+    let model = EditingSession(document: filledDocument(frames: 2))
     #expect(model.document.loopCount == 0)
 
     model.setLoopCount(3)
@@ -40,14 +40,14 @@ struct TimelineCompletenessTests {
     // A GIF carries the count as a little-endian UInt16, so the editor
     // refuses to show a number the file could not hold.
     model.setLoopCount(999_999)
-    #expect(model.document.loopCount == EditorViewModel.maximumLoopCount)
+    #expect(model.document.loopCount == EditingSession.maximumLoopCount)
     model.setLoopCount(-4)
     #expect(model.document.loopCount == 0)
   }
 
   @Test("Setting the loop count to what it already is records no undo step")
   func redundantLoopCountEditIsNotAnUndoStep() {
-    let model = EditorViewModel(document: filledDocument(frames: 2))
+    let model = EditingSession(document: filledDocument(frames: 2))
     model.setLoopCount(0)
     #expect(!model.canUndo)
     #expect(!model.isDirty)
@@ -55,14 +55,14 @@ struct TimelineCompletenessTests {
 
   @Test("Zero is spelled out as forever everywhere the editor says it")
   func loopCountReadsAsProse() {
-    #expect(EditorViewModel.loopDescription(0) == "forever")
-    #expect(EditorViewModel.loopDescription(1) == "once")
-    #expect(EditorViewModel.loopDescription(4) == "4 times")
+    #expect(EditingSession.loopDescription(0) == "forever")
+    #expect(EditingSession.loopDescription(1) == "once")
+    #expect(EditingSession.loopDescription(4) == "4 times")
   }
 
   @Test("The infinity toggle is reversible and remembers the finite count")
   func infiniteLoopToggleIsReversible() {
-    let model = EditorViewModel(document: filledDocument(frames: 2))
+    let model = EditingSession(document: filledDocument(frames: 2))
     model.setLoopCount(6)
 
     model.toggleLoopsForever()
@@ -75,7 +75,7 @@ struct TimelineCompletenessTests {
 
   @Test("Stepping down from one lands on forever rather than on nothing")
   func loopStepDownFromOneReachesForever() {
-    let model = EditorViewModel(document: filledDocument(frames: 2))
+    let model = EditingSession(document: filledDocument(frames: 2))
     model.setLoopCount(1)
 
     model.adjustLoopCount(by: -1)
@@ -86,7 +86,7 @@ struct TimelineCompletenessTests {
 
   @Test("A loop-count edit recomposites nothing")
   func loopCountEditRecompositesNothing() {
-    let model = EditorViewModel(document: filledDocument(frames: 4))
+    let model = EditingSession(document: filledDocument(frames: 4))
     model.compositeOracleEnabled = true
     let before = model.compositedFrames()
     let baseline = model.compositeRecomputeCount
@@ -108,27 +108,34 @@ struct TimelineCompletenessTests {
     try withTemporaryStateDirectory { directory in
       let source = try Self.fixtureURL("Fixtures", "finite-loop-3.gif")
 
-      let model = EditorViewModel(
-        document: GIFDocument.blank(size: GIFEditorCore.PixelSize(width: 2, height: 2)),
-        stateDirectory: directory
-      )
-      #expect(model.openDocument(contentsOf: source))
+      let imported = try GIFDocumentIO.open(contentsOf: source)
+      let model = EditingSession(document: imported)
       #expect(model.document.loopCount == 3)
 
       let project = directory.appendingPathComponent("looped.halfcell")
-      #expect(model.saveProject(to: project, overwriteExisting: false))
+      guard case .saved = GIFDocumentIO.saveProject(
+        document: model.document,
+        to: project,
+        overwriteExisting: false
+      ) else {
+        Issue.record("expected the project write to succeed")
+        return
+      }
 
-      // A fresh view model, so nothing survives in memory between the two
+      // A fresh session, so nothing survives in memory between the two
       // halves of the round trip.
-      let reopened = EditorViewModel(
-        document: GIFDocument.blank(size: GIFEditorCore.PixelSize(width: 2, height: 2)),
-        stateDirectory: directory
-      )
-      #expect(reopened.openDocument(contentsOf: project))
+      let reopened = EditingSession(document: try GIFDocumentIO.open(contentsOf: project))
       #expect(reopened.document.loopCount == 3)
 
       let exported = directory.appendingPathComponent("looped.gif")
-      #expect(reopened.exportGIF(to: exported, overwriteExisting: false))
+      guard case .saved = GIFDocumentIO.save(
+        document: reopened.document,
+        to: exported,
+        overwriteExisting: false
+      ) else {
+        Issue.record("expected GIF export to succeed")
+        return
+      }
 
       let bytes = try Data(contentsOf: exported)
       let reimported = try GIFLoader.load(data: bytes)
@@ -140,14 +147,18 @@ struct TimelineCompletenessTests {
   @Test("An edited loop count is what the export declares")
   func editedLoopCountReachesTheExportedFile() throws {
     try withTemporaryStateDirectory { directory in
-      let model = EditorViewModel(
-        document: filledDocument(frames: 2),
-        stateDirectory: directory
-      )
+      let model = EditingSession(document: filledDocument(frames: 2))
       model.setLoopCount(12)
 
       let exported = directory.appendingPathComponent("twelve.gif")
-      #expect(model.exportGIF(to: exported, overwriteExisting: false))
+      guard case .saved = GIFDocumentIO.save(
+        document: model.document,
+        to: exported,
+        overwriteExisting: false
+      ) else {
+        Issue.record("expected GIF export to succeed")
+        return
+      }
 
       let bytes = try Data(contentsOf: exported)
       #expect(GIFLoader.declaredLoopCount(in: bytes) == 12)
@@ -158,7 +169,7 @@ struct TimelineCompletenessTests {
 
   @Test("Setting a frame's disposal is undoable and touches only that frame")
   func disposalEditIsUndoableAndScopedToOneFrame() {
-    let model = EditorViewModel(document: filledDocument(frames: 3))
+    let model = EditingSession(document: filledDocument(frames: 3))
     model.selectFrame(at: 1)
 
     model.setCurrentFrameDisposal(.keep)
@@ -175,18 +186,18 @@ struct TimelineCompletenessTests {
 
   @Test("The disposal cycle visits every mode and returns to background")
   func disposalCycleVisitsEveryMode() {
-    let model = EditorViewModel(document: filledDocument(frames: 1))
+    let model = EditingSession(document: filledDocument(frames: 1))
     var seen: [EditorFrame.FrameDisposal] = [model.currentFrame.disposal]
-    for _ in 0..<EditorViewModel.disposalOrder.count {
+    for _ in 0..<EditingSession.disposalOrder.count {
       model.cycleCurrentFrameDisposal()
       seen.append(model.currentFrame.disposal)
     }
-    #expect(seen == EditorViewModel.disposalOrder + [.background])
+    #expect(seen == EditingSession.disposalOrder + [.background])
   }
 
   @Test("Re-setting a frame's existing disposal records no undo step")
   func redundantDisposalEditIsNotAnUndoStep() {
-    let model = EditorViewModel(document: filledDocument(frames: 2))
+    let model = EditingSession(document: filledDocument(frames: 2))
     model.setCurrentFrameDisposal(.background)
     #expect(!model.canUndo)
     #expect(!model.isDirty)
@@ -194,7 +205,7 @@ struct TimelineCompletenessTests {
 
   @Test("A disposal edit recomposites nothing")
   func disposalEditRecompositesNothing() {
-    let model = EditorViewModel(document: filledDocument(frames: 4))
+    let model = EditingSession(document: filledDocument(frames: 4))
     model.compositeOracleEnabled = true
     let before = model.compositedFrames()
     let baseline = model.compositeRecomputeCount
@@ -218,7 +229,7 @@ struct TimelineCompletenessTests {
     // differ everywhere delta-code to the same size as full frames, so
     // they could not tell the two codings apart by byte count. Here each
     // frame changes one pixel, which is where delta coding earns its name.
-    let model = EditorViewModel(document: quietDocument(frames: 4))
+    let model = EditingSession(document: quietDocument(frames: 4))
     #expect(model.exportUsesDeltaFrames)
     #expect(!model.authoredDisposalDisablesDeltaCoding)
 
@@ -244,7 +255,7 @@ struct TimelineCompletenessTests {
 
   @Test("A single-frame document is not accused of losing delta coding it never had")
   func singleFrameDocumentDoesNotWarn() {
-    let model = EditorViewModel(document: filledDocument(frames: 1))
+    let model = EditingSession(document: filledDocument(frames: 1))
     #expect(!model.exportUsesDeltaFrames)
     #expect(!model.authoredDisposalDisablesDeltaCoding)
   }
@@ -252,10 +263,7 @@ struct TimelineCompletenessTests {
   @Test("Disposal round-trips through the project format")
   func disposalRoundTripsThroughTheProjectFormat() throws {
     try withTemporaryStateDirectory { directory in
-      let model = EditorViewModel(
-        document: filledDocument(frames: 3),
-        stateDirectory: directory
-      )
+      let model = EditingSession(document: filledDocument(frames: 3))
       model.selectFrame(at: 1)
       model.setCurrentFrameDisposal(.previous)
       model.selectFrame(at: 2)
@@ -263,7 +271,14 @@ struct TimelineCompletenessTests {
       let authored = model.document.frames.map(\.disposal)
 
       let target = directory.appendingPathComponent("disposal.halfcell")
-      #expect(model.saveProject(to: target, overwriteExisting: false))
+      guard case .saved = GIFDocumentIO.saveProject(
+        document: model.document,
+        to: target,
+        overwriteExisting: false
+      ) else {
+        Issue.record("expected the project write to succeed")
+        return
+      }
 
       let reopened = try GIFDocumentIO.open(contentsOf: target)
       #expect(reopened.frames.map(\.disposal) == authored)
@@ -275,7 +290,7 @@ struct TimelineCompletenessTests {
 
   @Test("A delay scrub is absolute, not cumulative")
   func delayScrubIsMeasuredFromItsBaseline() {
-    let model = EditorViewModel(document: filledDocument(frames: 2))
+    let model = EditingSession(document: filledDocument(frames: 2))
     model.setCurrentFrameDelay(10)
 
     model.beginDelayScrub()
@@ -295,7 +310,7 @@ struct TimelineCompletenessTests {
 
   @Test("A whole delay scrub is one undo step")
   func delayScrubIsOneUndoStep() {
-    let model = EditorViewModel(document: filledDocument(frames: 2))
+    let model = EditingSession(document: filledDocument(frames: 2))
     model.setCurrentFrameDelay(10)
     #expect(model.canUndo)
 
@@ -317,7 +332,7 @@ struct TimelineCompletenessTests {
 
   @Test("A scrub floors the delay at one centisecond")
   func delayScrubFloorsAtOne() {
-    let model = EditorViewModel(document: filledDocument(frames: 2))
+    let model = EditingSession(document: filledDocument(frames: 2))
     model.setCurrentFrameDelay(4)
     model.beginDelayScrub()
     model.updateDelayScrub(by: -99)
@@ -327,7 +342,7 @@ struct TimelineCompletenessTests {
 
   @Test("Scrub updates outside a scrub do nothing")
   func delayScrubUpdateWithoutBeginIsInert() {
-    let model = EditorViewModel(document: filledDocument(frames: 2))
+    let model = EditingSession(document: filledDocument(frames: 2))
     let before = model.currentFrame.delayCentiseconds
 
     model.updateDelayScrub(by: 20)
@@ -339,7 +354,7 @@ struct TimelineCompletenessTests {
 
   @Test("A delay scrub recomposites nothing")
   func delayScrubRecompositesNothing() {
-    let model = EditorViewModel(document: filledDocument(frames: 4))
+    let model = EditingSession(document: filledDocument(frames: 4))
     model.compositeOracleEnabled = true
     let before = model.compositedFrames()
     let baseline = model.compositeRecomputeCount
@@ -364,8 +379,8 @@ struct TimelineCompletenessTests {
     // paths reordered the *same* frames rather than merely arriving at the
     // same colours.
     let document = filledDocument(frames: 5)
-    let dragged = EditorViewModel(document: document)
-    let moved = EditorViewModel(document: document)
+    let dragged = EditingSession(document: document)
+    let moved = EditingSession(document: document)
 
     dragged.moveFrame(from: 1, to: 4)
 
@@ -379,7 +394,7 @@ struct TimelineCompletenessTests {
 
   @Test("A reorder drag is one undo step")
   func dragReorderIsOneUndoStep() {
-    let model = EditorViewModel(document: filledDocument(frames: 4))
+    let model = EditingSession(document: filledDocument(frames: 4))
     let original = model.document.frames.map(\.id)
 
     model.moveFrame(from: 0, to: 3)
@@ -393,7 +408,7 @@ struct TimelineCompletenessTests {
 
   @Test("A drag that ends on its own slot changes nothing")
   func dragReorderToTheSameSlotIsANoOp() {
-    let model = EditorViewModel(document: filledDocument(frames: 4))
+    let model = EditingSession(document: filledDocument(frames: 4))
     let original = model.document.frames.map(\.id)
 
     model.moveFrame(from: 2, to: 2)
@@ -408,7 +423,7 @@ struct TimelineCompletenessTests {
 
   @Test("A drag from a slot that is not there is ignored")
   func dragReorderFromAnAbsentSlotIsIgnored() {
-    let model = EditorViewModel(document: filledDocument(frames: 2))
+    let model = EditingSession(document: filledDocument(frames: 2))
     let original = model.document.frames.map(\.id)
 
     model.moveFrame(from: 7, to: 0)
@@ -419,7 +434,7 @@ struct TimelineCompletenessTests {
 
   @Test("A reorder recomposites nothing")
   func dragReorderRecompositesNothing() {
-    let model = EditorViewModel(document: filledDocument(frames: 4))
+    let model = EditingSession(document: filledDocument(frames: 4))
     model.compositeOracleEnabled = true
     let before = model.compositedFrames()
     let baseline = model.compositeRecomputeCount
@@ -447,15 +462,15 @@ struct TimelineCompletenessTests {
   func exportColumnStaysWithinItsWidthBudget() {
     let budget = TimelineExportSettingsView.widestCell
 
-    for disposal in EditorViewModel.disposalOrder {
+    for disposal in EditingSession.disposalOrder {
       // `disp <code>` plus the space and `!` the warning state adds.
-      let row = "disp \(EditorViewModel.disposalCode(disposal)) !"
+      let row = "disp \(EditingSession.disposalCode(disposal)) !"
       #expect(row.count <= budget, "disposal row '\(row)' is \(row.count) cells")
     }
 
-    for count in [0, 1, 2, 999, EditorViewModel.maximumLoopCount] {
+    for count in [0, 1, 2, 999, EditingSession.maximumLoopCount] {
       // `loop <code> - +`.
-      let row = "loop \(EditorViewModel.loopCode(count)) - +"
+      let row = "loop \(EditingSession.loopCode(count)) - +"
       #expect(row.count <= budget, "loop row '\(row)' is \(row.count) cells")
     }
   }
@@ -465,9 +480,9 @@ struct TimelineCompletenessTests {
     // The whole reason the control exists: `0` in a timeline strip reads
     // as "never", so the one value that must never be shown as a digit is
     // the one the format encodes as zero.
-    #expect(EditorViewModel.loopCode(0) == "forever")
-    #expect(EditorViewModel.loopCode(1) == "once")
-    #expect(EditorViewModel.loopCode(9) == "9×")
+    #expect(EditingSession.loopCode(0) == "forever")
+    #expect(EditingSession.loopCode(1) == "once")
+    #expect(EditingSession.loopCode(9) == "9×")
   }
 
   // MARK: - Drag arithmetic

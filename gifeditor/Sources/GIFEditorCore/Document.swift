@@ -80,13 +80,10 @@ public struct EditorFrame: Hashable, Sendable, Codable, Identifiable {
 /// The complete editor document. Everything else in the editor reads
 /// from or writes into this value type.
 ///
-/// `path` is non-nil when the document was loaded from disk or has been
-/// saved at least once; it drives the `Ctrl+S` "save back" behaviour.
 public struct GIFDocument: Hashable, Sendable, Codable {
   public var size: PixelSize
   public var palette: ColorPalette
   public var frames: [EditorFrame]
-  public var path: URL?
   /// Number of times the GIF should loop on playback. Zero = infinite.
   public var loopCount: Int
 
@@ -94,14 +91,12 @@ public struct GIFDocument: Hashable, Sendable, Codable {
     size: PixelSize,
     palette: ColorPalette = .default,
     frames: [EditorFrame],
-    path: URL? = nil,
     loopCount: Int = 0
   ) {
     precondition(!frames.isEmpty, "GIFDocument must have at least one frame")
     self.size = size
     self.palette = palette
     self.frames = frames
-    self.path = path
     self.loopCount = loopCount
   }
 
@@ -164,12 +159,6 @@ extension GIFDocument {
     case loopCount
   }
 
-  /// `path` is deliberately absent from the coding keys: it records
-  /// where *this* machine keeps the file, not anything about the
-  /// artwork, and a project handed to someone else must not carry the
-  /// author's home directory. The open path sets it from the URL it
-  /// just read.
-  ///
   /// The palette is written as its *used* colors — the array an author
   /// would recognise — rather than as the padded 256-entry storage.
   /// Padding is derived (every slot past `usedCount` duplicates the last
@@ -234,7 +223,6 @@ extension GIFDocument {
       size: size,
       palette: ColorPalette(colors: colors),
       frames: frames,
-      path: nil,
       loopCount: loopCount
     )
   }

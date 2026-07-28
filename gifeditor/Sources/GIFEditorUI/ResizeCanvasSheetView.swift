@@ -3,7 +3,7 @@ import GIFEditorCore
 import SwiftTUI
 
 /// Modal sheet for choosing a new canvas size: the square presets from
-/// `EditorViewModel.canvasSizeProgression`, plus arbitrary `width ×
+/// `EditingSession.canvasSizeProgression`, plus arbitrary `width ×
 /// height` entry.
 ///
 /// The keyboard binding `Ctrl+R` and the File → Resize Canvas menu
@@ -72,12 +72,12 @@ struct ResizeCanvasSheetView: View {
   }
 
   private static var presetRowCount: Int {
-    let count = EditorViewModel.canvasSizeProgression.count
+    let count = EditingSession.canvasSizeProgression.count
     return (count + presetColumns - 1) / presetColumns
   }
 
   private static func presetRow(_ row: Int) -> [Int] {
-    let progression = EditorViewModel.canvasSizeProgression
+    let progression = EditingSession.canvasSizeProgression
     let start = row * presetColumns
     let end = min(start + presetColumns, progression.count)
     guard start < end else { return [] }
@@ -89,7 +89,7 @@ struct ResizeCanvasSheetView: View {
   private var customEntry: some View {
     let entry = Self.parseCustomSize(width: widthText, height: heightText)
     return VStack(alignment: .leading, spacing: 0) {
-      Text("…or enter any size up to \(EditorViewModel.maximumCanvasDimension) per axis:")
+      Text("…or enter any size up to \(EditingSession.maximumCanvasDimension) per axis:")
         .foregroundStyle(.muted)
       HStack(spacing: 1) {
         TextField("W", text: $widthText)
@@ -160,7 +160,7 @@ struct ResizeCanvasSheetView: View {
     guard parsedWidth >= 1, parsedHeight >= 1 else {
       return .invalid("Each side must be at least 1.")
     }
-    let cap = EditorViewModel.maximumCanvasDimension
+    let cap = EditingSession.maximumCanvasDimension
     guard parsedWidth <= cap, parsedHeight <= cap else {
       return .invalid("The editor caps new canvases at \(cap) per axis.")
     }

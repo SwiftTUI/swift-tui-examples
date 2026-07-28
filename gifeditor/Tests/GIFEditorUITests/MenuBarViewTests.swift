@@ -10,7 +10,7 @@ import Testing
 struct MenuBarViewTests {
   @Test("open dropdown paints above editor content rows")
   func openDropdownPaintsAboveEditorContentRows() {
-    let model = EditorViewModel(
+    let model = EditingSession(
       document: GIFDocument.blank(size: GIFEditorCore.PixelSize(width: 4, height: 4))
     )
     let openMenu = Binding<MenuBarMenu?>.constant(.file)
@@ -65,7 +65,7 @@ struct MenuBarViewTests {
   /// different, so the separation is worth pinning.
   @Test("the File menu separates Save, Save As and Export GIF")
   func fileMenuSeparatesSaveVerbs() {
-    let model = EditorViewModel(
+    let model = EditingSession(
       document: GIFDocument.blank(size: GIFEditorCore.PixelSize(width: 4, height: 4))
     )
     let rendered = render(

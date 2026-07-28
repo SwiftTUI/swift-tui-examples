@@ -4,11 +4,9 @@ import Testing
 
 @testable import GIFEditorUI
 
-/// Open routes on magic bytes and save writes the lossless project
-/// format. Both halves are exercised against the real checked-in
-/// fixtures — `nyan.gif` and `Fixtures/project-v1-golden.halfcell` —
-/// rather than against bytes this file synthesizes, because the thing
-/// under test is precisely "does it recognise the files that exist".
+/// File transport delegates recognition and decoding to Core, while this
+/// adapter owns read/write failures and persistence behavior. The routing
+/// tests use real checked-in fixtures so they exercise the adapter boundary.
 ///
 /// There is no "fixture missing, skip" branch anywhere here. This suite
 /// has been bitten before by a `#filePath` walk that went one directory
@@ -17,66 +15,33 @@ import Testing
 @Suite("GIF editor document IO")
 struct GIFDocumentIOTests {
 
-  // MARK: - Sniffing
-
-  @Test("A real GIF sniffs as a GIF")
-  func realGIFSniffsAsGIF() throws {
-    let data = try Data(contentsOf: try Self.fixtureURL("nyan.gif"))
-    #expect(GIFDocumentIO.fileKind(of: data) == .gif)
-  }
-
-  @Test("A real project file sniffs as a project")
-  func realProjectSniffsAsProject() throws {
-    let data = try Data(contentsOf: try Self.goldenProjectURL())
-    #expect(GIFDocumentIO.fileKind(of: data) == .project)
-  }
-
-  @Test(
-    "Anything else sniffs as nothing at all",
-    arguments: [
-      "",
-      "GIF",
-      "not a picture, not a project",
-      "\u{0}\u{1}\u{2}\u{3}",
-      "[1, 2, 3]",
-    ]
-  )
-  func otherBytesSniffAsNothing(contents: String) {
-    #expect(GIFDocumentIO.fileKind(of: Data(contents.utf8)) == nil)
-  }
-
-  @Test("Leading whitespace does not hide a project envelope")
-  func leadingWhitespaceStillSniffsAsProject() {
-    #expect(GIFDocumentIO.fileKind(of: Data("\n  {\"formatVersion\":1}".utf8)) == .project)
-  }
-
   // MARK: - Opening
 
   @Test("Opening a GIF routes to the importer")
   func openImportsAGIF() throws {
     let url = try Self.fixtureURL("nyan.gif")
-    let document = try GIFDocumentIO.open(contentsOf: url)
+    let ingested = try GIFDocumentIO.openIngested(contentsOf: url)
+    let document = ingested.document
 
     #expect(document.frames.count > 1)
-    #expect(document.path == url)
+    #expect(ingested.provenance == DocumentProvenance(source: .file(url), kind: .gif))
     // The importer's shape: one flattened layer per frame.
     #expect(document.frames.allSatisfy { $0.layers.count == 1 })
     #expect(document.frames.allSatisfy { $0.layers[0].name == "Imported" })
   }
 
-  @Test("Opening a project routes to the project decoder and restores the path")
+  @Test("Opening a project routes to the project decoder and reports provenance")
   func openDecodesAProject() throws {
     let url = try Self.goldenProjectURL()
-    let document = try GIFDocumentIO.open(contentsOf: url)
+    let ingested = try GIFDocumentIO.openIngested(contentsOf: url)
+    let document = ingested.document
 
     #expect(document.size == PixelSize(width: 4, height: 4))
     #expect(document.frames.count == 2)
     #expect(document.frames[0].layers.map(\.name) == ["Background", "Sparkle"])
     #expect(document.frames[0].layers.map(\.isVisible) == [true, false])
     #expect(document.loopCount == 3)
-    // The format strips `path`; the reader is the one that knows which
-    // file it just opened, so it is the one that puts it back.
-    #expect(document.path == url)
+    #expect(ingested.provenance == DocumentProvenance(source: .file(url), kind: .project))
   }
 
   @Test("Routing is on bytes, not on the extension")
@@ -119,7 +84,7 @@ struct GIFDocumentIOTests {
     }
   }
 
-  @Test("A project file that is damaged still reports a project decode error")
+  @Test("A damaged project is mapped to the adapter's open error")
   func openReportsProjectDecodeErrors() throws {
     try Self.withTemporaryDirectory { directory in
       let url = directory.appendingPathComponent("damaged.halfcell")
@@ -127,8 +92,15 @@ struct GIFDocumentIOTests {
       // hardened decode — the two outcomes must stay distinguishable.
       try Data("{\"formatVersion\": 1, \"document\": {}}".utf8).write(to: url)
 
-      #expect(throws: ProjectDecodeError.self) {
+      do {
         _ = try GIFDocumentIO.open(contentsOf: url)
+        Issue.record("expected a damaged project to fail")
+      } catch let error as GIFDocumentIO.OpenError {
+        guard case .malformed(_, kind: .project, detail: let detail) = error else {
+          Issue.record("expected .malformed(project), got \(error)")
+          return
+        }
+        #expect(!detail.isEmpty)
       }
     }
   }
@@ -180,7 +152,7 @@ struct GIFDocumentIOTests {
       #expect(reopened.frames[0].layers.map(\.name) == ["Background", "Sparkle"])
       #expect(reopened.frames[0].layers.map(\.isVisible) == [true, false])
       #expect(reopened.palette.usedColors == document.palette.usedColors)
-      #expect(reopened.path == target)
+      #expect(reopened == document)
     }
   }
 
@@ -266,35 +238,41 @@ struct GIFDocumentIOTests {
 
   // MARK: - Save targets
 
-  @Test("Save writes back only to a project path")
-  func projectSaveTargetRefusesNonProjectPaths() {
-    let projectPath = URL(fileURLWithPath: "/art/session.halfcell")
-    var document = GIFDocument.blank(size: PixelSize(width: 2, height: 2))
-    #expect(GIFDocumentIO.projectSaveTarget(for: document) == nil, "an unsaved document prompts")
-
-    document.path = projectPath
-    #expect(GIFDocumentIO.projectSaveTarget(for: document) == projectPath)
-
-    // A document imported from a GIF has a path, and writing a layered
-    // document back over it would flatten every layer — so Save must
-    // fall through to Save As instead.
-    document.path = URL(fileURLWithPath: "/art/nyan.gif")
-    #expect(GIFDocumentIO.projectSaveTarget(for: document) == nil)
-  }
-
   @Test("Save As pre-fills a project path derived from wherever the document came from")
   func defaultProjectSaveURLReExtensions() {
-    var document = GIFDocument.blank(size: PixelSize(width: 2, height: 2))
     #expect(
-      GIFDocumentIO.defaultProjectSaveURL(for: document).lastPathComponent
+      GIFDocumentIO.defaultProjectSaveURL(sourceURL: nil, backing: nil).lastPathComponent
         == "untitled.halfcell"
     )
 
-    document.path = URL(fileURLWithPath: "/art/nyan.gif")
-    #expect(GIFDocumentIO.defaultProjectSaveURL(for: document).path == "/art/nyan.halfcell")
+    #expect(
+      GIFDocumentIO.defaultProjectSaveURL(
+        sourceURL: URL(fileURLWithPath: "/art/nyan.gif"),
+        backing: nil
+      ).path == "/art/nyan.halfcell"
+    )
 
-    document.path = URL(fileURLWithPath: "/art/session.halfcell")
-    #expect(GIFDocumentIO.defaultProjectSaveURL(for: document).path == "/art/session.halfcell")
+    #expect(
+      GIFDocumentIO.defaultProjectSaveURL(
+        sourceURL: URL(fileURLWithPath: "/imports/source.gif"),
+        backing: URL(fileURLWithPath: "/art/session.halfcell")
+      ).path == "/art/session.halfcell"
+    )
+  }
+
+  @Test("Export pre-fills a GIF path without targeting a project file")
+  func defaultExportURLReExtensions() {
+    #expect(GIFDocumentIO.defaultSaveURL(sourceURL: nil).lastPathComponent == "untitled.gif")
+    #expect(
+      GIFDocumentIO.defaultSaveURL(
+        sourceURL: URL(fileURLWithPath: "/art/session.halfcell")
+      ).path == "/art/session.gif"
+    )
+    #expect(
+      GIFDocumentIO.defaultSaveURL(
+        sourceURL: URL(fileURLWithPath: "/imports/nyan.gif")
+      ).path == "/imports/nyan.gif"
+    )
   }
 
   @Test("The state directory is derived from the home directory it is handed")

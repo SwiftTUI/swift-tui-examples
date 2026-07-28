@@ -114,7 +114,6 @@ struct ProjectFileGoldenTests {
 
     #expect(decoded.size == expected.size)
     #expect(decoded.loopCount == expected.loopCount)
-    #expect(decoded.path == nil)
     #expect(decoded.palette.usedCount == expected.palette.usedCount)
     #expect(decoded.palette.usedColors == expected.palette.usedColors)
     #expect(decoded.frames.count == expected.frames.count)

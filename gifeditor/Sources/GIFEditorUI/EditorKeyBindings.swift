@@ -3,7 +3,7 @@ import SwiftTUI
 
 extension View {
   func applyFocusedEditorBindings(
-    model: EditorViewModel,
+    model: EditingSession,
     viewport: CanvasViewportCommands = .inert,
     onionSkin: OnionSkinCommands = .inert,
     showKeyboardHelp: @escaping @MainActor @Sendable () -> Void = {},
@@ -46,28 +46,28 @@ extension View {
 /// diligence. See `KeyBindingBridge.swift` for the overload that does it.
 extension View where Self: ActionScope & Sendable {
   func applyCursorBindings(
-    model: EditorViewModel,
+    model: EditingSession,
     viewport: CanvasViewportCommands = .inert,
     refresh: @escaping @MainActor @Sendable () -> Void
   ) -> some View & ActionScope & Sendable {
     self
       .keyCommand(.jumpCursorLeft) {
-        model.moveCursor(dx: -8, dy: 0)
+        model.dispatch(.moveCursor(dx: -8, dy: 0))
         viewport.followCursor()
         refresh()
       }
       .keyCommand(.jumpCursorRight) {
-        model.moveCursor(dx: 8, dy: 0)
+        model.dispatch(.moveCursor(dx: 8, dy: 0))
         viewport.followCursor()
         refresh()
       }
       .keyCommand(.jumpCursorUp) {
-        model.moveCursor(dx: 0, dy: -8)
+        model.dispatch(.moveCursor(dx: 0, dy: -8))
         viewport.followCursor()
         refresh()
       }
       .keyCommand(.jumpCursorDown) {
-        model.moveCursor(dx: 0, dy: 8)
+        model.dispatch(.moveCursor(dx: 0, dy: 8))
         viewport.followCursor()
         refresh()
       }
@@ -105,101 +105,101 @@ extension View where Self: ActionScope & Sendable {
   }
 
   func applyFrameBindings(
-    model: EditorViewModel,
+    model: EditingSession,
     refresh: @escaping @MainActor @Sendable () -> Void
   ) -> some View & ActionScope & Sendable {
     self
       .keyCommand(.previousFrame) {
-        model.previousFrame()
+        model.dispatch(.previousFrame)
         refresh()
       }
       .keyCommand(.nextFrame) {
-        model.nextFrame()
+        model.dispatch(.nextFrame)
         refresh()
       }
       .keyCommand(.newFrame) {
-        model.insertBlankFrameAfterCurrent()
+        model.dispatch(.insertBlankFrame)
         refresh()
       }
       .keyCommand(.duplicateFrame) {
-        model.duplicateCurrentFrame()
+        model.dispatch(.duplicateFrame)
         refresh()
       }
       .keyCommand(.deleteFrame) {
-        model.deleteCurrentFrame()
+        model.dispatch(.deleteFrame)
         refresh()
       }
       .keyCommand(.decreaseFrameDelay) {
-        model.adjustCurrentFrameDelay(by: -10)
+        model.dispatch(.adjustFrameDelay(-10))
         refresh()
       }
       .keyCommand(.increaseFrameDelay) {
-        model.adjustCurrentFrameDelay(by: 10)
+        model.dispatch(.adjustFrameDelay(10))
         refresh()
       }
       .keyCommand(.equalizeFrameDelays) {
-        model.setAllFrameDelaysToCurrent()
+        model.dispatch(.setAllFrameDelaysToCurrent)
         refresh()
       }
       .keyCommand(.togglePlayback) {
-        model.togglePlayback()
+        model.dispatch(.togglePlayback)
         refresh()
       }
   }
 
   func applyLayerBindings(
-    model: EditorViewModel,
+    model: EditingSession,
     refresh: @escaping @MainActor @Sendable () -> Void
   ) -> some View & ActionScope & Sendable {
     self
       .keyCommand(.newLayer) {
-        model.addLayer()
+        model.dispatch(.addLayer)
         refresh()
       }
       .keyCommand(.selectLayerBelow) {
-        model.selectLayerBelow()
+        model.dispatch(.selectLayerBelow)
         refresh()
       }
       .keyCommand(.selectLayerAbove) {
-        model.selectLayerAbove()
+        model.dispatch(.selectLayerAbove)
         refresh()
       }
       .keyCommand(.toggleLayerVisibility) {
-        model.toggleCurrentLayerVisibility()
+        model.dispatch(.toggleCurrentLayerVisibility)
         refresh()
       }
       .keyCommand(.deleteLayer) {
-        model.deleteCurrentLayer()
+        model.dispatch(.deleteCurrentLayer)
         refresh()
       }
   }
 
   func applyClipboardBindings(
-    model: EditorViewModel,
+    model: EditingSession,
     refresh: @escaping @MainActor @Sendable () -> Void
   ) -> some View & ActionScope & Sendable {
     self
       .keyCommand(.copySelection) {
-        model.copySelection()
+        model.dispatch(.copySelection)
         refresh()
       }
       .keyCommand(.paste) {
-        model.paste()
+        model.dispatch(.paste)
         refresh()
       }
   }
 
   func applyHistoryBindings(
-    model: EditorViewModel,
+    model: EditingSession,
     refresh: @escaping @MainActor @Sendable () -> Void
   ) -> some View & ActionScope & Sendable {
     self
       .keyCommand(.undo) {
-        model.undo()
+        model.dispatch(.undo)
         refresh()
       }
       .keyCommand(.redo) {
-        model.redo()
+        model.dispatch(.redo)
         refresh()
       }
   }
@@ -215,7 +215,7 @@ extension View where Self: ActionScope & Sendable {
   /// more than one *chord-dispatched* key, so these are the only sites
   /// that name the chord alongside the command.
   func applyPaletteBindings(
-    model: EditorViewModel,
+    model: EditingSession,
     presentPaletteSheet: @escaping @MainActor @Sendable () -> Void = {},
     refresh: @escaping @MainActor @Sendable () -> Void
   ) -> some View & ActionScope & Sendable {
@@ -225,39 +225,39 @@ extension View where Self: ActionScope & Sendable {
         refresh()
       }
       .keyCommand(.secondaryColorSlot, chord: .alt("1")) {
-        model.setSecondaryColor(1)
+        model.dispatch(.setSecondaryColor(1))
         refresh()
       }
       .keyCommand(.secondaryColorSlot, chord: .alt("2")) {
-        model.setSecondaryColor(2)
+        model.dispatch(.setSecondaryColor(2))
         refresh()
       }
       .keyCommand(.secondaryColorSlot, chord: .alt("3")) {
-        model.setSecondaryColor(3)
+        model.dispatch(.setSecondaryColor(3))
         refresh()
       }
       .keyCommand(.secondaryColorSlot, chord: .alt("4")) {
-        model.setSecondaryColor(4)
+        model.dispatch(.setSecondaryColor(4))
         refresh()
       }
       .keyCommand(.secondaryColorSlot, chord: .alt("5")) {
-        model.setSecondaryColor(5)
+        model.dispatch(.setSecondaryColor(5))
         refresh()
       }
       .keyCommand(.secondaryColorSlot, chord: .alt("6")) {
-        model.setSecondaryColor(6)
+        model.dispatch(.setSecondaryColor(6))
         refresh()
       }
       .keyCommand(.secondaryColorSlot, chord: .alt("7")) {
-        model.setSecondaryColor(7)
+        model.dispatch(.setSecondaryColor(7))
         refresh()
       }
       .keyCommand(.secondaryColorSlot, chord: .alt("8")) {
-        model.setSecondaryColor(8)
+        model.dispatch(.setSecondaryColor(8))
         refresh()
       }
       .keyCommand(.secondaryColorSlot, chord: .alt("9")) {
-        model.setSecondaryColor(9)
+        model.dispatch(.setSecondaryColor(9))
         refresh()
       }
   }
@@ -321,18 +321,16 @@ extension View where Self: ActionScope & Sendable {
   /// `.runLoopExitKey` and this modifier only decides what happens when
   /// it fires.
   ///
-  /// `allowsQuitWithUnsavedChanges` is read off the model — a reference
-  /// type — rather than captured as a value, because a termination
-  /// handler is registered once per resolve and must see the flag the
-  /// guard set a moment ago, not the one that was true when this
-  /// modifier was last built.
+  /// Quit authorization is read from the lifecycle rather than captured
+  /// as a value, because a termination handler is registered once per
+  /// resolve and must see the generation the guard armed a moment ago.
   func applyTerminationHandling(
-    model: EditorViewModel,
+    lifecycle: DocumentLifecycle,
     confirmUnsavedChanges: @escaping @MainActor @Sendable () -> Void,
     refresh: @escaping @MainActor @Sendable () -> Void
   ) -> some View & ActionScope & Sendable {
     onTerminationRequest { request in
-      guard model.isDirty, !model.allowsQuitWithUnsavedChanges else {
+      guard lifecycle.session.isDirty, !lifecycle.allowsQuit else {
         return .allow
       }
       // EOF is not cancellable — the input stream is already gone, so
@@ -341,7 +339,7 @@ extension View where Self: ActionScope & Sendable {
         return .allow
       }
       confirmUnsavedChanges()
-      model.statusMessage = "Unsaved changes — save or discard before quitting"
+      lifecycle.session.announce("Unsaved changes — save or discard before quitting")
       refresh()
       return .cancel
     }
@@ -363,7 +361,7 @@ extension View where Self: ActionScope & Sendable {
 @MainActor
 private func handleFocusedEditorKey(
   _ keyPress: KeyPress,
-  model: EditorViewModel,
+  model: EditingSession,
   viewport: CanvasViewportCommands,
   onionSkin: OnionSkinCommands,
   showKeyboardHelp: @MainActor @Sendable () -> Void
@@ -397,66 +395,66 @@ private func handleFocusedEditorKey(
 private func perform(
   _ command: EditorCommand,
   chord: EditorKeyChord,
-  model: EditorViewModel,
+  model: EditingSession,
   viewport: CanvasViewportCommands,
   onionSkin: OnionSkinCommands,
   showKeyboardHelp: @MainActor @Sendable () -> Void
 ) {
   switch command {
-  case .selectPen: model.selectTool(.pen)
-  case .selectEraser: model.selectTool(.eraser)
-  case .selectBucketFill: model.selectTool(.fill)
-  case .selectGradient: model.selectTool(.gradient)
-  case .selectMarquee: model.selectTool(.marquee)
-  case .selectMovePixels: model.selectTool(.select)
-  case .selectEyedropper: model.selectTool(.eyedropper)
-  case .selectRectangle: model.selectTool(.rectangle)
-  case .selectEllipse: model.selectTool(.ellipse)
-  case .swapColors: model.swapPrimaryAndSecondary()
-  case .decreaseBrushSize: model.decreaseBrushSize()
-  case .increaseBrushSize: model.increaseBrushSize()
-  case .toggleShapeFill: model.toggleShapeFill()
-  case .toggleStrokeMirrorX: model.toggleStrokeMirrorX()
-  case .applyTool: model.applyToolAtCursor()
-  case .clearSelection: model.clearSelection()
+  case .selectPen: model.dispatch(.selectTool(.pen))
+  case .selectEraser: model.dispatch(.selectTool(.eraser))
+  case .selectBucketFill: model.dispatch(.selectTool(.fill))
+  case .selectGradient: model.dispatch(.selectTool(.gradient))
+  case .selectMarquee: model.dispatch(.selectTool(.marquee))
+  case .selectMovePixels: model.dispatch(.selectTool(.select))
+  case .selectEyedropper: model.dispatch(.selectTool(.eyedropper))
+  case .selectRectangle: model.dispatch(.selectTool(.rectangle))
+  case .selectEllipse: model.dispatch(.selectTool(.ellipse))
+  case .swapColors: model.dispatch(.swapPrimaryAndSecondary)
+  case .decreaseBrushSize: model.dispatch(.decreaseBrushSize)
+  case .increaseBrushSize: model.dispatch(.increaseBrushSize)
+  case .toggleShapeFill: model.dispatch(.toggleShapeFill)
+  case .toggleStrokeMirrorX: model.dispatch(.toggleStrokeMirrorX)
+  case .applyTool: model.dispatch(.applyActiveTool)
+  case .clearSelection: model.dispatch(.clearSelection)
 
   // Region rewrites. Each acts on the marquee, or on the whole layer
   // when there is none, and each is a single undo step.
-  case .flipHorizontally: model.flipHorizontally()
-  case .flipVertically: model.flipVertically()
-  case .rotateClockwise: model.rotateClockwise()
-  case .rotateCounterClockwise: model.rotateCounterClockwise()
-  case .cutSelection: model.cutSelection()
+  case .flipHorizontally: model.dispatch(.flipHorizontally)
+  case .flipVertically: model.dispatch(.flipVertically)
+  case .rotateClockwise: model.dispatch(.rotateClockwise)
+  case .rotateCounterClockwise: model.dispatch(.rotateCounterClockwise)
+  case .cutSelection: model.dispatch(.cutSelection)
 
   case .moveCursorLeft:
-    model.moveCursor(dx: -1, dy: 0)
+    model.dispatch(.moveCursor(dx: -1, dy: 0))
     viewport.followCursor()
   case .moveCursorRight:
-    model.moveCursor(dx: 1, dy: 0)
+    model.dispatch(.moveCursor(dx: 1, dy: 0))
     viewport.followCursor()
   case .moveCursorUp:
-    model.moveCursor(dx: 0, dy: -1)
+    model.dispatch(.moveCursor(dx: 0, dy: -1))
     viewport.followCursor()
   case .moveCursorDown:
-    model.moveCursor(dx: 0, dy: 1)
+    model.dispatch(.moveCursor(dx: 0, dy: 1))
     viewport.followCursor()
 
   case .zoomOut: viewport.zoomOut()
   case .zoomIn: viewport.zoomIn()
   case .fitToWindow: viewport.fitToWindow()
 
-  case .moveFrameEarlier: model.moveCurrentFrame(by: -1)
-  case .moveFrameLater: model.moveCurrentFrame(by: 1)
-  case .moveFrameToStart: model.moveCurrentFrameToStart()
-  case .moveFrameToEnd: model.moveCurrentFrameToEnd()
+  case .moveFrameEarlier: model.dispatch(.moveCurrentFrame(-1))
+  case .moveFrameLater: model.dispatch(.moveCurrentFrame(1))
+  case .moveFrameToStart: model.dispatch(.moveFrameToStart)
+  case .moveFrameToEnd: model.dispatch(.moveFrameToEnd)
 
   // Export metadata. None of these three reaches a composited colour, so
   // all three declare `.nothing` at their write site — see
-  // `EditorViewModel.setLoopCount(_:)` and `setCurrentFrameDisposal(_:)`.
-  case .cycleFrameDisposal: model.cycleCurrentFrameDisposal()
-  case .decreaseLoopCount: model.adjustLoopCount(by: -1)
-  case .increaseLoopCount: model.adjustLoopCount(by: 1)
-  case .toggleLoopsForever: model.toggleLoopsForever()
+  // `EditingSession.setLoopCount(_:)` and `setCurrentFrameDisposal(_:)`.
+  case .cycleFrameDisposal: model.dispatch(.cycleFrameDisposal)
+  case .decreaseLoopCount: model.dispatch(.adjustLoopCount(-1))
+  case .increaseLoopCount: model.dispatch(.adjustLoopCount(1))
+  case .toggleLoopsForever: model.dispatch(.toggleLoopsForever)
 
   // Display state only. None of these four touch the document, so none of
   // them go through `mutateDocument` and none of them mark it dirty.
@@ -467,7 +465,7 @@ private func perform(
 
   case .primaryColorSlot:
     guard let slot = chord.paletteSlot else { return }
-    model.setPrimaryColor(slot)
+    model.dispatch(.setPrimaryColor(slot))
 
   case .showKeyboardHelp: showKeyboardHelp()
 

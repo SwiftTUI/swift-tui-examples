@@ -28,8 +28,8 @@ struct TimelineCommandTests {
     // paths moved the *same* frames rather than merely arriving at the
     // same colours.
     let document = filledDocument(frames: 5)
-    let sent = EditorViewModel(document: document)
-    let dragged = EditorViewModel(document: document)
+    let sent = EditingSession(document: document)
+    let dragged = EditingSession(document: document)
 
     sent.selectFrame(at: 3)
     sent.moveCurrentFrameToStart()
@@ -44,8 +44,8 @@ struct TimelineCommandTests {
   @Test("Send-to-end is the same edit as a drag onto the last slot")
   func moveToEndMatchesTheReorderDrag() {
     let document = filledDocument(frames: 5)
-    let sent = EditorViewModel(document: document)
-    let dragged = EditorViewModel(document: document)
+    let sent = EditingSession(document: document)
+    let dragged = EditingSession(document: document)
 
     sent.selectFrame(at: 1)
     sent.moveCurrentFrameToEnd()
@@ -57,7 +57,7 @@ struct TimelineCommandTests {
 
   @Test("Sending a frame where it already is records nothing")
   func sendingToTheEndItIsAlreadyAtIsANoOp() {
-    let model = EditorViewModel(document: filledDocument(frames: 3))
+    let model = EditingSession(document: filledDocument(frames: 3))
     let original = model.document.frames.map(\.id)
 
     model.moveCurrentFrameToStart()
@@ -77,7 +77,7 @@ struct TimelineCommandTests {
   /// matter where in the timeline it sat.
   @Test("A no-op move is described by where the frame is")
   func aNoOpMoveNamesTheFramesActualPosition() {
-    let model = EditorViewModel(document: filledDocument(frames: 4))
+    let model = EditingSession(document: filledDocument(frames: 4))
 
     model.moveFrame(from: 2, to: 2)
     #expect(model.statusMessage == "Frame is already in that slot")
@@ -97,7 +97,7 @@ struct TimelineCommandTests {
 
   @Test("Sending a frame to an end is one undo step")
   func sendingToAnEndIsOneUndoStep() {
-    let model = EditorViewModel(document: filledDocument(frames: 4))
+    let model = EditingSession(document: filledDocument(frames: 4))
     let original = model.document.frames.map(\.id)
 
     model.moveCurrentFrameToEnd()
@@ -111,7 +111,7 @@ struct TimelineCommandTests {
 
   @Test("A single-frame document has no end to send anything to")
   func sendingWithOneFrameIsHarmless() {
-    let model = EditorViewModel(document: filledDocument(frames: 1))
+    let model = EditingSession(document: filledDocument(frames: 1))
 
     model.moveCurrentFrameToStart()
     model.moveCurrentFrameToEnd()
@@ -124,14 +124,14 @@ struct TimelineCommandTests {
 
   @Test("Reset delay returns the frame to the delay a new frame is born with")
   func resetDelayReturnsToTheDefault() {
-    let model = EditorViewModel(document: filledDocument(frames: 2))
+    let model = EditingSession(document: filledDocument(frames: 2))
     model.setCurrentFrameDelay(77)
     #expect(model.currentFrame.delayCentiseconds == 77)
 
     model.resetCurrentFrameDelay()
 
     #expect(
-      model.currentFrame.delayCentiseconds == EditorViewModel.defaultFrameDelayCentiseconds
+      model.currentFrame.delayCentiseconds == EditingSession.defaultFrameDelayCentiseconds
     )
     // And it really is the delay a frame is born with, not a second
     // number that happens to look like one today.
@@ -140,12 +140,12 @@ struct TimelineCommandTests {
         EditorLayer(name: "Layer 1", pixels: PixelBuffer(size: model.document.size))
       ]
     ).delayCentiseconds
-    #expect(EditorViewModel.defaultFrameDelayCentiseconds == bornWith)
+    #expect(EditingSession.defaultFrameDelayCentiseconds == bornWith)
   }
 
   @Test("Reset delay is one undo step")
   func resetDelayIsOneUndoStep() {
-    let model = EditorViewModel(document: filledDocument(frames: 2))
+    let model = EditingSession(document: filledDocument(frames: 2))
 
     model.resetCurrentFrameDelay()
     #expect(model.canUndo)
@@ -167,7 +167,7 @@ struct TimelineCommandTests {
   @Test("No timeline command recomposites a single frame")
   func timelineCommandsRecompositeNothing() {
     for command in Self.commands {
-      let model = EditorViewModel(document: filledDocument(frames: 4))
+      let model = EditingSession(document: filledDocument(frames: 4))
       model.compositeOracleEnabled = true
       let before = model.compositedFrames()
       let baseline = model.compositeRecomputeCount
@@ -191,7 +191,7 @@ struct TimelineCommandTests {
   func timelineCommandsAreNotVacuous() {
     // The invalidation sweep above would pass just as well if these were
     // no-ops, so each one is checked here for having done its job.
-    let model = EditorViewModel(document: filledDocument(frames: 4))
+    let model = EditingSession(document: filledDocument(frames: 4))
     model.selectFrame(at: 1)
 
     model.cycleCurrentFrameDisposal()
@@ -205,7 +205,7 @@ struct TimelineCommandTests {
 
     model.resetCurrentFrameDelay()
     #expect(
-      model.currentFrame.delayCentiseconds == EditorViewModel.defaultFrameDelayCentiseconds
+      model.currentFrame.delayCentiseconds == EditingSession.defaultFrameDelayCentiseconds
     )
 
     let order = model.document.frames.map(\.id)
@@ -215,7 +215,7 @@ struct TimelineCommandTests {
 
   private struct Command {
     let name: String
-    let run: @MainActor (EditorViewModel) -> Void
+    let run: @MainActor (EditingSession) -> Void
   }
 
   private static let commands: [Command] = [

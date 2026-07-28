@@ -8,11 +8,9 @@ import GIFEditorCore
 /// missing, unrecognized, damaged — are classified in exactly one place and
 /// every subcommand exits with the same code for the same cause.
 ///
-/// The sniff duplicates the one the editor uses. `GIFDocumentIO.fileKind(of:)`
-/// is internal to `GIFEditorUI`, and the alternative to two small copies is
-/// promoting an editor-coordinator type into public API so a CLI can call four
-/// lines of it. Both copies test the same two markers, and both are pinned by
-/// tests against the same checked-in fixtures.
+/// Recognition and decoding delegate to `DocumentIngestion`, so interactive
+/// and headless callers cannot drift onto different format rules. This adapter
+/// owns only file transport, CLI error categories, and reporting metadata.
 public enum HeadlessInput {
 
   /// What the first bytes of a file say it is.
@@ -42,23 +40,6 @@ public enum HeadlessInput {
     public let document: GIFDocument
   }
 
-  /// Sniffs `data` for a format this build reads, or returns `nil`.
-  ///
-  /// The project probe is the JSON object opener — the envelope is
-  /// `{"formatVersion":…}` and nothing else this app writes starts with
-  /// `{` — with leading whitespace skipped so a hand-edited file that
-  /// gained a newline still opens, and bounded so a huge file of spaces
-  /// cannot turn a sniff into a scan.
-  public static func fileKind(of data: Data) -> FileKind? {
-    if ProjectFile.hasGIFSignature(data) { return .gif }
-
-    let whitespace: Set<UInt8> = [0x20, 0x09, 0x0A, 0x0D]
-    for byte in data.prefix(64) where !whitespace.contains(byte) {
-      return byte == UInt8(ascii: "{") ? .project : nil
-    }
-    return nil
-  }
-
   /// Reads the bytes at `url`, distinguishing "not there" from "there and
   /// unreadable" so the two land on their own exit codes.
   public static func read(contentsOf url: URL) throws(HeadlessError) -> Data {
@@ -82,30 +63,28 @@ public enum HeadlessInput {
     url: URL,
     dithering: Quantizer.Dithering = .none
   ) throws(HeadlessError) -> Loaded {
-    switch fileKind(of: data) {
-    case .gif:
-      let document: GIFDocument
-      do {
-        document = try GIFLoader.load(data: data, sourcePath: url, dithering: dithering)
-      } catch {
-        throw .damaged(url, detail: String(describing: error))
+    let ingested: IngestedDocument
+    do {
+      ingested = try DocumentIngestion.ingest(
+        data,
+        source: .file(url),
+        policy: GIFImportPolicy(dithering: dithering)
+      )
+    } catch {
+      switch error {
+      case .unrecognizedFormat:
+        throw .unrecognizedFormat(url)
+      case .malformed(_, let detail):
+        throw .damaged(url, detail: detail)
       }
-      // The document's loop count *is* the file's: `GIFLoader` reads the
-      // application extension the decoder now surfaces, and defaults an
-      // absent one to "plays once" rather than to "forever".
-      return Loaded(url: url, kind: .gif, byteCount: data.count, document: document)
-    case .project:
-      var document: GIFDocument
-      do {
-        document = try ProjectFile.document(from: data)
-      } catch {
-        throw .damaged(url, detail: String(describing: error))
-      }
-      document.path = url
-      return Loaded(url: url, kind: .project, byteCount: data.count, document: document)
-    case nil:
-      throw .unrecognizedFormat(url)
     }
+
+    let kind: FileKind =
+      switch ingested.kind {
+      case .gif: .gif
+      case .project: .project
+    }
+    return Loaded(url: url, kind: kind, byteCount: data.count, document: ingested.document)
   }
 
   /// Reads and decodes in one step — what a subcommand calls.

@@ -6,21 +6,26 @@ import GIFEditorCore
 /// coordinator keeps ownership of `document` and the dirty flag while
 /// this type owns only the encoding and filesystem details.
 enum GIFDocumentIO {
-  /// Outcome of a save attempt, surfaced so the coordinator can update
-  /// `document.path`, the clean generation, and the status line without
-  /// this type reaching back into the view model.
+  /// Outcome of a save attempt, surfaced so the lifecycle can update
+  /// backing authority, the clean generation, and status without this
+  /// type reaching into either owner.
   enum SaveOutcome {
     case needsOverwriteConfirmation
     case saved
     case failed(any Error)
   }
 
-  /// The URL a save defaults to: the document's existing path, or
-  /// `untitled.gif` in the current working directory.
-  static func defaultSaveURL(for document: GIFDocument) -> URL {
-    document.path
-      ?? URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-      .appendingPathComponent("untitled.gif")
+  /// The URL a GIF export defaults to: the source name with a `.gif`
+  /// extension, or `untitled.gif` in the current working directory.
+  static func defaultSaveURL(sourceURL: URL?) -> URL {
+    guard let sourceURL else {
+      return URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        .appendingPathComponent("untitled.gif")
+    }
+    if sourceURL.pathExtension.lowercased() == "gif" {
+      return sourceURL
+    }
+    return sourceURL.deletingPathExtension().appendingPathExtension("gif")
   }
 
   /// Resolves user-entered save path text into a URL, expanding `~` and
@@ -86,22 +91,14 @@ extension GIFDocumentIO {
   /// The URL `Save` writes back to without prompting, or `nil` when the
   /// coordinator should fall through to `Save As`.
   ///
-  /// A document imported from a GIF has a `path`, and writing a layered
-  /// document back over it would flatten every layer — so the plain
-  /// `Save` verb refuses it and the user gets a location prompt whose
-  /// default is the `.halfcell` sibling. Saving must never be the
-  /// thing that destroys the work.
-  static func projectSaveTarget(for document: GIFDocument) -> URL? {
-    guard let path = document.path, isProjectFile(path) else { return nil }
-    return path
-  }
-
-  /// What a `Save As` field is pre-filled with: the document's own path
-  /// re-extensioned to `.halfcell` when it has one, otherwise
+  /// What a `Save As` field is pre-filled with: the durable backing when
+  /// one exists, otherwise the source URL re-extensioned to `.halfcell`,
+  /// or
   /// `untitled.halfcell` in the working directory — the same shape as
-  /// ``defaultSaveURL(for:)``, which now serves GIF *export*.
-  static func defaultProjectSaveURL(for document: GIFDocument) -> URL {
-    guard let path = document.path else {
+  /// ``defaultSaveURL(sourceURL:)``, which serves GIF export.
+  static func defaultProjectSaveURL(sourceURL: URL?, backing: URL?) -> URL {
+    if let backing { return backing }
+    guard let path = sourceURL else {
       return URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         .appendingPathComponent("untitled.\(ProjectFile.fileExtension)")
     }
@@ -151,10 +148,7 @@ extension GIFDocumentIO {
 
 extension GIFDocumentIO {
   /// What the first few bytes of a file say it is.
-  enum FileKind: Hashable, Sendable {
-    case gif
-    case project
-  }
+  typealias FileKind = DocumentKind
 
   enum OpenError: Error, CustomStringConvertible {
     /// The bytes could not be read at all.
@@ -166,6 +160,10 @@ extension GIFDocumentIO {
     /// about a byte offset in a GIF.
     case unrecognizedFormat(URL)
 
+    /// The bytes identified a supported format but that format's decoder
+    /// could not turn them into an authoring document.
+    case malformed(URL, kind: DocumentKind, detail: String)
+
     var description: String {
       switch self {
       case .unreadable(let url):
@@ -173,55 +171,47 @@ extension GIFDocumentIO {
       case .unrecognizedFormat(let url):
         return
           "\(url.lastPathComponent) is neither a GIF nor a .\(ProjectFile.fileExtension) project"
+      case .malformed(let url, let kind, let detail):
+        return "\(url.lastPathComponent) is a damaged \(kind.rawValue) document — \(detail)"
       }
     }
-  }
-
-  /// Sniffs `data` for a format this editor opens, or returns `nil`.
-  ///
-  /// Routing on content rather than on the extension is a binding
-  /// decision of the file-lifecycle work: a project saved without an
-  /// extension, or a GIF someone renamed `.halfcell` to get it into a
-  /// file list, still reaches the right reader. The project probe is
-  /// the JSON object opener — the envelope is `{"formatVersion":…}` and
-  /// nothing else this app writes starts with `{` — with leading
-  /// whitespace skipped so a hand-edited file that gained a newline
-  /// still opens.
-  static func fileKind(of data: Data) -> FileKind? {
-    if ProjectFile.hasGIFSignature(data) { return .gif }
-
-    let whitespace: Set<UInt8> = [0x20, 0x09, 0x0A, 0x0D]
-    // Bounded so a huge file of spaces cannot turn a sniff into a scan.
-    for byte in data.prefix(64) where !whitespace.contains(byte) {
-      return byte == UInt8(ascii: "{") ? .project : nil
-    }
-    return nil
   }
 
   /// Opens whatever is at `url`, routing on its bytes.
   ///
   /// GIFs come back through the importer (quantized, one layer per
-  /// frame); projects come back through the hardened project decoder
-  /// with `path` restored, since the format strips it on the way out
-  /// and the caller is the one who knows which file it just read.
-  static func open(
+  /// frame); projects come back through the hardened project decoder.
+  /// Both carry provenance beside the document rather than embedding a
+  /// writable path in artwork state.
+  static func openIngested(
     contentsOf url: URL,
     dithering: Quantizer.Dithering = .none
-  ) throws -> GIFDocument {
+  ) throws -> IngestedDocument {
     guard let data = try? Data(contentsOf: url) else {
       throw OpenError.unreadable(url)
     }
 
-    switch fileKind(of: data) {
-    case .gif:
-      return try GIFLoader.load(data: data, sourcePath: url, dithering: dithering)
-    case .project:
-      var document = try ProjectFile.document(from: data)
-      document.path = url
-      return document
-    case nil:
+    let ingested: IngestedDocument
+    do {
+      ingested = try DocumentIngestion.ingest(
+        data,
+        source: .file(url),
+        policy: GIFImportPolicy(dithering: dithering)
+      )
+    } catch .unrecognizedFormat {
       throw OpenError.unrecognizedFormat(url)
+    } catch .malformed(let kind, let detail) {
+      throw OpenError.malformed(url, kind: kind, detail: detail)
     }
+
+    return ingested
+  }
+
+  static func open(
+    contentsOf url: URL,
+    dithering: Quantizer.Dithering = .none
+  ) throws -> GIFDocument {
+    try openIngested(contentsOf: url, dithering: dithering).document
   }
 
   /// Decoding is the mirror of encoding: base64 and quantization over
@@ -232,6 +222,15 @@ extension GIFDocumentIO {
   ) async throws -> GIFDocument {
     try await Task.detached(priority: .userInitiated) {
       try open(contentsOf: url, dithering: dithering)
+    }.value
+  }
+
+  static func openIngestedOffMain(
+    contentsOf url: URL,
+    dithering: Quantizer.Dithering = .none
+  ) async throws -> IngestedDocument {
+    try await Task.detached(priority: .userInitiated) {
+      try openIngested(contentsOf: url, dithering: dithering)
     }.value
   }
 

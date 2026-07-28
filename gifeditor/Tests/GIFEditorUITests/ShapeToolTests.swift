@@ -296,7 +296,7 @@ struct ShapeToolTests {
   func mirrorXAppliesToTheEraser() {
     var layer = PixelBuffer(size: canvasSize, fill: 1)
     layer[GIFEditorCore.PixelPoint(x: 3, y: 3)] = 2
-    let model = EditorViewModel(
+    let model = EditingSession(
       document: GIFDocument(
         size: canvasSize,
         frames: [EditorFrame(layers: [EditorLayer(name: "Layer 1", pixels: layer)])]
@@ -339,7 +339,7 @@ struct ShapeToolTests {
   /// right" rather than merely counted.
   @Test("A shape commit recomposites exactly the frame it painted")
   func shapeCommitRecompositesOneFrame() {
-    let model = EditorViewModel(document: filledDocument(frames: 4))
+    let model = EditingSession(document: filledDocument(frames: 4))
     model.compositeOracleEnabled = true
     let before = model.compositedFrames()
     let baseline = model.compositeRecomputeCount
@@ -360,7 +360,7 @@ struct ShapeToolTests {
 
   @Test("A mirrored stroke recomposites exactly the frame it painted")
   func mirroredStrokeRecompositesOneFrame() {
-    let model = EditorViewModel(document: filledDocument(frames: 3))
+    let model = EditingSession(document: filledDocument(frames: 3))
     model.compositeOracleEnabled = true
     _ = model.compositedFrames()
     let baseline = model.compositeRecomputeCount
@@ -381,8 +381,8 @@ struct ShapeToolTests {
     GIFEditorCore.PixelSize(width: 6, height: 6)
   }
 
-  private func blankModel() -> EditorViewModel {
-    EditorViewModel(document: GIFDocument.blank(size: canvasSize))
+  private func blankModel() -> EditingSession {
+    EditingSession(document: GIFDocument.blank(size: canvasSize))
   }
 
   /// `count` single-layer frames, each flooded with a distinct opaque

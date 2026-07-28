@@ -28,7 +28,7 @@ struct PaletteView: View {
   let palette: ColorPalette
   let primaryIndex: PaletteIndex
   let secondaryIndex: PaletteIndex
-  let model: EditorViewModel
+  let model: EditingSession
   let refresh: @MainActor @Sendable () -> Void
   var fidelity: EditorColorFidelity = .full
   var density: EditorLayoutDensity = .regular
@@ -99,7 +99,7 @@ struct PaletteView: View {
     // an invisible marker on whichever background the terminal has.
     let ink = color.toTerminalColor().legibleInk
     return Button {
-      model.setPrimaryColor(index)
+      model.dispatch(.setPrimaryColor(index))
       refresh()
     } label: {
       ZStack(alignment: .leading) {

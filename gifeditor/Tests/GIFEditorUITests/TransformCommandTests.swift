@@ -11,7 +11,7 @@ import Testing
 /// is the question all four have to answer identically and could each
 /// answer differently: *what happens when nothing is selected?* The
 /// editor's answer is "the whole current layer", which is what
-/// ``EditorViewModel/copySelection()`` already did, so every test below
+/// ``EditingSession/copySelection()`` already did, so every test below
 /// runs its command twice — once inside a marquee and once with none.
 @MainActor
 @Suite("GIF editor transform commands")
@@ -202,7 +202,7 @@ struct TransformCommandTests {
   @Test("Each transform recomposites exactly the frame it changed")
   func transformsRecompositeOneFrame() {
     for transform in Self.transforms {
-      let model = EditorViewModel(document: filledDocument(frames: 4))
+      let model = EditingSession(document: filledDocument(frames: 4))
       model.compositeOracleEnabled = true
       let before = model.compositedFrames()
       let baseline = model.compositeRecomputeCount
@@ -221,11 +221,11 @@ struct TransformCommandTests {
     }
   }
 
-  /// Named closures rather than a `[(String, (EditorViewModel) -> Void)]`
+  /// Named closures rather than a `[(String, (EditingSession) -> Void)]`
   /// so a failure message can say which verb failed.
   private struct Transform {
     let name: String
-    let run: @MainActor (EditorViewModel) -> Void
+    let run: @MainActor (EditingSession) -> Void
   }
 
   private static let transforms: [Transform] = [
@@ -251,8 +251,8 @@ struct TransformCommandTests {
     return buffer
   }
 
-  private func model(with layer: PixelBuffer) -> EditorViewModel {
-    EditorViewModel(
+  private func model(with layer: PixelBuffer) -> EditingSession {
+    EditingSession(
       document: GIFDocument(
         size: layer.size,
         frames: [EditorFrame(layers: [EditorLayer(name: "Layer 1", pixels: layer)])]

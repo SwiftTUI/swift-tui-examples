@@ -19,7 +19,7 @@ import SwiftTUI
 /// editor — the menu bar above it and the body row's own border below it
 /// already bound it on both sides.
 struct ToolOptionsBar: View {
-  let model: EditorViewModel
+  let model: EditingSession
   let refresh: @MainActor @Sendable () -> Void
   var density: EditorLayoutDensity = .regular
 
@@ -76,7 +76,7 @@ struct ToolOptionsBar: View {
       respectSelectionToggle(
         isOn: model.fillRespectsSelection
       ) {
-        model.fillRespectsSelection.toggle()
+        model.dispatch(.setFillRespectsSelection(!model.fillRespectsSelection))
         refresh()
       }
     case .core(.gradient):
@@ -86,7 +86,7 @@ struct ToolOptionsBar: View {
       respectSelectionToggle(
         isOn: model.gradientRespectsSelection
       ) {
-        model.gradientRespectsSelection.toggle()
+        model.dispatch(.setGradientRespectsSelection(!model.gradientRespectsSelection))
         refresh()
       }
     case .core(.marquee):
@@ -108,11 +108,11 @@ struct ToolOptionsBar: View {
       Text("size").foregroundStyle(.muted)
       Text("\(model.brushSize)").foregroundStyle(.foreground)
       stepperButton("⊖") {
-        model.decreaseBrushSize()
+        model.dispatch(.decreaseBrushSize)
         refresh()
       }
       stepperButton("⊕") {
-        model.increaseBrushSize()
+        model.dispatch(.increaseBrushSize)
         refresh()
       }
     }
@@ -134,14 +134,14 @@ struct ToolOptionsBar: View {
   /// thing: a modifier every pen and eraser stroke reads, not a tool.
   private var mirrorXToggle: some View {
     checkboxButton(isOn: model.strokesMirrorX, label: "mirror-X") {
-      model.toggleStrokeMirrorX()
+      model.dispatch(.toggleStrokeMirrorX)
       refresh()
     }
   }
 
   private var filledShapeToggle: some View {
     checkboxButton(isOn: model.shapeFillsInterior, label: "filled") {
-      model.toggleShapeFill()
+      model.dispatch(.toggleShapeFill)
       refresh()
     }
   }
@@ -201,7 +201,7 @@ struct ToolOptionsBar: View {
 
   private var confirmButton: some View {
     Button {
-      model.applyToolAtCursor()
+      model.dispatch(.applyActiveTool)
       refresh()
     } label: {
       Text("[Confirm]").foregroundStyle(.tint)
@@ -212,7 +212,7 @@ struct ToolOptionsBar: View {
 
   private var clearButton: some View {
     Button {
-      model.clearSelection()
+      model.dispatch(.clearSelection)
       refresh()
     } label: {
       Text("[Clear]").foregroundStyle(.muted)
@@ -236,7 +236,7 @@ struct ToolOptionsBar: View {
 
   private var swapButton: some View {
     Button {
-      model.swapPrimaryAndSecondary()
+      model.dispatch(.swapPrimaryAndSecondary)
       refresh()
     } label: {
       Text("⇄ swap").foregroundStyle(.muted)

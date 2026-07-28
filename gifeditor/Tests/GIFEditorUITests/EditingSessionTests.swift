@@ -5,11 +5,11 @@ import Testing
 @testable import GIFEditorUI
 
 @MainActor
-@Suite("GIF editor view model pointer canvas editing")
-struct EditorViewModelTests {
+@Suite("GIF editor Editing session pointer canvas editing")
+struct EditingSessionTests {
   @Test("Pen drag paints a connected line on the current layer")
   func penDragPaintsConnectedLine() {
-    let model = EditorViewModel(
+    let model = EditingSession(
       document: GIFDocument.blank(size: GIFEditorCore.PixelSize(width: 5, height: 5))
     )
     model.primaryColorIndex = 3
@@ -30,7 +30,7 @@ struct EditorViewModelTests {
 
   @Test("Pen drag undo and redo treats a stroke as one history entry")
   func penDragUndoRedoIsOneHistoryEntry() {
-    let model = EditorViewModel(
+    let model = EditingSession(
       document: GIFDocument.blank(size: GIFEditorCore.PixelSize(width: 5, height: 5))
     )
     model.primaryColorIndex = 3
@@ -70,7 +70,7 @@ struct EditorViewModelTests {
     layer[GIFEditorCore.PixelPoint(x: 4, y: 0)] = nil
     let frame = EditorFrame(layers: [EditorLayer(name: "Layer 1", pixels: layer)])
     let document = GIFDocument(size: layer.size, frames: [frame])
-    let model = EditorViewModel(document: document)
+    let model = EditingSession(document: document)
     model.selectTool(.eraser)
     let start = GIFEditorCore.PixelPoint(x: 0, y: 0)
     let end = GIFEditorCore.PixelPoint(x: 4, y: 4)
@@ -88,7 +88,7 @@ struct EditorViewModelTests {
 
   @Test("Marquee drag previews and commits the selected rectangle")
   func marqueeDragCommitsSelection() {
-    let model = EditorViewModel(
+    let model = EditingSession(
       document: GIFDocument.blank(size: GIFEditorCore.PixelSize(width: 6, height: 6))
     )
     model.selectTool(.marquee)
@@ -116,7 +116,7 @@ struct EditorViewModelTests {
     layer[GIFEditorCore.PixelPoint(x: 4, y: 1)] = 8
     let frame = EditorFrame(layers: [EditorLayer(name: "Layer 1", pixels: layer)])
     let document = GIFDocument(size: layer.size, frames: [frame])
-    let model = EditorViewModel(document: document)
+    let model = EditingSession(document: document)
     model.selection = Selection(rect: PixelRect(x: 1, y: 1, width: 2, height: 1))
     model.selectTool(.select)
 
@@ -150,7 +150,7 @@ struct EditorViewModelTests {
     layer[GIFEditorCore.PixelPoint(x: 3, y: 0)] = 2
     let frame = EditorFrame(layers: [EditorLayer(name: "Layer 1", pixels: layer)])
     let document = GIFDocument(size: layer.size, frames: [frame])
-    let model = EditorViewModel(document: document)
+    let model = EditingSession(document: document)
     model.selectTool(.select)
 
     let start = GIFEditorCore.PixelPoint(x: 0, y: 0)
@@ -168,7 +168,7 @@ struct EditorViewModelTests {
 
   @Test("New document edit after undo clears redo")
   func newEditAfterUndoClearsRedo() {
-    let model = EditorViewModel(
+    let model = EditingSession(
       document: GIFDocument.blank(size: GIFEditorCore.PixelSize(width: 3, height: 3))
     )
     model.primaryColorIndex = 4
@@ -189,7 +189,7 @@ struct EditorViewModelTests {
 
   @Test("Brush size clamps to the supported range")
   func brushSizeClampsToSupportedRange() {
-    let model = EditorViewModel(
+    let model = EditingSession(
       document: GIFDocument.blank(size: GIFEditorCore.PixelSize(width: 4, height: 4))
     )
     model.brushSize = 0
@@ -223,7 +223,7 @@ struct EditorViewModelTests {
       layers: [EditorLayer(name: "Frame 2", pixels: PixelBuffer(size: size, fill: 2))],
       delayCentiseconds: 2
     )
-    let model = EditorViewModel(document: GIFDocument(size: size, frames: [first, second]))
+    let model = EditingSession(document: GIFDocument(size: size, frames: [first, second]))
 
     model.startPlayback()
 
@@ -245,7 +245,7 @@ struct EditorViewModelTests {
 
   @Test("Thick pen click stamps a centered square")
   func thickPenClickStampsCenteredSquare() {
-    let model = EditorViewModel(
+    let model = EditingSession(
       document: GIFDocument.blank(size: GIFEditorCore.PixelSize(width: 7, height: 7))
     )
     model.primaryColorIndex = 4
@@ -264,7 +264,7 @@ struct EditorViewModelTests {
 
   @Test("Thick pen drag paints a thick connected stroke as one undo entry")
   func thickPenDragIsOneUndoEntry() {
-    let model = EditorViewModel(
+    let model = EditingSession(
       document: GIFDocument.blank(size: GIFEditorCore.PixelSize(width: 9, height: 9))
     )
     model.primaryColorIndex = 6
@@ -308,7 +308,7 @@ struct EditorViewModelTests {
     var layer = PixelBuffer(size: GIFEditorCore.PixelSize(width: 9, height: 9), fill: 2)
     let frame = EditorFrame(layers: [EditorLayer(name: "Layer 1", pixels: layer)])
     let document = GIFDocument(size: layer.size, frames: [frame])
-    let model = EditorViewModel(document: document)
+    let model = EditingSession(document: document)
     model.selectTool(.eraser)
     model.brushSize = 3
     layer = model.currentLayer.pixels  // initial fully-filled state
@@ -343,7 +343,7 @@ struct EditorViewModelTests {
       EditorLayer(name: "Only", pixels: PixelBuffer(size: size))
     ])
     let document = GIFDocument(size: size, frames: [multiLayerFrame, singleLayerFrame])
-    let model = EditorViewModel(document: document)
+    let model = EditingSession(document: document)
     model.currentLayerIndex = 2
 
     model.selectFrame(at: 1)
@@ -365,7 +365,7 @@ struct EditorViewModelTests {
       EditorLayer(name: "Only", pixels: PixelBuffer(size: size))
     ])
     let document = GIFDocument(size: size, frames: [multiLayerFrame, singleLayerFrame])
-    let model = EditorViewModel(document: document)
+    let model = EditingSession(document: document)
     model.currentLayerIndex = 2
     model.selectFrame(at: 1)
     model.selectTool(.select)
@@ -390,7 +390,7 @@ struct EditorViewModelTests {
       EditorLayer(name: "Only", pixels: PixelBuffer(size: size))
     ])
     let document = GIFDocument(size: size, frames: [multiLayerFrame, singleLayerFrame])
-    let model = EditorViewModel(document: document)
+    let model = EditingSession(document: document)
     model.currentLayerIndex = 2
     // currentFrameIndex stays at 0 after the delete because there's still a
     // frame at that index — but it now points to the formerly-1-layer frame.
@@ -410,7 +410,7 @@ struct EditorViewModelTests {
       EditorLayer(name: "L3", pixels: PixelBuffer(size: size)),
     ])
     let document = GIFDocument(size: size, frames: [multiLayerFrame])
-    let model = EditorViewModel(document: document)
+    let model = EditingSession(document: document)
     model.currentLayerIndex = 2
 
     model.insertBlankFrameAfterCurrent()
@@ -429,14 +429,22 @@ struct EditorViewModelTests {
     try withTemporaryStateDirectory { directory in
       let url = directory.appendingPathComponent("history.halfcell")
 
-      var document = GIFDocument.blank(size: GIFEditorCore.PixelSize(width: 2, height: 2))
-      document.path = url
-      let model = EditorViewModel(document: document, stateDirectory: directory)
+      let document = GIFDocument.blank(size: GIFEditorCore.PixelSize(width: 2, height: 2))
+      let model = EditingSession(document: document)
       model.primaryColorIndex = 6
       model.applyToolAtCursor()
       #expect(model.isDirty)
 
-      model.saveProject(to: url, overwriteExisting: false)
+      let saved = model.makeSaveSnapshot()
+      guard case .saved = GIFDocumentIO.saveProject(
+        document: saved.document,
+        to: url,
+        overwriteExisting: false
+      ) else {
+        Issue.record("expected the project write to succeed")
+        return
+      }
+      #expect(model.acknowledgeSave(saved) == .current)
       #expect(!model.isDirty)
 
       model.undo()
@@ -447,32 +455,11 @@ struct EditorViewModelTests {
     }
   }
 
-  @Test("Saving to an existing file requires overwrite confirmation")
-  func saveToExistingFileRequiresOverwriteConfirmation() throws {
-    try withTemporaryStateDirectory { directory in
-      let url = directory.appendingPathComponent("occupied.halfcell")
-      try Data("existing".utf8).write(to: url)
-
-      let model = EditorViewModel(
-        document: GIFDocument.blank(size: GIFEditorCore.PixelSize(width: 2, height: 2)),
-        stateDirectory: directory
-      )
-
-      #expect(!model.saveProject(to: url, overwriteExisting: false))
-      #expect(try Data(contentsOf: url) == Data("existing".utf8))
-      #expect(model.statusMessage == "Confirm overwrite before saving")
-
-      #expect(model.saveProject(to: url, overwriteExisting: true))
-      #expect(try Data(contentsOf: url) != Data("existing".utf8))
-      #expect(!model.isDirty)
-    }
-  }
-
   // MARK: - Frame reordering
 
   @Test("Moving a frame reorders the timeline and keeps the selection on it")
   func moveCurrentFrameFollowsTheMovedFrame() {
-    let model = EditorViewModel(document: multiFrameDocument(count: 3))
+    let model = EditingSession(document: multiFrameDocument(count: 3))
     let original = model.document.frames.map(\.id)
 
     model.moveCurrentFrame(by: 1)
@@ -493,7 +480,7 @@ struct EditorViewModelTests {
 
   @Test("Moving a frame past either end is a no-op that records no history")
   func moveCurrentFrameAtBoundaryIsNoOp() {
-    let model = EditorViewModel(document: multiFrameDocument(count: 3))
+    let model = EditingSession(document: multiFrameDocument(count: 3))
     let original = model.document.frames.map(\.id)
 
     model.moveCurrentFrame(by: -1)
@@ -514,7 +501,7 @@ struct EditorViewModelTests {
 
   @Test("Undo restores frame order and index after a move; redo re-applies both")
   func moveCurrentFrameUndoRedoRestoresOrderAndIndex() {
-    let model = EditorViewModel(document: multiFrameDocument(count: 3))
+    let model = EditingSession(document: multiFrameDocument(count: 3))
     let original = model.document.frames.map(\.id)
     model.selectFrame(at: 2)
 

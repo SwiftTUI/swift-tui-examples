@@ -28,7 +28,7 @@ enum ProjectTestDocuments {
 
   /// 3 frames x 3 named layers, mixed visibility, a palette in an order
   /// the default never produces, mixed delays and disposals,
-  /// `loopCount = 5`, and a `path` that must not survive encoding.
+  /// and `loopCount = 5`.
   static func roundTripSubject() -> GIFDocument {
     let size = PixelSize(width: 12, height: 9)
     let palette = ColorPalette(colors: [
@@ -63,7 +63,6 @@ enum ProjectTestDocuments {
       size: size,
       palette: palette,
       frames: frames,
-      path: URL(fileURLWithPath: "/Users/somebody/Documents/secret.halfcell"),
       loopCount: 5
     )
   }
@@ -86,7 +85,7 @@ enum ProjectTestDocuments {
 @Suite("Project file — lossless round-trip")
 struct ProjectFileRoundTripTests {
 
-  @Test("Encoding then decoding preserves every authored field except the path")
+  @Test("Encoding then decoding preserves every authored field")
   func roundTripPreservesEverything() throws {
     let original = ProjectTestDocuments.roundTripSubject()
     let data = try ProjectFile.data(for: original)
@@ -125,21 +124,12 @@ struct ProjectFileRoundTripTests {
       }
     }
 
-    // The authoring machine's absolute path is not part of the artwork.
-    #expect(decoded.path == nil)
-    #expect(
-      original.path != nil, "the subject must actually carry a path for that to mean anything")
-    #expect(!String(decoding: data, as: UTF8.self).contains("secret.halfcell"))
-
-    var expected = original
-    expected.path = nil
-    #expect(decoded == expected)
+    #expect(decoded == original)
   }
 
   @Test("A re-encode of a decoded document is byte-identical")
   func reEncodeIsStable() throws {
-    var original = ProjectTestDocuments.roundTripSubject()
-    original.path = nil
+    let original = ProjectTestDocuments.roundTripSubject()
     let first = try ProjectFile.data(for: original)
     let second = try ProjectFile.data(for: try ProjectFile.document(from: first))
     #expect(first == second)

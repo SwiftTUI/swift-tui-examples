@@ -71,7 +71,7 @@ struct CanvasViewTests {
   @Test("Interactive canvas pointer drawing region excludes the border")
   func interactiveCanvasPointerDrawingRegionExcludesBorder() throws {
     let size = GIFEditorCore.PixelSize(width: 8, height: 6)
-    let model = EditorViewModel(document: GIFDocument.blank(size: size))
+    let model = EditingSession(document: GIFDocument.blank(size: size))
     let artifacts = render(
       InteractiveCanvasHarnessView(model: model, size: size),
       width: 16,
@@ -95,7 +95,7 @@ struct CanvasViewTests {
   @Test("Interactive canvas click-and-drag paints through the RunLoop mouse path")
   func interactiveCanvasClickAndDragPaintsThroughRunLoop() async throws {
     let size = GIFEditorCore.PixelSize(width: 8, height: 6)
-    let model = EditorViewModel(document: GIFDocument.blank(size: size))
+    let model = EditingSession(document: GIFDocument.blank(size: size))
     model.primaryColorIndex = 3
     let terminalSize = CellSize(width: 16, height: 8)
     let rootIdentity = Identity(components: ["gifeditor.ui.drag"])
@@ -340,7 +340,7 @@ struct CanvasViewTests {
 }
 
 private struct InteractiveCanvasHarnessView: View {
-  let model: EditorViewModel
+  let model: EditingSession
   let size: GIFEditorCore.PixelSize
 
   @State private var revision = 0

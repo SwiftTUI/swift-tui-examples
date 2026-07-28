@@ -538,19 +538,6 @@ struct HeadlessCommandTests {
     #expect(HeadlessExitStatus.success == 0)
   }
 
-  // MARK: - Sniffing
-
-  @Test("The sniff routes on bytes, not on the extension")
-  func sniffRoutesOnBytes() throws {
-    let gif = try Data(contentsOf: try Self.fixtureURL("nyan.gif"))
-    let project = try Data(contentsOf: try Self.goldenProjectURL())
-    #expect(HeadlessInput.fileKind(of: gif) == .gif)
-    #expect(HeadlessInput.fileKind(of: project) == .project)
-    #expect(HeadlessInput.fileKind(of: Data("\n\n  { \"formatVersion\": 1 }".utf8)) == .project)
-    #expect(HeadlessInput.fileKind(of: Data("PNG".utf8)) == nil)
-    #expect(HeadlessInput.fileKind(of: Data()) == nil)
-  }
-
   @Test("A GIF with no NETSCAPE block reports no loop count")
   func loopProbeReturnsNilWithoutTheBlock() throws {
     // The fixture that genuinely carries no application extension. The

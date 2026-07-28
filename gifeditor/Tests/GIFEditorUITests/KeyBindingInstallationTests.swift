@@ -77,7 +77,7 @@ struct KeyBindingInstallationTests {
 
   /// Renders the editor into a throwaway state directory.
   ///
-  /// The directory matters even for a one-shot render: `EditorViewModel`
+  /// The directory matters even for a one-shot render: `EditingSession`
   /// reads the recents list at construction, and a test that read the
   /// developer's real `~/.config/halfcell/` would be reading whatever
   /// they last opened.

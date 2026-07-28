@@ -8,12 +8,8 @@ import Foundation
 /// guess whether it is worth taking; one that says "unsaved changes to
 /// `nyan.halfcell` from 14 minutes ago" is a decision they can make.
 public struct AutosaveSnapshot: Hashable, Sendable {
-  /// The recovered document, with ``GIFDocument/path`` restored from
-  /// ``originalPath``. The project envelope strips `path` on the way
-  /// out (it is this machine's filing, not the artwork), so recovery is
-  /// where it comes back — otherwise accepting a recovery would turn a
-  /// saved document into an untitled one and the next `Save` would
-  /// prompt for a location the user already chose.
+  /// Recovered artwork. Filing information remains separate in
+  /// ``originalPath`` so document content never acquires write authority.
   public var document: GIFDocument
 
   /// Where the document lived when the snapshot was taken, or `nil` if
@@ -107,18 +103,16 @@ public enum AutosaveStore {
   /// making it explicit costs the one caller that has a clock a single
   /// `Date()` and buys every other caller determinism.
   ///
-  /// The original path is taken from ``GIFDocument/path`` — the
-  /// document already knows where it came from, and a second parameter
-  /// would only create a way for the two to disagree.
   public static func snapshot(
     document: GIFDocument,
+    originalPath: URL?,
     to url: URL,
     at timestamp: Date
   ) throws {
     let envelope = Envelope(
       snapshotVersion: currentSnapshotVersion,
       savedAt: timestamp.timeIntervalSince1970,
-      originalPath: document.path?.path,
+      originalPath: originalPath?.path,
       project: ProjectFile(document: document)
     )
     let encoder = JSONEncoder()
@@ -159,10 +153,8 @@ public enum AutosaveStore {
     }
 
     let originalPath = envelope.originalPath.map { URL(fileURLWithPath: $0) }
-    var document = envelope.project.document
-    document.path = originalPath
     return AutosaveSnapshot(
-      document: document,
+      document: envelope.project.document,
       originalPath: originalPath,
       savedAt: Date(timeIntervalSince1970: envelope.savedAt)
     )

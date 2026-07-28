@@ -2,6 +2,29 @@ import Foundation
 import GIFEditorCore
 import SwiftTUI
 
+/// Stable identity of one committed authoring state.
+public struct EditingGeneration: Hashable, Sendable {
+  fileprivate let value: Int
+}
+
+/// Immutable bytes-source for a project save.
+///
+/// The generation travels beside the document so the completion can
+/// acknowledge exactly what was written even if editing continued meanwhile.
+public struct EditingSaveSnapshot: Hashable, Sendable {
+  public let document: GIFDocument
+  public let generation: EditingGeneration
+  fileprivate let sessionIdentity: UUID
+  fileprivate let sequence: UInt64
+}
+
+/// Whether a completed save still describes the session's current state.
+public enum EditingSaveAcknowledgement: Hashable, Sendable {
+  case current
+  case superseded
+  case rejected
+}
+
 /// Reference-type owner of the editor's mutable state. The view tree
 /// reads `document` as a value type via @State, but mutating ops live
 /// here so individual views don't need to thread the document around.
@@ -9,15 +32,11 @@ import SwiftTUI
 /// Kept @MainActor — the editor is single-window, single-threaded, and
 /// every mutation is driven from a UI event.
 ///
-/// The view model is a coordinator: it owns the document and selection
-/// context (cursor, frame/layer index, tool state) and delegates the
-/// three cross-cutting concerns to focused collaborators —
-/// `EditorHistory` for undo/redo, `CanvasDragController` for pointer
-/// drags, and `GIFDocumentIO` for save/encode. Those collaborators never
-/// touch the view tree, so the coordinator stays the single mutation
-/// surface the views bind to.
+/// It owns only one document's editing state and history. Document
+/// replacement, persistence, recovery, recents, and quit policy belong
+/// to `DocumentLifecycle`.
 @MainActor
-public final class EditorViewModel {
+public final class EditingSession {
   // MARK: - Document
 
   /// Backing store for `document`. Written by `init` and by
@@ -122,6 +141,11 @@ public final class EditorViewModel {
   // MARK: - History
 
   private var history = EditorHistory()
+  /// Save receipts are valid only within this document session and in
+  /// monotonically increasing request order.
+  private var persistenceIdentity = UUID()
+  private var nextSaveSequence: UInt64 = 0
+  private var latestAcknowledgedSaveSequence: UInt64 = 0
 
   public var canUndo: Bool {
     history.canUndo
@@ -133,6 +157,35 @@ public final class EditorViewModel {
 
   public var isDirty: Bool {
     history.isDirty
+  }
+
+  public var generation: EditingGeneration {
+    EditingGeneration(value: history.currentHistoryGeneration)
+  }
+
+  public func makeSaveSnapshot() -> EditingSaveSnapshot {
+    nextSaveSequence &+= 1
+    return EditingSaveSnapshot(
+      document: document,
+      generation: generation,
+      sessionIdentity: persistenceIdentity,
+      sequence: nextSaveSequence
+    )
+  }
+
+  /// Applies a durable-save receipt without guessing which state was saved.
+  @discardableResult
+  public func acknowledgeSave(
+    _ snapshot: EditingSaveSnapshot
+  ) -> EditingSaveAcknowledgement {
+    guard snapshot.sessionIdentity == persistenceIdentity,
+      snapshot.sequence >= latestAcknowledgedSaveSequence
+    else {
+      return .rejected
+    }
+    latestAcknowledgedSaveSequence = snapshot.sequence
+    history.markClean(generation: snapshot.generation.value)
+    return snapshot.generation == generation ? .current : .superseded
   }
 
   // MARK: - Selection state
@@ -232,61 +285,17 @@ public final class EditorViewModel {
 
   public var statusMessage: String = ""
 
-  // MARK: - Persistent state
-
-  /// Where the recents list and the autosave recovery file live.
-  ///
-  /// A stored property rather than a call to
-  /// ``GIFDocumentIO/stateDirectory(homeDirectory:)`` at each use, so a
-  /// test can hand this a temporary directory and be certain nothing it
-  /// runs touches the developer's real `~/.config/halfcell/`.
-  public let stateDirectory: URL
-
-  /// The most-recently-opened documents, loaded once at construction.
-  ///
-  /// Read-only from outside: it is written by
-  /// ``noteRecentDocument(_:)``, which is the one place that also
-  /// persists it, so the in-memory list and the file cannot disagree.
-  public private(set) var recentDocuments: RecentDocuments
-
-  /// Set by the unsaved-changes guard when the author chooses to discard
-  /// rather than save on the way out.
-  ///
-  /// A terminal app cannot end its own run loop from a termination
-  /// handler — the handler's only vocabulary is allow/cancel — so
-  /// "discard and quit" is spelled as *arm the guard, then quit
-  /// normally*. Any subsequent edit re-arms it (see
-  /// ``recordUndoableEdit(_:_:)``), because consent to lose the work as
-  /// it stood is not consent to lose whatever is drawn next.
-  public var allowsQuitWithUnsavedChanges: Bool = false
-
-  /// `stateDirectory` is `URL?`, not a `URL` defaulted to the platform
-  /// location, because a default *argument* in a `public` declaration may
-  /// only name things at least as visible as the declaration, and
-  /// `GIFDocumentIO` is internal by design. Resolving `nil` inside the
-  /// body keeps the state directory injectable — which is the whole
-  /// reason `RecentDocuments` and `AutosaveStore` take their paths as
-  /// parameters — without widening a type that should stay internal.
   public init(
     document: GIFDocument,
     initialStatusMessage: String = "",
-    stateDirectory: URL? = nil,
     startsDirty: Bool = false
   ) {
     // Nothing to stamp: the composite cache starts empty, so the first
     // `compositedFrames()` call misses on every frame and computes it.
     // Documents arrive here from `GIFLoader`, the project decoder,
     // `GIFDocument.blank`, or a recovered autosave.
-    let resolvedStateDirectory = stateDirectory ?? GIFDocumentIO.stateDirectory()
     storedDocument = document
     statusMessage = initialStatusMessage
-    self.stateDirectory = resolvedStateDirectory
-    // `load` never throws and prunes files that have gone: an absent,
-    // truncated or hand-mangled recents file costs a menu section, not a
-    // launch.
-    recentDocuments = RecentDocuments.load(
-      from: GIFDocumentIO.recentsURL(inStateDirectory: resolvedStateDirectory)
-    )
     // A recovered document differs from whatever is on disk before the
     // author touches anything, so it arrives dirty.
     if startsDirty {
@@ -1369,7 +1378,7 @@ public final class EditorViewModel {
   /// text and adopts it. Returns whether the file parsed.
   @discardableResult
   public func importPalette(fromPath pathText: String) -> Bool {
-    guard let url = Self.saveURL(from: pathText) else {
+    guard let url = GIFDocumentIO.saveURL(from: pathText) else {
       announce("Enter a palette path (.hex or .gpl)")
       return false
     }
@@ -1577,315 +1586,9 @@ public final class EditorViewModel {
     announce("Canvas resized to \(size.width)×\(size.height)")
   }
 
-  // MARK: - Save / export targets
-
-  /// Where a GIF *export* defaults to.
-  public var defaultExportURL: URL {
-    GIFDocumentIO.defaultSaveURL(for: document)
-  }
-
-  /// Where `Save As` pre-fills: the document's own path re-extensioned
-  /// to the project format, or `untitled.halfcell`.
-  public var defaultProjectSaveURL: URL {
-    GIFDocumentIO.defaultProjectSaveURL(for: document)
-  }
-
-  public static func saveURL(from pathText: String) -> URL? {
-    GIFDocumentIO.saveURL(from: pathText)
-  }
-
-  /// What the plain `Save` verb should do with this document.
-  ///
-  /// The whole reason this is a *decision* rather than a write is the
-  /// lossy round-trip the project format exists to close: a document
-  /// imported from `nyan.gif` has a `path`, and the obvious "save writes
-  /// back to `path`" would encode a layered document through the GIF
-  /// encoder and flatten every layer, silently, under a verb whose
-  /// entire promise is that it preserves work. So `Save` writes back
-  /// only when `path` names a project file, and otherwise routes to
-  /// `Save As` — where the author sees, and confirms, a `.halfcell`
-  /// destination.
-  public enum SaveRoute: Equatable, Sendable {
-    /// The document came from a project file: write straight back to it.
-    case writeBack(URL)
-    /// There is nothing safe to write back to. Prompt, defaulting to
-    /// this location.
-    case promptForLocation(URL)
-  }
-
-  public var saveRoute: SaveRoute {
-    if let target = GIFDocumentIO.projectSaveTarget(for: document) {
-      return .writeBack(target)
-    }
-    return .promptForLocation(defaultProjectSaveURL)
-  }
-
-  // MARK: - Saving the project
-
-  @discardableResult
-  public func saveProject(to target: URL, overwriteExisting: Bool) -> Bool {
-    finishProjectSave(
-      GIFDocumentIO.saveProject(
-        document: document,
-        to: target,
-        overwriteExisting: overwriteExisting
-      ),
-      target: target
-    )
-  }
-
-  @discardableResult
-  public func saveProjectOffMain(to target: URL, overwriteExisting: Bool) async -> Bool {
-    let documentToSave = document
-    return finishProjectSave(
-      await GIFDocumentIO.saveProjectOffMain(
-        document: documentToSave,
-        to: target,
-        overwriteExisting: overwriteExisting
-      ),
-      target: target
-    )
-  }
-
-  /// The three things a successful project save owes the rest of the
-  /// app, in one place so the on-main and off-main paths cannot drift:
-  /// the document now lives at `target`, the history is clean, and the
-  /// recovery file describes work that is no longer at risk.
-  private func finishProjectSave(
-    _ outcome: GIFDocumentIO.SaveOutcome,
-    target: URL
-  ) -> Bool {
-    switch outcome {
-    case .needsOverwriteConfirmation:
-      announce("Confirm overwrite before saving")
-      return false
-    case .saved:
-      // `.nothing`: the save path is document metadata, not pixels.
-      mutateDocument(invalidating: .nothing) { $0.path = target }
-      history.markClean()
-      noteRecentDocument(target)
-      clearAutosaveSnapshot()
-      announce("Saved to \(target.path)")
-      return true
-    case .failed(let error):
-      announce("Save failed: \(error)")
-      return false
-    }
-  }
-
-  // MARK: - Exporting GIF
-
-  /// Writes the document out as a GIF.
-  ///
-  /// Deliberately does **not** adopt `target` as `document.path` and
-  /// does **not** mark the history clean. An export is a copy in a lossy
-  /// format; treating it as a save would leave the editor showing a
-  /// clean document whose layers exist nowhere on disk, and would point
-  /// the next `Save` at the GIF — the two halves of the data-loss bug
-  /// the project format was introduced to close.
-  @discardableResult
-  public func exportGIF(to target: URL, overwriteExisting: Bool) -> Bool {
-    finishGIFExport(
-      GIFDocumentIO.save(
-        document: document,
-        to: target,
-        overwriteExisting: overwriteExisting
-      ),
-      target: target
-    )
-  }
-
-  @discardableResult
-  public func exportGIFOffMain(to target: URL, overwriteExisting: Bool) async -> Bool {
-    let documentToExport = document
-    return finishGIFExport(
-      await GIFDocumentIO.saveOffMain(
-        document: documentToExport,
-        to: target,
-        overwriteExisting: overwriteExisting
-      ),
-      target: target
-    )
-  }
-
-  private func finishGIFExport(
-    _ outcome: GIFDocumentIO.SaveOutcome,
-    target: URL
-  ) -> Bool {
-    switch outcome {
-    case .needsOverwriteConfirmation:
-      announce("Confirm overwrite before saving")
-      return false
-    case .saved:
-      announce("Exported GIF to \(target.path)")
-      return true
-    case .failed(let error):
-      announce("Export failed: \(error)")
-      return false
-    }
-  }
-
-  // MARK: - Document lifecycle
-
-  /// Starts a blank document at `size`, discarding whatever was open.
-  ///
-  /// Guarding this against unsaved work is the *view's* job, not this
-  /// method's: the guard is a conversation with the author, and a model
-  /// method that silently refused would give the view nothing to say.
-  public func newDocument(size: GIFEditorCore.PixelSize) {
-    replaceDocument(GIFDocument.blank(size: size))
-    announce("New \(size.width)×\(size.height) document")
-  }
-
-  @discardableResult
-  public func openDocument(contentsOf url: URL) -> Bool {
-    do {
-      return adoptOpened(try GIFDocumentIO.open(contentsOf: url), from: url)
-    } catch {
-      announce("Open failed: \(error)")
-      return false
-    }
-  }
-
-  /// Decoding a project is base64 plus a quantization pass over every
-  /// pixel of every frame, so it stays off the main actor exactly as the
-  /// save side does.
-  @discardableResult
-  public func openDocumentOffMain(contentsOf url: URL) async -> Bool {
-    do {
-      return adoptOpened(try await GIFDocumentIO.openOffMain(contentsOf: url), from: url)
-    } catch {
-      announce("Open failed: \(error)")
-      return false
-    }
-  }
-
-  private func adoptOpened(_ opened: GIFDocument, from url: URL) -> Bool {
-    replaceDocument(opened)
-    noteRecentDocument(url)
-    announce("Opened \(url.path)")
-    return true
-  }
-
-  /// The one path that swaps the whole document out.
-  ///
-  /// Declares `.everyFrame`, and must: every mutation stamp the cache is
-  /// holding was taken against the outgoing document, so all of them
-  /// describe content that no longer exists — including for frame ids
-  /// that happen to survive the swap, which is precisely the case a
-  /// per-frame invalidation would get wrong.
-  ///
-  /// The selection context is reset rather than clamped. A cursor, a
-  /// marquee, a clipboard of palette indices and an undo stack are all
-  /// statements about the document that just left; carrying any of them
-  /// into a different one would be carrying a stale claim.
-  private func replaceDocument(_ newDocument: GIFDocument) {
-    mutateDocument(invalidating: .everyFrame) { $0 = newDocument }
-    history = EditorHistory()
-    currentFrameIndex = 0
-    currentLayerIndex = 0
-    cursor = .zero
-    selection = nil
-    pendingMarqueeAnchor = nil
-    pendingGradientAnchor = nil
-    pendingShapeAnchor = nil
-    clipboard = nil
-    dragController.reset()
-    allowsQuitWithUnsavedChanges = false
-    let highestSlot = PaletteIndex(max(0, newDocument.palette.usedCount - 1))
-    primaryColorIndex = min(1, highestSlot)
-    secondaryColorIndex = min(2, highestSlot)
-  }
-
-  // MARK: - Recent documents
-
-  /// Records `url` as the most recent document and persists the list.
-  ///
-  /// Write failures are swallowed on purpose. The recents file is a
-  /// convenience; a read-only home directory or a full disk should cost
-  /// the author a menu section, not an error dialog over a save that
-  /// actually succeeded.
-  private func noteRecentDocument(_ url: URL) {
-    recentDocuments.insert(url)
-    try? recentDocuments.write(to: GIFDocumentIO.recentsURL(inStateDirectory: stateDirectory))
-  }
-
-  // MARK: - Autosave
-
-  /// Where the recovery snapshot for this session is written.
-  public var autosaveURL: URL {
-    GIFDocumentIO.autosaveURL(inStateDirectory: stateDirectory)
-  }
-
-  /// Writes a recovery snapshot if — and only if — there is unsaved work
-  /// to recover.
-  ///
-  /// `timestamp` is threaded through from the caller rather than read
-  /// here so the store stays clock-free and a test can assert on an
-  /// exact instant. Failures are swallowed for the same reason recents
-  /// failures are: autosave is insurance, and insurance that interrupts
-  /// the work it protects is worse than none. Returns whether a
-  /// snapshot was written, which is what makes the silence testable.
-  @discardableResult
-  public func writeAutosaveSnapshot(at timestamp: Date) -> Bool {
-    guard isDirty else { return false }
-    do {
-      try AutosaveStore.snapshot(document: document, to: autosaveURL, at: timestamp)
-      return true
-    } catch {
-      return false
-    }
-  }
-
-  /// Discards the recovery file. Idempotent, and called after every
-  /// successful project save: once the work is on disk under its own
-  /// name, a recovery offer at the next launch would be an offer to
-  /// re-open something the author already has.
-  public func clearAutosaveSnapshot() {
-    try? AutosaveStore.clear(at: autosaveURL)
-  }
-
-  // MARK: - State locations
-
-  /// Where a terminal build on this machine keeps state that outlives
-  /// any one document. Re-exported here because `GIFEditorUI` is the
-  /// layer that owns the convention and the composition root — which
-  /// settles the recovery question before any view model exists — needs
-  /// to name the same directory.
-  ///
-  /// These four are `nonisolated`: they read no view-model state, and
-  /// the composition root calls them from the detached task that does
-  /// the launch-time load off the main actor.
-  public nonisolated static func stateDirectory(
-    homeDirectory: String = NSHomeDirectory()
-  ) -> URL {
-    GIFDocumentIO.stateDirectory(homeDirectory: homeDirectory)
-  }
-
-  public nonisolated static func autosaveURL(inStateDirectory directory: URL) -> URL {
-    GIFDocumentIO.autosaveURL(inStateDirectory: directory)
-  }
-
-  public nonisolated static func recentsURL(inStateDirectory directory: URL) -> URL {
-    GIFDocumentIO.recentsURL(inStateDirectory: directory)
-  }
-
-  /// Opens `url` without a view model, for the composition root's launch
-  /// path — which has to produce a document *before* there is anything
-  /// to open it into. Routes on magic bytes exactly as the in-session
-  /// Open verb does, so a `.halfcell` named on the command line reaches
-  /// the project decoder rather than the GIF importer.
-  public nonisolated static func loadDocument(contentsOf url: URL) throws -> GIFDocument {
-    try GIFDocumentIO.open(contentsOf: url)
-  }
-
   // MARK: - Edit / history helpers
 
   private func recordUndoableEdit(_ label: String, _ edit: () -> Void) {
-    // Consent to lose the work as it stood is not consent to lose
-    // whatever is drawn next, so any edit re-arms the quit guard.
-    allowsQuitWithUnsavedChanges = false
-
     if history.hasActiveGroup {
       edit()
       return
@@ -2043,7 +1746,7 @@ public final class EditorViewModel {
 
 // MARK: - CanvasDragContext
 
-extension EditorViewModel: CanvasDragContext {
+extension EditingSession: CanvasDragContext {
   var canvasSize: GIFEditorCore.PixelSize {
     document.size
   }

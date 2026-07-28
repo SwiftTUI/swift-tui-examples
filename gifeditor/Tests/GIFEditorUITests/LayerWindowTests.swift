@@ -68,12 +68,11 @@ struct LayerWindowTests {
     let layers = (0..<count).map {
       EditorLayer(name: "Layer \($0 + 1)", pixels: PixelBuffer(size: size))
     }
-    let model = EditorViewModel(
+    let model = EditingSession(
       document: GIFDocument(
         size: size,
         frames: [EditorFrame(layers: layers, delayCentiseconds: 10)]
-      ),
-      stateDirectory: Self.throwawayStateDirectory
+      )
     )
     return LayerListView(
       layers: layers,

@@ -436,7 +436,7 @@ struct OnionSkinTests {
   /// skin — so a ghost under the cursor cannot be picked.
   @Test("the eyedropper picks the real pixel, never the ghost under it")
   func eyedropperIgnoresGhosts() {
-    let model = EditorViewModel(document: twoFrameDocument())
+    let model = EditingSession(document: twoFrameDocument())
     model.primaryColorIndex = 7
     model.selectTool(.eyedropper)
     model.cursor = GIFEditorCore.PixelPoint(x: 0, y: 0)
@@ -463,7 +463,7 @@ struct OnionSkinTests {
   /// new code path, so it is the one run between the two measurements.
   @Test("the exported GIF and the project file are unchanged by onion skin")
   func ghostsNeverReachAnExport() throws {
-    let model = EditorViewModel(document: twoFrameDocument())
+    let model = EditingSession(document: twoFrameDocument())
     let before = model.document
     let gifBefore = try GIFEncoder.encode(document: before)
     let projectBefore = try ProjectFile.data(for: before)
@@ -488,7 +488,7 @@ struct OnionSkinTests {
   /// which is the only representation a `PixelBuffer` can hold.
   @Test("no ghosted cell is representable as a document pixel")
   func ghostedCellsNeverBecomeDocumentPixels() {
-    let model = EditorViewModel(document: twoFrameDocument())
+    let model = EditingSession(document: twoFrameDocument())
     let composites = model.compositedFrames()
     var settings = OnionSkinSettings()
     settings.toggle()
@@ -549,7 +549,7 @@ struct OnionSkinTests {
   /// so the two settings rows cycle rather than offering a submenu.
   @Test("the View menu carries the onion-skin controls and their values")
   func viewMenuCarriesTheOnionSkinControls() {
-    let model = EditorViewModel(document: twoFrameDocument())
+    let model = EditingSession(document: twoFrameDocument())
     var settings = OnionSkinSettings(isEnabled: true, depth: 2, sides: .previous)
     let binding = Binding(get: { settings }, set: { settings = $0 })
 
@@ -610,7 +610,7 @@ struct OnionSkinTests {
   }
 
   private func renderCanvas(
-    model: EditorViewModel,
+    model: EditingSession,
     composites: [[EditorColor?]],
     ghosts: [CanvasGhostLayer]
   ) -> [Color?] {

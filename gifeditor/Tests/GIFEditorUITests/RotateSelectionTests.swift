@@ -153,7 +153,7 @@ struct RotateSelectionTests {
     // The turned region reaches rows the marquee never covered, so this
     // is the case where a `.frameContent` stamp could plausibly be too
     // narrow. It is not: the write is still one layer of one frame.
-    let model = EditorViewModel(document: filledDocument(frames: 3))
+    let model = EditingSession(document: filledDocument(frames: 3))
     model.compositeOracleEnabled = true
     let before = model.compositedFrames()
     let baseline = model.compositeRecomputeCount
@@ -208,8 +208,8 @@ struct RotateSelectionTests {
     return found
   }
 
-  private func model(with layer: PixelBuffer) -> EditorViewModel {
-    EditorViewModel(
+  private func model(with layer: PixelBuffer) -> EditingSession {
+    EditingSession(
       document: GIFDocument(
         size: layer.size,
         frames: [EditorFrame(layers: [EditorLayer(name: "Layer 1", pixels: layer)])]

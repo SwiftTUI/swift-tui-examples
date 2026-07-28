@@ -171,8 +171,11 @@ struct PresentationRuntimeTests {
         },
       ])
 
-    var document = GIFDocument.blank(size: .init(width: 8, height: 8))
-    document.path = URL(fileURLWithPath: "/art/nyan.gif")
+    let document = GIFDocument.blank(size: .init(width: 8, height: 8))
+    let origin = DocumentOrigin(
+      source: .file(URL(fileURLWithPath: "/art/nyan.gif")),
+      kind: .gif
+    )
 
     let result = try await RunLoop(
       rootIdentity: rootIdentity,
@@ -186,7 +189,11 @@ struct PresentationRuntimeTests {
       focusTracker: FocusTracker(invalidationIdentities: [rootIdentity]),
       proposal: .init(width: 80, height: 24),
       viewBuilder: { _, _ in
-        EditorView(document: document, stateDirectory: sharedStateDirectory)
+        EditorView(
+          document: document,
+          origin: origin,
+          stateDirectory: sharedStateDirectory
+        )
       }
     ).run()
 
@@ -225,8 +232,7 @@ struct PresentationRuntimeTests {
         },
       ])
 
-    var document = GIFDocument.blank(size: .init(width: 8, height: 8))
-    document.path = target
+    let document = GIFDocument.blank(size: .init(width: 8, height: 8))
 
     let result = try await RunLoop(
       rootIdentity: rootIdentity,
@@ -240,7 +246,12 @@ struct PresentationRuntimeTests {
       focusTracker: FocusTracker(invalidationIdentities: [rootIdentity]),
       proposal: .init(width: 80, height: 24),
       viewBuilder: { _, _ in
-        EditorView(document: document, stateDirectory: directory)
+        EditorView(
+          document: document,
+          origin: DocumentOrigin(source: .file(target), kind: .project),
+          projectBacking: ProjectBacking(target),
+          stateDirectory: directory
+        )
       }
     ).run()
 
@@ -249,7 +260,7 @@ struct PresentationRuntimeTests {
     #expect(FileManager.default.fileExists(atPath: target.path))
     // What landed is the lossless project, not a GIF.
     let written = try Data(contentsOf: target)
-    #expect(GIFDocumentIO.fileKind(of: written) == .project)
+    #expect(DocumentIngestion.kind(of: written) == .project)
   }
 
   /// The autosave timer runs on `AutosaveTicker`'s node, not on the
@@ -266,7 +277,7 @@ struct PresentationRuntimeTests {
       .appendingPathComponent("halfcell-runtime-\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: directory) }
-    let autosaveURL = EditorViewModel.autosaveURL(inStateDirectory: directory)
+    let autosaveURL = GIFDocumentIO.autosaveURL(inStateDirectory: directory)
 
     let terminal = GIFEditorPresentationRecordingTerminalHost(
       surfaceSize: .init(width: 80, height: 24)

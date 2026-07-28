@@ -30,7 +30,7 @@ import SwiftTUI
 struct LayerListView: View {
   let layers: [EditorLayer]
   let selectedIndex: Int
-  let model: EditorViewModel
+  let model: EditingSession
   let refresh: @MainActor @Sendable () -> Void
   var density: EditorLayoutDensity = .regular
 
@@ -97,7 +97,7 @@ struct LayerListView: View {
     HStack(spacing: 1) {
       visibilityButton(for: layer, index: index)
       Button {
-        model.selectLayer(at: index)
+        model.dispatch(.selectLayer(index))
         refresh()
       } label: {
         Text(layer.name)
@@ -115,7 +115,7 @@ struct LayerListView: View {
 
   private func visibilityButton(for layer: EditorLayer, index: Int) -> some View {
     Button {
-      model.toggleLayerVisibility(at: index)
+      model.dispatch(.toggleLayerVisibility(index))
       refresh()
     } label: {
       Text(layer.isVisible ? "●" : "○")
@@ -126,7 +126,7 @@ struct LayerListView: View {
 
   private func deleteButton(index: Int) -> some View {
     Button {
-      model.deleteLayer(at: index)
+      model.dispatch(.deleteLayer(index))
       refresh()
     } label: {
       Text("✕").foregroundStyle(.muted)
@@ -136,7 +136,7 @@ struct LayerListView: View {
 
   private var newLayerButton: some View {
     Button {
-      model.addLayer()
+      model.dispatch(.addLayer)
       refresh()
     } label: {
       HStack(spacing: 1) {

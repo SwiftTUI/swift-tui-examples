@@ -8,7 +8,7 @@ import Testing
 /// rule, checked against the encoder that enforces it.
 ///
 /// The rule used to be written twice — once in `GIFEncoder`, which acts
-/// on it, and once in `EditorViewModel`, which warns about it — and two
+/// on it, and once in `EditingSession`, which warns about it — and two
 /// spellings of a predicate that decides file size are two spellings that
 /// can drift. They are now one `GIFEncoder.supportsDeltaCoding(_:)`.
 ///
@@ -36,10 +36,10 @@ struct DeltaCodingPredicateTests {
     var subjects: [(String, GIFDocument)] = [
       ("single frame, background", GIFDocument(size: size, frames: [frame(1, .background)]))
     ]
-    for disposal in EditorViewModel.disposalOrder {
+    for disposal in EditingSession.disposalOrder {
       subjects.append(
         (
-          "two frames, both \(EditorViewModel.disposalLabel(disposal))",
+          "two frames, both \(EditingSession.disposalLabel(disposal))",
           GIFDocument(size: size, frames: [frame(1, disposal), frame(2, disposal)])
         )
       )
@@ -49,7 +49,7 @@ struct DeltaCodingPredicateTests {
       // wrong by half-honouring it.
       subjects.append(
         (
-          "two frames, second \(EditorViewModel.disposalLabel(disposal))",
+          "two frames, second \(EditingSession.disposalLabel(disposal))",
           GIFDocument(size: size, frames: [frame(1, .background), frame(2, disposal)])
         )
       )
@@ -60,7 +60,7 @@ struct DeltaCodingPredicateTests {
   @Test("the view model reports whatever the encoder decides")
   func viewModelAgreesWithTheEncoder() {
     for (name, document) in Self.subjects() {
-      let model = EditorViewModel(document: document)
+      let model = EditingSession(document: document)
       #expect(
         model.exportUsesDeltaFrames == GIFEncoder.supportsDeltaCoding(document),
         "\(name): the view model and the encoder disagree"
@@ -107,11 +107,11 @@ struct DeltaCodingPredicateTests {
         )
       }
     )
-    let model = EditorViewModel(document: document)
+    let model = EditingSession(document: document)
     #expect(model.exportUsesDeltaFrames)
 
     document.frames[2].disposal = .keep
-    let authored = EditorViewModel(document: document)
+    let authored = EditingSession(document: document)
     #expect(!authored.exportUsesDeltaFrames)
     #expect(authored.authoredDisposalDisablesDeltaCoding)
     #expect(!GIFEncoder.supportsDeltaCoding(document))

@@ -60,12 +60,12 @@ struct NewDocumentSheetView: View {
   }
 
   private static var presetRowCount: Int {
-    let count = EditorViewModel.canvasSizeProgression.count
+    let count = EditingSession.canvasSizeProgression.count
     return (count + presetColumns - 1) / presetColumns
   }
 
   private static func presetRow(_ row: Int) -> [Int] {
-    let progression = EditorViewModel.canvasSizeProgression
+    let progression = EditingSession.canvasSizeProgression
     let start = row * presetColumns
     let end = min(start + presetColumns, progression.count)
     guard start < end else { return [] }
@@ -77,7 +77,7 @@ struct NewDocumentSheetView: View {
   private var customEntry: some View {
     let entry = ResizeCanvasSheetView.parseCustomSize(width: widthText, height: heightText)
     return VStack(alignment: .leading, spacing: 0) {
-      Text("…or enter any size up to \(EditorViewModel.maximumCanvasDimension) per axis:")
+      Text("…or enter any size up to \(EditingSession.maximumCanvasDimension) per axis:")
         .foregroundStyle(.muted)
       HStack(spacing: 1) {
         TextField("W", text: $widthText)

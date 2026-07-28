@@ -24,7 +24,7 @@ struct InspectorColumnView: View {
   let secondaryIndex: PaletteIndex
   let layers: [EditorLayer]
   let selectedLayerIndex: Int
-  let model: EditorViewModel
+  let model: EditingSession
   let refresh: @MainActor @Sendable () -> Void
   let fidelity: EditorColorFidelity
   var density: EditorLayoutDensity = .regular

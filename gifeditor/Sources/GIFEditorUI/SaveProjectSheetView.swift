@@ -106,7 +106,7 @@ struct SaveProjectSheetView: View {
   }
 
   private var targetURL: URL? {
-    EditorViewModel.saveURL(from: pathText)
+    GIFDocumentIO.saveURL(from: pathText)
   }
 
   private var namesProjectFile: Bool {

@@ -2,7 +2,7 @@ import Foundation
 import GIFEditorCore
 import SwiftTUI
 
-/// Public root view of the editor. Owns one `EditorViewModel` for the
+/// Public root view of the editor. Owns one `EditingSession` for the
 /// document's lifetime; everything below it renders from that model
 /// and forwards user input back through it.
 ///
@@ -45,7 +45,7 @@ public struct EditorView: View {
   // @State (the Reference Box pattern). Mutating @MainActor methods on
   // it advance state in-place; we still mark the @State so the
   // framework treats this view as having local-owned state.
-  @State private var model: EditorViewModel
+  @State private var lifecycle: DocumentLifecycle
   @State private var revision: Int = 0
   @State private var showsToolDock = true
   @State private var showsRightPanel = true
@@ -97,21 +97,9 @@ public struct EditorView: View {
   /// Which of New / Open / Save As is up. One optional rather than three
   /// booleans, so "two sheets at once" is not a state this view can
   /// reach.
-  @State private var fileSheet: FileSheet?
   @State private var openPathText = ""
-  @State private var openErrorMessage: String?
-  @State private var isOpening = false
   @State private var projectSavePathText = ""
   @State private var overwriteProjectSaveConfirmed = false
-  @State private var saveAsFallThroughReason: String?
-  @State private var isSavingProject = false
-  /// The verb the unsaved-changes guard is holding, and the one it hands
-  /// to the save flow when the author picks `Save…` instead of
-  /// `Discard`. Two fields because the guard is dismissed the moment the
-  /// save begins, and the intent has to outlive it.
-  @State private var isUnsavedChangesPresented = false
-  @State private var pendingDocumentAction: PendingDocumentAction?
-  @State private var queuedAfterSave: PendingDocumentAction?
 
   /// How much color the terminal can show, resolved once per process.
   ///
@@ -125,9 +113,12 @@ public struct EditorView: View {
   /// waiting out the production interval.
   private let autosaveInterval: Duration
 
+  private var model: EditingSession {
+    lifecycle.session
+  }
+
   /// `autosaveInterval` is optional rather than defaulted to
-  /// `AutosaveTicker.defaultInterval` for the same reason
-  /// `EditorViewModel`'s `stateDirectory` is: a default argument in a
+  /// `AutosaveTicker.defaultInterval` because a default argument in a
   /// `public` declaration may only name things at least as visible as
   /// the declaration, and the ticker is internal.
   ///
@@ -137,6 +128,8 @@ public struct EditorView: View {
   /// run it in.
   public init(
     document: GIFDocument,
+    origin: DocumentOrigin? = nil,
+    projectBacking: ProjectBacking? = nil,
     initialStatusMessage: String = "",
     stateDirectory: URL? = nil,
     recoveredUnsavedWork: Bool = false,
@@ -144,6 +137,8 @@ public struct EditorView: View {
   ) {
     self.init(
       document: document,
+      origin: origin,
+      projectBacking: projectBacking,
       initialStatusMessage: initialStatusMessage,
       stateDirectory: stateDirectory,
       recoveredUnsavedWork: recoveredUnsavedWork,
@@ -152,17 +147,33 @@ public struct EditorView: View {
     )
   }
 
+  /// Builds the editor around an already prepared lifecycle. The composition
+  /// root uses this after launch loading and recovery have been resolved by
+  /// `DocumentLifecycle`.
+  public init(
+    lifecycle: DocumentLifecycle,
+    autosaveInterval: Duration? = nil
+  ) {
+    _lifecycle = State(initialValue: lifecycle)
+    self.autosaveInterval = autosaveInterval ?? AutosaveTicker.defaultInterval
+    colorFidelity = .detected
+  }
+
   init(
     document: GIFDocument,
+    origin: DocumentOrigin? = nil,
+    projectBacking: ProjectBacking? = nil,
     initialStatusMessage: String = "",
     stateDirectory: URL? = nil,
     recoveredUnsavedWork: Bool = false,
     autosaveInterval: Duration? = nil,
     colorFidelity: EditorColorFidelity?
   ) {
-    _model = State(
-      initialValue: EditorViewModel(
+    _lifecycle = State(
+      initialValue: DocumentLifecycle(
         document: document,
+        origin: origin,
+        projectBacking: projectBacking,
         initialStatusMessage: initialStatusMessage,
         stateDirectory: stateDirectory,
         startsDirty: recoveredUnsavedWork
@@ -178,10 +189,11 @@ public struct EditorView: View {
     // forces a body re-evaluation against the (already-mutated)
     // model. A future @Observable adoption can drop this seam.
     _ = revision
-    let model = self.model
+    let lifecycle = self.lifecycle
+    let model = lifecycle.session
     let refresh: @MainActor @Sendable () -> Void = { revision &+= 1 }
     let presentExportSheet: @MainActor @Sendable () -> Void = {
-      exportPathText = model.defaultExportURL.path
+      exportPathText = lifecycle.defaultExportURL.path
       overwriteExportConfirmed = false
       exportPreviewDocument = model.document
       exportPreviewRequestID &+= 1
@@ -199,112 +211,42 @@ public struct EditorView: View {
 
     // MARK: File verbs
     //
-    // Declared in dependency order — each closure captures the ones
-    // above it — and every one of them is reachable from both the menu
-    // and a keybinding through the single `fileActions` value below.
-
-    let beginOpen: @MainActor @Sendable (URL) -> Void = { url in
-      guard !isOpening else { return }
-      isOpening = true
-      openErrorMessage = nil
-      openMenu = nil
-      model.announce("Opening \(url.lastPathComponent)…")
-      refresh()
-      Task { @MainActor in
-        let opened = await model.openDocumentOffMain(contentsOf: url)
-        isOpening = false
-        if opened {
-          fileSheet = nil
-          openErrorMessage = nil
-        } else {
-          // Stay up and say why. A sheet that vanishes over a typo
-          // makes the author retype the whole path to find out what
-          // went wrong.
-          openPathText = url.path
-          openErrorMessage = model.statusMessage
-          fileSheet = .open
-        }
-        refresh()
-      }
-    }
-
-    let presentSaveAsSheet: @MainActor @Sendable (String?) -> Void = { reason in
-      projectSavePathText = model.defaultProjectSaveURL.path
-      overwriteProjectSaveConfirmed = false
-      saveAsFallThroughReason = reason
-      fileSheet = .saveAs
-      openMenu = nil
-    }
-
-    let performDocumentAction: @MainActor @Sendable (PendingDocumentAction) -> Void = { action in
-      switch action {
-      case .new:
-        fileSheet = .new
-      case .open:
-        openPathText = ""
-        openErrorMessage = nil
-        fileSheet = .open
-      case .openRecent(let url):
-        beginOpen(url)
-      case .quit:
-        // A termination handler can only allow or cancel; it cannot end
-        // the run loop itself. So "discard and quit" is spelled as
-        // *disarm the guard, then quit again*, and the status line is
-        // what makes that a two-step the author expects rather than a
-        // key press that appeared to do nothing.
-        model.allowsQuitWithUnsavedChanges = true
-        model.announce("Changes discarded — press the exit key again to quit")
-      }
-    }
-
-    let resumeQueuedAction: @MainActor @Sendable () -> Void = {
-      guard let queued = queuedAfterSave else { return }
-      queuedAfterSave = nil
-      performDocumentAction(queued)
-    }
-
-    let performSave: @MainActor @Sendable () -> Void = {
-      switch model.saveRoute {
-      case .writeBack(let target):
-        guard !isSavingProject else { return }
-        isSavingProject = true
+    // The lifecycle serializes every transition. This closure only bridges an
+    // event into its async state machine and refreshes the reference-box view.
+    let dispatchLifecycle: @MainActor @Sendable (DocumentLifecycle.Intent) -> Void = {
+      intent in
+      let wasSaveAs = lifecycle.fileSheet == .saveAs
+      switch intent {
+      case .autosave:
+        break  // A background tick must not dismiss UI the author is using.
+      default:
         openMenu = nil
-        model.announce("Saving…")
-        refresh()
-        Task { @MainActor in
-          // `overwriteExisting: true`: the target *is* this document's
-          // own project file, so there is nothing to confirm.
-          let saved = await model.saveProjectOffMain(to: target, overwriteExisting: true)
-          isSavingProject = false
-          if saved {
-            resumeQueuedAction()
-          }
-          refresh()
+      }
+      Task { @MainActor in
+        _ = await lifecycle.dispatch(intent, onTransition: refresh)
+        // Autosave changes no presented or Editing state. Invalidating the
+        // whole terminal every tick creates a perpetual render loop even
+        // for a clean document and can starve input delivery.
+        if case .autosave = intent {
+          return
         }
-      case .promptForLocation:
-        // The fall-through. A document that came from a GIF has a
-        // `path`, and writing a layered document back over it would
-        // flatten every layer under a verb that promises the opposite.
-        presentSaveAsSheet(Self.saveFallThroughReason(for: model.document))
+        if !wasSaveAs, lifecycle.fileSheet == .saveAs {
+          projectSavePathText = lifecycle.defaultProjectSaveURL.path
+          overwriteProjectSaveConfirmed = false
+        }
+        refresh()
       }
-    }
-
-    let requestDocumentAction: @MainActor @Sendable (PendingDocumentAction) -> Void = { action in
-      openMenu = nil
-      guard model.isDirty else {
-        performDocumentAction(action)
-        return
-      }
-      pendingDocumentAction = action
-      isUnsavedChangesPresented = true
     }
 
     let fileActions = FileMenuActions(
-      new: { requestDocumentAction(.new) },
-      open: { requestDocumentAction(.open) },
-      openRecent: { url in requestDocumentAction(.openRecent(url)) },
-      save: performSave,
-      saveAs: { presentSaveAsSheet(nil) },
+      new: { dispatchLifecycle(.request(.new)) },
+      open: {
+        openPathText = ""
+        dispatchLifecycle(.request(.open))
+      },
+      openRecent: { url in dispatchLifecycle(.request(.openRecent(url))) },
+      save: { dispatchLifecycle(.requestSave) },
+      saveAs: { dispatchLifecycle(.requestSaveAs) },
       exportGIF: presentExportSheet
     )
     // How much of the terminal's height the chrome may spend. Read from the
@@ -378,6 +320,7 @@ public struct EditorView: View {
           MenuBarView(
             openMenu: $openMenu,
             model: model,
+            documentTitle: lifecycle.documentTitle,
             showsToolDock: $showsToolDock,
             showsRightPanel: $showsRightPanel,
             showsTimeline: $showsTimeline,
@@ -469,6 +412,7 @@ public struct EditorView: View {
           menu: openMenu,
           openMenu: $openMenu,
           model: model,
+          recentDocuments: lifecycle.recentDocuments.urls,
           showsToolDock: $showsToolDock,
           showsRightPanel: $showsRightPanel,
           showsTimeline: $showsTimeline,
@@ -488,13 +432,13 @@ public struct EditorView: View {
       // task is already spent on playback, and the framework supports
       // exactly one per node (see `AutosaveTicker`).
       AutosaveTicker(interval: autosaveInterval) {
-        model.writeAutosaveSnapshot(at: Date())
+        dispatchLifecycle(.autosave(Date()))
       }
 
       // The "press ?" nudge, spent once per state directory. Its own node
       // for the same reason the ticker has one: the root's single `.task`
       // is already playback's.
-      FirstRunHintView(stateDirectory: model.stateDirectory) {
+      FirstRunHintView(stateDirectory: lifecycle.stateDirectory) {
         model.announce(FirstRunHint.message)
         refresh()
       }
@@ -508,82 +452,49 @@ public struct EditorView: View {
       // different budget: see `FilePresentationHost` for why two more
       // modifiers on the root chain overflow the resolve stack.
       FilePresentationHost(
-        isUnsavedChangesPresented: $isUnsavedChangesPresented,
-        fileSheet: $fileSheet,
+        isUnsavedChangesPresented: Binding(
+          get: { lifecycle.isUnsavedChangesPresented },
+          set: { shown in
+            if !shown { dispatchLifecycle(.cancelPresentation) }
+          }
+        ),
+        fileSheet: Binding(
+          get: { lifecycle.fileSheet },
+          set: { sheet in
+            if sheet == nil { dispatchLifecycle(.cancelPresentation) }
+          }
+        ),
         openPathText: $openPathText,
         projectSavePathText: $projectSavePathText,
         overwriteProjectSaveConfirmed: $overwriteProjectSaveConfirmed,
-        pendingAction: pendingDocumentAction,
-        recentDocuments: model.recentDocuments.urls,
-        openErrorMessage: openErrorMessage,
-        isOpening: isOpening,
-        isSavingProject: isSavingProject,
-        saveAsFallThroughReason: saveAsFallThroughReason,
+        pendingAction: lifecycle.pendingAction,
+        recentDocuments: lifecycle.recentDocuments.urls,
+        openErrorMessage: lifecycle.openErrorMessage,
+        isOpening: lifecycle.isOpening,
+        isSavingProject: lifecycle.isSaving,
+        saveAsFallThroughReason: lifecycle.saveFallThroughReason,
         onGuardSave: {
-          isUnsavedChangesPresented = false
-          // The guard closes now, so the intent has to move somewhere
-          // that outlives it; the save flow picks it back up once the
-          // write actually lands.
-          queuedAfterSave = pendingDocumentAction
-          pendingDocumentAction = nil
-          performSave()
-          refresh()
+          dispatchLifecycle(.dirtyDecision(.save))
         },
         onGuardDiscard: {
-          isUnsavedChangesPresented = false
-          let action = pendingDocumentAction
-          pendingDocumentAction = nil
-          if let action {
-            performDocumentAction(action)
-          }
-          refresh()
+          dispatchLifecycle(.dirtyDecision(.discard))
         },
         onGuardCancel: {
-          isUnsavedChangesPresented = false
-          pendingDocumentAction = nil
-          refresh()
+          dispatchLifecycle(.dirtyDecision(.cancel))
         },
         onCreateDocument: { size in
-          model.newDocument(size: size)
-          // The document that was on screen is gone, so a recovery file
-          // describing it is an offer to reopen work the author just
-          // chose to leave behind.
-          model.clearAutosaveSnapshot()
-          fileSheet = nil
-          refresh()
+          dispatchLifecycle(.create(size))
         },
-        onOpenDocument: beginOpen,
+        onOpenDocument: { url in
+          openPathText = url.path
+          dispatchLifecycle(.open(url))
+        },
         onSaveProject: { target, overwriteExisting in
-          guard !isSavingProject else { return }
-          isSavingProject = true
-          model.announce("Saving...")
-          refresh()
-          Task { @MainActor in
-            let saved = await model.saveProjectOffMain(
-              to: target,
-              overwriteExisting: overwriteExisting
-            )
-            isSavingProject = false
-            if saved {
-              fileSheet = nil
-              saveAsFallThroughReason = nil
-              // A `Save…` answer to the guard only finishes here, once
-              // the bytes are actually down.
-              resumeQueuedAction()
-            }
-            refresh()
-          }
+          dispatchLifecycle(.saveAs(target, overwriteExisting: overwriteExisting))
         },
         onCancelSheet: {
-          fileSheet = nil
-          openErrorMessage = nil
           overwriteProjectSaveConfirmed = false
-          saveAsFallThroughReason = nil
-          // Backing out of the save turns off the verb that was waiting
-          // on it — proceeding would discard exactly the work the author
-          // just declined to lose.
-          queuedAfterSave = nil
-          refresh()
+          dispatchLifecycle(.cancelPresentation)
         }
       )
     }
@@ -619,8 +530,8 @@ public struct EditorView: View {
       refresh: refresh
     )
     .applyTerminationHandling(
-      model: model,
-      confirmUnsavedChanges: { requestDocumentAction(.quit) },
+      lifecycle: lifecycle,
+      confirmUnsavedChanges: { dispatchLifecycle(.request(.quit)) },
       refresh: refresh
     )
     .sheet("Export GIF", isPresented: $isExportSheetPresented) {
@@ -638,7 +549,7 @@ public struct EditorView: View {
           refresh()
           Task {
             @MainActor in
-            let exported = await model.exportGIFOffMain(
+            let exported = await lifecycle.exportGIF(
               to: target,
               overwriteExisting: overwriteExisting
             )
@@ -661,7 +572,7 @@ public struct EditorView: View {
       ResizeCanvasSheetView(
         currentSize: model.document.size,
         onSelect: { size in
-          model.resizeCanvas(to: size)
+          model.dispatch(.resizeCanvas(size))
           isResizeSheetPresented = false
           refresh()
         },
@@ -682,19 +593,6 @@ public struct EditorView: View {
     .task(id: model.isPlaybackActive) { @MainActor in
       await playFrames(model: model, refresh: refresh)
     }
-  }
-
-  /// Why `Save` sent the author to `Save As` instead of just writing.
-  ///
-  /// Only ever non-nil when the document has a path that is *not* a
-  /// project file, which is exactly the case the fall-through exists
-  /// for. An untitled document needs no explanation: it has never had a
-  /// location, so of course it is being asked for one.
-  static func saveFallThroughReason(for document: GIFDocument) -> String? {
-    guard let path = document.path, !GIFDocumentIO.isProjectFile(path) else {
-      return nil
-    }
-    return "\(path.lastPathComponent) is an export — saving there would flatten every layer."
   }
 
   /// What the unsaved-changes guard says, named for the verb that
@@ -720,7 +618,7 @@ public struct EditorView: View {
   /// `cellBudget`, so what is drawn is always measured, never remembered.
   private func canvasRegion(
     cellBudget: CellSize,
-    model: EditorViewModel,
+    model: EditingSession,
     frameColors: [EditorColor?],
     ghosts: [CanvasGhostLayer],
     theme: EditorTheme,
@@ -764,7 +662,7 @@ public struct EditorView: View {
   /// the status line and nothing else: no document write, so no dirty flag
   /// and no undo entry.
   private func onionSkinCommands(
-    model: EditorViewModel,
+    model: EditingSession,
     refresh: @escaping @MainActor @Sendable () -> Void
   ) -> OnionSkinCommands {
     func apply(_ change: @escaping (inout OnionSkinSettings) -> Void)
@@ -790,7 +688,7 @@ public struct EditorView: View {
   /// a key press happens between renders. A stale budget can only mis-size a
   /// pan step for one frame after a terminal resize; the next render corrects
   /// the box, and the rendered viewport was never wrong to begin with.
-  private func viewportCommands(model: EditorViewModel) -> CanvasViewportCommands {
+  private func viewportCommands(model: EditingSession) -> CanvasViewportCommands {
     let budget = canvasCellBudget
     let mode = pixelGridMode
     let context: @MainActor @Sendable () -> CanvasViewportContext = {
@@ -830,13 +728,15 @@ public struct EditorView: View {
 
   @MainActor
   private func playFrames(
-    model: EditorViewModel,
+    model: EditingSession,
     refresh: @escaping @MainActor @Sendable () -> Void
   ) async {
     while model.isPlaybackActive && !Task.isCancelled {
       try? await Task.sleep(for: model.currentPlaybackDelay)
       guard !Task.isCancelled else { return }
-      let didAdvance = model.advancePlaybackFrame()
+      let previousFrame = model.currentFrameIndex
+      model.dispatch(.advancePlaybackFrame)
+      let didAdvance = model.currentFrameIndex != previousFrame
       refresh()
       guard didAdvance else { return }
     }

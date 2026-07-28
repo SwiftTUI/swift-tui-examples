@@ -1,7 +1,7 @@
 import GIFEditorCore
 
 /// The editing surface a `CanvasDragController` drives during a pointer
-/// drag. `EditorViewModel` conforms to it, exposing just the cursor,
+/// drag. `EditingSession` conforms to it, exposing just the cursor,
 /// tool, selection, layer, and history primitives the drag state machine
 /// needs — the controller never touches the document or history stack
 /// directly, so the coordinator stays the single owner of those.
@@ -40,7 +40,7 @@ protocol CanvasDragContext: AnyObject {
 /// Owns only the transient drag bookkeeping (`activeSelectMove`); all
 /// document mutation and history grouping is delegated back through a
 /// `CanvasDragContext`. The per-tool dispatch is the same logic that used
-/// to live inline on `EditorViewModel` — pen/eraser stamp through the
+/// to live inline on `EditingSession` — pen/eraser stamp through the
 /// context, marquee/gradient advance their anchors, and select moves a
 /// snapshot of the original pixels so each drag step re-derives from the
 /// untouched layer rather than compounding.

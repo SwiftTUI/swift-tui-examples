@@ -16,12 +16,15 @@ struct AutosaveStoreTests {
   @Test("A layered document recovers field for field")
   func recoversALayeredDocumentLosslessly() throws {
     try withTemporaryDirectory { directory in
-      let original = Self.layeredDocument(
-        path: directory.appendingPathComponent("session.halfcell")
-      )
+      let original = Self.layeredDocument()
       let recoveryURL = directory.appendingPathComponent(AutosaveStore.defaultFileName)
 
-      try AutosaveStore.snapshot(document: original, to: recoveryURL, at: Self.snapshotDate)
+      try AutosaveStore.snapshot(
+        document: original,
+        originalPath: directory.appendingPathComponent("session.halfcell"),
+        to: recoveryURL,
+        at: Self.snapshotDate
+      )
       let snapshot = try #require(try AutosaveStore.recover(from: recoveryURL))
       let recovered = snapshot.document
 
@@ -63,32 +66,38 @@ struct AutosaveStoreTests {
   func recoveryCarriesItsMetadata() throws {
     try withTemporaryDirectory { directory in
       let documentURL = directory.appendingPathComponent("session.halfcell")
-      let original = Self.layeredDocument(path: documentURL)
+      let original = Self.layeredDocument()
       let recoveryURL = directory.appendingPathComponent(AutosaveStore.defaultFileName)
 
-      try AutosaveStore.snapshot(document: original, to: recoveryURL, at: Self.snapshotDate)
+      try AutosaveStore.snapshot(
+        document: original,
+        originalPath: documentURL,
+        to: recoveryURL,
+        at: Self.snapshotDate
+      )
       let snapshot = try #require(try AutosaveStore.recover(from: recoveryURL))
 
       #expect(snapshot.savedAt == Self.snapshotDate)
       #expect(snapshot.originalPath == documentURL)
-      // The project envelope strips `path`; recovery is where it comes
-      // back, so accepting a recovery does not silently untitle a
-      // document the user had already filed.
-      #expect(snapshot.document.path == documentURL)
+      #expect(snapshot.document == original)
     }
   }
 
   @Test("A never-saved document recovers with no original path")
   func unsavedDocumentRecoversWithoutAPath() throws {
     try withTemporaryDirectory { directory in
-      let original = Self.layeredDocument(path: nil)
+      let original = Self.layeredDocument()
       let recoveryURL = directory.appendingPathComponent(AutosaveStore.defaultFileName)
 
-      try AutosaveStore.snapshot(document: original, to: recoveryURL, at: Self.snapshotDate)
+      try AutosaveStore.snapshot(
+        document: original,
+        originalPath: nil,
+        to: recoveryURL,
+        at: Self.snapshotDate
+      )
       let snapshot = try #require(try AutosaveStore.recover(from: recoveryURL))
 
       #expect(snapshot.originalPath == nil)
-      #expect(snapshot.document.path == nil)
       #expect(snapshot.document.frames.count == 3)
     }
   }
@@ -98,7 +107,8 @@ struct AutosaveStoreTests {
     try withTemporaryDirectory { directory in
       let recoveryURL = directory.appendingPathComponent(AutosaveStore.defaultFileName)
       try AutosaveStore.snapshot(
-        document: Self.layeredDocument(path: nil),
+        document: Self.layeredDocument(),
+        originalPath: nil,
         to: recoveryURL,
         at: Self.snapshotDate
       )
@@ -131,7 +141,8 @@ struct AutosaveStoreTests {
     try withTemporaryDirectory { directory in
       let recoveryURL = directory.appendingPathComponent(AutosaveStore.defaultFileName)
       try AutosaveStore.snapshot(
-        document: Self.layeredDocument(path: nil),
+        document: Self.layeredDocument(),
+        originalPath: nil,
         to: recoveryURL,
         at: Self.snapshotDate
       )
@@ -156,7 +167,8 @@ struct AutosaveStoreTests {
     try withTemporaryDirectory { directory in
       let recoveryURL = directory.appendingPathComponent(AutosaveStore.defaultFileName)
       try AutosaveStore.snapshot(
-        document: Self.layeredDocument(path: nil),
+        document: Self.layeredDocument(),
+        originalPath: nil,
         to: recoveryURL,
         at: Self.snapshotDate
       )
@@ -176,7 +188,8 @@ struct AutosaveStoreTests {
     try withTemporaryDirectory { directory in
       let recoveryURL = directory.appendingPathComponent(AutosaveStore.defaultFileName)
       try AutosaveStore.snapshot(
-        document: Self.layeredDocument(path: nil),
+        document: Self.layeredDocument(),
+        originalPath: nil,
         to: recoveryURL,
         at: Self.snapshotDate
       )
@@ -201,7 +214,8 @@ struct AutosaveStoreTests {
     try withTemporaryDirectory { directory in
       let recoveryURL = directory.appendingPathComponent(AutosaveStore.defaultFileName)
       try AutosaveStore.snapshot(
-        document: Self.layeredDocument(path: nil),
+        document: Self.layeredDocument(),
+        originalPath: nil,
         to: recoveryURL,
         at: Self.snapshotDate
       )
@@ -242,12 +256,22 @@ struct AutosaveStoreTests {
       // truncated and streamed would leave a window where the file is a
       // prefix; one that did not truncate would leave the tail of the
       // larger file behind. Neither survives the rename.
-      let large = Self.layeredDocument(path: nil, size: PixelSize(width: 32, height: 32))
-      try AutosaveStore.snapshot(document: large, to: recoveryURL, at: Self.snapshotDate)
+      let large = Self.layeredDocument(size: PixelSize(width: 32, height: 32))
+      try AutosaveStore.snapshot(
+        document: large,
+        originalPath: nil,
+        to: recoveryURL,
+        at: Self.snapshotDate
+      )
       let largeByteCount = try Data(contentsOf: recoveryURL).count
 
       let small = GIFDocument.blank(size: PixelSize(width: 2, height: 2))
-      try AutosaveStore.snapshot(document: small, to: recoveryURL, at: Self.snapshotDate)
+      try AutosaveStore.snapshot(
+        document: small,
+        originalPath: nil,
+        to: recoveryURL,
+        at: Self.snapshotDate
+      )
 
       let smallByteCount = try Data(contentsOf: recoveryURL).count
       #expect(smallByteCount < largeByteCount)
@@ -274,7 +298,8 @@ struct AutosaveStoreTests {
         .appendingPathComponent(AutosaveStore.defaultFileName)
 
       try AutosaveStore.snapshot(
-        document: Self.layeredDocument(path: nil),
+        document: Self.layeredDocument(),
+        originalPath: nil,
         to: recoveryURL,
         at: Self.snapshotDate
       )
@@ -290,7 +315,6 @@ struct AutosaveStoreTests {
   /// non-default palette, mixed delays and disposals, and a non-zero
   /// loop count — every field the GIF encoder would flatten away.
   static func layeredDocument(
-    path: URL?,
     size: PixelSize = PixelSize(width: 6, height: 4)
   ) -> GIFDocument {
     let palette = ColorPalette(colors: [
@@ -330,7 +354,6 @@ struct AutosaveStoreTests {
       size: size,
       palette: palette,
       frames: frames,
-      path: path,
       loopCount: 5
     )
   }

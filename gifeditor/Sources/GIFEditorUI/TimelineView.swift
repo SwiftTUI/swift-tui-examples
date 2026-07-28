@@ -21,7 +21,7 @@ import SwiftTUI
 struct TimelineView: View {
   let frames: [TimelineFrame]
   let currentFrameIndex: Int
-  let model: EditorViewModel
+  let model: EditingSession
   let refresh: @MainActor @Sendable () -> Void
 
   var body: some View {
@@ -55,16 +55,16 @@ struct TimelineView: View {
   private var navigationCluster: some View {
     HStack(spacing: 1) {
       playbackButton
-      navButton("◀◀", action: model.goToFirstFrame)
-      navButton("◀", action: model.previousFrame)
-      navButton("▶", action: model.nextFrame)
-      navButton("▶▶", action: model.goToLastFrame)
+      navButton("◀◀") { model.dispatch(.firstFrame) }
+      navButton("◀") { model.dispatch(.previousFrame) }
+      navButton("▶") { model.dispatch(.nextFrame) }
+      navButton("▶▶") { model.dispatch(.lastFrame) }
     }
   }
 
   private var playbackButton: some View {
     Button {
-      model.togglePlayback()
+      model.dispatch(.togglePlayback)
       refresh()
     } label: {
       Text(model.isPlaybackActive ? "pause" : "play")
@@ -91,9 +91,9 @@ struct TimelineView: View {
 
   private var frameOperations: some View {
     HStack(spacing: 1) {
-      navButton("＋", action: model.insertBlankFrameAfterCurrent)
-      navButton("⎘", action: model.duplicateCurrentFrame)
-      navButton("✕", action: model.deleteCurrentFrame)
+      navButton("＋") { model.dispatch(.insertBlankFrame) }
+      navButton("⎘") { model.dispatch(.duplicateFrame) }
+      navButton("✕") { model.dispatch(.deleteFrame) }
     }
   }
 
@@ -103,10 +103,10 @@ struct TimelineView: View {
     HStack(spacing: 1) {
       Text("delay").foregroundStyle(.muted)
       delayReadout
-      navButton("-") { model.adjustCurrentFrameDelay(by: -10) }
-      navButton("+") { model.adjustCurrentFrameDelay(by: 10) }
+      navButton("-") { model.dispatch(.adjustFrameDelay(-10)) }
+      navButton("+") { model.dispatch(.adjustFrameDelay(10)) }
       Button {
-        model.setAllFrameDelaysToCurrent()
+        model.dispatch(.setAllFrameDelaysToCurrent)
         refresh()
       } label: {
         Text("=all").foregroundStyle(.muted)
@@ -129,18 +129,22 @@ struct TimelineView: View {
       .gesture(
         DragGesture(minimumDistance: 0, coordinateSpace: .local)
           .onChanged { value in
-            model.beginDelayScrub()
-            model.updateDelayScrub(
-              by: TimelineDragMath.delayDelta(translationCells: value.translation.dx)
+            model.dispatch(.beginDelayScrub)
+            model.dispatch(
+              .updateDelayScrub(
+                TimelineDragMath.delayDelta(translationCells: value.translation.dx)
+              )
             )
             refresh()
           }
           .onEnded { value in
-            model.beginDelayScrub()
-            model.updateDelayScrub(
-              by: TimelineDragMath.delayDelta(translationCells: value.translation.dx)
+            model.dispatch(.beginDelayScrub)
+            model.dispatch(
+              .updateDelayScrub(
+                TimelineDragMath.delayDelta(translationCells: value.translation.dx)
+              )
             )
-            model.endDelayScrub()
+            model.dispatch(.endDelayScrub)
             refresh()
           }
       )
@@ -160,13 +164,13 @@ struct TimelineView: View {
   /// reorder is committed only on `.onEnded`, and only when the pointer
   /// travelled far enough to name a different slot, so a click (whose
   /// translation is zero) resolves to `index` and takes
-  /// ``EditorViewModel/moveCurrentFrame(by:)``'s no-op branch. That is
+  /// ``EditingSession/moveCurrentFrame(by:)``'s no-op branch. That is
   /// what keeps a plain click from recording an empty undo step.
   private func thumbnail(frame: TimelineFrame, index: Int) -> some View {
     let active = index == currentFrameIndex
     let pixels = frame.thumbnail.pixels.map { $0?.toTerminalColor() }
     return Button {
-      model.selectFrame(at: index)
+      model.dispatch(.selectFrame(index))
       refresh()
     } label: {
       Canvas.pixelGrid(
@@ -193,7 +197,7 @@ struct TimelineView: View {
             frameCount: frames.count
           )
           guard destination != index else { return }
-          model.moveFrame(from: index, to: destination)
+          model.dispatch(.moveFrame(source: index, destination: destination))
           refresh()
         }
     )

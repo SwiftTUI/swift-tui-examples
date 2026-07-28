@@ -8,8 +8,8 @@ import GIFEditorCore
 ///
 /// Kept here next to `EditorHistory` because the history stack is the
 /// only thing that reads or writes whole snapshots; the coordinator
-/// produces one with `EditorViewModel.snapshotState()` and applies one
-/// with `EditorViewModel.restore(_:)`.
+/// produces one with `EditingSession.snapshotState()` and applies one
+/// with `EditingSession.restore(_:)`.
 struct EditorSnapshot: Equatable {
   var document: GIFDocument
   var currentFrameIndex: Int
@@ -35,7 +35,7 @@ struct EditorSnapshot: Equatable {
 
 /// Undo/redo stack plus snapshot bookkeeping for the editor.
 ///
-/// A value type owned by `EditorViewModel`: the coordinator captures its
+/// A value type owned by `EditingSession`: the coordinator captures its
 /// own state into an `EditorSnapshot`, hands snapshots in, and applies
 /// the snapshots this history returns. Keeping the generation counters
 /// and the stacks here leaves the coordinator free to delegate without
@@ -86,9 +86,15 @@ struct EditorHistory {
     currentGeneration
   }
 
-  /// Marks the present generation clean (called after a successful save).
-  mutating func markClean() {
-    cleanGeneration = currentGeneration
+  /// Records the exact generation whose bytes reached durable storage.
+  ///
+  /// The current generation may already be newer because saving happens off
+  /// the main actor. Keeping the receipt's generation—not whatever happens
+  /// to be current when the write completes—prevents a stale save from
+  /// declaring later edits clean. Undo/redo can still return to this saved
+  /// generation and correctly become clean there.
+  mutating func markClean(generation: Int) {
+    cleanGeneration = generation
   }
 
   /// Marks the present state as unsaved work without recording an undo
@@ -201,7 +207,6 @@ struct EditorHistory {
     if before.size != current.size { return true }
     if before.frames.count != current.frames.count { return true }
     if before.loopCount != current.loopCount { return true }
-    if before.path != current.path { return true }
     if before.palette != current.palette { return true }
     return before.frames != current.frames
   }

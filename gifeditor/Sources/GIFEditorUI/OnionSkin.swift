@@ -216,7 +216,7 @@ struct OnionSkinSettings: Equatable, Sendable {
   /// The canvas-ready ghost layers for `currentIndex`.
   ///
   /// Takes already-composited frames rather than the document, so the canvas
-  /// reuses `EditorViewModel.compositedFrames()`'s memoized pass instead of
+  /// reuses `EditingSession.compositedFrames()`'s memoized pass instead of
   /// flattening the neighbours a second time. Adjacent frames are in that
   /// cache already — the timeline strip needs them for its thumbnails — so a
   /// ghost costs no compositing work at all.

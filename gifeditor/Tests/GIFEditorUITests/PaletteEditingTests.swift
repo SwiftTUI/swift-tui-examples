@@ -5,7 +5,7 @@ import Testing
 
 @testable import GIFEditorUI
 
-/// Palette editing through `EditorViewModel`.
+/// Palette editing through `EditingSession`.
 ///
 /// Two things are being pinned here, and they fail in opposite
 /// directions:
@@ -29,7 +29,7 @@ struct PaletteEditingTests {
 
   @Test("Sorting the palette leaves every composited frame byte-identical")
   func sortLeavesCompositesByteIdentical() {
-    let model = EditorViewModel(document: artwork())
+    let model = EditingSession(document: artwork())
     let before = model.compositedFrames()
     let paletteBefore = model.document.palette
 
@@ -44,7 +44,7 @@ struct PaletteEditingTests {
 
   @Test("Sorting remaps the color selections and the clipboard")
   func sortRemapsSelectionsAndClipboard() throws {
-    let model = EditorViewModel(document: artwork())
+    let model = EditingSession(document: artwork())
     model.primaryColorIndex = 6
     model.secondaryColorIndex = 21
     model.copySelection()
@@ -77,7 +77,7 @@ struct PaletteEditingTests {
 
   @Test("Sorting is one undoable edit that restores the palette and the pixels")
   func sortIsOneUndoableEdit() {
-    let model = EditorViewModel(document: artwork())
+    let model = EditingSession(document: artwork())
     let paletteBefore = model.document.palette
     let framesBefore = model.document.frames
 
@@ -96,7 +96,7 @@ struct PaletteEditingTests {
 
   @Test("Editing a palette slot recomposites every frame and passes the oracle")
   func slotEditRecompositesEveryFrame() {
-    let model = EditorViewModel(document: artwork())
+    let model = EditingSession(document: artwork())
     model.compositeOracleEnabled = true
     _ = model.compositedFrames()
     let baseline = model.compositeRecomputeCount
@@ -116,7 +116,7 @@ struct PaletteEditingTests {
 
   @Test("Every palette edit shape passes the composite soundness oracle")
   func everyPaletteEditPassesTheOracle() throws {
-    let model = EditorViewModel(document: artwork())
+    let model = EditingSession(document: artwork())
     model.compositeOracleEnabled = true
     let frameCount = model.document.frames.count
 
@@ -171,7 +171,7 @@ struct PaletteEditingTests {
       palette: palette,
       frames: [EditorFrame(layers: [EditorLayer(name: "Layer 1", pixels: buffer)])]
     )
-    let model = EditorViewModel(document: document)
+    let model = EditingSession(document: document)
 
     // Slot 2 (FF0000) goes; its pixels land on FE0000, which slid down
     // into slot 2 as everything above the hole shifted.
@@ -184,7 +184,7 @@ struct PaletteEditingTests {
 
   @Test("Slot 0 is pinned as the transparency sentinel and refuses removal")
   func slotZeroRefusesRemoval() {
-    let model = EditorViewModel(document: artwork())
+    let model = EditingSession(document: artwork())
     let before = model.document.palette
 
     model.removePaletteSlot(at: ColorPalette.transparentSlot)
@@ -209,7 +209,7 @@ struct PaletteEditingTests {
       palette: palette,
       frames: [EditorFrame(layers: [EditorLayer(name: "Layer 1", pixels: buffer)])]
     )
-    let model = EditorViewModel(document: document)
+    let model = EditingSession(document: document)
     let before = model.compositedFrames()
 
     model.compactPalette()
@@ -221,7 +221,7 @@ struct PaletteEditingTests {
 
   @Test("Adding a color lands in the first unused slot and selects it")
   func addLandsInFirstUnusedSlot() {
-    let model = EditorViewModel(document: artwork())
+    let model = EditingSession(document: artwork())
     let used = model.document.palette.usedCount
     let color = EditorColor(rgbHex: 0xABCDEF)
 
@@ -234,7 +234,7 @@ struct PaletteEditingTests {
 
   @Test("Editing a slot repaints every pixel that references it")
   func slotEditRepaintsReferencingPixels() throws {
-    let model = EditorViewModel(document: artwork())
+    let model = EditingSession(document: artwork())
     let replacement = EditorColor(rgbHex: 0x7F00FF)
     // Take a slot the artwork actually shows, so the assertion below
     // can't pass by finding nothing to check.
@@ -257,7 +257,7 @@ struct PaletteEditingTests {
 
   @Test("Importing a .hex palette keeps slot 0 transparent and recolors to nearest")
   func importHexRecolorsToNearest() throws {
-    let model = EditorViewModel(document: artwork())
+    let model = EditingSession(document: artwork())
     let file = try temporaryPaletteFile(
       named: "swatches.hex",
       contents: "#FF0000\n00FF00\n0000FF\n"
@@ -287,7 +287,7 @@ struct PaletteEditingTests {
 
   @Test("Importing a .gpl palette parses the GIMP format")
   func importGimpPalette() throws {
-    let model = EditorViewModel(document: artwork())
+    let model = EditingSession(document: artwork())
     let file = try temporaryPaletteFile(
       named: "swatches.gpl",
       contents: "GIMP Palette\nName: Test\n#comment\n17 34 51\t Slate\n255 255 255 White\n"
@@ -303,7 +303,7 @@ struct PaletteEditingTests {
 
   @Test("A malformed palette file leaves the document untouched")
   func malformedImportIsRejected() throws {
-    let model = EditorViewModel(document: artwork())
+    let model = EditingSession(document: artwork())
     let before = model.document
     let file = try temporaryPaletteFile(named: "broken.hex", contents: "FF00\nnot-a-color\n")
     defer { try? FileManager.default.removeItem(at: file) }
@@ -317,7 +317,7 @@ struct PaletteEditingTests {
 
   @Test("An unreadable or unknown palette path is reported, not thrown")
   func unknownPaletteFormatIsReported() {
-    let model = EditorViewModel(document: artwork())
+    let model = EditingSession(document: artwork())
 
     #expect(!model.importPalette(fromPath: "/nowhere/palette.txt"))
     #expect(model.statusMessage.contains("failed"))
@@ -355,7 +355,7 @@ struct PaletteEditingTests {
   @Test("Palette hex labels round-trip through the hex field")
   func hexLabelRoundTrips() {
     for color in ColorPalette.default.usedColors {
-      let label = EditorViewModel.hexLabel(for: color)
+      let label = EditingSession.hexLabel(for: color)
       #expect(label.count == 6)
       let parsed = PaletteEditorSheetView.color(fromHex: label)
       #expect(parsed?.red == color.red)
@@ -368,7 +368,7 @@ struct PaletteEditingTests {
 
   @Test("The palette editor sheet renders its grid, fields and actions")
   func paletteSheetRenders() {
-    let model = EditorViewModel(document: artwork())
+    let model = EditingSession(document: artwork())
     let rendered = renderSheet(
       PaletteEditorSheetView(model: model, refresh: {}, onClose: {}),
       width: 62,

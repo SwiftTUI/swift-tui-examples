@@ -4,7 +4,7 @@ import Testing
 
 @testable import GIFEditorUI
 
-/// Cache-behavior tests for `EditorViewModel.compositedFrames()`.
+/// Cache-behavior tests for `EditingSession.compositedFrames()`.
 ///
 /// The cache key stopped being the frame's content and became a mutation
 /// stamp, so "does this edit recomposite?" is no longer decidable by
@@ -19,7 +19,7 @@ struct CompositeCacheTests {
 
   @Test("A second composite pass with no mutation in between recomputes nothing")
   func repeatedPassWithoutMutationRecomputesNothing() {
-    let model = EditorViewModel(document: filledDocument(frames: 4))
+    let model = EditingSession(document: filledDocument(frames: 4))
 
     let first = model.compositedFrames()
     #expect(model.compositeRecomputeCount == 4)
@@ -32,7 +32,7 @@ struct CompositeCacheTests {
 
   @Test("Painting one frame of a four-frame document recomposites exactly one frame")
   func paintingRecompositesOnlyTheEditedFrame() {
-    let model = EditorViewModel(document: filledDocument(frames: 4))
+    let model = EditingSession(document: filledDocument(frames: 4))
     _ = model.compositedFrames()
     let baseline = model.compositeRecomputeCount
     model.selectFrame(at: 1)
@@ -54,7 +54,7 @@ struct CompositeCacheTests {
 
   @Test("Inserting a blank frame recomposites only the new frame")
   func insertingAFrameLeavesSurvivorsCached() {
-    let model = EditorViewModel(document: filledDocument(frames: 3))
+    let model = EditingSession(document: filledDocument(frames: 3))
     let before = model.compositedFrames()
     let baseline = model.compositeRecomputeCount
 
@@ -69,7 +69,7 @@ struct CompositeCacheTests {
 
   @Test("Duplicating a frame recomposites only the copy")
   func duplicatingAFrameLeavesSurvivorsCached() {
-    let model = EditorViewModel(document: filledDocument(frames: 3))
+    let model = EditingSession(document: filledDocument(frames: 3))
     let before = model.compositedFrames()
     let baseline = model.compositeRecomputeCount
 
@@ -83,7 +83,7 @@ struct CompositeCacheTests {
 
   @Test("Deleting a frame recomposites nothing")
   func deletingAFrameRecompositesNothing() {
-    let model = EditorViewModel(document: filledDocument(frames: 3))
+    let model = EditingSession(document: filledDocument(frames: 3))
     let before = model.compositedFrames()
     let baseline = model.compositeRecomputeCount
     model.selectFrame(at: 1)
@@ -97,7 +97,7 @@ struct CompositeCacheTests {
 
   @Test("Moving a frame recomposites nothing, including the frame that moved")
   func movingAFrameRecompositesNothing() {
-    let model = EditorViewModel(document: filledDocument(frames: 3))
+    let model = EditingSession(document: filledDocument(frames: 3))
     // Paint first so the moved frame carries a stamp rather than the
     // unstamped default — a move must not disturb either.
     model.primaryColorIndex = 9
@@ -117,7 +117,7 @@ struct CompositeCacheTests {
 
   @Test("Toggling layer visibility recomposites only the current frame")
   func layerVisibilityToggleRecompositesOnlyTheCurrentFrame() {
-    let model = EditorViewModel(document: filledDocument(frames: 3))
+    let model = EditingSession(document: filledDocument(frames: 3))
     model.selectFrame(at: 2)
     let before = model.compositedFrames()
     let baseline = model.compositeRecomputeCount
@@ -132,7 +132,7 @@ struct CompositeCacheTests {
 
   @Test("Adding and deleting a layer each recomposite only the current frame")
   func layerAddAndDeleteRecompositeOnlyTheCurrentFrame() {
-    let model = EditorViewModel(document: filledDocument(frames: 3))
+    let model = EditingSession(document: filledDocument(frames: 3))
     model.selectFrame(at: 1)
     let before = model.compositedFrames()
     var expected = model.compositeRecomputeCount
@@ -158,7 +158,7 @@ struct CompositeCacheTests {
 
   @Test("Resizing the canvas recomposites every frame")
   func resizeRecompositesEveryFrame() {
-    let model = EditorViewModel(document: filledDocument(frames: 3))
+    let model = EditingSession(document: filledDocument(frames: 3))
     _ = model.compositedFrames()
     let baseline = model.compositeRecomputeCount
 
@@ -175,7 +175,7 @@ struct CompositeCacheTests {
 
   @Test("Frame delay edits recomposite nothing and leave composites correct")
   func frameDelayEditsRecompositeNothing() {
-    let model = EditorViewModel(document: filledDocument(frames: 3))
+    let model = EditingSession(document: filledDocument(frames: 3))
     model.compositeOracleEnabled = true
     let before = model.compositedFrames()
     let baseline = model.compositeRecomputeCount
@@ -195,7 +195,7 @@ struct CompositeCacheTests {
 
   @Test("Undo and redo produce correct composites")
   func undoAndRedoProduceCorrectComposites() {
-    let model = EditorViewModel(document: filledDocument(frames: 3))
+    let model = EditingSession(document: filledDocument(frames: 3))
     model.compositeOracleEnabled = true
     let clean = model.compositedFrames()
     model.selectFrame(at: 2)
@@ -221,7 +221,7 @@ struct CompositeCacheTests {
 
   @Test("Undo recomposites the whole document, deliberately")
   func undoInvalidatesEveryFrame() {
-    let model = EditorViewModel(document: filledDocument(frames: 3))
+    let model = EditingSession(document: filledDocument(frames: 3))
     _ = model.compositedFrames()
     model.primaryColorIndex = 9
     model.cursor = GIFEditorCore.PixelPoint(x: 1, y: 1)
@@ -241,7 +241,7 @@ struct CompositeCacheTests {
 
   @Test("A representative edit sequence passes the composite soundness oracle")
   func oracleAcceptsARepresentativeEditSequence() {
-    let model = EditorViewModel(document: filledDocument(frames: 3))
+    let model = EditingSession(document: filledDocument(frames: 3))
     model.compositeOracleEnabled = true
     model.primaryColorIndex = 9
 

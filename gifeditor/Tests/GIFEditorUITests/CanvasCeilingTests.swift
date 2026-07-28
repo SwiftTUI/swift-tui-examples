@@ -15,18 +15,18 @@ import Testing
 struct CanvasCeilingTests {
   @Test("The size progression runs to the documented ceiling")
   func progressionRunsToTheCeiling() {
-    #expect(EditorViewModel.canvasSizeProgression == [16, 24, 32, 48, 64, 96, 128, 192, 256])
-    #expect(EditorViewModel.canvasSizeProgression.last == EditorViewModel.maximumCanvasDimension)
-    #expect(EditorViewModel.canvasSizeProgression.allSatisfy { $0 >= 1 })
+    #expect(EditingSession.canvasSizeProgression == [16, 24, 32, 48, 64, 96, 128, 192, 256])
+    #expect(EditingSession.canvasSizeProgression.last == EditingSession.maximumCanvasDimension)
+    #expect(EditingSession.canvasSizeProgression.allSatisfy { $0 >= 1 })
     #expect(
-      EditorViewModel.canvasSizeProgression
-        == EditorViewModel.canvasSizeProgression.sorted()
+      EditingSession.canvasSizeProgression
+        == EditingSession.canvasSizeProgression.sorted()
     )
   }
 
   @Test("Cycling steps past the old 64 ceiling and wraps at 256")
   func cyclingWalksTheWholeProgression() {
-    let model = EditorViewModel(
+    let model = EditingSession(
       document: GIFDocument.blank(size: GIFEditorCore.PixelSize(width: 64, height: 64))
     )
 
@@ -40,7 +40,7 @@ struct CanvasCeilingTests {
 
   @Test("Resizing to the ceiling keeps the artwork and clamps the cursor")
   func resizeToCeilingKeepsArtwork() {
-    let model = EditorViewModel(
+    let model = EditingSession(
       document: GIFDocument.blank(size: GIFEditorCore.PixelSize(width: 16, height: 16))
     )
     model.primaryColorIndex = 9
@@ -60,7 +60,7 @@ struct CanvasCeilingTests {
 
   @Test("Non-square sizes survive the resize path")
   func nonSquareResize() {
-    let model = EditorViewModel(
+    let model = EditingSession(
       document: GIFDocument.blank(size: GIFEditorCore.PixelSize(width: 16, height: 16))
     )
 
@@ -119,7 +119,7 @@ struct CanvasCeilingTests {
     )
 
     let text = rendered.rasterSurface.lines.joined(separator: "\n")
-    for dimension in EditorViewModel.canvasSizeProgression {
+    for dimension in EditingSession.canvasSizeProgression {
       #expect(text.contains("\(dimension) × \(dimension)"))
     }
     #expect(text.contains("256 per axis"))

@@ -1,3 +1,4 @@
+import Foundation
 import GIFEditorCore
 import SwiftTUI
 
@@ -13,7 +14,8 @@ import SwiftTUI
 /// day one) and avoids advertising features that don't exist yet.
 struct MenuBarView: View {
   @Binding var openMenu: MenuBarMenu?
-  let model: EditorViewModel
+  let model: EditingSession
+  var documentTitle: String = "untitled"
   @Binding var showsToolDock: Bool
   @Binding var showsRightPanel: Bool
   @Binding var showsTimeline: Bool
@@ -49,17 +51,15 @@ struct MenuBarView: View {
   }
 
   private var documentLabel: String {
-    if let path = model.document.path {
-      return path.lastPathComponent
-    }
-    return "untitled"
+    documentTitle
   }
 }
 
 struct MenuBarDropdownView: View {
   let menu: MenuBarMenu
   @Binding var openMenu: MenuBarMenu?
-  let model: EditorViewModel
+  let model: EditingSession
+  var recentDocuments: [URL] = []
   @Binding var showsToolDock: Bool
   @Binding var showsRightPanel: Bool
   @Binding var showsTimeline: Bool
@@ -116,98 +116,106 @@ struct MenuBarDropdownView: View {
           refresh()
         }
       case .edit:
-        menuItem("Undo", action: refreshAfter(model.undo))
+        menuItem("Undo", action: refreshAfter { model.dispatch(.undo) })
           .disabled(!model.canUndo)
-        menuItem("Redo", action: refreshAfter(model.redo))
+        menuItem("Redo", action: refreshAfter { model.dispatch(.redo) })
           .disabled(!model.canRedo)
         menuGap
-        menuItem("Cut", action: refreshAfter(model.cutSelection))
-        menuItem("Copy", action: refreshAfter(model.copySelection))
-        menuItem("Paste", action: refreshAfter(model.paste))
+        menuItem("Cut", action: refreshAfter { model.dispatch(.cutSelection) })
+        menuItem("Copy", action: refreshAfter { model.dispatch(.copySelection) })
+        menuItem("Paste", action: refreshAfter { model.dispatch(.paste) })
         menuGap
         // The four region rewrites. Under Edit rather than a menu of
         // their own: they act on the selection exactly as Cut and Copy
         // do, and a seventh menu trigger costs columns an 80-wide menu
         // bar does not have.
-        menuItem("Flip Horizontal", action: refreshAfter(model.flipHorizontally))
-        menuItem("Flip Vertical", action: refreshAfter(model.flipVertically))
-        menuItem("Rotate Clockwise", action: refreshAfter(model.rotateClockwise))
-        menuItem("Rotate Counter-Clockwise", action: refreshAfter(model.rotateCounterClockwise))
+        menuItem("Flip Horizontal", action: refreshAfter { model.dispatch(.flipHorizontally) })
+        menuItem("Flip Vertical", action: refreshAfter { model.dispatch(.flipVertically) })
+        menuItem("Rotate Clockwise", action: refreshAfter { model.dispatch(.rotateClockwise) })
+        menuItem("Rotate Counter-Clockwise", action: refreshAfter {
+          model.dispatch(.rotateCounterClockwise)
+        })
         menuGap
-        menuItem("Clear Selection", action: refreshAfter(model.clearSelection))
+        menuItem("Clear Selection", action: refreshAfter { model.dispatch(.clearSelection) })
         menuGap
         menuItem("Palette…") {
           presentPaletteSheet()
           refresh()
         }
       case .layer:
-        menuItem("New Layer", action: refreshAfter(model.addLayer))
-        menuItem("Delete Layer", action: refreshAfter(model.deleteCurrentLayer))
+        menuItem("New Layer", action: refreshAfter { model.dispatch(.addLayer) })
+        menuItem("Delete Layer", action: refreshAfter { model.dispatch(.deleteCurrentLayer) })
         menuGap
-        menuItem("Toggle Visibility", action: refreshAfter(model.toggleCurrentLayerVisibility))
-        menuItem("Layer Below", action: refreshAfter(model.selectLayerBelow))
-        menuItem("Layer Above", action: refreshAfter(model.selectLayerAbove))
+        menuItem("Toggle Visibility", action: refreshAfter {
+          model.dispatch(.toggleCurrentLayerVisibility)
+        })
+        menuItem("Layer Below", action: refreshAfter { model.dispatch(.selectLayerBelow) })
+        menuItem("Layer Above", action: refreshAfter { model.dispatch(.selectLayerAbove) })
       case .select:
         menuItem("Select Tool") {
-          model.selectTool(.select)
+          model.dispatch(.selectTool(.select))
           refresh()
         }
         menuItem("Marquee Tool") {
-          model.selectTool(.marquee)
+          model.dispatch(.selectTool(.marquee))
           refresh()
         }
         menuGap
-        menuItem("Clear Selection", action: refreshAfter(model.clearSelection))
-        menuItem("Confirm Marquee", action: refreshAfter(model.applyToolAtCursor))
+        menuItem("Clear Selection", action: refreshAfter { model.dispatch(.clearSelection) })
+        menuItem("Confirm Marquee", action: refreshAfter { model.dispatch(.applyActiveTool) })
       case .frame:
-        menuItem("New Frame", action: refreshAfter(model.insertBlankFrameAfterCurrent))
-        menuItem("Duplicate Frame", action: refreshAfter(model.duplicateCurrentFrame))
-        menuItem("Delete Frame", action: refreshAfter(model.deleteCurrentFrame))
+        menuItem("New Frame", action: refreshAfter { model.dispatch(.insertBlankFrame) })
+        menuItem("Duplicate Frame", action: refreshAfter { model.dispatch(.duplicateFrame) })
+        menuItem("Delete Frame", action: refreshAfter { model.dispatch(.deleteFrame) })
         menuGap
         menuItem("Move Frame Left") {
-          model.moveCurrentFrame(by: -1)
+          model.dispatch(.moveCurrentFrame(-1))
           refresh()
         }
         menuItem("Move Frame Right") {
-          model.moveCurrentFrame(by: 1)
+          model.dispatch(.moveCurrentFrame(1))
           refresh()
         }
-        menuItem("Move Frame to Start", action: refreshAfter(model.moveCurrentFrameToStart))
-        menuItem("Move Frame to End", action: refreshAfter(model.moveCurrentFrameToEnd))
+        menuItem("Move Frame to Start", action: refreshAfter {
+          model.dispatch(.moveFrameToStart)
+        })
+        menuItem("Move Frame to End", action: refreshAfter { model.dispatch(.moveFrameToEnd) })
         menuGap
         menuItem(model.isPlaybackActive ? "Pause Playback" : "Play Playback") {
-          model.togglePlayback()
+          model.dispatch(.togglePlayback)
           refresh()
         }
         menuGap
-        menuItem("Previous Frame", action: refreshAfter(model.previousFrame))
-        menuItem("Next Frame", action: refreshAfter(model.nextFrame))
+        menuItem("Previous Frame", action: refreshAfter { model.dispatch(.previousFrame) })
+        menuItem("Next Frame", action: refreshAfter { model.dispatch(.nextFrame) })
         menuGap
         menuItem("Increase Delay") {
-          model.adjustCurrentFrameDelay(by: 10)
+          model.dispatch(.adjustFrameDelay(10))
           refresh()
         }
         menuItem("Decrease Delay") {
-          model.adjustCurrentFrameDelay(by: -10)
+          model.dispatch(.adjustFrameDelay(-10))
           refresh()
         }
-        menuItem("Equalize Delays", action: refreshAfter(model.setAllFrameDelaysToCurrent))
-        menuItem("Reset Delay", action: refreshAfter(model.resetCurrentFrameDelay))
+        menuItem("Equalize Delays", action: refreshAfter {
+          model.dispatch(.setAllFrameDelaysToCurrent)
+        })
+        menuItem("Reset Delay", action: refreshAfter { model.dispatch(.resetFrameDelay) })
         menuGap
         // Export metadata: what the written GIF will say, rather than what
         // the editor is showing. The disposal row names the mode it will
         // move to, because a row that names the current one reads as a
         // report rather than a verb.
         menuItem(
-          "Disposal: \(EditorViewModel.disposalLabel(model.currentFrame.disposal))",
-          action: refreshAfter(model.cycleCurrentFrameDisposal)
+          "Disposal: \(EditingSession.disposalLabel(model.currentFrame.disposal))",
+          action: refreshAfter { model.dispatch(.cycleFrameDisposal) }
         )
         menuItem(
-          "Loop: \(EditorViewModel.loopDescription(model.document.loopCount))",
-          action: refreshAfter(model.toggleLoopsForever)
+          "Loop: \(EditingSession.loopDescription(model.document.loopCount))",
+          action: refreshAfter { model.dispatch(.toggleLoopsForever) }
         )
         menuItem("Play Once") {
-          model.setLoopCount(GIFLoader.playsOnce)
+          model.dispatch(.setLoopCount(GIFLoader.playsOnce))
           refresh()
         }
       case .view:
@@ -254,9 +262,15 @@ struct MenuBarDropdownView: View {
           refresh()
         }
         menuGap
-        menuItem("Increase Brush Size", action: refreshAfter(model.increaseBrushSize))
-        menuItem("Decrease Brush Size", action: refreshAfter(model.decreaseBrushSize))
-        menuItem("Swap Primary/Secondary", action: refreshAfter(model.swapPrimaryAndSecondary))
+        menuItem("Increase Brush Size", action: refreshAfter {
+          model.dispatch(.increaseBrushSize)
+        })
+        menuItem("Decrease Brush Size", action: refreshAfter {
+          model.dispatch(.decreaseBrushSize)
+        })
+        menuItem("Swap Primary/Secondary", action: refreshAfter {
+          model.dispatch(.swapPrimaryAndSecondary)
+        })
         menuGap
         // Under View rather than behind a seventh menu trigger: `?` is
         // the discoverable route (the first-run hint says so), and a
@@ -281,7 +295,7 @@ struct MenuBarDropdownView: View {
   /// heading and the rows appear together or not at all.
   @ViewBuilder
   private var recentItems: some View {
-    let recents = model.recentDocuments.urls.prefix(Self.visibleRecentCount)
+    let recents = recentDocuments.prefix(Self.visibleRecentCount)
     if !recents.isEmpty {
       menuGap
       Text("Recent")

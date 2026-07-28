@@ -418,9 +418,8 @@ struct PaletteLegibilityTests {
     for (slot, color) in colors {
       palette[PaletteIndex(slot)] = color
     }
-    let model = EditorViewModel(
-      document: GIFDocument.blank(size: .init(width: 4, height: 4)),
-      stateDirectory: Self.throwawayStateDirectory
+    let model = EditingSession(
+      document: GIFDocument.blank(size: .init(width: 4, height: 4))
     )
     return PaletteView(
       palette: palette,

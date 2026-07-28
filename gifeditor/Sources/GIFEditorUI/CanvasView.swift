@@ -434,7 +434,7 @@ private enum OverlayMark: Equatable {
 struct InteractiveCanvasView: View {
   let size: GIFEditorCore.PixelSize
   let cells: [EditorColor?]
-  let model: EditorViewModel
+  let model: EditingSession
   let refresh: @MainActor @Sendable () -> Void
   var mode: CanvasPixelGridMode = .verticalHalfBlock
   var viewport: CanvasViewport? = nil
@@ -503,9 +503,9 @@ struct InteractiveCanvasView: View {
 
     if dragAnchor == nil {
       dragAnchor = anchor
-      model.beginCanvasDrag(at: anchor)
+      model.dispatch(.beginCanvasDrag(anchor))
     }
-    model.updateCanvasDrag(startingAt: anchor, from: lastDragPoint, to: current)
+    model.dispatch(.updateCanvasDrag(anchor: anchor, previous: lastDragPoint, point: current))
     lastDragPoint = current
     hover = current
     refresh()
@@ -525,7 +525,7 @@ struct InteractiveCanvasView: View {
       mode: mode
     )
 
-    model.endCanvasDrag(startingAt: anchor, from: lastDragPoint, to: current)
+    model.dispatch(.endCanvasDrag(anchor: anchor, previous: lastDragPoint, point: current))
     dragAnchor = nil
     lastDragPoint = nil
     hover = current

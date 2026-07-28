@@ -102,7 +102,7 @@ enum TimelineDragMath {
 /// `PresentationRuntimeTests` — it renders at exactly 80×24 and is what
 /// catches it.
 struct TimelineExportSettingsView: View {
-  let model: EditorViewModel
+  let model: EditingSession
   let refresh: @MainActor @Sendable () -> Void
 
   /// The widest either row may render, in cells. See the type doc — this
@@ -134,10 +134,10 @@ struct TimelineExportSettingsView: View {
     HStack(spacing: 1) {
       Text("disp").foregroundStyle(.muted)
       Button {
-        model.cycleCurrentFrameDisposal()
+        model.dispatch(.cycleFrameDisposal)
         refresh()
       } label: {
-        Text(EditorViewModel.disposalCode(model.currentFrame.disposal))
+        Text(EditingSession.disposalCode(model.currentFrame.disposal))
           .foregroundStyle(model.currentFrame.disposal == .background ? .foreground : .warning)
       }
       .buttonStyle(.plain)
@@ -162,15 +162,15 @@ struct TimelineExportSettingsView: View {
     HStack(spacing: 1) {
       Text("loop").foregroundStyle(.muted)
       Button {
-        model.toggleLoopsForever()
+        model.dispatch(.toggleLoopsForever)
         refresh()
       } label: {
-        Text(EditorViewModel.loopCode(model.document.loopCount))
+        Text(EditingSession.loopCode(model.document.loopCount))
           .foregroundStyle(model.document.loopCount == 0 ? .tint : .foreground)
       }
       .buttonStyle(.plain)
-      stepButton("-") { model.adjustLoopCount(by: -1) }
-      stepButton("+") { model.adjustLoopCount(by: 1) }
+      stepButton("-") { model.dispatch(.adjustLoopCount(-1)) }
+      stepButton("+") { model.dispatch(.adjustLoopCount(1)) }
     }
   }
 

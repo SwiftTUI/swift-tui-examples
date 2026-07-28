@@ -33,12 +33,11 @@ public enum GIFLoader {
     } catch {
       throw GIFLoaderError.unreadable(url)
     }
-    return try load(data: data, sourcePath: url, dithering: dithering)
+    return try load(data: data, dithering: dithering)
   }
 
   public static func load(
     data: Data,
-    sourcePath: URL? = nil,
     dithering: Quantizer.Dithering = .none
   ) throws -> GIFDocument {
     var source = ByteSource(data: data)
@@ -96,7 +95,6 @@ public enum GIFLoader {
       size: size,
       palette: quantized.palette,
       frames: editorFrames,
-      path: sourcePath,
       // `nil` is "the file declared nothing", which the format defines as
       // playing once. Defaulting it to the type's zero would say "forever"
       // about every finite animation the editor ever opens — and the

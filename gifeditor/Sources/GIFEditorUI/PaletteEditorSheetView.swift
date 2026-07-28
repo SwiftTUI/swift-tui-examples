@@ -7,7 +7,7 @@ import SwiftTUI
 /// compact the whole thing, or replace it from a Lospec `.hex` / GIMP
 /// `.gpl` file.
 ///
-/// Every action here calls straight through to `EditorViewModel`, so each
+/// Every action here calls straight through to `EditingSession`, so each
 /// one is a single undoable edit that has already remapped every
 /// `PaletteIndex` in the document. The sheet holds no copy of the
 /// palette — it renders `model.document.palette` — so an undo taken from
@@ -18,7 +18,7 @@ import SwiftTUI
 /// rewrites the field the author is mid-way through typing; two buttons
 /// cost one extra click and never surprise anyone.
 struct PaletteEditorSheetView: View {
-  let model: EditorViewModel
+  let model: EditingSession
   let refresh: @MainActor @Sendable () -> Void
   let onClose: @MainActor @Sendable () -> Void
 
@@ -134,7 +134,7 @@ struct PaletteEditorSheetView: View {
             refresh()
             return
           }
-          model.setPaletteColor(parsed, at: PaletteIndex(slot))
+          model.dispatch(.setPaletteColor(parsed, at: PaletteIndex(slot)))
           loadFields(from: model.document.palette)
           refresh()
         }
@@ -150,7 +150,7 @@ struct PaletteEditorSheetView: View {
             refresh()
             return
           }
-          model.setPaletteColor(parsed, at: PaletteIndex(slot))
+          model.dispatch(.setPaletteColor(parsed, at: PaletteIndex(slot)))
           loadFields(from: model.document.palette)
           refresh()
         }
@@ -173,24 +173,24 @@ struct PaletteEditorSheetView: View {
   private func structureActions(palette: ColorPalette, slot: Int) -> some View {
     HStack(spacing: 1) {
       Button("Add") {
-        model.appendPaletteColor(Self.color(fromHex: hexText) ?? .black)
+        model.dispatch(.appendPaletteColor(Self.color(fromHex: hexText) ?? .black))
         select(Int(model.primaryColorIndex), in: model.document.palette)
         refresh()
       }
       .disabled(palette.usedCount >= ColorPalette.capacity)
       Button("Remove") {
-        model.removePaletteSlot(at: PaletteIndex(slot))
+        model.dispatch(.removePaletteSlot(PaletteIndex(slot)))
         select(min(slot, model.document.palette.usedCount - 1), in: model.document.palette)
         refresh()
       }
       .disabled(slot == Int(ColorPalette.transparentSlot) || palette.usedCount <= 1)
       Button("Sort") {
-        model.sortPalette()
+        model.dispatch(.sortPalette)
         loadFields(from: model.document.palette)
         refresh()
       }
       Button("Compact") {
-        model.compactPalette()
+        model.dispatch(.compactPalette)
         select(min(slot, model.document.palette.usedCount - 1), in: model.document.palette)
         refresh()
       }
@@ -231,7 +231,7 @@ struct PaletteEditorSheetView: View {
   /// the fields always describe what the swatch shows.
   private func loadFields(from palette: ColorPalette) {
     let color = palette[PaletteIndex(clampedSlot(in: palette))]
-    hexText = EditorViewModel.hexLabel(for: color)
+    hexText = EditingSession.hexLabel(for: color)
     redText = String(color.red)
     greenText = String(color.green)
     blueText = String(color.blue)

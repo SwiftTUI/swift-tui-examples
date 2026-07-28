@@ -26,7 +26,7 @@ struct ToolboxView: View {
   let tool: ActiveTool
   let primaryColor: EditorColor
   let secondaryColor: EditorColor
-  let model: EditorViewModel
+  let model: EditingSession
   let refresh: @MainActor @Sendable () -> Void
   var density: EditorLayoutDensity = .regular
 
@@ -86,7 +86,7 @@ struct ToolboxView: View {
 
   private func toolButton(_ entry: ActiveTool) -> some View {
     Button {
-      model.selectTool(entry)
+      model.dispatch(.selectTool(entry))
       refresh()
     } label: {
       Text(entry.iconGlyph)
@@ -97,7 +97,7 @@ struct ToolboxView: View {
 
   private var swapButton: some View {
     Button {
-      model.swapPrimaryAndSecondary()
+      model.dispatch(.swapPrimaryAndSecondary)
       refresh()
     } label: {
       Text("⇄").foregroundStyle(.muted)
