@@ -154,6 +154,25 @@ public struct CommandCatalog: Sendable {
     return (command, command.availability(context))
   }
 
+  /// Resolves a key press while the preview surface holds focus.
+  ///
+  /// Only `.preview` commands stay live there — every other binding drives the
+  /// browser and must not fire while keys are destined for the preview. The
+  /// rule lives here, beside the availability closures that depend on
+  /// `previewFocused`, because a caller that answers it first makes those
+  /// closures unreachable.
+  public func previewFocusedCommand(
+    for keyPress: KeyPress,
+    context: CommandContext
+  ) -> (CommandDefinition, CommandAvailability)? {
+    guard let resolved = command(for: keyPress, context: context),
+      resolved.0.section == .preview
+    else {
+      return nil
+    }
+    return resolved
+  }
+
   public func applyingKeyOverrides(
     _ overrides: [String: String]
   ) throws -> CommandCatalog {

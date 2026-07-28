@@ -103,26 +103,6 @@ public struct SortConfiguration: Codable, Equatable, Sendable {
     self.direction = direction
     self.directoriesFirst = directoriesFirst
   }
-
-  var directorySort: DirectorySort {
-    let key: DirectorySort.Key =
-      switch self.key {
-      case .name:
-        .name
-      case .modified:
-        .modificationDate
-      case .size:
-        .size
-      }
-    let direction: SortDirection =
-      switch self.direction {
-      case .ascending:
-        .ascending
-      case .descending:
-        .descending
-      }
-    return DirectorySort(key: key, direction: direction)
-  }
 }
 
 public struct ColorConfiguration: Codable, Equatable, Sendable {

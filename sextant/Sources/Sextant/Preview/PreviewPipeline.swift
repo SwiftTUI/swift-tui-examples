@@ -81,11 +81,6 @@ actor PreviewPipeline {
       return stream
     }
 
-    await coordinator?.cancelCurrent()
-    guard owns(rawGeneration) else {
-      return stream
-    }
-
     let fallback = await builtInPreviewer.preview(
       item: item,
       directorySnapshot: directorySnapshot
@@ -115,6 +110,11 @@ actor PreviewPipeline {
         fallback: fallback
       )
     case .unavailable(let failure):
+      // The two branches above hand the selection to the coordinator, which
+      // replaces the running child itself once its debounce window closes.
+      // Nothing downstream of here does, so this is the one path that has to
+      // tear the child down.
+      await coordinator?.cancelCurrent()
       publishResolutionFailure(
         failure,
         rawGeneration: rawGeneration,
@@ -259,8 +259,6 @@ actor PreviewPipeline {
       }
       let mappedFailure: PreviewFailure =
         switch failure {
-        case .missingExecutable:
-          .unreadable("The configured preview executable is unavailable.")
         case .startup(let message):
           .unreadable("Preview failed to start: \(message)")
         }

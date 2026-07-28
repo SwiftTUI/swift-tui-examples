@@ -627,15 +627,12 @@ struct ColumnBrowser: View {
       }
       return .ignored
     }
-    guard model.state.focus != .preview else {
-      return .ignored
-    }
-    guard
-      let (command, availability) = commandCatalog.command(
-        for: keyPress,
-        context: commandContext
-      )
-    else {
+    let context = commandContext
+    let resolved =
+      context.previewFocused
+      ? commandCatalog.previewFocusedCommand(for: keyPress, context: context)
+      : commandCatalog.command(for: keyPress, context: context)
+    guard let (command, availability) = resolved else {
       return .ignored
     }
     guard availability.isEnabled else {
@@ -760,10 +757,20 @@ struct ColumnBrowser: View {
   }
 
   private func routePreviewKey(_ keyPress: KeyPress) -> TerminalViewKeyDisposition {
-    guard keyPress == KeyPress(.escape) else {
+    // The embedded child sees every key the catalog does not claim for the
+    // preview surface, so this asks the same question `handleKeyPress` does
+    // rather than hard-coding one chord.
+    guard
+      let (command, availability) = commandCatalog.previewFocusedCommand(
+        for: keyPress,
+        context: commandContext
+      ),
+      availability.isEnabled,
+      command.dispatchOwnership == .browser
+    else {
       return .forwardToChild
     }
-    model.send(.focusBrowser)
+    perform(command)
     return .handledByHost
   }
 

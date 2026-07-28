@@ -1,9 +1,15 @@
 public struct BrowserLayoutPolicy: Equatable, Sendable {
-  public static let browserMinimumWidth = 22
-  public static let previewMinimumWidth = 40
-  public static let separatorWidth = 1
-  public static let twoColumnBreakpoint = 86
-  public static let splitBreakpoint = 63
+  /// The narrowest surface that still fits one browser column beside a
+  /// preview, and the narrowest that fits two. `MillerLayout` owns the minima
+  /// these are built from, so deriving them here keeps a width change from
+  /// moving the breakpoints out from under the layout that has to honour them.
+  public static let splitBreakpoint =
+    MillerLayout.browserMinimumWidth
+    + MillerLayout.separatorWidth
+    + MillerLayout.previewMinimumWidth
+  public static let twoColumnBreakpoint =
+    splitBreakpoint + MillerLayout.browserMinimumWidth
+    + MillerLayout.separatorWidth
 
   public init() {}
 

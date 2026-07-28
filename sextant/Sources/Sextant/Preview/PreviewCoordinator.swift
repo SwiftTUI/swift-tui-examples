@@ -31,7 +31,6 @@ public struct PreviewProcessClient: Sendable {
 }
 
 public enum PreviewLaunchFailure: Equatable, Sendable {
-  case missingExecutable
   case startup(String)
 }
 

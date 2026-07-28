@@ -200,17 +200,6 @@ struct ConfigurationAndHandoffTests {
     }
   }
 
-  @Test("sort configuration preserves direction and directory grouping")
-  func sortDirection() {
-    let descending = SortConfiguration(
-      key: .name,
-      direction: .descending,
-      directoriesFirst: false
-    )
-    #expect(descending.directorySort.key == .name)
-    #expect(descending.directorySort.direction == .descending)
-    #expect(!descending.directoriesFirst)
-  }
 
   @MainActor
   @Test("versioned preview content rules map into runtime adapter policy")

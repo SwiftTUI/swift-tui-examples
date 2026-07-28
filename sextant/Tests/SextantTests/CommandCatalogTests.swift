@@ -30,6 +30,61 @@ struct CommandCatalogTests {
     #expect(preview?.availability(context).disabledReason != nil)
   }
 
+  @Test("preview focus keeps preview commands live and browser commands out")
+  func previewFocusedDispatch() {
+    let catalog = CommandCatalog()
+    let focused = CommandContext(
+      hasSelection: true,
+      hasPreview: true,
+      previewFocused: true,
+      hasRootRelativeSelection: true
+    )
+
+    // Both preview bindings resolve while the preview holds focus. Tab was
+    // unreachable for as long as the caller answered the focus question
+    // before the catalog was consulted.
+    #expect(
+      catalog.previewFocusedCommand(for: KeyPress(.tab), context: focused)?.0.id
+        == CommandID("preview.toggle")
+    )
+    #expect(
+      catalog.previewFocusedCommand(for: KeyPress(.escape), context: focused)?.0
+        .id == CommandID("preview.escape")
+    )
+
+    // Browser bindings stay out; their keys belong to the preview surface.
+    #expect(
+      catalog.previewFocusedCommand(for: KeyPress(.arrowDown), context: focused)
+        == nil
+    )
+    #expect(
+      catalog.previewFocusedCommand(
+        for: KeyPress(.character("/")),
+        context: focused
+      ) == nil
+    )
+  }
+
+  @Test("preview escape availability answers the focus question")
+  func previewEscapeAvailability() {
+    let catalog = CommandCatalog()
+    let unfocused = CommandContext(
+      hasSelection: true,
+      hasPreview: true,
+      previewFocused: false,
+      hasRootRelativeSelection: true
+    )
+    let escape = catalog.command(id: CommandID("preview.escape"))
+
+    #expect(escape?.availability(unfocused).isEnabled == false)
+    #expect(
+      catalog.previewFocusedCommand(
+        for: KeyPress(.escape),
+        context: unfocused
+      )?.1.isEnabled == false
+    )
+  }
+
   @Test("validated overrides replace dispatch and presentation together")
   func keyOverrides() throws {
     let catalog = try CommandCatalog().applyingKeyOverrides([

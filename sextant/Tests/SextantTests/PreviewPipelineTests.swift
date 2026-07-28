@@ -325,11 +325,70 @@ struct PreviewPipelineTests {
     await failedPipeline.shutdown()
   }
 
+  @Test("a replacement selection leaves the live preview up until the debounce closes")
+  func replacementWaitsForTheDebounce() async throws {
+    let fileSystem = InMemoryFileSystemClient()
+    let first = fileItem(path: "/fixture/value.txt")
+    let second = fileItem(path: "/fixture/other.txt")
+    for item in [first, second] {
+      await fileSystem.setFile(
+        Data("fixture".utf8),
+        metadata: item.listingMetadata,
+        at: item.url
+      )
+    }
+    let adapter = PreviewAdapterDescription(
+      id: PreviewAdapterID("scripted"),
+      displayName: "Scripted previewer",
+      contentKinds: [.text],
+      executable: "scripted",
+      isInteractive: false,
+      priority: 1,
+      arguments: { [$0.path] }
+    )
+    let clock = ManualPipelineClock()
+    let sessions = PipelineSessionRecorder()
+    let pipeline = makePipeline(
+      fileSystem: fileSystem,
+      resolver: PreviewResolver(adapters: [adapter]),
+      executableCache: PreviewExecutableCache(path: "") { _, _ in
+        "/fixture/scripted"
+      },
+      mode: .external,
+      clock: PreviewClock { try await clock.sleep($0) },
+      processClient: sessions.processClient()
+    )
+
+    _ = await pipeline.events(
+      for: first,
+      generation: PreviewGeneration(rawValue: 1)
+    )
+    try await clock.waitForWaiters(count: 1)
+    await clock.advanceAll()
+    try await sessions.waitForSessions(count: 1)
+
+    // The replacement arms its own debounce window. Until that window closes
+    // the coordinator owns the teardown, so the visible child must still be
+    // running — a pre-emptive cancel here is what made arrowing through a
+    // directory blank the preview on every keystroke.
+    _ = await pipeline.events(
+      for: second,
+      generation: PreviewGeneration(rawValue: 2)
+    )
+    try await clock.waitForWaiters(count: 1)
+
+    #expect(await sessions.terminationSignals.isEmpty)
+    #expect(await sessions.sessionCount == 1)
+
+    await pipeline.shutdown()
+  }
+
   private func makePipeline(
     fileSystem: any FileSystemClient,
     resolver: PreviewResolver = PreviewResolver(),
     executableCache: PreviewExecutableCache? = nil,
     mode: PreviewPipelineMode = .builtIn,
+    clock: PreviewClock = .continuous,
     processClient: PreviewProcessClient = .live
   ) -> PreviewPipeline {
     PreviewPipeline(
@@ -338,6 +397,7 @@ struct PreviewPipelineTests {
       executableCache: executableCache
         ?? PreviewExecutableCache(path: "") { _, _ in nil },
       mode: mode,
+      clock: clock,
       processClient: processClient
     )
   }
@@ -495,4 +555,98 @@ private actor SuspendedMetadataFileSystemClient: FileSystemClient {
 
 private enum PreviewPipelineTestFailure: Error {
   case timedOut
+}
+
+private actor ManualPipelineClock {
+  private struct Waiter {
+    var duration: Duration
+    var continuation: CheckedContinuation<Void, any Error>
+  }
+
+  private var waiters: [UUID: Waiter] = [:]
+
+  func sleep(_ duration: Duration) async throws {
+    let id = UUID()
+    try await withTaskCancellationHandler {
+      try await withCheckedThrowingContinuation {
+        (continuation: CheckedContinuation<Void, any Error>) in
+        if Task.isCancelled {
+          continuation.resume(throwing: CancellationError())
+        } else {
+          waiters[id] = Waiter(duration: duration, continuation: continuation)
+        }
+      }
+    } onCancel: {
+      Task { await self.cancel(id) }
+    }
+  }
+
+  func advanceAll() {
+    let current = waiters.values
+    waiters.removeAll()
+    for waiter in current {
+      waiter.continuation.resume()
+    }
+  }
+
+  func waitForWaiters(count: Int) async throws {
+    let deadline = ContinuousClock().now + .seconds(2)
+    while waiters.count < count, ContinuousClock().now < deadline {
+      await Task.yield()
+    }
+    guard waiters.count >= count else {
+      throw PreviewPipelineTestFailure.timedOut
+    }
+  }
+
+  private func cancel(_ id: UUID) {
+    waiters.removeValue(forKey: id)?.continuation.resume(
+      throwing: CancellationError()
+    )
+  }
+}
+
+private actor PipelineSessionRecorder {
+  private var sessions: [PipelineTerminalSession] = []
+  private(set) var terminationSignals: [Int32] = []
+
+  var sessionCount: Int { sessions.count }
+
+  nonisolated func processClient() -> PreviewProcessClient {
+    PreviewProcessClient { _ in
+      let terminal = PipelineTerminalSession()
+      await self.record(terminal)
+      return PreviewSessionHandle(
+        terminal: terminal,
+        start: {
+          terminal.setLifecycle(.running)
+        },
+        terminate: { signal in
+          await self.record(signal: signal)
+          terminal.setLifecycle(.exited(reason: .signal(signal)))
+        },
+        lifecycle: {
+          terminal.cachedLifecycle
+        }
+      )
+    }
+  }
+
+  func waitForSessions(count: Int) async throws {
+    let deadline = ContinuousClock().now + .seconds(2)
+    while sessions.count < count, ContinuousClock().now < deadline {
+      await Task.yield()
+    }
+    guard sessions.count >= count else {
+      throw PreviewPipelineTestFailure.timedOut
+    }
+  }
+
+  private func record(_ session: PipelineTerminalSession) {
+    sessions.append(session)
+  }
+
+  private func record(signal: Int32) {
+    terminationSignals.append(signal)
+  }
 }

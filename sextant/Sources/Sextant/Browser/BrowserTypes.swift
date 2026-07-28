@@ -9,10 +9,6 @@ struct PreviewGeneration: Hashable, Sendable {
   let rawValue: UInt64
 }
 
-struct SearchGeneration: Hashable, Sendable {
-  let rawValue: UInt64
-}
-
 struct DirectoryFilter: Equatable, Sendable {
   var query = ""
 }

@@ -685,8 +685,6 @@ private actor JourneyPreviewEventHub {
     case .failed(_, let failure, let fallback):
       let previewFailure: PreviewFailure =
         switch failure {
-        case .missingExecutable:
-          .unreadable("Missing preview executable")
         case .startup(let message):
           .unreadable(message)
         }
