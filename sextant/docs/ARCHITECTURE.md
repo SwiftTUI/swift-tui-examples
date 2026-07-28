@@ -14,7 +14,9 @@ cached directory snapshots.
 
 `BrowserLayoutPolicy` selects a bounded surface window before `MillerLayout`
 measures children. At most two browser columns and one preview surface are
-composed, independent of trail depth.
+composed, independent of trail depth. The window only ever looks backwards —
+parent and active — so the trail node the model prefetches for the selected
+directory stays off screen until the user advances into it.
 
 ## Filesystem
 

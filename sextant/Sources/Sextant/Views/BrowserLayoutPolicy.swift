@@ -36,15 +36,14 @@ public struct BrowserLayoutPolicy: Equatable, Sendable {
       )
     }
 
+    // Only columns that have actually been entered are shown. The model still
+    // appends and prefetches the selected directory's node so `→` is instant
+    // and the preview's counts are real, but showing that node here would put
+    // a directory on screen before the user asked to go there — so the wide
+    // layout looks backwards, at the column we came from, never forwards.
     var visible: [Int] = []
     if count > 0 {
-      if active + 1 < count {
-        visible = [active, active + 1]
-      } else if active > 0 {
-        visible = [active - 1, active]
-      } else {
-        visible = [active]
-      }
+      visible = active > 0 ? [active - 1, active] : [active]
     }
     return BrowserLayoutDecision(
       visibleDirectoryIndices: visible,

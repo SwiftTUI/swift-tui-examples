@@ -42,7 +42,10 @@ public struct SextantConfiguration: Codable, Equatable, Sendable {
     let effectiveCatalog = try catalog.applyingKeyOverrides(keyOverrides)
     var chordOwners: [KeyPress: String] = [:]
     for command in effectiveCatalog.commands {
-      for keyPress in command.keyPresses {
+      // Key the collision check on the same normalized press dispatch uses, so
+      // `?` and `shift-?` cannot be handed to two different commands and then
+      // resolve to only one of them at runtime.
+      for keyPress in command.keyPresses.map(CommandCatalog.normalized) {
         if let owner = chordOwners[keyPress], owner != command.id.rawValue {
           throw ConfigurationFailure.duplicateChord(
             chord: command.defaultChord,

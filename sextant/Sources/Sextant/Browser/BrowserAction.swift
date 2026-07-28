@@ -10,6 +10,7 @@ enum BrowserAction: Sendable {
   case start
   case moveSelection(SelectionMovement)
   case selectItem(directoryID: DirectoryID, itemID: BrowserItemID)
+  case advanceIntoSelected
   case enterSelected
   case moveToParent
   case focusPreview

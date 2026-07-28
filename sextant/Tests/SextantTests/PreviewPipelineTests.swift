@@ -124,7 +124,9 @@ struct PreviewPipelineTests {
             directoryCount: 0,
             fileCount: 1,
             specialCount: 0,
-            totalKnownBytes: 42
+            totalKnownBytes: 42,
+            entryNames: ["child.txt"],
+            hiddenEntryCount: 0
           )
         )
     )

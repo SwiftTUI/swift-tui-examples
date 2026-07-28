@@ -20,6 +20,7 @@ public enum SextantCommandAction: Equatable, Sendable {
   case moveUp
   case moveDown
   case moveParent
+  case advance
   case enter
   case first
   case last
@@ -121,13 +122,31 @@ public struct CommandCatalog: Sendable {
     commands.first { $0.id == id }
   }
 
+  /// Drops `shift` from a character key press.
+  ///
+  /// Terminals never report shift for a printable key — the shifted glyph *is*
+  /// the report. `?` arrives as byte `0x3F` and decodes to
+  /// `KeyPress(.character("?"))` with no modifiers, so a binding declared as
+  /// `.character("?"), modifiers: .shift` can never match on any terminal. The
+  /// character already carries the shift; only `ctrl` and `alt` remain
+  /// significant.
+  public static func normalized(_ keyPress: KeyPress) -> KeyPress {
+    guard case .character = keyPress.key else {
+      return keyPress
+    }
+    var modifiers = keyPress.modifiers
+    modifiers.remove(.shift)
+    return KeyPress(keyPress.key, modifiers: modifiers)
+  }
+
   public func command(
     for keyPress: KeyPress,
     context: CommandContext
   ) -> (CommandDefinition, CommandAvailability)? {
+    let keyPress = Self.normalized(keyPress)
     guard
       let command = commands.first(where: {
-        $0.keyPresses.contains(keyPress)
+        $0.keyPresses.contains { Self.normalized($0) == keyPress }
       })
     else {
       return nil
@@ -219,7 +238,7 @@ extension CommandCatalog {
     CommandDefinition(
       id: CommandID("navigation.parent"),
       defaultChord: "← / h",
-      title: "Move to parent column",
+      title: "Move to parent directory",
       section: .navigation,
       action: .moveParent,
       keyPresses: [
@@ -228,16 +247,23 @@ extension CommandCatalog {
       ]
     ),
     CommandDefinition(
-      id: CommandID("navigation.enter"),
-      defaultChord: "→ / l / Return",
-      title: "Enter directory or focus preview",
+      id: CommandID("navigation.advance"),
+      defaultChord: "→ / l",
+      title: "Enter the selected directory",
       section: .navigation,
-      action: .enter,
+      action: .advance,
       keyPresses: [
         KeyPress(.arrowRight),
         KeyPress(.character("l")),
-        KeyPress(.return),
       ]
+    ),
+    CommandDefinition(
+      id: CommandID("navigation.enter"),
+      defaultChord: "Return",
+      title: "Preview the file or enter the directory",
+      section: .navigation,
+      action: .enter,
+      keyPresses: [KeyPress(.return)]
     ),
     CommandDefinition(
       id: CommandID("navigation.first"),
@@ -258,7 +284,7 @@ extension CommandCatalog {
       action: .last,
       keyPresses: [
         KeyPress(.end),
-        KeyPress(.character("G"), modifiers: .shift),
+        KeyPress(.character("G")),
       ]
     ),
     CommandDefinition(
@@ -334,9 +360,7 @@ extension CommandCatalog {
       title: "Show help",
       section: .view,
       action: .help,
-      keyPresses: [
-        KeyPress(.character("?"), modifiers: .shift)
-      ]
+      keyPresses: [KeyPress(.character("?"))]
     ),
     CommandDefinition(
       id: CommandID("view.search"),
@@ -390,9 +414,7 @@ extension CommandCatalog {
       title: "Copy root-relative path",
       section: .workflow,
       action: .copyRelativePath,
-      keyPresses: [
-        KeyPress(.character("Y"), modifiers: .shift)
-      ],
+      keyPresses: [KeyPress(.character("Y"))],
       availability: { context in
         context.hasRootRelativeSelection
           ? CommandAvailability(isEnabled: true)
@@ -451,7 +473,7 @@ extension CommandCatalog {
     case .edit:
       [KeyPress(.character("e"))]
     case .reveal:
-      [KeyPress(.character("R"), modifiers: .shift)]
+      [KeyPress(.character("R"))]
     case .copyAbsolutePath:
       [KeyPress(.character("y"))]
     default:

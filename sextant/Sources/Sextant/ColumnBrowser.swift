@@ -4,6 +4,7 @@ import SwiftTUITerminal
 
 struct ColumnBrowser: View {
   @Bindable var model: BrowserModel
+  @Environment(\.terminalSize) private var terminalSize
   @FocusState private var runtimeFocus: BrowserFocus?
   @State private var filterText = ""
   @State private var paletteQuery = ""
@@ -30,9 +31,15 @@ struct ColumnBrowser: View {
       if model.state.overlay != .none {
         overlayPanel
       }
-      GeometryReader { proxy in
-        responsiveSurfaces(width: proxy.size.width)
-      }
+      // `responsiveSurfaces` only needs the width, and a `GeometryReader`
+      // silently falls back to a 10x10 ideal whenever its height proposal is
+      // not finite — which capped the whole browser at ten rows regardless of
+      // terminal height. Reading the width from the environment removes that
+      // seam; the explicit flexible frame is what marks this region unbounded
+      // to the stack allocator, so it absorbs everything the header and status
+      // bar leave behind.
+      responsiveSurfaces(width: terminalSize.width)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
       statusBar
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -62,8 +69,13 @@ struct ColumnBrowser: View {
 
   private var browserHeader: some View {
     HStack(spacing: 1) {
-      Text("SEXTANT")
-        .foregroundStyle(accentStyle)
+      // U+2222 SPHERICAL ANGLE: an angle plus its measuring arc, which is what
+      // a sextant reads. Padding widens the `Text` before the fill so the chip
+      // is not glyph-tight.
+      Text("∢")
+        .foregroundStyle(onAccentStyle)
+        .padding(.horizontal, 1)
+        .background { Rectangle().fill(accentStyle) }
       Text("·")
         .foregroundStyle(.separator)
       Text(breadcrumb)
@@ -72,10 +84,21 @@ struct ColumnBrowser: View {
         .truncationMode(.middle)
       Spacer()
     }
+    // A `Spacer` makes its stack flexible on *both* axes, so without this the
+    // header competes with the browser for leftover vertical space and the
+    // three bands split the terminal between them instead of the columns
+    // taking everything the fixed chrome leaves. Same for `statusBar`.
+    .fixedSize(horizontal: false, vertical: true)
   }
 
+  /// The entered part of the trail.
+  ///
+  /// The model keeps a prefetched node for the selected directory past the
+  /// active column; that node is not somewhere the user has navigated to, so
+  /// it must not appear in the path.
   private var breadcrumb: String {
-    model.state.trail.map { node in
+    let enteredCount = (model.state.activeDirectoryIndex ?? 0) + 1
+    return model.state.trail.prefix(enteredCount).map { node in
       let name = node.url.lastPathComponent
       return name.isEmpty ? node.url.path : name
     }.joined(separator: " / ")
@@ -95,14 +118,33 @@ struct ColumnBrowser: View {
         ? model.state.trail[$0].id
         : nil
     }
+    // The same static width math `MillerLayout` will use when it places these
+    // columns, so `FileColumn` can size its accent bars without a
+    // `GeometryReader`. The trailing rule is an outset border, so it takes a
+    // cell out of the column's own content box.
+    let columnWidths = MillerLayout.columnWidths(
+      totalWidth: width,
+      columnCount: decision.visibleDirectoryIndices.count
+        + (decision.showsPreview ? 1 : 0)
+    )
     MillerLayout {
-      ForEach(decision.visibleDirectoryIndices, id: \.self) { index in
+      ForEach(
+        Array(decision.visibleDirectoryIndices.enumerated()),
+        id: \.element
+      ) { position, index in
         if model.state.trail.indices.contains(index) {
           let directory = model.state.trail[index]
-          directoryColumn(directory)
-            .border(mutedStyle, set: BorderSet.single, sides: Edge.Set.trailing)
-            .focusable(directory.id == model.state.activeDirectoryID)
-            .focused($runtimeFocus, equals: .browser(directory.id))
+          directoryColumn(
+            directory,
+            contentWidth: max(
+              0,
+              (columnWidths.indices.contains(position) ? columnWidths[position] : 0)
+                - MillerLayout.separatorWidth
+            )
+          )
+          .border(mutedStyle, set: BorderSet.single, sides: Edge.Set.trailing)
+          .focusable(directory.id == model.state.activeDirectoryID)
+          .focused($runtimeFocus, equals: .browser(directory.id))
         }
       }
       if decision.showsPreview {
@@ -115,7 +157,10 @@ struct ColumnBrowser: View {
   }
 
   @ViewBuilder
-  private func directoryColumn(_ directory: BrowserTrailNode) -> some View {
+  private func directoryColumn(
+    _ directory: BrowserTrailNode,
+    contentWidth: Int
+  ) -> some View {
     switch directory.directory {
     case .notRequested, .loading:
       FileColumn(
@@ -123,13 +168,16 @@ struct ColumnBrowser: View {
         entries: [],
         selection: nil,
         isActive: directory.id == model.state.activeDirectoryID,
-        isLoading: true
+        isLoading: true,
+        accentStyle: accentStyle,
+        mutedStyle: mutedStyle,
+        contentWidth: contentWidth
       )
     case .loaded(let snapshot), .empty(let snapshot):
-      fileColumn(directory, snapshot: snapshot)
+      fileColumn(directory, snapshot: snapshot, contentWidth: contentWidth)
     case .stale(let snapshot, let refresh):
       VStack(alignment: .leading, spacing: 0) {
-        fileColumn(directory, snapshot: snapshot)
+        fileColumn(directory, snapshot: snapshot, contentWidth: contentWidth)
         Text(refreshLabel(refresh))
           .foregroundStyle(mutedStyle)
           .lineLimit(1)
@@ -148,7 +196,8 @@ struct ColumnBrowser: View {
 
   private func fileColumn(
     _ directory: BrowserTrailNode,
-    snapshot: DirectorySnapshot
+    snapshot: DirectorySnapshot,
+    contentWidth: Int
   ) -> some View {
     let entries = visibleItems(directory: directory, snapshot: snapshot)
     return FileColumn(
@@ -161,6 +210,9 @@ struct ColumnBrowser: View {
         && !model.state.filter.query.isEmpty
         ? "(no matches)"
         : "(empty)",
+      accentStyle: accentStyle,
+      mutedStyle: mutedStyle,
+      contentWidth: contentWidth,
       onSelect: { itemID in
         model.send(.selectItem(directoryID: directory.id, itemID: itemID))
       }
@@ -200,10 +252,7 @@ struct ColumnBrowser: View {
 
   private var statusBar: some View {
     HStack(spacing: 1) {
-      Text(model.state.activeDirectory?.url.path ?? model.state.root.path)
-        .foregroundStyle(.separator)
-        .lineLimit(1)
-        .truncationMode(.middle)
+      filterSlot
       Spacer()
       Text(statusText)
         .foregroundStyle(mutedStyle)
@@ -214,7 +263,45 @@ struct ColumnBrowser: View {
           .lineLimit(1)
       }
     }
+    .fixedSize(horizontal: false, vertical: true)
     .background(.black.opacity(0.1))
+  }
+
+  /// The leading half of the status bar: the active path, the filter field
+  /// while it is open, or a `/query` reminder once it has been dismissed with
+  /// a query still applied. The filter has no presence above the browser — this
+  /// is the only place it appears.
+  @ViewBuilder
+  private var filterSlot: some View {
+    if model.state.overlay == .filter {
+      Text("/")
+        .foregroundStyle(accentStyle)
+      // `.plain` matters: the default rounded-border style is a padded,
+      // bordered, three-row control and would tear the one-row bar apart.
+      TextField("filter this directory…", text: $filterText)
+        .textFieldStyle(.plain)
+        .focused($runtimeFocus, equals: .filter)
+        .onChange(of: filterText) { _, query in
+          model.send(.setFilter(query))
+        }
+        .onKeyPress { keyPress in
+          if keyPress == KeyPress(.escape) || keyPress == KeyPress(.return) {
+            model.send(.dismissOverlay)
+            return .handled
+          }
+          return .ignored
+        }
+    } else if !model.state.filter.query.isEmpty {
+      Text("/\(model.state.filter.query)")
+        .foregroundStyle(accentStyle)
+        .lineLimit(1)
+        .truncationMode(.middle)
+    } else {
+      Text(model.state.activeDirectory?.url.path ?? model.state.root.path)
+        .foregroundStyle(.separator)
+        .lineLimit(1)
+        .truncationMode(.middle)
+    }
   }
 
   private var statusText: String {
@@ -237,28 +324,9 @@ struct ColumnBrowser: View {
     case .none:
       EmptyView()
     case .filter:
-      VStack(alignment: .leading, spacing: 0) {
-        Text("FILTER")
-          .foregroundStyle(accentStyle)
-        TextField("Type to filter this directory…", text: $filterText)
-          .focused($runtimeFocus, equals: .filter)
-          .onChange(of: filterText) { _, query in
-            model.send(.setFilter(query))
-          }
-          .onKeyPress { keyPress in
-            if keyPress == KeyPress(.escape) {
-              model.send(.dismissOverlay)
-              return .handled
-            }
-            if keyPress == KeyPress(.return) {
-              model.send(.dismissOverlay)
-              return .handled
-            }
-            return .ignored
-          }
-      }
-      .padding(.horizontal, 1)
-      .border(mutedStyle, set: .rounded)
+      // The filter lives entirely in the status bar; nothing is drawn above
+      // the browser for it.
+      EmptyView()
     case .help:
       VStack(alignment: .leading, spacing: 0) {
         HStack {
@@ -528,6 +596,18 @@ struct ColumnBrowser: View {
         "\(summary.itemCount) items · \(summary.directoryCount) directories · "
           + "\(summary.fileCount) files"
       )
+      if !summary.entryNames.isEmpty {
+        Divider()
+        ForEach(summary.entryNames, id: \.self) { name in
+          Text(name)
+            .lineLimit(1)
+            .truncationMode(.middle)
+        }
+        if summary.hiddenEntryCount > 0 {
+          Text("… and \(summary.hiddenEntryCount) more")
+            .foregroundStyle(.separator)
+        }
+      }
     case .metadataOnly:
       EmptyView()
     case .unavailable(let reason):
@@ -591,6 +671,8 @@ struct ColumnBrowser: View {
       model.send(.moveSelection(.offset(1)))
     case .moveParent:
       model.send(.moveToParent)
+    case .advance:
+      model.send(.advanceIntoSelected)
     case .enter:
       model.send(.enterSelected)
     case .first:
@@ -776,6 +858,11 @@ struct ColumnBrowser: View {
   private var mutedStyle: AnyShapeStyle {
     configuration.colors.mutedColor.map(AnyShapeStyle.init)
       ?? AnyShapeStyle(SemanticShapeStyle(.muted))
+  }
+
+  /// Text drawn on top of ``accentStyle``.
+  private var onAccentStyle: AnyShapeStyle {
+    AnyShapeStyle(SemanticShapeStyle(.background))
   }
 }
 

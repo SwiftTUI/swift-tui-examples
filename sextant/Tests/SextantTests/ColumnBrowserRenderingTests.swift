@@ -124,12 +124,47 @@ struct ColumnBrowserRenderingTests {
       proposal: .init(width: 80, height: 20)
     )
 
+    let headerRow = artifacts.rasterSurface.cells[0]
+
+    // The title is a padded glyph chip filled with the accent, so the accent
+    // arrives as a background rather than a foreground.
+    #expect(headerRow.contains { $0.character == "∢" })
     #expect(
-      artifacts.rasterSurface.cells[0][0].style?.foregroundColor == accent
+      headerRow.prefix(3).allSatisfy {
+        $0.style?.backgroundColor == accent
+      }
     )
-    #expect(
-      artifacts.rasterSurface.cells[0][10].style?.foregroundColor == muted
+    #expect(headerRow.contains { $0.style?.foregroundColor == muted })
+  }
+
+  @Test("the browser fills the surface it is given")
+  func browserFillsSurfaceHeight() {
+    let root = URL(fileURLWithPath: "/fixture")
+    let rootID = DirectoryID(identity: .path(root.path))
+    let model = BrowserModel(
+      root: root,
+      rootID: rootID,
+      policy: DirectoryPolicy(),
+      dependencies: BrowserModelDependencies(
+        loadDirectory: { _ in .failure(.cancelled) }
+      )
     )
+
+    let artifacts = DefaultRenderer().render(
+      ColumnBrowser(model: model),
+      context: .init(identity: Identity(components: ["Root"])),
+      proposal: .init(width: 100, height: 40)
+    )
+    let lines = artifacts.rasterSurface.lines
+
+    // The status bar is the last band in the stack, so it lands on the final
+    // row only when the columns have taken every row between the header and
+    // it. A `Spacer` makes its stack flexible on both axes, so the header and
+    // status bar must stay explicitly fixed-height or all three bands split
+    // the surface between them and the browser stops less than a third down.
+    #expect(lines.count == 40)
+    #expect(lines[39].contains("BROWSER"))
+    #expect(lines[38].contains("│"))
   }
 
   @Test("empty search exposes bookmarks and recents as path-jump choices")

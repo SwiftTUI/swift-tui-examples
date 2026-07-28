@@ -300,8 +300,15 @@ struct SextantRealTerminalJourneyTests {
     }
     let initialSelectedID = try #require(model.state.activeDirectory?.selectedItemID)
 
-    // Right focuses the preview for the initially selected file.
+    // Right is directory-only, so it must leave the browser focused; Return is
+    // what focuses a file's preview.
     try writeAllBytes([0x1B, 0x5B, 0x43], to: pty.master)
+    try await Self.waitForModel(
+      deadline: ContinuousClock().now + .seconds(5)
+    ) {
+      model.state.focus == .browser(rootID)
+    }
+    try writeAllBytes([0x0D], to: pty.master)
     let previewScreen = try await waitForANSIVisibleScreen(
       on: pty.master,
       screen: &screen,

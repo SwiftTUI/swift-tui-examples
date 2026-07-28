@@ -126,7 +126,9 @@ struct BuiltInPreviewerTests {
             directoryCount: 1,
             fileCount: 1,
             specialCount: 0,
-            totalKnownBytes: 42
+            totalKnownBytes: 42,
+            entryNames: ["file", "child/"],
+            hiddenEntryCount: 0
           )
         )
     )

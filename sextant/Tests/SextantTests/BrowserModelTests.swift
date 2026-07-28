@@ -109,6 +109,85 @@ struct BrowserModelTests {
     #expect(fixture.model.state.activeDirectory?.selectedItemID == second.id)
   }
 
+  @Test("advancing skips files and enters directories")
+  func advanceIsDirectoryOnly() async throws {
+    let fixture = BrowserModelFixture()
+    fixture.model.send(.start)
+    let rootRequest = try await fixture.loader.waitForRequest(count: 1)
+    let first = fixture.file("first.txt", in: rootRequest)
+    let childID = fixture.directoryID("child")
+    let child = fixture.directory("child", target: childID, in: rootRequest)
+    await fixture.loader.respond(
+      to: rootRequest.id,
+      with: .success(fixture.snapshot(rootRequest, [first, child]))
+    )
+    try await waitUntil {
+      fixture.model.state.activeDirectory?.selectedItemID == first.id
+    }
+
+    // A file is Return's business, not the right arrow's.
+    fixture.model.send(.advanceIntoSelected)
+    #expect(fixture.model.state.focus == .browser(fixture.rootID))
+    #expect(fixture.model.state.activeDirectoryID == fixture.rootID)
+
+    fixture.model.send(.enterSelected)
+    #expect(fixture.model.state.focus == .preview)
+
+    fixture.model.send(.focusBrowser)
+    fixture.model.send(.moveSelection(.offset(1)))
+    _ = try await fixture.loader.waitForRequest(count: 2)
+
+    fixture.model.send(.advanceIntoSelected)
+    #expect(fixture.model.state.activeDirectoryID == childID)
+    #expect(fixture.model.state.focus == .browser(childID))
+  }
+
+  @Test("the parent key climbs above the launch root without losing the trail")
+  func parentClimbsAboveLaunchRoot() async throws {
+    let fixture = BrowserModelFixture()
+    fixture.model.send(.start)
+    let rootRequest = try await fixture.loader.waitForRequest(count: 1)
+    let childID = fixture.directoryID("child")
+    let child = fixture.directory("child", target: childID, in: rootRequest)
+    await fixture.loader.respond(
+      to: rootRequest.id,
+      with: .success(fixture.snapshot(rootRequest, [child]))
+    )
+    try await waitUntil {
+      fixture.model.state.activeDirectory?.selectedItemID == child.id
+    }
+    fixture.model.send(.enterSelected)
+    let childRequest = try await fixture.loader.waitForRequest(count: 2)
+    await fixture.loader.respond(
+      to: childRequest.id,
+      with: .success(fixture.snapshot(childRequest, []))
+    )
+    try await waitUntil {
+      fixture.model.state.activeDirectoryID == childID
+    }
+
+    fixture.model.send(.moveToParent)
+    #expect(fixture.model.state.activeDirectoryID == fixture.rootID)
+
+    // Now at the launch root: one more press has to grow the trail upward
+    // instead of doing nothing.
+    fixture.model.send(.moveToParent)
+    let parentID = DirectoryID(identity: .pathFallback(for: URL(fileURLWithPath: "/")))
+    let parentRequest = try await fixture.loader.waitForRequest(count: 3)
+
+    #expect(parentRequest.url == URL(fileURLWithPath: "/"))
+    #expect(fixture.model.state.trail.map(\.id) == [parentID, fixture.rootID])
+    #expect(fixture.model.state.activeDirectoryID == parentID)
+    #expect(fixture.model.state.focus == .browser(parentID))
+    // The launch root anchors root-relative copies and recursive search, so it
+    // stays put while the trail grows past it.
+    #expect(fixture.model.state.root == fixture.root)
+
+    // `/` has no parent of its own.
+    fixture.model.send(.moveToParent)
+    #expect(fixture.model.state.trail.count == 2)
+  }
+
   @Test("failed external previews can activate their built-in fallback")
   func activateExternalPreviewFallback() async throws {
     let fixture = BrowserModelFixture()

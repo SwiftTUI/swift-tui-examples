@@ -66,12 +66,21 @@ public struct HexPreview: Equatable, Sendable {
 }
 
 public struct DirectorySummary: Equatable, Sendable {
+  /// How many entry names a summary carries. The preview panel is a peek at a
+  /// directory you have not entered, not a second column, so this is
+  /// deliberately short.
+  public static let listedEntryLimit = 12
+
   public var itemCount: Int
   public var directoryCount: Int
   public var fileCount: Int
   public var specialCount: Int
   public var totalKnownBytes: UInt64
   public var isTruncated: Bool
+  /// The leading entry names, directory-like ones suffixed with `/`.
+  public var entryNames: [String]
+  /// Entries beyond ``entryNames``, surfaced as an "and N more" line.
+  public var hiddenEntryCount: Int
 
   public init(
     itemCount: Int,
@@ -79,7 +88,9 @@ public struct DirectorySummary: Equatable, Sendable {
     fileCount: Int,
     specialCount: Int,
     totalKnownBytes: UInt64,
-    isTruncated: Bool = false
+    isTruncated: Bool = false,
+    entryNames: [String] = [],
+    hiddenEntryCount: Int = 0
   ) {
     self.itemCount = itemCount
     self.directoryCount = directoryCount
@@ -87,6 +98,8 @@ public struct DirectorySummary: Equatable, Sendable {
     self.specialCount = specialCount
     self.totalKnownBytes = totalKnownBytes
     self.isTruncated = isTruncated
+    self.entryNames = entryNames
+    self.hiddenEntryCount = hiddenEntryCount
   }
 }
 

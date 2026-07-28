@@ -134,6 +134,62 @@ struct FileColumnRenderingTests {
     #expect(artifacts.diagnostics.counts.placedNodes < 80)
   }
 
+  @Test("the active column bars its header and its selection across the column")
+  func activeColumnAccentBars() {
+    let entries = makeEntries(count: 3)
+    let artifacts = DefaultRenderer().render(
+      FileColumn(
+        directory: URL(fileURLWithPath: "/tmp/large"),
+        entries: entries,
+        selection: entries[1].id,
+        isActive: true,
+        contentWidth: 30
+      ),
+      context: .init(identity: Identity(components: ["ActiveColumn"])),
+      proposal: .init(width: 30, height: 10)
+    )
+    let cells = artifacts.rasterSurface.cells
+
+    // Row 0 is the column header, row 1 the divider, rows 2... the entries.
+    #expect(isBarred(cells[0], width: 30))
+    #expect(isBarred(cells[3], width: 30))
+    #expect(!isBarred(cells[2], width: 30))
+    #expect(!isBarred(cells[4], width: 30))
+  }
+
+  @Test("an inactive column bars nothing")
+  func inactiveColumnHasNoAccentBars() {
+    let entries = makeEntries(count: 3)
+    let artifacts = DefaultRenderer().render(
+      FileColumn(
+        directory: URL(fileURLWithPath: "/tmp/large"),
+        entries: entries,
+        selection: entries[1].id,
+        isActive: false,
+        contentWidth: 30
+      ),
+      context: .init(identity: Identity(components: ["InactiveColumn"])),
+      proposal: .init(width: 30, height: 10)
+    )
+
+    #expect(
+      artifacts.rasterSurface.cells.allSatisfy { !isBarred($0, width: 30) }
+    )
+  }
+
+  /// Whether every cell across the column carries the accent bar, which is
+  /// painted by padding the label out and reversing it rather than by wrapping
+  /// the row in a background decoration — two such decorations cost ~9 ms of
+  /// this column's 50 ms interaction budget at 10,000 entries.
+  private func isBarred(_ row: [RasterCell], width: Int) -> Bool {
+    guard row.count >= width else {
+      return false
+    }
+    return row.prefix(width).allSatisfy {
+      $0.style?.emphasis.contains(.reverse) == true
+    }
+  }
+
   private func makeEntries(count: Int) -> [BrowserItem] {
     let directory = URL(fileURLWithPath: "/tmp/large")
     let directoryID = DirectoryID(identity: .path(directory.path))

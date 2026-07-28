@@ -68,9 +68,11 @@ same `CommandCatalog` used for key dispatch.
 Highlights:
 
 - arrows or `h/j/k/l` navigate;
-- Return focuses a file preview and enters a selected directory;
+- `→` or `l` enters the selected directory, and does nothing on a file;
+- Return focuses a file preview, or enters a selected directory;
+- `←` or `h` goes up, including above the directory Sextant was launched in;
 - Tab switches browser/preview focus; Escape returns from an embedded preview;
-- `/` filters the active directory;
+- `/` filters the active directory from the status bar;
 - `s` searches filenames recursively, or jumps when given a path;
 - `.` toggles hidden files and `r` refreshes;
 - `o`, `e`, and `R` open, edit, and reveal;

@@ -24,7 +24,7 @@ Sleep 2s
 Show
 Sleep 3s
 
-Right
+Enter
 Sleep 3s
 Escape
 Sleep 1s

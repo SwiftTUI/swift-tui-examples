@@ -104,6 +104,80 @@ struct CommandCatalogTests {
     )
   }
 
+  @Test(
+    "shifted characters dispatch as terminals actually report them",
+    arguments: [
+      ("?", "view.help"),
+      ("G", "navigation.last"),
+      ("R", "workflow.reveal"),
+      ("Y", "workflow.copy-relative"),
+    ])
+  func shiftedCharacterBindings(character: String, commandID: String) throws {
+    // A terminal never reports shift for a printable key — the shifted glyph
+    // is the whole report — so `?` arrives with no modifiers at all. Both
+    // spellings have to land on the same command.
+    let context = CommandContext(
+      hasSelection: true,
+      hasPreview: true,
+      previewFocused: false,
+      hasRootRelativeSelection: true
+    )
+    let catalog = CommandCatalog()
+    let key = try #require(character.first)
+
+    #expect(
+      catalog.command(for: KeyPress(.character(key)), context: context)?.0.id
+        == CommandID(commandID)
+    )
+    #expect(
+      catalog.command(
+        for: KeyPress(.character(key), modifiers: .shift),
+        context: context
+      )?.0.id == CommandID(commandID)
+    )
+  }
+
+  @Test("ctrl and alt stay significant when shift is normalized away")
+  func modifiersOtherThanShiftSurvive() {
+    let context = CommandContext(
+      hasSelection: true,
+      hasPreview: true,
+      previewFocused: false,
+      hasRootRelativeSelection: true
+    )
+    let catalog = CommandCatalog()
+
+    // `r` refreshes; Ctrl-R must not be mistaken for it.
+    #expect(
+      catalog.command(for: KeyPress(.character("r")), context: context)?.0.id
+        == CommandID("view.refresh")
+    )
+    #expect(
+      catalog.command(
+        for: KeyPress(.character("r"), modifiers: .ctrl),
+        context: context
+      ) == nil
+    )
+  }
+
+  @Test("right arrow and Return are separate commands")
+  func advanceIsDistinctFromEnter() {
+    let context = CommandContext(
+      hasSelection: true,
+      hasPreview: true,
+      previewFocused: false,
+      hasRootRelativeSelection: true
+    )
+    let catalog = CommandCatalog()
+
+    for keyPress in [KeyPress(.arrowRight), KeyPress(.character("l"))] {
+      #expect(catalog.command(for: keyPress, context: context)?.0.action == .advance)
+    }
+    #expect(
+      catalog.command(for: KeyPress(.return), context: context)?.0.action == .enter
+    )
+  }
+
   @Test("checked-in keybindings match generated catalog output")
   func generatedDocument() throws {
     let sourceFile = URL(fileURLWithPath: #filePath)

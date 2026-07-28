@@ -8,8 +8,9 @@ This file is generated from `CommandCatalog`.
 | --- | --- |
 | `↑ / k` | Move selection up |
 | `↓ / j` | Move selection down |
-| `← / h` | Move to parent column |
-| `→ / l / Return` | Enter directory or focus preview |
+| `← / h` | Move to parent directory |
+| `→ / l` | Enter the selected directory |
+| `Return` | Preview the file or enter the directory |
 | `Home / g` | Select first item |
 | `End / G` | Select last item |
 | `Page Up` | Move one page up |

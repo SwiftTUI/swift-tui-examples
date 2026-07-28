@@ -169,6 +169,16 @@ final class BrowserModel {
     case .selectItem(let directoryID, let itemID):
       selectItem(directoryID: directoryID, itemID: itemID, activatesSelection: false)
 
+    case .advanceIntoSelected:
+      // Right-arrow advances into directories only. A file's preview is
+      // Return's job, so this is deliberately a no-op on one.
+      guard let selected = state.selectedItem,
+        selected.kind.isDirectoryLike
+      else {
+        return
+      }
+      applySelection(selected, activatesSelection: true)
+
     case .enterSelected:
       guard let selected = state.selectedItem else {
         return
@@ -643,7 +653,11 @@ final class BrowserModel {
   }
 
   private func moveToParent() {
-    guard let activeIndex = state.activeDirectoryIndex, activeIndex > 0 else {
+    guard let activeIndex = state.activeDirectoryIndex else {
+      return
+    }
+    guard activeIndex > 0 else {
+      climbAboveTrail()
       return
     }
     let parentIndex = activeIndex - 1
@@ -654,6 +668,55 @@ final class BrowserModel {
       state.activeDirectoryID = parentID
       state.focus = .browser(parentID)
     }
+  }
+
+  /// Grows the trail upward past the directory Sextant was launched in.
+  ///
+  /// The launch root stays where it is: `state.root` still anchors
+  /// root-relative path copies and recursive search, so climbing here browses
+  /// above the launch directory without silently widening either of those.
+  /// Unlike ``moveToParent()``'s in-trail case this keeps every descendant —
+  /// nothing below the new node has been invalidated.
+  private func climbAboveTrail() {
+    guard let first = state.trail.first else {
+      return
+    }
+    let parentURL = first.url.deletingLastPathComponent().standardizedFileURL
+    guard parentURL != first.url else {
+      return  // already at the filesystem root
+    }
+
+    let parentIdentity: FileSystemIdentity =
+      switch dependencies.resolveFileSystemIdentity(parentURL, true) {
+      case .success(let identity):
+        identity
+      case .failure:
+        .pathFallback(for: parentURL)
+      }
+    let parentID = DirectoryID(identity: parentIdentity)
+    guard !state.trail.contains(where: { $0.id == parentID }) else {
+      return
+    }
+
+    // The prepended node becomes `trail.first`, which is the only node
+    // `receiveDirectoryResponse` honours a pending selection URL for — so this
+    // lands the selection on the directory we just climbed out of.
+    pendingInitialSelectionURL = first.url
+    updateState { state in
+      state.trail.insert(
+        BrowserTrailNode(
+          id: parentID,
+          url: parentURL,
+          directory: .notRequested,
+          selectedItemID: nil
+        ),
+        at: 0
+      )
+      state.activeDirectoryID = parentID
+      state.focus = .browser(parentID)
+    }
+    updateWatcherSubscription()
+    requestDirectory(parentID)
   }
 
   private func clearSelectionAndDescendants(at directoryIndex: Int) {

@@ -21,8 +21,11 @@ struct BrowserLayoutPolicyTests {
     #expect(decision.showsPreview)
   }
 
-  @Test("wide layout shows the active child when it has been revealed")
-  func revealedChild() {
+  @Test("wide layout pairs the active column with the one it was entered from")
+  func wideLayoutLooksBackwards() {
+    // The model keeps a prefetched node past the active column for the
+    // selected directory. It must not be composed: advancing into a directory
+    // is the user's call, so the second column is the parent, never the child.
     #expect(
       policy.decision(
         width: 86,
@@ -30,7 +33,16 @@ struct BrowserLayoutPolicyTests {
         activeIndex: 1,
         hasPreview: false,
         previewFocused: false
-      ).visibleDirectoryIndices == [1, 2]
+      ).visibleDirectoryIndices == [0, 1]
+    )
+    #expect(
+      policy.decision(
+        width: 86,
+        trailCount: 2,
+        activeIndex: 0,
+        hasPreview: false,
+        previewFocused: false
+      ).visibleDirectoryIndices == [0]
     )
   }
 
