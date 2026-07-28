@@ -50,9 +50,9 @@ bun --cwd WebExample run build
 ```
 
 Everything builds from a fresh clone using tagged HTTPS dependencies. Every
-example is on the `0.3.8` release graph — Gallery on the matching
+example is on the `0.4.0` release graph — Gallery on the matching
 `swift-tui`/`swift-tui-charts` pair, and WebExample on the `swift-tui-web`
-`0.3.8` release tarballs for `@swifttui/web` and `@swifttui/build`. No sibling
+`0.4.0` release tarballs for `@swifttui/web` and `@swifttui/build`. No sibling
 source checkout is required.
 
 ## Roster
