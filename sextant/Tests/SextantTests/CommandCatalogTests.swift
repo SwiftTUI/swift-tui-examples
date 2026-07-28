@@ -6,6 +6,49 @@ import Testing
 
 @Suite("Command catalog")
 struct CommandCatalogTests {
+  private func context(
+    hasSelection: Bool = true,
+    hasPreview: Bool = true,
+    previewFocused: Bool = false,
+    hasRootRelativeSelection: Bool = true,
+    showsHiddenFiles: Bool = false,
+    isOverlayPresented: Bool = false
+  ) -> CommandContext {
+    CommandContext(
+      hasSelection: hasSelection,
+      hasPreview: hasPreview,
+      previewFocused: previewFocused,
+      hasRootRelativeSelection: hasRootRelativeSelection,
+      showsHiddenFiles: showsHiddenFiles,
+      isOverlayPresented: isOverlayPresented
+    )
+  }
+
+  /// `BrowserAction` is not `Equatable` — it carries snapshots and stream
+  /// events — so assertions compare a short shape of the dispatched action.
+  private func action(_ dispatch: CommandDispatch?) -> String {
+    guard case .perform(let action)? = dispatch else {
+      return "none"
+    }
+    return switch action {
+    case .focusBrowser: "focusBrowser"
+    case .focusPreview: "focusPreview"
+    case .setHidden(let isOn): "setHidden(\(isOn))"
+    case .moveSelection(let movement): "moveSelection(\(movement))"
+    case .performHandoff(let command): "handoff(\(command))"
+    case .showFilter: "showFilter"
+    case .showPalette: "showPalette"
+    case .showSearch: "showSearch"
+    case .toggleBookmark: "bookmark"
+    case .refresh: "refresh"
+    case .advanceIntoSelected: "advance"
+    case .enterSelected: "enter"
+    case .moveToParent: "parent"
+    case .showHelp: "help"
+    default: "other"
+    }
+  }
+
   @Test("identifiers and default chords are unique")
   func uniqueness() {
     let commands = CommandCatalog().commands
@@ -33,55 +76,105 @@ struct CommandCatalogTests {
   @Test("preview focus keeps preview commands live and browser commands out")
   func previewFocusedDispatch() {
     let catalog = CommandCatalog()
-    let focused = CommandContext(
-      hasSelection: true,
-      hasPreview: true,
-      previewFocused: true,
-      hasRootRelativeSelection: true
-    )
+    let focused = context(previewFocused: true)
 
-    // Both preview bindings resolve while the preview holds focus. Tab was
-    // unreachable for as long as the caller answered the focus question
-    // before the catalog was consulted.
-    #expect(
-      catalog.previewFocusedCommand(for: KeyPress(.tab), context: focused)?.0.id
-        == CommandID("preview.toggle")
-    )
-    #expect(
-      catalog.previewFocusedCommand(for: KeyPress(.escape), context: focused)?.0
-        .id == CommandID("preview.escape")
-    )
+    // Tab was unreachable for as long as the caller answered the focus
+    // question before the catalog was consulted; Escape only worked because
+    // it was re-implemented outside the catalog twice.
+    #expect(action(catalog.dispatch(KeyPress(.tab), context: focused)) == "focusBrowser")
+    #expect(action(catalog.dispatch(KeyPress(.escape), context: focused)) == "focusBrowser")
 
-    // Browser bindings stay out; their keys belong to the preview surface.
+    // Browser bindings stay out; those keys belong to the preview surface.
+    #expect(catalog.dispatch(KeyPress(.arrowDown), context: focused) == nil)
+    #expect(catalog.dispatch(KeyPress(.character("/")), context: focused) == nil)
+  }
+
+  @Test("the same toggle key moves focus the other way from the browser")
+  func toggleSurfaceResolvesAgainstFocus() {
+    let catalog = CommandCatalog()
     #expect(
-      catalog.previewFocusedCommand(for: KeyPress(.arrowDown), context: focused)
-        == nil
+      action(catalog.dispatch(KeyPress(.tab), context: context(previewFocused: false)))
+        == "focusPreview"
     )
     #expect(
-      catalog.previewFocusedCommand(
-        for: KeyPress(.character("/")),
-        context: focused
-      ) == nil
+      action(catalog.dispatch(KeyPress(.tab), context: context(previewFocused: true)))
+        == "focusBrowser"
     )
   }
 
-  @Test("preview escape availability answers the focus question")
-  func previewEscapeAvailability() {
+  @Test("hidden-file toggling inverts the policy it is given")
+  func toggleHiddenInvertsContext() {
     let catalog = CommandCatalog()
-    let unfocused = CommandContext(
-      hasSelection: true,
-      hasPreview: true,
-      previewFocused: false,
-      hasRootRelativeSelection: true
-    )
-    let escape = catalog.command(id: CommandID("preview.escape"))
-
-    #expect(escape?.availability(unfocused).isEnabled == false)
     #expect(
-      catalog.previewFocusedCommand(
-        for: KeyPress(.escape),
-        context: unfocused
-      )?.1.isEnabled == false
+      action(
+        catalog.dispatch(
+          KeyPress(.character(".")),
+          context: context(showsHiddenFiles: false)
+        )
+      ) == "setHidden(true)"
+    )
+    #expect(
+      action(
+        catalog.dispatch(
+          KeyPress(.character(".")),
+          context: context(showsHiddenFiles: true)
+        )
+      ) == "setHidden(false)"
+    )
+  }
+
+  @Test("an overlay owns the keyboard while it is up")
+  func overlaySuppressesBindings() {
+    let catalog = CommandCatalog()
+    let overlaid = context(isOverlayPresented: true)
+    for keyPress in [
+      KeyPress(.arrowDown), KeyPress(.tab), KeyPress(.character("/")),
+      KeyPress(.character("o")),
+    ] {
+      #expect(catalog.dispatch(keyPress, context: overlaid) == nil)
+    }
+  }
+
+  @Test("dispatch reports why a binding is unusable instead of dropping it")
+  func unavailableBindingsExplainThemselves() {
+    let catalog = CommandCatalog()
+    guard
+      case .unavailable(let reason)? = catalog.dispatch(
+        KeyPress(.character("o")),
+        context: context(hasSelection: false)
+      )
+    else {
+      Issue.record("open should be unavailable without a selection")
+      return
+    }
+    #expect(reason == "Select an item first.")
+  }
+
+  @Test("exit keys are the catalog's runtime-owned bindings, not a copy")
+  func runtimeExitKeysAreDerived() {
+    let catalog = CommandCatalog()
+    let quit = catalog.command(id: CommandID("application.quit"))
+
+    #expect(CommandCatalog.runtimeExitKeys == quit?.keyPresses)
+    #expect(!CommandCatalog.runtimeExitKeys.isEmpty)
+    for keyPress in CommandCatalog.runtimeExitKeys {
+      guard case .runtimeOwned? = catalog.dispatch(keyPress, context: context())
+      else {
+        Issue.record("\(keyPress) should stay with the application runtime")
+        return
+      }
+    }
+  }
+
+  @Test("workflow keys reach the model as handoff requests")
+  func handoffBindingsCarryTheirCommand() {
+    let catalog = CommandCatalog()
+    let ready = context()
+    #expect(action(catalog.dispatch(KeyPress(.character("o")), context: ready)) == "handoff(open)")
+    #expect(action(catalog.dispatch(KeyPress(.character("e")), context: ready)) == "handoff(edit)")
+    #expect(
+      action(catalog.dispatch(KeyPress(.character("R")), context: ready))
+        == "handoff(reveal)"
     )
   }
 

@@ -16,7 +16,7 @@ public enum CommandSection: String, CaseIterable, Sendable {
   case application = "Application"
 }
 
-public enum SextantCommandAction: Equatable, Sendable {
+enum SextantCommandAction: Equatable, Sendable {
   case moveUp
   case moveDown
   case moveParent
@@ -35,12 +35,42 @@ public enum SextantCommandAction: Equatable, Sendable {
   case palette
   case search
   case bookmark
-  case open
-  case edit
-  case reveal
-  case copyAbsolutePath
-  case copyRelativePath
+  case handoff(BrowserHandoffCommand)
   case quit
+}
+
+extension SextantCommandAction {
+  /// The browser effect this command amounts to in `context`.
+  ///
+  /// Two commands are a question about current state rather than a fixed
+  /// effect — `toggleSurface` depends on which surface holds focus, and
+  /// `toggleHidden` on the policy it is inverting — so resolution reads the
+  /// context instead of the model. `nil` means no browser effect: the scene
+  /// owns exit.
+  func browserAction(in context: CommandContext) -> BrowserAction? {
+    switch self {
+    case .moveUp: .moveSelection(.offset(-1))
+    case .moveDown: .moveSelection(.offset(1))
+    case .pageUp: .moveSelection(.offset(-10))
+    case .pageDown: .moveSelection(.offset(10))
+    case .first: .moveSelection(.first)
+    case .last: .moveSelection(.last)
+    case .moveParent: .moveToParent
+    case .advance: .advanceIntoSelected
+    case .enter: .enterSelected
+    case .toggleSurface: context.previewFocused ? .focusBrowser : .focusPreview
+    case .focusBrowser: .focusBrowser
+    case .filter: .showFilter
+    case .toggleHidden: .setHidden(!context.showsHiddenFiles)
+    case .refresh: .refresh
+    case .help: .showHelp
+    case .palette: .showPalette
+    case .search: .showSearch
+    case .bookmark: .toggleBookmark
+    case .handoff(let command): .performHandoff(command)
+    case .quit: nil
+    }
+  }
 }
 
 public enum CommandDispatchOwnership: Equatable, Sendable {
@@ -48,23 +78,43 @@ public enum CommandDispatchOwnership: Equatable, Sendable {
   case applicationRuntime
 }
 
+/// Everything a binding's availability, resolution, or eligibility may depend
+/// on. A command reads the browser only through this value, which is what lets
+/// dispatch be answered without a live model.
 public struct CommandContext: Equatable, Sendable {
   public var hasSelection: Bool
   public var hasPreview: Bool
   public var previewFocused: Bool
   public var hasRootRelativeSelection: Bool
+  public var showsHiddenFiles: Bool
+  public var isOverlayPresented: Bool
 
   public init(
     hasSelection: Bool,
     hasPreview: Bool,
     previewFocused: Bool,
-    hasRootRelativeSelection: Bool
+    hasRootRelativeSelection: Bool,
+    showsHiddenFiles: Bool = false,
+    isOverlayPresented: Bool = false
   ) {
     self.hasSelection = hasSelection
     self.hasPreview = hasPreview
     self.previewFocused = previewFocused
     self.hasRootRelativeSelection = hasRootRelativeSelection
+    self.showsHiddenFiles = showsHiddenFiles
+    self.isOverlayPresented = isOverlayPresented
   }
+}
+
+/// What a key press amounts to once the catalog has answered every question
+/// about it — eligibility, availability, and who owns the effect.
+enum CommandDispatch: Sendable {
+  /// Send this to the browser model.
+  case perform(BrowserAction)
+  /// The binding exists but is not usable right now; show this reason.
+  case unavailable(String)
+  /// The scene owns the effect so it can run the normal shutdown path.
+  case runtimeOwned
 }
 
 public struct CommandAvailability: Equatable, Sendable {
@@ -82,12 +132,12 @@ public struct CommandDefinition: Sendable {
   public var defaultChord: String
   public var title: String
   public var section: CommandSection
-  public var action: SextantCommandAction
+  var action: SextantCommandAction
   public var keyPresses: [KeyPress]
   public var dispatchOwnership: CommandDispatchOwnership
   public var availability: @Sendable (CommandContext) -> CommandAvailability
 
-  public init(
+  init(
     id: CommandID,
     defaultChord: String,
     title: String,
@@ -171,6 +221,48 @@ public struct CommandCatalog: Sendable {
       return nil
     }
     return resolved
+  }
+
+  /// The one door from a key press to its effect.
+  ///
+  /// Eligibility (is this key live given focus and overlays), availability, and
+  /// runtime ownership are all answered here. Callers dispatch the result; they
+  /// do not re-derive any part of the decision.
+  func dispatch(
+    _ keyPress: KeyPress,
+    context: CommandContext
+  ) -> CommandDispatch? {
+    // An overlay owns the keyboard while it is up. Its own field handles
+    // dismissal; no browser binding fires underneath it.
+    guard !context.isOverlayPresented else {
+      return nil
+    }
+    let resolved =
+      context.previewFocused
+      ? previewFocusedCommand(for: keyPress, context: context)
+      : command(for: keyPress, context: context)
+    guard let (command, availability) = resolved else {
+      return nil
+    }
+    guard availability.isEnabled else {
+      return .unavailable(availability.disabledReason ?? "Command unavailable.")
+    }
+    guard command.dispatchOwnership == .browser,
+      let action = command.action.browserAction(in: context)
+    else {
+      return .runtimeOwned
+    }
+    return .perform(action)
+  }
+
+  /// The keys the scene must claim so exit runs the normal shutdown path.
+  ///
+  /// Derived from the catalog rather than restated by the scene, so help
+  /// cannot advertise a quit key the runtime does not honour.
+  public static var runtimeExitKeys: [KeyPress] {
+    CommandCatalog().commands
+      .filter { $0.dispatchOwnership == .applicationRuntime }
+      .flatMap(\.keyPresses)
   }
 
   public func applyingKeyOverrides(
@@ -399,40 +491,40 @@ extension CommandCatalog {
     ),
     selectionCommand(
       id: "workflow.bookmark",
-      chord: "b",
+      key: "b",
       title: "Toggle bookmark",
       action: .bookmark
     ),
     selectionCommand(
       id: "workflow.open",
-      chord: "o",
+      key: "o",
       title: "Open with the system default",
-      action: .open
+      action: .handoff(.open)
     ),
     selectionCommand(
       id: "workflow.edit",
-      chord: "e",
+      key: "e",
       title: "Edit with VISUAL or EDITOR",
-      action: .edit
+      action: .handoff(.edit)
     ),
     selectionCommand(
       id: "workflow.reveal",
-      chord: "R",
+      key: "R",
       title: "Reveal in Finder",
-      action: .reveal
+      action: .handoff(.reveal)
     ),
     selectionCommand(
       id: "workflow.copy-absolute",
-      chord: "y",
+      key: "y",
       title: "Copy absolute path",
-      action: .copyAbsolutePath
+      action: .handoff(.copyAbsolutePath)
     ),
     CommandDefinition(
       id: CommandID("workflow.copy-relative"),
       defaultChord: "Y",
       title: "Copy root-relative path",
       section: .workflow,
-      action: .copyRelativePath,
+      action: .handoff(.copyRelativePath),
       keyPresses: [KeyPress(.character("Y"))],
       availability: { context in
         context.hasRootRelativeSelection
@@ -457,19 +549,24 @@ extension CommandCatalog {
     ),
   ]
 
+  /// A workflow command bound to one printable key.
+  ///
+  /// The key is both the binding and its printed chord, so the two cannot
+  /// drift — which a separate action-keyed key table, whose `default` was an
+  /// empty binding, previously allowed.
   private static func selectionCommand(
     id: String,
-    chord: String,
+    key: Character,
     title: String,
     action: SextantCommandAction
   ) -> CommandDefinition {
     CommandDefinition(
       id: CommandID(id),
-      defaultChord: chord,
+      defaultChord: String(key),
       title: title,
       section: .workflow,
       action: action,
-      keyPresses: keyPresses(for: action),
+      keyPresses: [KeyPress(.character(key))],
       availability: { context in
         context.hasSelection
           ? CommandAvailability(isEnabled: true)
@@ -479,25 +576,6 @@ extension CommandCatalog {
           )
       }
     )
-  }
-
-  private static func keyPresses(
-    for action: SextantCommandAction
-  ) -> [KeyPress] {
-    switch action {
-    case .bookmark:
-      [KeyPress(.character("b"))]
-    case .open:
-      [KeyPress(.character("o"))]
-    case .edit:
-      [KeyPress(.character("e"))]
-    case .reveal:
-      [KeyPress(.character("R"))]
-    case .copyAbsolutePath:
-      [KeyPress(.character("y"))]
-    default:
-      []
-    }
   }
 }
 

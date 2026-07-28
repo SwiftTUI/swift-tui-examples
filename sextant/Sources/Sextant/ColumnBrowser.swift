@@ -627,28 +627,16 @@ struct ColumnBrowser: View {
       }
       return .ignored
     }
-    let context = commandContext
-    let resolved =
-      context.previewFocused
-      ? commandCatalog.previewFocusedCommand(for: keyPress, context: context)
-      : commandCatalog.command(for: keyPress, context: context)
-    guard let (command, availability) = resolved else {
-      return .ignored
-    }
-    guard availability.isEnabled else {
-      model.send(
-        .reportStatus(
-          .failure(availability.disabledReason ?? "Command unavailable.")
-        )
-      )
+    switch commandCatalog.dispatch(keyPress, context: commandContext) {
+    case .perform(let action):
+      send(action)
       return .handled
-    }
-    if command.dispatchOwnership == .applicationRuntime {
-      // The scene owns process exit so it can run the normal shutdown path.
+    case .unavailable(let reason):
+      model.send(.reportStatus(.failure(reason)))
+      return .handled
+    case .runtimeOwned, nil:
       return .ignored
     }
-    perform(command)
-    return .handled
   }
 
   private var commandContext: CommandContext {
@@ -656,82 +644,37 @@ struct ColumnBrowser: View {
       hasSelection: model.state.selectedItem != nil,
       hasPreview: model.state.preview.item != nil,
       previewFocused: model.state.focus == .preview,
-      hasRootRelativeSelection: rootRelativeSelectionPath != nil
+      hasRootRelativeSelection: rootRelativeSelectionPath != nil,
+      showsHiddenFiles: model.state.policy.showsHiddenFiles,
+      isOverlayPresented: model.state.overlay != .none
     )
   }
 
-  private func perform(_ command: CommandDefinition) {
-    switch command.action {
-    case .moveUp:
-      model.send(.moveSelection(.offset(-1)))
-    case .moveDown:
-      model.send(.moveSelection(.offset(1)))
-    case .moveParent:
-      model.send(.moveToParent)
-    case .advance:
-      model.send(.advanceIntoSelected)
-    case .enter:
-      model.send(.enterSelected)
-    case .first:
-      model.send(.moveSelection(.first))
-    case .last:
-      model.send(.moveSelection(.last))
-    case .pageUp:
-      model.send(.moveSelection(.offset(-10)))
-    case .pageDown:
-      model.send(.moveSelection(.offset(10)))
-    case .toggleSurface:
-      if model.state.focus == .preview {
-        model.send(.focusBrowser)
-      } else {
-        model.send(.focusPreview)
-      }
-    case .focusBrowser:
-      model.send(.focusBrowser)
-    case .filter:
+  /// Sends a resolved action, seeding any text field the overlay it opens will
+  /// bind to. The seed is the only part of a command's effect the view owns.
+  private func send(_ action: BrowserAction) {
+    switch action {
+    case .showFilter:
       filterText = model.state.filter.query
-      model.send(.showFilter)
-    case .toggleHidden:
-      model.send(.setHidden(!model.state.policy.showsHiddenFiles))
-    case .refresh:
-      model.send(.refresh)
-    case .help:
-      model.send(.showHelp)
-    case .palette:
+    case .showPalette:
       paletteQuery = ""
-      model.send(.showPalette)
-    case .search:
+    case .showSearch:
       searchQuery = ""
-      model.send(.showSearch)
-    case .bookmark:
-      model.send(.toggleBookmark)
-    case .open, .edit, .reveal, .copyAbsolutePath, .copyRelativePath:
-      performHandoff(command.action)
-    case .quit:
+    default:
       break
     }
+    model.send(action)
   }
 
-  private func performHandoff(_ action: SextantCommandAction) {
-    let command: BrowserHandoffCommand? =
-      switch action {
-      case .open:
-        .open
-      case .edit:
-        .edit
-      case .reveal:
-        .reveal
-      case .copyAbsolutePath:
-        .copyAbsolutePath
-      case .copyRelativePath:
-        .copyRelativePath
-      default:
-        nil
-      }
-    guard let command else {
+  /// Invokes a command chosen by name rather than by key — the palette rows.
+  /// Key eligibility does not apply here; the palette is itself an overlay.
+  private func perform(_ command: CommandDefinition) {
+    guard command.dispatchOwnership == .browser,
+      let action = command.action.browserAction(in: commandContext)
+    else {
       return
     }
-    model.send(.performHandoff(command))
+    send(action)
   }
 
   private var rootRelativeSelectionPath: String? {
@@ -757,20 +700,15 @@ struct ColumnBrowser: View {
   }
 
   private func routePreviewKey(_ keyPress: KeyPress) -> TerminalViewKeyDisposition {
-    // The embedded child sees every key the catalog does not claim for the
-    // preview surface, so this asks the same question `handleKeyPress` does
-    // rather than hard-coding one chord.
-    guard
-      let (command, availability) = commandCatalog.previewFocusedCommand(
-        for: keyPress,
-        context: commandContext
-      ),
-      availability.isEnabled,
-      command.dispatchOwnership == .browser
+    // The embedded child sees every key the catalog does not claim. Because
+    // the context reports the preview as focused, dispatch already restricts
+    // itself to the preview section.
+    guard case .perform(let action)? =
+      commandCatalog.dispatch(keyPress, context: commandContext)
     else {
       return .forwardToChild
     }
-    perform(command)
+    send(action)
     return .handledByHost
   }
 

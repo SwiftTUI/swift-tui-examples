@@ -25,10 +25,7 @@ struct SextantCommand: SwiftTUI.App {
     WindowGroup("Sextant") {
       Self.configuredRoot ?? SextantRootView()
     }
-    .exitOnKeys([
-      KeyPress(.character("d"), modifiers: .ctrl),
-      KeyPress(.character("q")),
-    ])
+    .exitOnKeys(CommandCatalog.runtimeExitKeys)
   }
 
   mutating func run() async throws {
