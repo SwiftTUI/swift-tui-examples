@@ -62,13 +62,22 @@ enum GitParsers {
     return commits
   }
 
+  /// The `-z` entry terminator. A control character rather than whitespace,
+  /// so an ordinary `.whitespacesAndNewlines` trim leaves it in place.
+  private static let nulTerminator = CharacterSet(charactersIn: "\u{0}")
+
+  /// Splits `subject\n<numstat block>` apart.
+  ///
+  /// A commit with no numstat block — a merge, most commonly — ends its
+  /// subject with the NUL terminator and no newline at all, so the terminator
+  /// has to be stripped here or it survives into `Commit.subject`.
   private static func splitSubjectAndNumstat(_ tail: String) -> (String, String) {
     guard let firstNewline = tail.firstIndex(of: "\n") else {
-      return (tail, "")
+      return (tail.trimmingCharacters(in: nulTerminator), "")
     }
     let subject = String(tail[..<firstNewline])
     let numstat = String(tail[tail.index(after: firstNewline)...])
-    return (subject, numstat)
+    return (subject.trimmingCharacters(in: nulTerminator), numstat)
   }
 
   private static func sumNumstat(_ block: String) -> (insertions: Int, deletions: Int) {

@@ -3,64 +3,130 @@ import Testing
 
 @testable import GitViz
 
+/// Parser tests, run against bytes recorded from a real `git` by
+/// `Scripts/record_git_fixtures.sh`. Focused on the parsers themselves — the
+/// argv that produced these bytes is asserted in `GitRepoTests`, and both read
+/// the same recordings so they cannot disagree about what git emits.
+///
+/// The recorded repository deliberately contains a merge (no numstat block), a
+/// rename (a three-token NUL entry), a unicode subject, a root commit with no
+/// parents, and both tag kinds. See `Fixtures/PROVENANCE.md`.
 struct GitParsersTests {
-  @Test("parseLogWithNumstat decodes 3 commits with insertions/deletions")
+  @Test("parseLogWithNumstat decodes the recorded history newest-first")
   func parsesLogWithNumstat() throws {
     let raw = try loadFixture(named: "log-numstat.txt")
     let commits = GitParsers.parseLogWithNumstat(raw)
-    #expect(commits.count == 3)
+    #expect(commits.count == 6)
 
-    #expect(commits[0].sha == "abc1234")
-    #expect(commits[0].authorName == "Alice Cooper")
-    #expect(commits[0].subject == "feat: add foo")
-    #expect(commits[0].insertions == 5)
-    #expect(commits[0].deletions == 2)
-    #expect(commits[0].parents == ["parent1"])
+    #expect(commits[0].subject == "refactor: rename the first file")
+    #expect(commits[0].authorName == "Bob Dylan")
+    #expect(commits[0].authorEmail == "bob@example.com")
+    #expect(commits[0].parents.count == 1)
 
-    #expect(commits[1].sha == "def5678")
-    #expect(commits[1].insertions == 12)
-    #expect(commits[1].deletions == 1)
+    #expect(commits.last?.subject == "feat: add the first file")
+    #expect(commits.last?.authorName == "Alice Cooper")
+    #expect(commits.last?.insertions == 1)
+  }
 
-    #expect(commits[2].sha == "ff00aa11")
-    #expect(commits[2].subject == "docs: readme")
+  @Test("a merge commit's subject carries no trailing NUL")
+  func mergeSubjectHasNoTrailingNul() throws {
+    let raw = try loadFixture(named: "log-numstat.txt")
+    let commits = GitParsers.parseLogWithNumstat(raw)
+
+    let merge = try #require(commits.first { $0.parents.count > 1 })
+
+    // A merge emits no numstat block, so under `-z` its subject is followed
+    // directly by NUL with no newline. `trimmingCharacters(in:
+    // .whitespacesAndNewlines)` does not strip NUL (it is a control
+    // character, not whitespace), so the terminator used to survive into the
+    // subject.
+    #expect(merge.subject == "Merge branch 'side' into main")
+    #expect(!merge.subject.unicodeScalars.contains("\u{0}"))
+    #expect(merge.insertions == 0)
+    #expect(merge.deletions == 0)
+  }
+
+  @Test("a rename entry does not corrupt the surrounding numstat block")
+  func renameEntryParsesCleanly() throws {
+    let raw = try loadFixture(named: "log-numstat.txt")
+    let commits = GitParsers.parseLogWithNumstat(raw)
+
+    let rename = try #require(commits.first { $0.subject.hasPrefix("refactor:") })
+
+    // Under `-z` a rename emits `0\t0\0<old>\0<new>\0` — three NUL tokens for
+    // one entry. The two bare path tokens carry no tab, so they are skipped
+    // rather than counted as deltas.
+    #expect(rename.insertions == 0)
+    #expect(rename.deletions == 0)
+  }
+
+  @Test("a unicode subject survives the record/field split")
+  func unicodeSubjectSurvives() throws {
+    let raw = try loadFixture(named: "log-numstat.txt")
+    let commits = GitParsers.parseLogWithNumstat(raw)
+
+    let unicode = try #require(commits.first { $0.subject.hasPrefix("docs:") })
+    #expect(unicode.subject == "docs: café ünïcode subject — em dash and é")
+  }
+
+  @Test("the root commit parses with no parents")
+  func rootCommitHasNoParents() throws {
+    let raw = try loadFixture(named: "log-numstat.txt")
+    let commits = GitParsers.parseLogWithNumstat(raw)
+
+    let root = try #require(commits.last)
+    #expect(root.parents.isEmpty)
   }
 
   @Test("parseShortlog returns one tally per row, descending count")
   func parsesShortlog() throws {
     let raw = try loadFixture(named: "shortlog.txt")
     let tallies = GitParsers.parseShortlog(raw)
-    #expect(tallies.count == 3)
+    #expect(tallies.count == 2)
     #expect(tallies[0].name == "Alice Cooper")
     #expect(tallies[0].email == "alice@example.com")
-    #expect(tallies[0].commits == 5)
+    #expect(tallies[0].commits == 3)
+    #expect(tallies[1].name == "Bob Dylan")
     #expect(tallies[1].commits == 3)
-    #expect(tallies[2].name == "Carol Quinn")
   }
 
   @Test("parseTags distinguishes annotated from lightweight tags")
   func parsesTags() throws {
     let raw = try loadFixture(named: "for-each-ref-tags.txt")
     let tags = GitParsers.parseTags(raw)
-    #expect(tags.count == 3)
-    let annotated = tags.filter(\.isAnnotated).map(\.name).sorted()
-    let lightweight = tags.filter { !$0.isAnnotated }.map(\.name).sorted()
-    #expect(annotated == ["v0.1.0", "v1.0.0"])
-    #expect(lightweight == ["v0.2.0"])
+    #expect(tags.count == 2)
+
+    let annotated = try #require(tags.first { $0.isAnnotated })
+    let lightweight = try #require(tags.first { !$0.isAnnotated })
+    #expect(annotated.name == "v1.0.0")
+    #expect(lightweight.name == "v1.1.0")
+
+    // The lightweight tag has an empty taggerdate and falls back to
+    // committerdate; without that fallback it would be dropped entirely.
+    #expect(lightweight.date == GitParsers.parseISODate("2020-01-06T09:00:00Z"))
+  }
+
+  @Test("parseRevListParents records each commit's parents")
+  func parsesRevListParents() throws {
+    let raw = try loadFixture(named: "rev-list-parents.txt")
+    let rows = GitParsers.parseRevListParents(raw)
+    #expect(rows.count == 6)
+
+    // Topological order: HEAD first, root last.
+    #expect(rows[0].parents.count == 1)
+    #expect(rows.last?.parents.isEmpty == true)
+
+    let merge = try #require(rows.first { $0.parents.count == 2 })
+    #expect(merge.sha == rows[0].parents[0])
   }
 
   @Test("parseChangedFileCounts ranks paths by frequency")
-  func parsesChangedFileCounts() {
-    let RS = GitParsers.recordSeparator
-    let raw = """
-      \(RS)src/foo.swift
-      src/bar.swift
-      \(RS)src/foo.swift
-      \(RS)src/foo.swift
-      tests/test.swift
-      """
+  func parsesChangedFileCounts() throws {
+    let raw = try loadFixture(named: "name-only.txt")
     let counts = GitParsers.parseChangedFileCounts(raw)
-    #expect(counts.first?.path == "src/foo.swift")
-    #expect(counts.first?.changeCount == 3)
+    // a.txt is touched by both of the first two commits.
+    #expect(counts.first?.path == "a.txt")
+    #expect(counts.first?.changeCount == 2)
     #expect(counts.count == 3)
   }
 

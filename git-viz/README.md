@@ -23,6 +23,7 @@ and inherit the framework's `--no-color`, `--ascii`, `--reduce-motion`,
 - `SwiftTUICharts` (from the separate [`swift-tui-charts`](https://github.com/SwiftTUI/swift-tui-charts) package) — which means a developer gets ready-made terminal chart primitives (heatmaps, sparklines, line/bar/column charts, gauges, timelines) instead of hand-rolling cell drawing. Every chart type in the module is exercised by at least one subcommand.
 - `SwiftTUICLI` argument parsing — a single executable fans out into many named subcommands, each with shared `SwiftTUIOptions` flags.
 - One-shot terminal rendering — each subcommand prints a chart and exits, with no interactive loop, so the output composes cleanly into pipes and scripts.
+- A testable seam over a subprocess — `GitRunning` separates *building* a git command line from *running* one, so tests can assert the exact `argv` the app issues and replay real recorded output without spawning `git`.
 
 ## Subcommand roster
 
@@ -50,6 +51,21 @@ and inherit the framework's `--no-color`, `--ascii`, `--reduce-motion`,
 ```bash
 swiftly run swift test --package-path git-viz
 ```
+
+Tests run against bytes recorded from a real `git` rather than hand-written
+samples. To refresh them:
+
+```bash
+git-viz/Scripts/record_git_fixtures.sh
+```
+
+The script builds a throwaway repository containing the shapes that actually
+break parsers — a merge (which emits no numstat block), a rename (a
+three-token NUL entry under `-z`), a unicode subject, and both tag kinds —
+then runs the exact `argv` `GitRepo` issues. Commit dates are pinned, so
+re-running produces byte-identical fixtures; a diff means git's output format
+changed. Provenance is recorded in
+[`Tests/GitVizTests/Fixtures/PROVENANCE.md`](Tests/GitVizTests/Fixtures/PROVENANCE.md).
 
 ## See also
 

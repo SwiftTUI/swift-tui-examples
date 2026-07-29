@@ -23,15 +23,13 @@ enum GitProcessError: Error, CustomStringConvertible, Sendable {
   }
 }
 
-/// Internal `Process` invoker. Synchronous because git-viz is a CLI script,
-/// not a long-running daemon.
-enum GitProcess {
-  /// Runs `git <arguments>` with `workingDirectory` as the cwd and returns
+/// The production ``GitRunning`` adapter: a real `Process` spawning the real
+/// binary. Synchronous because git-viz is a CLI script, not a long-running
+/// daemon.
+struct ProcessGitRunner: GitRunning {
+  /// Runs `git <argv>` with `workingDirectory` as the cwd and returns
   /// the stdout buffer decoded as UTF-8.
-  static func run(
-    workingDirectory: URL,
-    arguments: [String]
-  ) throws -> String {
+  func run(_ arguments: [String], in workingDirectory: URL) throws -> String {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
     process.arguments = ["git"] + arguments

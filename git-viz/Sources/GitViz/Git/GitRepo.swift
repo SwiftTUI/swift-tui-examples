@@ -8,7 +8,7 @@ enum GitRepoError: Error, CustomStringConvertible, Sendable {
   var description: String {
     switch self {
     case .notARepository(let path):
-      return "\(path.path) is not a git repository (no .git directory)."
+      return "\(path.path) is not a git repository."
     }
   }
 }
@@ -16,15 +16,31 @@ enum GitRepoError: Error, CustomStringConvertible, Sendable {
 /// Public facade over the local git binary. Synchronous, throwing,
 /// `Sendable`.
 struct GitRepo: Sendable {
+  /// The resolved worktree root — not necessarily the path the caller passed.
   let workingDirectory: URL
 
-  init(workingDirectory: URL) throws {
-    var isDirectory: ObjCBool = false
-    let dotGit = workingDirectory.appendingPathComponent(".git").path
-    guard FileManager.default.fileExists(atPath: dotGit, isDirectory: &isDirectory) else {
+  private let runner: any GitRunning
+
+  /// Opens the repository containing `workingDirectory`.
+  ///
+  /// Validation asks git rather than probing the filesystem for `.git`. That
+  /// matters for three reasons: a submodule's `.git` is a *file* rather than a
+  /// directory, a linked worktree's is neither, and `git-viz` should work from
+  /// any subdirectory the way every other git command does. `--show-toplevel`
+  /// answers all three, and answers it through the seam, so a recorded run can
+  /// answer it too.
+  init(workingDirectory: URL, runner: any GitRunning = ProcessGitRunner()) throws {
+    let root: String
+    do {
+      root = try runner.run(["rev-parse", "--show-toplevel"], in: workingDirectory).trimmedLine
+    } catch {
       throw GitRepoError.notARepository(path: workingDirectory)
     }
-    self.workingDirectory = workingDirectory
+    guard !root.isEmpty else {
+      throw GitRepoError.notARepository(path: workingDirectory)
+    }
+    self.workingDirectory = URL(fileURLWithPath: root)
+    self.runner = runner
   }
 
   /// Runs repository IO and parsing outside the caller's actor.
@@ -36,10 +52,11 @@ struct GitRepo: Sendable {
   static func perform<T: Sendable>(
     workingDirectory: URL,
     priority: TaskPriority = .userInitiated,
+    runner: any GitRunning = ProcessGitRunner(),
     _ operation: @Sendable @escaping (GitRepo) throws -> T
   ) async throws -> T {
     try await Task.detached(priority: priority) {
-      let repo = try GitRepo(workingDirectory: workingDirectory)
+      let repo = try GitRepo(workingDirectory: workingDirectory, runner: runner)
       return try operation(repo)
     }.value
   }
@@ -51,9 +68,13 @@ struct GitRepo: Sendable {
     let branch = try? run(["rev-parse", "--abbrev-ref", "HEAD"]).trimmedLine
     let commitCount =
       (try? GitParsers.parseInteger(run(["rev-list", "--count", "HEAD"]))) ?? 0
+    // `--max-count` deliberately absent: git applies it *during* the walk and
+    // applies `--reverse` to the result, so `log --reverse --max-count 1`
+    // returns the NEWEST commit. Take the whole reversed list and read its
+    // first line instead.
     let firstCommit =
       (try? run([
-        "log", "--reverse", "--pretty=format:%aI", "--max-count", "1",
+        "log", "--reverse", "--pretty=format:%aI",
       ]).trimmedLine).flatMap { GitParsers.parseISODate($0) }
     let lastCommit =
       (try? run([
@@ -193,7 +214,7 @@ struct GitRepo: Sendable {
   // MARK: - Helpers
 
   private func run(_ arguments: [String]) throws -> String {
-    try GitProcess.run(workingDirectory: workingDirectory, arguments: arguments)
+    try runner.run(arguments, in: workingDirectory)
   }
 
   private func formatGitDate(_ date: Date) -> String {
