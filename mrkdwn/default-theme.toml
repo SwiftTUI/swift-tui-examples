@@ -1,0 +1,30 @@
+version = 1
+
+[theme]
+background = "#0D1117"
+foreground = "#C9D1D9"
+muted = "#8B949E"
+accent = "#58A6FF"
+selection_background = "#1F6FEB"
+heading_1 = "#79C0FF"
+heading_2 = "#A5D6FF"
+heading_3 = "#D2A8FF"
+heading_4 = "#FFA657"
+heading_5 = "#7EE787"
+heading_6 = "#FF7B72"
+link = "#58A6FF"
+quote = "#8B949E"
+code_foreground = "#E6EDF3"
+code_background = "#161B22"
+table_border = "#30363D"
+rule = "#30363D"
+search_match = "#E3B341"
+error = "#FF7B72"
+
+[theme.mermaid]
+background = "#161B22"
+border = "#8B949E"
+text = "#E6EDF3"
+edge = "#8B949E"
+edge_label = "#C9D1D9"
+title = "#79C0FF"

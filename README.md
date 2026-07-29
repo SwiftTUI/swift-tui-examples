@@ -18,6 +18,9 @@ Pick by what you want to see, then run one command:
   window, and a static WASI browser bundle.
 - **The smallest possible start** — read [`minimal`](minimal): one
   `RenderOnce.print(...)`, no app runtime, no argument parser.
+- **A polished document reader** — run [`mrkdwn`](mrkdwn): complete GFM
+  compilation, responsive navigation, XDG theming, bounded images, and
+  Unicode-rich Mermaid surfaces.
 
 Building something specific? Scan the [roster](#roster) by what each example
 proves, or jump straight to a package in [By product](#by-product).
@@ -50,9 +53,10 @@ bun --cwd WebExample run build
 ```
 
 Everything builds from a fresh clone using tagged HTTPS dependencies. Every
-example is on the `0.4.1` release graph — Gallery on the matching
-`swift-tui`/`swift-tui-charts` pair, and WebExample on the `swift-tui-web`
-`0.4.1` release tarballs for `@swifttui/web` and `@swifttui/build`. No sibling
+example declares the compatible `0.4.x` release graph — Gallery on the matching
+`swift-tui`/`swift-tui-charts` pair, WebExample on the `swift-tui-web` `0.4.0`
+release tarballs for `@swifttui/web` and `@swifttui/build`, and `mrkdwn` on
+independently released `swift-markdown` and `swift-mermaid` ranges. No sibling
 source checkout is required.
 
 ## Roster
@@ -69,6 +73,7 @@ source checkout is required.
 | [AndroidGallery](AndroidGallery) | Android | Compose host app embedding the SwiftTUI gallery through `SwiftTUIAndroidHost` and the Swift Android SDK | `(cd AndroidGallery && ./gradlew :app:assembleDebug)` |
 | [sextant](sextant) | Terminal | Miller-column browser and file previews through `SwiftTUITerminal` / `TerminalProcessSession` | `swiftly run swift run --package-path sextant sextant` |
 | [terminal-workspace](terminal-workspace) | Terminal | First-party `SwiftTUITerminalWorkspace` surface: tabs, splits, retained sessions, command-palette actions, and persisted layout metadata | `swiftly run swift run --package-path terminal-workspace terminal-workspace` |
+| [mrkdwn](mrkdwn) | Terminal | Responsive CommonMark/GFM reader with outline, search, local-document history, XDG TOML themes, bounded images, and semantic-cell Mermaid rendering | `swiftly run swift run --package-path mrkdwn mrkdwn README.md` |
 | [git-viz](git-viz) | CLI | `SwiftTUICharts` over real git data, with a command for every chart primitive | `swiftly run swift run --package-path git-viz git-viz dashboard --path .` |
 | [gifcat](gifcat) | Terminal | `SwiftTUIAnimatedImage` playback, source GIF delays, regular-size image attachments, and row-major tiling of multiple GIFs | `swiftly run swift run --package-path gifcat gifcat nyan.gif` |
 | [gifeditor](gifeditor) | Terminal+Web | Full GIF editor: half-cell canvas, palette, tools, layers, timeline, pointer input, undo/redo, and GIF import/export | `swiftly run swift run --package-path gifeditor gifeditor` |
@@ -83,7 +88,8 @@ Already know the package you need? Jump straight to an example that uses it.
 
 | Product or package | Examples |
 | --- | --- |
-| `SwiftTUI` convenience surface | [argparse](argparse), [gallery](gallery), [layouts](layouts), [sextant](sextant), [terminal-workspace](terminal-workspace), [gifcat](gifcat), [gifeditor](gifeditor), [WebHostExample](WebHostExample) |
+| `SwiftTUI` convenience surface | [argparse](argparse), [gallery](gallery), [layouts](layouts), [sextant](sextant), [terminal-workspace](terminal-workspace), [mrkdwn](mrkdwn), [gifcat](gifcat), [gifeditor](gifeditor), [WebHostExample](WebHostExample) |
+| `SwiftMermaid` (separate [`swift-mermaid`](https://github.com/SwiftTUI/swift-mermaid) package) | [mrkdwn](mrkdwn) |
 | `SwiftTUIRuntime` / host-managed scenes | [gallery](gallery), [three-hosts-demo](three-hosts-demo), [WebExample](WebExample) |
 | `SwiftTUICLI` / one-shot rendering and terminal launch | [minimal](minimal), [terminal-runner](terminal-runner), [git-viz](git-viz) |
 | `SwiftTUIArguments` / `SwiftTUICommand` | [argparse](argparse), [gallery](gallery), [gifeditor](gifeditor), [git-viz](git-viz) |

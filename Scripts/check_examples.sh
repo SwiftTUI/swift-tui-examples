@@ -7,6 +7,8 @@ framework_root=${SWIFTTUI_CHECKOUT:-}
 web_root=${SWIFTTUI_WEB_CHECKOUT:-}
 swiftpm_scratch=${SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH:-}
 xcode_derived_data=${SWIFTTUI_EXAMPLES_XCODE_DERIVED_DATA:-}
+runtime_tmpdir=
+mrkdwn_package_path="$repo_root/mrkdwn"
 
 skip_clean=0
 skip_bun_install=0
@@ -21,8 +23,11 @@ Builds and tests the SwiftTUI example packages from this repository. By default
 the examples resolve public SwiftTUI release tags and web package release
 tarballs; no sibling checkouts are required.
 
-Set SWIFTTUI_CHECKOUT or SWIFTTUI_WEB_CHECKOUT only when deliberately testing
-against local sibling checkouts. The default public gate does not use them.
+Set SWIFTTUI_CHECKOUT only when deliberately testing mrkdwn against a local
+SwiftTUI checkout. Mrkdwn is copied to a disposable package root whose SwiftTUI
+dependency points at that exact checkout; the public manifest is not modified.
+Set SWIFTTUI_WEB_CHECKOUT to exercise the local web host. The default public
+gate does not use sibling checkouts.
 Set SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH to reuse one sequential SwiftPM scratch
 directory across the example package builds. Do not share that directory across
 parallel check runs.
@@ -100,8 +105,46 @@ require_checkout() {
   fi
 }
 
+cleanup_runtime_tmpdir() {
+  if [ -n "$runtime_tmpdir" ] && [ -d "$runtime_tmpdir" ]; then
+    rm -rf -- "$runtime_tmpdir"
+  fi
+}
+
+trap cleanup_runtime_tmpdir EXIT
+trap 'cleanup_runtime_tmpdir; exit 129' HUP
+trap 'cleanup_runtime_tmpdir; exit 130' INT
+trap 'cleanup_runtime_tmpdir; exit 143' TERM
+
+ensure_runtime_tmpdir() {
+  if [ -z "$runtime_tmpdir" ]; then
+    runtime_tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/swift-tui-examples.XXXXXX")
+  fi
+}
+
+prepare_mrkdwn_package() {
+  if [ -z "$framework_root" ]; then
+    return
+  fi
+
+  ensure_runtime_tmpdir
+  localized_root="$runtime_tmpdir/mrkdwn"
+  mkdir -p "$localized_root"
+  cp "$repo_root/mrkdwn/Package.swift" \
+    "$repo_root/mrkdwn/Package.resolved" \
+    "$repo_root/mrkdwn/default-theme.toml" \
+    "$localized_root/"
+  cp -R "$repo_root/mrkdwn/Sources" "$repo_root/mrkdwn/Tests" "$localized_root/"
+  python3 "$repo_root/mrkdwn/Scripts/check_manifest_contract.py" \
+    --localize-manifest \
+    "$repo_root/mrkdwn/Package.swift" \
+    "$localized_root/Package.swift" \
+    "$framework_root"
+  mrkdwn_package_path=$localized_root
+}
+
 require_command swiftly
-if run_linux_suite; then
+if run_linux_suite || run_macos_suite; then
   require_command python3
 fi
 if run_web_suite; then
@@ -116,6 +159,12 @@ fi
 if run_web_suite && [ -n "$web_root" ]; then
   require_checkout "$web_root" "swift-tui-web"
 fi
+if run_linux_suite || run_macos_suite; then
+  ensure_runtime_tmpdir
+  if [ -n "$framework_root" ]; then
+    prepare_mrkdwn_package
+  fi
+fi
 
 run_swift() {
   if should_use_swiftpm_scratch "$@"; then
@@ -123,6 +172,33 @@ run_swift() {
   else
     swiftly run swift "$@"
   fi
+}
+
+run_mrkdwn_manifest_contract() {
+  ensure_runtime_tmpdir
+  dump_file="$runtime_tmpdir/mrkdwn-dump-package.json"
+  status=0
+  if ! swiftly run swift package \
+    --package-path "$mrkdwn_package_path" \
+    dump-package >"$dump_file"; then
+    status=1
+  elif [ -n "$framework_root" ]; then
+    if ! python3 "$repo_root/mrkdwn/Scripts/check_manifest_contract.py" \
+      --overlay "$framework_root" "$dump_file" "$mrkdwn_package_path"; then
+      status=1
+    fi
+  elif ! python3 "$repo_root/mrkdwn/Scripts/check_manifest_contract.py" \
+    "$dump_file" "$mrkdwn_package_path"; then
+    status=1
+  fi
+  rm -f "$dump_file"
+  return "$status"
+}
+
+run_mrkdwn_tests() {
+  run_mrkdwn_manifest_contract || return 1
+  export MRKDWN_REAL_PTY_TESTS=1
+  run_swift test --package-path "$mrkdwn_package_path"
 }
 
 should_use_swiftpm_scratch() {
@@ -247,6 +323,11 @@ run_linux_examples() {
         "$repo_root" \
         run_swift package clean --package-path "$package_path"
     done
+
+    run_step \
+      "Clean mrkdwn" \
+      "$repo_root" \
+      run_swift package clean --package-path "$mrkdwn_package_path"
   fi
 
   print_section "Linux build-only coverage"
@@ -272,6 +353,16 @@ run_linux_examples() {
       "$repo_root" \
       run_swift build -c release --package-path "$package_path"
   done
+
+  run_step \
+    "Build mrkdwn" \
+    "$repo_root" \
+    run_swift build --package-path "$mrkdwn_package_path"
+
+  run_step \
+    "Build mrkdwn (release)" \
+    "$repo_root" \
+    run_swift build -c release --package-path "$mrkdwn_package_path"
 
   run_step \
     "Build gallery" \
@@ -334,6 +425,11 @@ run_linux_examples() {
     "$repo_root" \
     run_swift test --package-path three-hosts-demo
 
+  run_step \
+    "Test mrkdwn" \
+    "$repo_root" \
+    run_mrkdwn_tests
+
   # The gallery exercises the full app shell (lazy-tab capture-host seam,
   # toolbar strip, command palette). Its test suite is the only coverage of
   # seam-hosted interactivity end to end; build-only checks cannot catch a
@@ -363,6 +459,11 @@ run_macos_examples() {
       "Clean LayoutsSwiftUI" \
       "$repo_root" \
       run_swift package clean --package-path LayoutsSwiftUI
+
+    run_step \
+      "Clean mrkdwn" \
+      "$repo_root" \
+      run_swift package clean --package-path "$mrkdwn_package_path"
   fi
 
   print_section "macOS build-only coverage"
@@ -376,6 +477,21 @@ run_macos_examples() {
     "Build LayoutsSwiftUI" \
     "$repo_root" \
     run_swift build --package-path LayoutsSwiftUI
+
+  run_step \
+    "Build mrkdwn" \
+    "$repo_root" \
+    run_swift build --package-path "$mrkdwn_package_path"
+
+  run_step \
+    "Build mrkdwn (release)" \
+    "$repo_root" \
+    run_swift build -c release --package-path "$mrkdwn_package_path"
+
+  run_step \
+    "Test mrkdwn" \
+    "$repo_root" \
+    run_mrkdwn_tests
 
   run_step \
     "Build SwiftUIExample macOS app" \

@@ -3,7 +3,10 @@
 set -eu
 
 repo_root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
+framework_root=${SWIFTTUI_CHECKOUT:-}
 swiftpm_scratch=${SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH:-}
+runtime_tmpdir=
+mrkdwn_package_path="$repo_root/mrkdwn"
 skip_bun_install=0
 failures=""
 
@@ -18,6 +21,9 @@ separate so CI and pre-tag lanes can choose the right contract explicitly.
 Set SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH to reuse one sequential SwiftPM scratch
 directory across the example package tests. Do not share that directory across
 parallel checks.
+When SWIFTTUI_CHECKOUT is set, mrkdwn runs from a disposable package root whose
+SwiftTUI dependency points at that exact checkout; the public manifest is not
+modified.
 EOF
 }
 
@@ -57,8 +63,61 @@ require_command() {
   fi
 }
 
+require_checkout() {
+  path=$1
+  label=$2
+  if [ ! -d "$path" ]; then
+    >&2 echo "Missing $label checkout: $path"
+    exit 1
+  fi
+}
+
+cleanup_runtime_tmpdir() {
+  if [ -n "$runtime_tmpdir" ] && [ -d "$runtime_tmpdir" ]; then
+    rm -rf -- "$runtime_tmpdir"
+  fi
+}
+
+trap cleanup_runtime_tmpdir EXIT
+trap 'cleanup_runtime_tmpdir; exit 129' HUP
+trap 'cleanup_runtime_tmpdir; exit 130' INT
+trap 'cleanup_runtime_tmpdir; exit 143' TERM
+
+ensure_runtime_tmpdir() {
+  if [ -z "$runtime_tmpdir" ]; then
+    runtime_tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/swift-tui-examples-focused.XXXXXX")
+  fi
+}
+
+prepare_mrkdwn_package() {
+  if [ -z "$framework_root" ]; then
+    return
+  fi
+
+  ensure_runtime_tmpdir
+  localized_root="$runtime_tmpdir/mrkdwn"
+  mkdir -p "$localized_root"
+  cp "$repo_root/mrkdwn/Package.swift" \
+    "$repo_root/mrkdwn/Package.resolved" \
+    "$repo_root/mrkdwn/default-theme.toml" \
+    "$localized_root/"
+  cp -R "$repo_root/mrkdwn/Sources" "$repo_root/mrkdwn/Tests" "$localized_root/"
+  python3 "$repo_root/mrkdwn/Scripts/check_manifest_contract.py" \
+    --localize-manifest \
+    "$repo_root/mrkdwn/Package.swift" \
+    "$localized_root/Package.swift" \
+    "$framework_root"
+  mrkdwn_package_path=$localized_root
+}
+
 require_command swiftly
 require_command bun
+require_command python3
+ensure_runtime_tmpdir
+if [ -n "$framework_root" ]; then
+  require_checkout "$framework_root" "swift-tui"
+  prepare_mrkdwn_package
+fi
 
 run_swift() {
   if [ -n "$swiftpm_scratch" ]; then
@@ -66,6 +125,33 @@ run_swift() {
   else
     swiftly run swift "$@"
   fi
+}
+
+run_mrkdwn_manifest_contract() {
+  ensure_runtime_tmpdir
+  dump_file="$runtime_tmpdir/mrkdwn-dump-package.json"
+  status=0
+  if ! swiftly run swift package \
+    --package-path "$mrkdwn_package_path" \
+    dump-package >"$dump_file"; then
+    status=1
+  elif [ -n "$framework_root" ]; then
+    if ! python3 "$repo_root/mrkdwn/Scripts/check_manifest_contract.py" \
+      --overlay "$framework_root" "$dump_file" "$mrkdwn_package_path"; then
+      status=1
+    fi
+  elif ! python3 "$repo_root/mrkdwn/Scripts/check_manifest_contract.py" \
+    "$dump_file" "$mrkdwn_package_path"; then
+    status=1
+  fi
+  rm -f "$dump_file"
+  return "$status"
+}
+
+run_mrkdwn_tests() {
+  run_mrkdwn_manifest_contract || return 1
+  export MRKDWN_REAL_PTY_TESTS=1
+  run_swift test --package-path "$mrkdwn_package_path"
 }
 
 run_step() {
@@ -105,6 +191,11 @@ for package_path in \
     "$repo_root" \
     run_swift test --package-path "$package_path"
 done
+
+run_step \
+  "Test mrkdwn" \
+  "$repo_root" \
+  run_mrkdwn_tests
 
 echo ""
 echo "### Focused browser behavior tests"
