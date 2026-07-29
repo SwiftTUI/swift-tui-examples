@@ -54,15 +54,29 @@ actor LiveDirectoryWatcher: DirectoryWatching {
     var continuation: AsyncStream<DirectoryWatchEvent>.Continuation
   }
 
-  private struct WatchedSource {
-    var url: URL
-    var fileDescriptor: Int32
-    var source: DispatchSourceFileSystemObject
-  }
+  // Dispatch's file-system-object source is Apple-only: swift-corelibs-libdispatch
+  // has no equivalent, so Linux watches the same directories through inotify.
+  // Both shapes keep one descriptor per watched directory so the debounce,
+  // flush, and `activeDescriptorCount()` behavior below stays identical.
+  #if canImport(Darwin)
+    private struct WatchedSource {
+      var url: URL
+      var fileDescriptor: Int32
+      var source: DispatchSourceFileSystemObject
+    }
 
-  private let queue = DispatchQueue(
-    label: "sh.swifttui.sextant.directory-watcher"
-  )
+    private let queue = DispatchQueue(
+      label: "sh.swifttui.sextant.directory-watcher"
+    )
+  #elseif canImport(Glibc)
+    private struct WatchedSource {
+      var url: URL
+      var fileDescriptor: Int32
+      var watch: Int32
+      var task: Task<Void, Never>
+    }
+  #endif
+
   private var sources: [String: WatchedSource] = [:]
   private var continuationSlot: ContinuationSlot?
   private var pendingURLs: Set<URL> = []
@@ -130,34 +144,138 @@ actor LiveDirectoryWatcher: DirectoryWatching {
     }
   }
 
-  private func makeSource(for url: URL) -> WatchedSource? {
-    #if canImport(Darwin)
+  #if canImport(Darwin)
+    private func makeSource(for url: URL) -> WatchedSource? {
       let descriptor = unsafe Darwin.open(url.path, O_EVTONLY)
-    #elseif canImport(Glibc)
-      let descriptor = unsafe Glibc.open(url.path, O_RDONLY | O_CLOEXEC)
-    #else
-      return nil
-    #endif
-    guard descriptor >= 0 else {
-      return nil
+      guard descriptor >= 0 else {
+        return nil
+      }
+      let source = DispatchSource.makeFileSystemObjectSource(
+        fileDescriptor: descriptor,
+        eventMask: [.write, .delete, .rename, .attrib, .extend, .link, .revoke],
+        queue: queue
+      )
+      source.setEventHandler { [weak self] in
+        Task {
+          await self?.record(url)
+        }
+      }
+      source.resume()
+      return WatchedSource(
+        url: url,
+        fileDescriptor: descriptor,
+        source: source
+      )
     }
-    let source = DispatchSource.makeFileSystemObjectSource(
-      fileDescriptor: descriptor,
-      eventMask: [.write, .delete, .rename, .attrib, .extend, .link, .revoke],
-      queue: queue
+  #elseif canImport(Glibc)
+    private static let inotifyMask = UInt32(
+      IN_CREATE | IN_DELETE | IN_MOVED_FROM | IN_MOVED_TO | IN_ATTRIB
+        | IN_CLOSE_WRITE | IN_MOVE_SELF | IN_DELETE_SELF
     )
-    source.setEventHandler { [weak self] in
-      Task {
-        await self?.record(url)
+
+    private func makeSource(for url: URL) -> WatchedSource? {
+      let descriptor = inotify_init1(Int32(IN_NONBLOCK | IN_CLOEXEC))
+      guard descriptor >= 0 else {
+        return nil
+      }
+      let watch = unsafe url.path.withCString {
+        unsafe inotify_add_watch(descriptor, $0, Self.inotifyMask)
+      }
+      guard watch >= 0 else {
+        _ = Glibc.close(descriptor)
+        return nil
+      }
+      // The weak reference is re-read every iteration rather than bound once:
+      // binding it would keep this actor alive for as long as the task runs,
+      // and the actor owns the task, so the pair would never be released.
+      let task = Task.detached { [weak self] in
+        var reader = INotifyReader(descriptor: descriptor)
+        while !Task.isCancelled {
+          switch reader.next() {
+          case .idle:
+            continue
+          case .changed(let watchEnded):
+            await self?.record(url)
+            if watchEnded { return }
+          case .failed:
+            return
+          }
+        }
+      }
+      return WatchedSource(
+        url: url,
+        fileDescriptor: descriptor,
+        watch: watch,
+        task: task
+      )
+    }
+
+    /// Reads one directory's inotify stream. Every event on the watch means the
+    /// same thing to the caller — "this directory changed" — so a whole read is
+    /// coalesced into a single `.changed`, and the actor's existing debounce
+    /// does the rest.
+    private struct INotifyReader {
+      /// Bounded so cancellation is observed promptly: `close(_:)` awaits the
+      /// polling task before closing the descriptor.
+      private static let pollTimeoutMilliseconds: Int32 = 100
+
+      private let descriptor: Int32
+      private var pollDescriptor: pollfd
+      private var buffer = [UInt8](repeating: 0, count: 16 * 1_024)
+
+      init(descriptor: Int32) {
+        self.descriptor = descriptor
+        self.pollDescriptor = pollfd(
+          fd: descriptor,
+          events: Int16(POLLIN),
+          revents: 0
+        )
+      }
+
+      enum Outcome {
+        /// Nothing to report yet; poll again.
+        case idle
+        /// The directory changed. `watchEnded` means the watch is gone (the
+        /// directory itself was moved or deleted), so stop polling.
+        case changed(watchEnded: Bool)
+        /// The descriptor is unusable; stop polling.
+        case failed
+      }
+
+      mutating func next() -> Outcome {
+        let ready = unsafe poll(&pollDescriptor, 1, Self.pollTimeoutMilliseconds)
+        if ready < 0 {
+          return errno == EINTR ? .idle : .failed
+        }
+        guard ready > 0, pollDescriptor.revents & Int16(POLLIN) != 0 else {
+          return .idle
+        }
+        let byteCount = unsafe buffer.withUnsafeMutableBytes { rawBuffer in
+          unsafe read(descriptor, rawBuffer.baseAddress, rawBuffer.count)
+        }
+        guard byteCount > 0 else {
+          return errno == EAGAIN || errno == EINTR ? .idle : .failed
+        }
+
+        var offset = 0
+        var watchEnded = false
+        while offset + MemoryLayout<inotify_event>.size <= byteCount {
+          let event = unsafe buffer.withUnsafeBytes { rawBuffer -> inotify_event in
+            unsafe rawBuffer.loadUnaligned(
+              fromByteOffset: offset,
+              as: inotify_event.self
+            )
+          }
+          if event.mask & UInt32(IN_IGNORED | IN_MOVE_SELF | IN_DELETE_SELF) != 0 {
+            watchEnded = true
+          }
+          // Each record is a fixed-size header followed by `len` name bytes.
+          offset += MemoryLayout<inotify_event>.size + Int(event.len)
+        }
+        return .changed(watchEnded: watchEnded)
       }
     }
-    source.resume()
-    return WatchedSource(
-      url: url,
-      fileDescriptor: descriptor,
-      source: source
-    )
-  }
+  #endif
 
   private func record(_ url: URL) {
     guard !isShutdown else {
@@ -189,19 +307,26 @@ actor LiveDirectoryWatcher: DirectoryWatching {
     )
   }
 
-  private func close(_ watched: WatchedSource) async {
-    await withCheckedContinuation { continuation in
-      watched.source.setCancelHandler {
-        #if canImport(Darwin)
+  #if canImport(Darwin)
+    private func close(_ watched: WatchedSource) async {
+      await withCheckedContinuation { continuation in
+        watched.source.setCancelHandler {
           _ = Darwin.close(watched.fileDescriptor)
-        #elseif canImport(Glibc)
-          _ = Glibc.close(watched.fileDescriptor)
-        #endif
-        continuation.resume()
+          continuation.resume()
+        }
+        watched.source.cancel()
       }
-      watched.source.cancel()
     }
-  }
+  #elseif canImport(Glibc)
+    private func close(_ watched: WatchedSource) async {
+      // Await the poll loop before closing: the descriptor must stay valid
+      // while `poll`/`read` can still touch it.
+      watched.task.cancel()
+      await watched.task.value
+      _ = inotify_rm_watch(watched.fileDescriptor, watched.watch)
+      _ = Glibc.close(watched.fileDescriptor)
+    }
+  #endif
 
   private func clearContinuation(ifOwnedBy id: UUID) {
     guard continuationSlot?.id == id else {
