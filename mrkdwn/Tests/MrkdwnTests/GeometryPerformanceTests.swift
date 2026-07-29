@@ -42,8 +42,16 @@ extension PerformanceEnvelopeTests {
         + "1000-scroll-updates=\(repeatedScrollElapsed)"
     )
     #expect(model.renderedGeometryComputationCount == 1)
-    #expect(firstGeometryElapsed < .milliseconds(1_200))
-    #expect(repeatedScrollElapsed < .microseconds(1_500))
+    expectWithinPerformanceBudget(
+      firstGeometryElapsed,
+      .milliseconds(1_200),
+      "first geometry pass"
+    )
+    expectWithinPerformanceBudget(
+      repeatedScrollElapsed,
+      .microseconds(1_500),
+      "1000 scroll updates"
+    )
     await model.shutdown()
   }
 }

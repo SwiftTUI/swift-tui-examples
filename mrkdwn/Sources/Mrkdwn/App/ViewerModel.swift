@@ -1,5 +1,7 @@
 public import Foundation
-import Observation
+// `@Observable` on a public type expands to a public `Observable` conformance,
+// so under `InternalImportsByDefault` this import must be public.
+public import Observation
 
 @Observable
 @MainActor

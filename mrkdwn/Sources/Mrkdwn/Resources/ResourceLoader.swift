@@ -2,7 +2,10 @@ public import Foundation
 import Synchronization
 
 #if canImport(FoundationNetworking)
-  import FoundationNetworking
+  // Linux splits URLSession out of Foundation. `ImageResourceLoader.init` is
+  // public and takes a `URLSessionConfiguration`, so this import must be public
+  // too — an internal import makes that initializer illegal on Linux only.
+  public import FoundationNetworking
 #endif
 
 public struct LoadedImage: Equatable, Sendable {
