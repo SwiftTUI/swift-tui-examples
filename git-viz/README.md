@@ -14,9 +14,29 @@ swiftly run swift run --package-path git-viz git-viz activity  # GitHub-style ca
 swiftly run swift run --package-path git-viz git-viz deltas    # insertions / deletions line chart
 ```
 
-All subcommands accept `--path <repo>` to point at a different working tree
-and inherit the framework's `--no-color`, `--ascii`, `--reduce-motion`,
-`--plain` flags from `SwiftTUIOptions`.
+Every subcommand inherits the framework's `--no-color`, `--ascii`,
+`--reduce-motion` and `--plain` flags from `SwiftTUIOptions`, and accepts
+`--width`.
+
+Beyond that, a subcommand declares only the options it actually honours, so
+`--help` lists exactly what has an effect and passing anything else is an error
+rather than a silently unchanged chart:
+
+| Option group | Options | Applies to |
+| --- | --- | --- |
+| `RepositoryOptions` | `--path` | every subcommand except `index`, which opens no repository |
+| `ScanLimitOptions` | `--max-commits` | the subcommands that walk commits |
+| `DateWindowOptions` | `--since`, `--until` | the subcommands that pass a window through to git |
+| `RankingOptions` | `--top` | the four subcommands that rank something |
+
+`activity`, `health`, `pulse` and `recent-vs-all` take no `--since`/`--until`
+on purpose: each renders a fixed window (a calendar year, one year, five weeks,
+30-days-versus-all-time) that *is* the chart's definition, so overriding it
+would change what the chart means rather than what it covers.
+
+`--since` and `--until` take a `YYYY-MM-DD` calendar day and are validated
+during argument parsing, so a typo fails immediately instead of quietly
+widening the window.
 
 ## Demonstrates
 

@@ -10,10 +10,12 @@ struct InfoCommand: AsyncParsableCommand {
   )
 
   @OptionGroup var opts: GitVizOptions
+  @OptionGroup var repository: RepositoryOptions
+  @OptionGroup var scan: ScanLimitOptions
 
   @MainActor func run() async throws {
-    let workingDirectory = opts.resolvedPath
-    let maxCommits = opts.maxCommits
+    let workingDirectory = repository.resolvedPath
+    let maxCommits = scan.maxCommits
     let (info, tags) = try await GitRepo.perform(workingDirectory: workingDirectory) { repo in
       let info = try repo.info(maxCommitsForScannedShare: maxCommits)
       let tags = (try? repo.tags()) ?? []
@@ -29,16 +31,16 @@ struct InfoCommand: AsyncParsableCommand {
         subtitle: info.branch.map { "branch \($0)" } ?? nil
       ) {
         VStack(alignment: .leading, spacing: 0) {
-          LabeledContent("Path", value: opts.resolvedPath.path)
+          LabeledContent("Path", value: repository.resolvedPath.path)
           LabeledContent("Commits", value: String(info.commitCount))
           LabeledContent("Contributors", value: String(info.contributorCount))
           LabeledContent("Tags", value: String(info.tagCount))
           if scanned < 1 {
             Divider()
-            Text("Scan window (\(opts.maxCommits) commits)").bold()
+            Text("Scan window (\(scan.maxCommits) commits)").bold()
             Meter(
               "Scanned",
-              value: Double(min(opts.maxCommits, info.commitCount)),
+              value: Double(min(scan.maxCommits, info.commitCount)),
               total: Double(max(info.commitCount, 1)),
               tone: .info
             )

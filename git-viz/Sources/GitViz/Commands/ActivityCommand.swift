@@ -10,6 +10,8 @@ struct ActivityCommand: AsyncParsableCommand {
   )
 
   @OptionGroup var opts: GitVizOptions
+  @OptionGroup var repository: RepositoryOptions
+  @OptionGroup var scan: ScanLimitOptions
 
   @Option(name: .long, help: "Restrict the calendar to a single calendar year.")
   var year: Int?
@@ -17,8 +19,8 @@ struct ActivityCommand: AsyncParsableCommand {
   @MainActor func run() async throws {
     let calendar = Calendar.current
     let (start, end) = window(in: calendar)
-    let workingDirectory = opts.resolvedPath
-    let maxCommits = opts.maxCommits
+    let workingDirectory = repository.resolvedPath
+    let maxCommits = scan.maxCommits
     let commits = try await GitRepo.perform(workingDirectory: workingDirectory) { repo in
       try repo.commits(
         since: start,

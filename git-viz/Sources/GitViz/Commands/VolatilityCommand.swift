@@ -9,17 +9,23 @@ struct VolatilityCommand: AsyncParsableCommand {
   )
 
   @OptionGroup var opts: GitVizOptions
+  @OptionGroup var repository: RepositoryOptions
+  @OptionGroup var scan: ScanLimitOptions
+  @OptionGroup var window: DateWindowOptions
+  @OptionGroup var ranking: RankingOptions
 
   @MainActor func run() async throws {
-    let workingDirectory = opts.resolvedPath
-    let maxCommits = opts.maxCommits
+    let workingDirectory = repository.resolvedPath
+    let maxCommits = scan.maxCommits
+    let since = window.sinceDate
+    let until = window.untilDate
     let files = try await GitRepo.perform(workingDirectory: workingDirectory) { repo in
-      try repo.fileChangeCounts(max: maxCommits)
+      try repo.fileChangeCounts(since: since, until: until, max: maxCommits)
     }
-    let entries = BarEntryAdapters.volatilityBars(files, top: opts.top)
+    let entries = BarEntryAdapters.volatilityBars(files, top: ranking.top)
     GitVizRunOnce.print(
       BarChart(
-        "Most-changed files (top \(opts.top))",
+        "Most-changed files (top \(ranking.top))",
         entries: entries,
         barWidth: 16,
         labelWidth: 30

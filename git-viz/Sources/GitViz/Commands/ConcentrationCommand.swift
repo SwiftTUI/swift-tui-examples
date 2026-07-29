@@ -14,15 +14,20 @@ struct ConcentrationCommand: AsyncParsableCommand {
   )
 
   @OptionGroup var opts: GitVizOptions
+  @OptionGroup var repository: RepositoryOptions
+  @OptionGroup var window: DateWindowOptions
+  @OptionGroup var ranking: RankingOptions
 
   @MainActor func run() async throws {
-    let workingDirectory = opts.resolvedPath
+    let workingDirectory = repository.resolvedPath
+    let since = window.sinceDate
+    let until = window.untilDate
     let tallies = try await GitRepo.perform(workingDirectory: workingDirectory) { repo in
-      try repo.shortlog()
+      try repo.shortlog(since: since, until: until)
     }
     let total = tallies.reduce(0) { $0 + $1.commits }
     let busFactor = computeBusFactor(tallies, total: total)
-    let topEntries = tallies.prefix(opts.top).map { tally in
+    let topEntries = tallies.prefix(ranking.top).map { tally in
       BarChartEntry(
         tally.name, value: Double(tally.commits), tone: AuthorPaletteAdapter.tone(for: tally.name))
     }
@@ -39,7 +44,7 @@ struct ConcentrationCommand: AsyncParsableCommand {
         )
         Divider()
         StackedBarChart(
-          "Commit share — top \(opts.top)", entries: topEntries, total: Double(total), barWidth: 28)
+          "Commit share — top \(ranking.top)", entries: topEntries, total: Double(total), barWidth: 28)
       },
       opts: opts
     )

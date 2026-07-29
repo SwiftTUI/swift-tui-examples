@@ -9,12 +9,15 @@ struct KindsCommand: AsyncParsableCommand {
   )
 
   @OptionGroup var opts: GitVizOptions
+  @OptionGroup var repository: RepositoryOptions
+  @OptionGroup var scan: ScanLimitOptions
+  @OptionGroup var window: DateWindowOptions
 
   @MainActor func run() async throws {
-    let workingDirectory = opts.resolvedPath
-    let since = opts.sinceDate
-    let until = opts.untilDate
-    let maxCommits = opts.maxCommits
+    let workingDirectory = repository.resolvedPath
+    let since = window.sinceDate
+    let until = window.untilDate
+    let maxCommits = scan.maxCommits
     let commits = try await GitRepo.perform(workingDirectory: workingDirectory) { repo in
       try repo.commits(
         since: since,

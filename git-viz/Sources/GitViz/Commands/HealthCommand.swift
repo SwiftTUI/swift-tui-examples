@@ -15,10 +15,12 @@ struct HealthCommand: AsyncParsableCommand {
   )
 
   @OptionGroup var opts: GitVizOptions
+  @OptionGroup var repository: RepositoryOptions
+  @OptionGroup var scan: ScanLimitOptions
 
   @MainActor func run() async throws {
-    let workingDirectory = opts.resolvedPath
-    let maxCommits = opts.maxCommits
+    let workingDirectory = repository.resolvedPath
+    let maxCommits = scan.maxCommits
     let deltas = try await GitRepo.perform(workingDirectory: workingDirectory) { repo in
       try repo.numstat(max: maxCommits)
     }

@@ -8,12 +8,13 @@ struct DagCommand: AsyncParsableCommand {
   )
 
   @OptionGroup var opts: GitVizOptions
+  @OptionGroup var repository: RepositoryOptions
 
   @Option(name: .long, help: "Maximum number of commits to lay out.")
   var max: Int = 200
 
   @MainActor func run() async throws {
-    let workingDirectory = opts.resolvedPath
+    let workingDirectory = repository.resolvedPath
     let maxCommits = max
     let layout = try await GitRepo.perform(workingDirectory: workingDirectory) { repo in
       try repo.revList(max: maxCommits)

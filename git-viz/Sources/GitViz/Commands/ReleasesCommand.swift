@@ -9,12 +9,13 @@ struct ReleasesCommand: AsyncParsableCommand {
   )
 
   @OptionGroup var opts: GitVizOptions
+  @OptionGroup var repository: RepositoryOptions
 
   @Option(name: .long, help: "Maximum number of tags to show (newest first).")
   var max: Int = 20
 
   @MainActor func run() async throws {
-    let workingDirectory = opts.resolvedPath
+    let workingDirectory = repository.resolvedPath
     let tags = try await GitRepo.perform(workingDirectory: workingDirectory) { repo in
       try repo.tags()
     }

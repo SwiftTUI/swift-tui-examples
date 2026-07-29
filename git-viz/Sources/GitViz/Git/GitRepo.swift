@@ -149,8 +149,16 @@ struct GitRepo: Sendable {
   }
 
   /// `git shortlog -s -n -e` parsed into author tallies, sorted desc by count.
-  func shortlog() throws -> [AuthorTally] {
-    let raw = try run(["shortlog", "-s", "-n", "-e", "HEAD"])
+  func shortlog(since: Date? = nil, until: Date? = nil) throws -> [AuthorTally] {
+    var args = ["shortlog", "-s", "-n", "-e"]
+    if let since {
+      args.append("--since=\(formatGitDate(since))")
+    }
+    if let until {
+      args.append("--until=\(formatGitDate(until))")
+    }
+    args.append("HEAD")
+    let raw = try run(args)
     return GitParsers.parseShortlog(raw)
   }
 
@@ -166,7 +174,11 @@ struct GitRepo: Sendable {
 
   /// File change-count ranking (by raw file-touch frequency, like
   /// `git log --diff-filter=AMD --name-only`). Sorted desc by count.
-  func fileChangeCounts(max: Int? = nil) throws -> [FileTally] {
+  func fileChangeCounts(
+    since: Date? = nil,
+    until: Date? = nil,
+    max: Int? = nil
+  ) throws -> [FileTally] {
     var args = [
       "log",
       "--no-color",
@@ -174,6 +186,12 @@ struct GitRepo: Sendable {
       "--name-only",
       "--pretty=format:\(GitParsers.recordSeparator)",
     ]
+    if let since {
+      args.append("--since=\(formatGitDate(since))")
+    }
+    if let until {
+      args.append("--until=\(formatGitDate(until))")
+    }
     if let max {
       args.append("--max-count=\(max)")
     }
