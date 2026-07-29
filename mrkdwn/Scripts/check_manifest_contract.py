@@ -32,7 +32,7 @@ PUBLIC_DEPENDENCIES = {
         "lower": "0.4.2",
         "upper": "0.5.0",
         "resolved": "0.4.2",
-        "revision": "7c093486bf8773798c527af6fbace0721be22ae8",
+        "revision": "c76c9b48e693f53956a8c5ef2e31d6c42011d33e",
     },
     "swift-markdown": {
         "url": "https://github.com/swiftlang/swift-markdown.git",
