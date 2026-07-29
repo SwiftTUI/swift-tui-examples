@@ -2,10 +2,10 @@
 import PackageDescription
 
 let package = Package(
-  name: "gitviz",
+  name: "git-viz",
   platforms: [.macOS(.v15)],
   products: [
-    .executable(name: "gitviz", targets: ["GitViz"])
+    .executable(name: "git-viz", targets: ["GitViz"])
   ],
   dependencies: [
     .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.4.0"),

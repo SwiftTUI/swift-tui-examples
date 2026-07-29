@@ -1,6 +1,6 @@
 import Foundation
 
-/// Offline DAG layout for `gitviz dag`.
+/// Offline DAG layout for `git-viz dag`.
 ///
 /// Given a topologically ordered list of `(sha, parents)` rows (newest
 /// first), `layout` assigns each commit a lane, a pre-rendered glyph

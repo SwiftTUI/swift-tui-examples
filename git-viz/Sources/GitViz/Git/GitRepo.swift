@@ -46,7 +46,7 @@ struct GitRepo: Sendable {
 
   // MARK: - High-level summaries
 
-  /// Repository-level summary used by `gitviz info`.
+  /// Repository-level summary used by `git-viz info`.
   func info(maxCommitsForScannedShare maxScan: Int? = nil) throws -> RepoInfo {
     let branch = try? run(["rev-parse", "--abbrev-ref", "HEAD"]).trimmedLine
     let commitCount =

@@ -1,7 +1,7 @@
 import SwiftTUI
 import SwiftTUICharts
 
-/// Thin chrome wrapping every gitviz subcommand's output: a title, an
+/// Thin chrome wrapping every git-viz subcommand's output: a title, an
 /// optional subtitle, the chart, and an optional footer.
 struct ChartCard<Body: View>: View {
   let title: String

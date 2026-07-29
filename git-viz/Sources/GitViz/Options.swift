@@ -3,11 +3,11 @@ import Foundation
 import SwiftTUI
 import SwiftTUICLI
 
-/// Shared option group flattened into every gitviz subcommand.
+/// Shared option group flattened into every git-viz subcommand.
 ///
 /// Inherits the SwiftTUI framework's color / glyph / motion flags via
 /// `SwiftTUIOptions`, and adds path / date-window / scan-size / output-width
-/// options that belong to gitviz itself.
+/// options that belong to git-viz itself.
 struct GitVizOptions: ParsableArguments {
   @Option(name: .long, help: "Repository path (defaults to cwd).")
   var path: String = "."

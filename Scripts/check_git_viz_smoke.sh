@@ -1,14 +1,14 @@
 #!/usr/bin/env sh
 #
-# Visual smoke check for the gitviz example, run against this repository.
+# Visual smoke check for the git-viz example, run against this repository.
 # Not a CI gate — failures are visual, not asserted. Use this before commits
-# to confirm the README screenshots still look like what `gitviz` produces.
+# to confirm the README screenshots still look like what `git-viz` produces.
 
 set -eu
 
 repo_root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
-example_root="$repo_root/gitviz"
-binary="$example_root/.build/debug/gitviz"
+example_root="$repo_root/git-viz"
+binary="$example_root/.build/debug/git-viz"
 
 cd "$example_root"
 
@@ -18,14 +18,14 @@ if ! command -v swiftly >/dev/null 2>&1; then
 fi
 
 if [ ! -x "$binary" ]; then
-  echo "==> Building gitviz"
+  echo "==> Building git-viz"
   swiftly run swift build
 fi
 
 run() {
   echo
   echo "================================================================"
-  echo "$ gitviz $*"
+  echo "$ git-viz $*"
   echo "================================================================"
   "$binary" "$@" --path "$repo_root" --no-color --width 100 --max-commits 500
 }

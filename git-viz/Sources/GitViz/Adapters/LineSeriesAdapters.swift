@@ -34,7 +34,7 @@ enum LineSeriesAdapters {
 
   /// Single cumulative-LOC area series (running `cumulative(ins − del)`),
   /// sorted ascending by date. This is a proxy for net LOC; documented as
-  /// such in the `gitviz loc` help text.
+  /// such in the `git-viz loc` help text.
   static func cumulativeLOC(
     _ deltas: [CommitDelta],
     calendar: Calendar = .current

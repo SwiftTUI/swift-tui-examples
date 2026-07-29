@@ -3,7 +3,7 @@ import SwiftTUICharts
 
 /// Adapters that produce `TimelineEntry` arrays from git data.
 enum TimelineAdapters {
-  /// Milestone timeline used by `gitviz info`. Combines first-commit, head,
+  /// Milestone timeline used by `git-viz info`. Combines first-commit, head,
   /// and the most recent annotated tag (when present).
   static func infoMilestones(
     info: RepoInfo,
@@ -37,7 +37,7 @@ enum TimelineAdapters {
     return entries
   }
 
-  /// Release-history timeline used by `gitviz releases`. Annotated tags get
+  /// Release-history timeline used by `git-viz releases`. Annotated tags get
   /// a different tone than lightweight ones.
   static func releaseHistory(
     _ tags: [Tag],

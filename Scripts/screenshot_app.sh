@@ -9,7 +9,7 @@
 # Environment:
 #   SCREENSHOT_DELAY  Seconds to wait after kitty launches before capturing (default 3).
 #   HOLD              If non-empty, wrap the binary so the window stays open after a
-#                     non-interactive app (e.g. gitviz) exits, so it can be captured.
+#                     non-interactive app (e.g. git-viz) exits, so it can be captured.
 #   KITTY             kitty binary (default /opt/homebrew/bin/kitty).
 #
 # Requirements: kitty (Homebrew), macOS screencapture, osascript, and the driving

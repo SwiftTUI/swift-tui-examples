@@ -235,7 +235,7 @@ run_linux_examples() {
       "gallery" \
       "gifcat" \
       "gifeditor" \
-      "gitviz" \
+      "git-viz" \
       "terminal-workspace" \
       "three-hosts-demo" \
       "layouts" \
@@ -259,7 +259,7 @@ run_linux_examples() {
     "sextant" \
     "gifcat" \
     "gifeditor" \
-    "gitviz" \
+    "git-viz" \
     "terminal-workspace" \
     "three-hosts-demo"; do
     run_step \

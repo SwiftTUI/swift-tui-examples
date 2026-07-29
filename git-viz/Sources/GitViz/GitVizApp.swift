@@ -3,11 +3,11 @@ import ArgumentParser
 @main
 struct GitVizApp: AsyncParsableCommand {
   static let configuration = CommandConfiguration(
-    commandName: "gitviz",
+    commandName: "git-viz",
     abstract: "Visualize information about a git repository using SwiftTUICharts.",
     discussion: """
-      gitviz exercises every chart primitive in SwiftTUICharts against the
-      current git repository. Run `gitviz` with no arguments for an index of
+      git-viz exercises every chart primitive in SwiftTUICharts against the
+      current git repository. Run `git-viz` with no arguments for an index of
       available subcommands.
       """,
     subcommands: [

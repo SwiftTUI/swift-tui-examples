@@ -96,7 +96,7 @@ for package_path in \
   "gallery" \
   "gifcat" \
   "gifeditor" \
-  "gitviz" \
+  "git-viz" \
   "layouts" \
   "terminal-workspace" \
   "WebHostExample"; do

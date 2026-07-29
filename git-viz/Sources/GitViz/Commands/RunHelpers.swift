@@ -1,7 +1,7 @@
 import SwiftTUI
 import SwiftTUICLI
 
-/// Helper that wraps `RenderOnce.print` with the gitviz options resolution.
+/// Helper that wraps `RenderOnce.print` with the git-viz options resolution.
 ///
 /// Marked `@MainActor` to match the underlying renderer; every subcommand's
 /// `run()` is also `@MainActor` so the SwiftUI ViewBuilder + render call

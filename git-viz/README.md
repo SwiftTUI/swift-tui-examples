@@ -5,13 +5,13 @@
 ## Run
 
 ```bash
-swiftly run swift run --package-path gitviz gitviz dashboard --path .
+swiftly run swift run --package-path git-viz git-viz dashboard --path .
 ```
 
 ```bash
-swiftly run swift run --package-path gitviz gitviz info        # repo summary
-swiftly run swift run --package-path gitviz gitviz activity     # GitHub-style calendar heatmap
-swiftly run swift run --package-path gitviz gitviz deltas       # insertions / deletions line chart
+swiftly run swift run --package-path git-viz git-viz info      # repo summary
+swiftly run swift run --package-path git-viz git-viz activity  # GitHub-style calendar heatmap
+swiftly run swift run --package-path git-viz git-viz deltas    # insertions / deletions line chart
 ```
 
 All subcommands accept `--path <repo>` to point at a different working tree
@@ -48,7 +48,7 @@ and inherit the framework's `--no-color`, `--ascii`, `--reduce-motion`,
 ## Test
 
 ```bash
-swiftly run swift test --package-path gitviz
+swiftly run swift test --package-path git-viz
 ```
 
 ## See also

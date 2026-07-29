@@ -1,6 +1,6 @@
 import Foundation
 
-/// Repository-level summary used by `gitviz info`.
+/// Repository-level summary used by `git-viz info`.
 struct RepoInfo: Sendable, Hashable {
   var path: URL
   var branch: String?

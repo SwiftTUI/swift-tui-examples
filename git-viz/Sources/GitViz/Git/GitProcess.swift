@@ -23,7 +23,7 @@ enum GitProcessError: Error, CustomStringConvertible, Sendable {
   }
 }
 
-/// Internal `Process` invoker. Synchronous because gitviz is a CLI script,
+/// Internal `Process` invoker. Synchronous because git-viz is a CLI script,
 /// not a long-running daemon.
 enum GitProcess {
   /// Runs `git <arguments>` with `workingDirectory` as the cwd and returns

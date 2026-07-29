@@ -56,7 +56,7 @@ struct IndexView: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
-      Text("gitviz").bold()
+      Text("git-viz").bold()
       Text("Subcommands. Pass --help to any of these for details.")
         .foregroundStyle(.muted)
       Divider()
