@@ -1,4 +1,4 @@
-import Foundation
+public import Foundation
 
 public struct ImageDimensions: Equatable, Hashable, Sendable {
   public var width: Int

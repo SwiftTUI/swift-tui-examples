@@ -1,4 +1,4 @@
-import SwiftTUI
+public import SwiftTUI
 
 public struct MrkdwnRootView: View {
   private let model: ViewerModel

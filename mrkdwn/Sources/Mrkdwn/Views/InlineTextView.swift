@@ -1,4 +1,6 @@
-import SwiftTUI
+import Foundation
+
+public import SwiftTUI
 
 struct InlineTextView: View {
   struct HighlightedSegment {

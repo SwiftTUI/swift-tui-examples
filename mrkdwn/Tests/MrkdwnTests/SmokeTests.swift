@@ -1,6 +1,6 @@
 import Foundation
 import Mrkdwn
-import SwiftMermaid
+import MrkdwnMermaid
 import Testing
 
 @Suite("mrkdwn smoke")

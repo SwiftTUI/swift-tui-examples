@@ -1,0 +1,73 @@
+swift-mermaid
+Copyright 2026 SwiftTUI contributors
+
+This product includes a clean Swift translation and adaptation of algorithms,
+parser behavior, glyph choices, Unicode-width data, and test ideas from
+grok-mermaid:
+
+  https://github.com/xl0/grok-mermaid
+  Reference commit: 6be650796b05141c84ab252b4e6bcf84256a94cf
+  Copyright 2026 Alexey Zaytsev
+  Licensed under the Apache License, Version 2.0
+
+grok-mermaid is itself a TypeScript port of the terminal Mermaid renderer from
+grok-build:
+
+  https://github.com/xai-org/grok-build
+  crates/codegen/xai-grok-markdown/src/mermaid.rs
+  Copyright 2023-2026 SpaceXAI
+  Licensed under the Apache License, Version 2.0
+
+File-level provenance map:
+
+  Sources/SwiftMermaid/Internal/DiagramModel.swift
+    Adapted from grok-mermaid src/graph.ts and src/types.ts.
+
+  Sources/SwiftMermaid/Internal/DiagramParser.swift
+    Adapted from grok-mermaid src/parse.ts and src/labels.ts. The XY parser is
+    an independent Swift implementation based on the public Mermaid syntax.
+
+  Sources/SwiftMermaid/Internal/DiagramLayout.swift
+    Adapted in concepts and glyph vocabulary from grok-mermaid src/layout.ts,
+    src/layout-seq.ts, and src/canvas.ts. Its direction-aware topology routes,
+    folded and full sequence lifelines, constrained entity geometry, dense XY
+    aggregation, and allocation-time cell budgets are substantial
+    Swift-specific changes.
+
+  Sources/SwiftMermaid/UnicodeWidth.swift
+    Cluster-width behavior adapted from grok-mermaid src/width.ts. Swift
+    Character supplies extended-grapheme segmentation in place of
+    Intl.Segmenter.
+
+  Sources/SwiftMermaid/Generated/UnicodeWidthData.swift and Tools/width-oracle
+    Generated from the same pinned unicode-width 0.2.0 oracle used by
+    grok-mermaid src/width-data.ts, extended with the crate's CJK widths for
+    SwiftMermaid's explicit ambiguous-width policy.
+
+  Sources/SwiftMermaid/Generated/UnicodeBidiData.swift
+    Generated from Unicode 15.1.0 DerivedBidiClass.txt. It contains exact
+    Bidi_Class R and AL membership runs used only to diagnose logical-order
+    right-to-left rendering.
+
+  Sources/SwiftMermaid/MermaidSurface.swift
+    Structured cell and semantic-role concepts adapted from grok-mermaid
+    src/canvas.ts and src/types.ts. Continuation cells, package validation, and
+    host sizing negotiation are Swift-specific extensions.
+
+  Tests/SwiftMermaidTests/Fixtures and family/Unicode tests
+    Test categories and small source shapes were informed by grok-mermaid's
+    Apache-licensed corpus; assertions target SwiftMermaid's distinct public
+    interface and output contract.
+
+All translated or adapted material and this product are distributed under the
+Apache License, Version 2.0; see LICENSE.
+
+The generated Unicode width data is derived by build tooling from
+unicode-width 0.2.0, distributed under MIT OR Apache-2.0:
+
+  https://crates.io/crates/unicode-width/0.2.0
+
+The generated bidirectional-class data is derived from the Unicode Character
+Database 15.1.0, distributed under the Unicode License:
+
+  https://www.unicode.org/license.txt

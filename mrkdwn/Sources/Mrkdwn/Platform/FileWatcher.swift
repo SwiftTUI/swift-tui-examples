@@ -1,5 +1,5 @@
 import Dispatch
-import Foundation
+public import Foundation
 import Synchronization
 
 #if canImport(Darwin)

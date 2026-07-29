@@ -1,0 +1,5 @@
+flowchart TD
+  Alpha[Alpha] --> Beta[Beta]
+  Beta --> Gamma[Gamma]
+  Gamma -->|retry| Alpha
+  Alpha -->|parallel one| Beta

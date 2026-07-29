@@ -3,7 +3,7 @@ import Testing
 
 @testable import Mrkdwn
 
-@Suite("SwiftMermaid bridge")
+@Suite("MrkdwnMermaid bridge")
 struct MermaidBridgeTests {
   @Test("adapter measures and renders one semantic surface")
   func semanticSurface() async {
@@ -12,7 +12,7 @@ struct MermaidBridgeTests {
       source: "flowchart LR\nA[Start 👩🏽‍💻] --> B[Finish]",
       width: 60
     )
-    let presentation = await SwiftMermaidAdapter.render(request)
+    let presentation = await MrkdwnMermaidAdapter.render(request)
     guard case .ready(let rendered) = presentation else {
       Issue.record("Expected a rendered Mermaid surface")
       return

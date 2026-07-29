@@ -1126,7 +1126,17 @@ struct ViewerModelAndRenderTests {
 
     #expect(await mermaidRequests.requests.count == 100)
     #expect(await imageRequests.sources.count == 100)
-    if let evictedMermaid = mermaidIDs.first(where: { model.state.mermaid[$0] == nil }) {
+    // A resource released from the bounded cache either loses its state entry
+    // outright or, while it is still visible, degrades to the nonblank
+    // released placeholder asserted by the visible-overflow suites. Both are
+    // evictions; only a retained `.ready` presentation is not.
+    let releasedMermaid = mermaidIDs.first {
+      switch model.state.mermaid[$0] {
+      case nil, .unavailable?: true
+      default: false
+      }
+    }
+    if let evictedMermaid = releasedMermaid {
       model.resourceBecameHidden(evictedMermaid)
       model.resourceBecameVisible(evictedMermaid)
       await waitUntil(attempts: 5_000) {
@@ -1137,7 +1147,13 @@ struct ViewerModelAndRenderTests {
     } else {
       Issue.record("Expected at least one Mermaid presentation eviction")
     }
-    if let evictedImage = imageIDs.first(where: { model.state.images[$0] == nil }) {
+    let releasedImage = imageIDs.first {
+      switch model.state.images[$0] {
+      case nil, .terminalFallback?: true
+      default: false
+      }
+    }
+    if let evictedImage = releasedImage {
       model.resourceBecameHidden(evictedImage)
       model.resourceBecameVisible(evictedImage)
       await waitUntil(attempts: 5_000) {

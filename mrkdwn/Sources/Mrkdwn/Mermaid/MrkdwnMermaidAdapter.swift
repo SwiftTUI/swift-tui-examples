@@ -1,6 +1,6 @@
-import SwiftMermaid
+import MrkdwnMermaid
 
-enum SwiftMermaidAdapter {
+enum MrkdwnMermaidAdapter {
   private static let coordinator = MermaidRenderCoordinator()
 
   static func render(_ request: MermaidRenderRequest) async -> MermaidPresentation {
@@ -103,7 +103,7 @@ actor MermaidRenderCoordinator {
       measuredSize.height == surface.size.height
     else {
       return .unavailable(
-        diagnostic: "SwiftMermaid measured and rendered different surface sizes."
+        diagnostic: "MrkdwnMermaid measured and rendered different surface sizes."
       )
     }
 
@@ -208,7 +208,7 @@ actor MermaidRenderCoordinator {
     diagnostics: [String]
   ) -> MermaidPresentation {
     .unavailable(
-      diagnostic: diagnostics.first ?? "SwiftMermaid could not render this diagram."
+      diagnostic: diagnostics.first ?? "MrkdwnMermaid could not render this diagram."
     )
   }
 

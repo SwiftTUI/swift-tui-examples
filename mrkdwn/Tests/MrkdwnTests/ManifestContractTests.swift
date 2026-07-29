@@ -42,10 +42,6 @@ struct ManifestContractTests {
         "https://github.com/swiftlang/swift-markdown.git",
         "0.8.0"
       ),
-      "swift-mermaid": (
-        "https://github.com/SwiftTUI/swift-mermaid.git",
-        "0.1.0"
-      ),
       "swift-tui": (
         "https://github.com/SwiftTUI/swift-tui.git",
         "0.4.2"

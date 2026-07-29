@@ -4,9 +4,12 @@
 [SwiftTUI](https://github.com/SwiftTUI/swift-tui) example. It compiles
 CommonMark and GitHub-flavored Markdown with
 [`swift-markdown`](https://github.com/swiftlang/swift-markdown), renders
-Mermaid fences with
-[`SwiftMermaid`](https://github.com/SwiftTUI/swift-mermaid), and keeps all
-navigation, search, reload, and resource state behind one observable model.
+Mermaid fences with `MrkdwnMermaid` — a portable, dependency-free terminal
+Mermaid renderer vendored into this example (see
+[`Sources/MrkdwnMermaid/NOTICE`](Sources/MrkdwnMermaid/NOTICE) for its Apache-2.0
+provenance and [`SYNTAX.md`](Sources/MrkdwnMermaid/SYNTAX.md) for the supported
+diagram families) — and keeps all navigation, search, reload, and resource state
+behind one observable model.
 
 ## Run it
 
@@ -104,7 +107,7 @@ links and autolinks, standalone and mixed images, quotes, ordered/unordered
 lists, tasks, fenced/indented code, rules, GFM tables, and literal raw HTML.
 Unknown nodes produce a visible source fallback and compiler diagnostic.
 
-A normalized `mermaid` code fence is rendered asynchronously. SwiftMermaid
+A normalized `mermaid` code fence is rendered asynchronously. MrkdwnMermaid
 provides semantic cells and intrinsic/minimum sizing; the app preserves wide
 grapheme leaders and continuation columns when mapping them into a
 SwiftTUI `ForeignSurface`. Unsupported or malformed diagrams show their source
@@ -182,9 +185,9 @@ are:
 - Markdown is read-only; task checkboxes are presentation only.
 - Raw HTML is displayed literally and never executed.
 - Code has a language label but no syntax highlighting.
-- Mermaid support is SwiftMermaid's documented six-family subset, not
+- Mermaid support is MrkdwnMermaid's documented six-family subset, not
   Mermaid.js compatibility.
-- Bidirectional controls are rejected by SwiftMermaid; strong RTL text is
+- Bidirectional controls are rejected by MrkdwnMermaid; strong RTL text is
   retained in logical source order with a fidelity warning.
 - Terminal image display depends on host attachment support; alt text remains
   visible for blocked or failed images.

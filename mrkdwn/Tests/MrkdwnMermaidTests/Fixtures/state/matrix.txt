@@ -1,0 +1,26 @@
+@@ advanced complete -
+stateDiagram-v2
+state "Ready now" as Ready
+state Choice <<choice>>
+[*] --> Ready
+Ready --> Choice: choose
+@@ malformed unavailable malformedDiagram
+stateDiagram-v2
+[*] --> Ready
+}
+@@ unsupported partial unsupportedConstruct
+stateDiagram-v2
+A --> B
+note right of A
+@@ wide complete -
+stateDiagram-v2
+[*] --> 解析👩🏽‍💻
+解析👩🏽‍💻 --> 完了
+@@ cyclic complete -
+stateDiagram-v2
+A --> B
+B --> C
+C --> A
+@@ unicode partial rtlVisualOrderUnsupported
+stateDiagram-v2
+A[שלום] --> B

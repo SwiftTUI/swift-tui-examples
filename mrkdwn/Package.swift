@@ -3,7 +3,12 @@
 import PackageDescription
 
 let swiftSettings: [SwiftSetting] = [
-  .strictMemorySafety()
+  .strictMemorySafety(),
+  .defaultIsolation(.none),
+  .enableUpcomingFeature("ExistentialAny"),
+  .enableUpcomingFeature("InternalImportsByDefault"),
+  .enableUpcomingFeature("MemberImportVisibility"),
+  .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
 ]
 
 let package = Package(
@@ -24,18 +29,22 @@ let package = Package(
       url: "https://github.com/swiftlang/swift-markdown.git",
       .upToNextMinor(from: "0.8.0")
     ),
-    .package(
-      url: "https://github.com/SwiftTUI/swift-mermaid.git",
-      .upToNextMinor(from: "0.1.0")
-    ),
   ],
   targets: [
+    // Vendored, example-internal Mermaid renderer. Not a published product:
+    // mrkdwn owns this source outright rather than depending on a separate
+    // package. See Sources/MrkdwnMermaid/NOTICE for its Apache-2.0 provenance.
+    .target(
+      name: "MrkdwnMermaid",
+      exclude: ["LICENSE", "NOTICE", "README.md", "SYNTAX.md"],
+      swiftSettings: swiftSettings
+    ),
     .target(
       name: "Mrkdwn",
       dependencies: [
+        "MrkdwnMermaid",
         .product(name: "SwiftTUI", package: "swift-tui"),
         .product(name: "Markdown", package: "swift-markdown"),
-        .product(name: "SwiftMermaid", package: "swift-mermaid"),
       ],
       swiftSettings: swiftSettings
     ),
@@ -49,12 +58,18 @@ let package = Package(
       swiftSettings: swiftSettings
     ),
     .testTarget(
+      name: "MrkdwnMermaidTests",
+      dependencies: ["MrkdwnMermaid"],
+      resources: [.copy("Fixtures")],
+      swiftSettings: swiftSettings
+    ),
+    .testTarget(
       name: "MrkdwnTests",
       dependencies: [
         "Mrkdwn",
+        "MrkdwnMermaid",
         .product(name: "SwiftTUI", package: "swift-tui"),
         .product(name: "SwiftTUITestSupport", package: "swift-tui"),
-        .product(name: "SwiftMermaid", package: "swift-mermaid"),
       ],
       resources: [.copy("Fixtures")],
       swiftSettings: swiftSettings

@@ -1,0 +1,28 @@
+@@ advanced complete -
+erDiagram
+CUSTOMER {
+string name
+}
+ORDER {
+int number
+}
+CUSTOMER ||--o{ ORDER : places
+@@ malformed unavailable malformedDiagram
+erDiagram
+CUSTOMER {
+string name
+@@ unsupported partial contentElided
+erDiagram
+A ||--o{ B : owns
+unsupported final ER construct
+@@ wide complete -
+erDiagram
+解析👩🏽‍💻 ||--o{ 完了 : owns
+@@ cyclic complete -
+erDiagram
+A ||--o{ B : owns
+B ||--o{ C : owns
+C ||--o{ A : owns
+@@ unicode partial rtlVisualOrderUnsupported
+erDiagram
+שלום ||--o{ DONE : owns

@@ -1,4 +1,4 @@
-import Foundation
+public import Foundation
 
 public struct ResourceCacheKey: Equatable, Hashable, Sendable {
   public var url: URL

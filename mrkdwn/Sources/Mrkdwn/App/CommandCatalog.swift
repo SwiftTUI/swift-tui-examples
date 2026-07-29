@@ -1,4 +1,4 @@
-import SwiftTUI
+public import SwiftTUI
 
 struct ViewerCommandDescription: Equatable, Sendable {
   var keys: String

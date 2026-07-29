@@ -87,7 +87,7 @@ struct ViewerDependencies: Sendable {
           request.configuration == mermaidConfiguration,
           "ViewerModel must preserve the launch Mermaid configuration"
         )
-        return await SwiftMermaidAdapter.render(request)
+        return await MrkdwnMermaidAdapter.render(request)
       },
       loadImage: { source, documentURL in
         try await imageCoordinator.load(source: source, relativeTo: documentURL)

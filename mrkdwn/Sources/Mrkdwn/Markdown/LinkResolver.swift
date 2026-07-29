@@ -1,4 +1,4 @@
-import Foundation
+public import Foundation
 
 public enum LinkResolution: Equatable, Sendable {
   case anchor(String)

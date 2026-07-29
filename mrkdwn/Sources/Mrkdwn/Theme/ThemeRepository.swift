@@ -1,4 +1,4 @@
-import Foundation
+public import Foundation
 
 public struct LoadedTheme: Equatable, Sendable {
   public var theme: ViewerTheme

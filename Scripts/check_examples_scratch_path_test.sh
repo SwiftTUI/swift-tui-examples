@@ -52,13 +52,6 @@ cat >"$public_dump" <<'EOF'
         "location": {"remote": [{"urlString": "https://github.com/swiftlang/swift-markdown.git"}]},
         "requirement": {"range": [{"lowerBound": "0.8.0", "upperBound": "0.9.0"}]}
       }]
-    },
-    {
-      "sourceControl": [{
-        "identity": "swift-mermaid",
-        "location": {"remote": [{"urlString": "https://github.com/SwiftTUI/swift-mermaid.git"}]},
-        "requirement": {"range": [{"lowerBound": "0.1.0", "upperBound": "0.2.0"}]}
-      }]
     }
   ]
 }
@@ -79,13 +72,6 @@ cat >"$overlay_dump" <<EOF
         "identity": "swift-markdown",
         "location": {"remote": [{"urlString": "https://github.com/swiftlang/swift-markdown.git"}]},
         "requirement": {"range": [{"lowerBound": "0.8.0", "upperBound": "0.9.0"}]}
-      }]
-    },
-    {
-      "sourceControl": [{
-        "identity": "swift-mermaid",
-        "location": {"remote": [{"urlString": "https://github.com/SwiftTUI/swift-mermaid.git"}]},
-        "requirement": {"range": [{"lowerBound": "0.1.0", "upperBound": "0.2.0"}]}
       }]
     }
   ]

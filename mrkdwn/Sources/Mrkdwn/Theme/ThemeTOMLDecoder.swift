@@ -1,4 +1,4 @@
-import Foundation
+public import Foundation
 
 public struct ThemeTOMLError: Error, Equatable, Sendable, LocalizedError {
   public var line: Int

@@ -55,9 +55,9 @@ bun --cwd WebExample run build
 Everything builds from a fresh clone using tagged HTTPS dependencies. Every
 example declares the compatible `0.4.x` release graph — Gallery on the matching
 `swift-tui`/`swift-tui-charts` pair, WebExample on the `swift-tui-web` `0.4.0`
-release tarballs for `@swifttui/web` and `@swifttui/build`, and `mrkdwn` on
-independently released `swift-markdown` and `swift-mermaid` ranges. No sibling
-source checkout is required.
+release tarballs for `@swifttui/web` and `@swifttui/build`, and `mrkdwn` on the
+independently released `swift-markdown` range. No sibling source checkout is
+required.
 
 ## Roster
 
@@ -89,7 +89,7 @@ Already know the package you need? Jump straight to an example that uses it.
 | Product or package | Examples |
 | --- | --- |
 | `SwiftTUI` convenience surface | [argparse](argparse), [gallery](gallery), [layouts](layouts), [sextant](sextant), [terminal-workspace](terminal-workspace), [mrkdwn](mrkdwn), [gifcat](gifcat), [gifeditor](gifeditor), [WebHostExample](WebHostExample) |
-| `SwiftMermaid` (separate [`swift-mermaid`](https://github.com/SwiftTUI/swift-mermaid) package) | [mrkdwn](mrkdwn) |
+| `MrkdwnMermaid` (terminal Mermaid renderer, vendored inside the example) | [mrkdwn](mrkdwn) |
 | `SwiftTUIRuntime` / host-managed scenes | [gallery](gallery), [three-hosts-demo](three-hosts-demo), [WebExample](WebExample) |
 | `SwiftTUICLI` / one-shot rendering and terminal launch | [minimal](minimal), [terminal-runner](terminal-runner), [git-viz](git-viz) |
 | `SwiftTUIArguments` / `SwiftTUICommand` | [argparse](argparse), [gallery](gallery), [gifeditor](gifeditor), [git-viz](git-viz) |

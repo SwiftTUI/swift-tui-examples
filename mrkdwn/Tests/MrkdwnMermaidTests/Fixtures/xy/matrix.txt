@@ -1,0 +1,28 @@
+@@ advanced complete -
+xychart-beta
+title "Requests"
+x-axis [Mon, Tue, Wed]
+y-axis 0 --> 20
+bar [8, 16, 12]
+line [6, 10, 18]
+@@ malformed unavailable malformedDiagram
+xychart-beta
+x-axis [A, B, C]
+line [1, 2]
+@@ unsupported partial contentElided
+xychart-beta
+unknown authored directive
+line [1, 2, 3]
+@@ wide complete -
+xychart-beta
+x-axis [解析, 👩🏽‍💻, é]
+line [1, 2, 3]
+@@ cyclic complete -
+xychart-beta
+x-axis [A, B, C, D]
+line [1, 2, 1, 2]
+bar [2, 1, 2, 1]
+@@ unicode partial rtlVisualOrderUnsupported
+xychart-beta
+x-axis [שלום, done]
+line [1, 2]

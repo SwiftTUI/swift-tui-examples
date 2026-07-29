@@ -41,13 +41,6 @@ PUBLIC_DEPENDENCIES = {
         "resolved": "0.8.0",
         "revision": "3c6f9523da3a1ec2fd829673e472d95b8097a3b8",
     },
-    "swift-mermaid": {
-        "url": "https://github.com/SwiftTUI/swift-mermaid.git",
-        "lower": "0.1.0",
-        "upper": "0.2.0",
-        "resolved": "0.1.0",
-        "revision": "a7d46f08d9b51b36dcc0311ca520642454b72ce1",
-    },
 }
 
 
@@ -133,11 +126,11 @@ def validate_dump(
     require(package.get("name") == "mrkdwn", "dump-package must describe mrkdwn")
     dependencies = package.get("dependencies")
     require(isinstance(dependencies, list), "dump-package dependencies must be an array")
-    require(len(dependencies) == 3, "mrkdwn must have exactly three direct dependencies")
+    require(len(dependencies) == 2, "mrkdwn must have exactly two direct dependencies")
     remote, local = collect_dependency_records(dependencies)
 
     expected_remote = (
-        {"swift-markdown", "swift-mermaid"}
+        {"swift-markdown"}
         if overlay_checkout is not None
         else set(PUBLIC_DEPENDENCIES)
     )
