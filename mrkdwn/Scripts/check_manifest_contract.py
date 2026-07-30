@@ -29,9 +29,9 @@ SWIFT_TUI_LOCAL_DEPENDENCY_PATTERN = re.compile(
 PUBLIC_DEPENDENCIES = {
     "swift-tui": {
         "url": "https://github.com/SwiftTUI/swift-tui.git",
-        "lower": "0.4.2",
+        "lower": "0.4.3",
         "upper": "0.5.0",
-        "resolved": "0.4.2",
+        "resolved": "0.4.3",
         "revision": "c76c9b48e693f53956a8c5ef2e31d6c42011d33e",
     },
     "swift-markdown": {
