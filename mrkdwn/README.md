@@ -118,6 +118,7 @@ and a local diagnostic without blanking the document.
 ```bash
 swiftly run swift test --package-path mrkdwn
 MRKDWN_REAL_PTY_TESTS=1 swiftly run swift test --package-path mrkdwn
+MRKDWN_PERFORMANCE_BUDGETS=1 swiftly run swift test --package-path mrkdwn
 swiftly run swift build -c release --package-path mrkdwn
 ```
 
@@ -150,24 +151,32 @@ same command at 60×16 when capturing the compact layout.
 
 ## Performance envelope
 
-The checked reference run was an Apple M5 Max Mac17,7 with 128 GiB RAM,
-macOS 27, and Swift 6.3.3. The Phase 4 debug baseline compiled the 1 MiB /
-10,000-block document in about 0.10 seconds, with a checked 0.20-second
-ceiling. The settled geometry path took about 0.60 seconds for its first
-10,000-block layout and 0.8 milliseconds for 1,000 cached scroll updates;
-their ceilings are 1.20 seconds and 1.5 milliseconds.
+The wall-clock budgets below are **opt-in**: the suite always measures and
+prints these durations, but only enforces them under
+`MRKDWN_PERFORMANCE_BUDGETS=1`. Shared CI runners are slower and contended
+enough to report hardware noise as a product regression, so run them on a quiet
+machine. Every *structural* assertion in the same tests — node counts, geometry
+recomputation counts, visible rows, scroll positions, cache bounds — runs
+everywhere, including the native Linux gate, and is the actual regression guard.
+
+The reference run was an Apple M5 Max Mac17,7 with 128 GiB RAM, macOS 27, and
+Swift 6.3.3. The Phase 4 debug baseline compiled the 1 MiB / 10,000-block
+document in about 0.10 seconds, against a 0.20-second budget. The settled
+geometry path took about 0.60 seconds for its first 10,000-block layout and
+0.8 milliseconds for 1,000 cached scroll updates; their budgets are 1.20 seconds
+and 1.5 milliseconds.
 
 The root-shaped 80×24 table fixture compiled 500×20 cells in about 0.064
 seconds, computed wrapped metrics in 0.151 seconds, painted its first frame in
 0.62 seconds, and repainted after combined outer-vertical and inner-horizontal
-scrolling in 0.85 seconds. Checked ceilings are 0.130, 0.300, 1.230, and 1.700
-seconds respectively, with fewer than 1,250 render-pipeline nodes per table
-frame. Separate fixtures submit 100 Mermaid jobs and assert a peak of two, and
-insert 100 image payloads while asserting the 64-entry / 64 MiB encoded cache
-bounds. Viewer admission and retained ready/error/loading states are capped at
-128 resources; image execution admits four active and 64 queued loads, with
-hidden work canceled. These are regression budgets, not user-facing speed
-claims; the native Linux gate runs the same checks.
+scrolling in 0.85 seconds. Their budgets are 0.130, 0.300, 1.230, and 1.700
+seconds respectively, and fewer than 1,250 render-pipeline nodes per table frame
+is checked unconditionally. Separate fixtures submit 100 Mermaid jobs and assert
+a peak of two, and insert 100 image payloads while asserting the 64-entry /
+64 MiB encoded cache bounds. Viewer admission and retained ready/error/loading
+states are capped at 128 resources; image execution admits four active and 64
+queued loads, with hidden work canceled. These are regression budgets, not
+user-facing speed claims.
 
 ## What to copy
 
