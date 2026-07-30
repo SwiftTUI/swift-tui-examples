@@ -4,9 +4,7 @@ struct CounterView: View {
 
   @Environment(\.terminalSize) private var terminalSize
   @State private var count = 0
-  @State private var rippleIDs: [Int] = []
-
-  private let maximumInFlightRipples = 8
+  @State private var activeRipple: Bool = false
 
   var body: some View {
     VStack(spacing: 1) {
@@ -14,23 +12,21 @@ struct CounterView: View {
         .frame(minWidth: 14, alignment: .center)
       Button("Increment") {
         count += 1
-        rippleIDs.append(count)
-        if rippleIDs.count > maximumInFlightRipples {
-          rippleIDs.removeFirst(rippleIDs.count - maximumInFlightRipples)
-        }
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .onChange(of: count) {
+      if !activeRipple {
+        activeRipple = true
+      }
+    }
     .background {
-      ZStack {
-        ForEach(rippleIDs, id: \.self) { rippleID in
-          RippleLayer(reach: reach) {
-            rippleIDs.removeAll { $0 == rippleID }
-          }
-          .blendMode(.screen)
+      if activeRipple {
+        RippleLayer(reach: reach) {
+          // FIXME: This line seems to execute, but does not appear to set the state.
+          activeRipple = false
         }
       }
-      .compositingGroup()
     }
   }
 
@@ -42,7 +38,6 @@ struct CounterView: View {
 }
 
 private struct RippleLayer: View {
-  @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
   @State private var progress: Double = 0
 
   let reach: Double
@@ -53,17 +48,11 @@ private struct RippleLayer: View {
       .fill(ripple)
       .task {
         @MainActor in
-        if accessibilityReduceMotion {
-          try? await Task.sleep(nanoseconds: 240_000_000)
-        } else {
           withAnimation(.linear(duration: .milliseconds(1600))) {
             progress = 1
+          } completion: {
+            onCompletion()
           }
-          try? await Task.sleep(nanoseconds: 1_600_000_000)
-        }
-
-        guard !Task.isCancelled else { return }
-        onCompletion()
       }
   }
 
@@ -80,7 +69,7 @@ private struct RippleLayer: View {
       ]),
       center: .center,
       startRadius: innerEdge,
-      endRadius: innerEdge + 14
+      endRadius: innerEdge + 5
     )
   }
 }
