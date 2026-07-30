@@ -151,13 +151,17 @@ same command at 60×16 when capturing the compact layout.
 
 ## Performance envelope
 
-The wall-clock budgets below are **opt-in**: the suite always measures and
-prints these durations, but only enforces them under
-`MRKDWN_PERFORMANCE_BUDGETS=1`. Shared CI runners are slower and contended
-enough to report hardware noise as a product regression, so run them on a quiet
-machine. Every *structural* assertion in the same tests — node counts, geometry
+Timing assertions come in two tiers. Every measurement below is checked against
+a **ceiling** everywhere, including the native Linux gate: ceilings sit at ~5×
+their budget, so breaching one means an order-of-magnitude regression — a lost
+cache, an accidental O(n²) — rather than a slow machine. The tight **budgets**
+themselves are **opt-in** under `MRKDWN_PERFORMANCE_BUDGETS=1`, because shared
+CI runners land 2–3× slower than the calibration machine and enforcing a
+developer-machine number there reports hardware noise as a product regression.
+Run the budget lane on a quiet machine. Durations are always printed either way,
+and every *structural* assertion in the same tests — node counts, geometry
 recomputation counts, visible rows, scroll positions, cache bounds — runs
-everywhere, including the native Linux gate, and is the actual regression guard.
+everywhere.
 
 The reference run was an Apple M5 Max Mac17,7 with 128 GiB RAM, macOS 27, and
 Swift 6.3.3. The Phase 4 debug baseline compiled the 1 MiB / 10,000-block

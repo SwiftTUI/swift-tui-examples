@@ -45,11 +45,18 @@ extension PerformanceEnvelopeTests {
     expectWithinPerformanceBudget(
       firstGeometryElapsed,
       .milliseconds(1_200),
+      ceiling: .milliseconds(6_000),
       "first geometry pass"
     )
+    // Wider than the usual 5×: each of these 1,000 updates costs ~1 µs, so
+    // scheduler jitter dominates the absolute number. The regression this
+    // stands in for is a lost geometry snapshot, and recomputing on even 1 in
+    // 100 updates would cost seconds given the single pass above takes ~0.7 s.
+    // `renderedGeometryComputationCount == 1` above is the exact guard.
     expectWithinPerformanceBudget(
       repeatedScrollElapsed,
       .microseconds(1_500),
+      ceiling: .milliseconds(150),
       "1000 scroll updates"
     )
     await model.shutdown()

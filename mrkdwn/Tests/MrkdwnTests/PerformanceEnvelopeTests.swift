@@ -14,13 +14,29 @@ import Testing
 let mrkdwnPerformanceBudgetsEnforced =
   ProcessInfo.processInfo.environment["MRKDWN_PERFORMANCE_BUDGETS"] != nil
 
-/// Asserts `elapsed` stayed under `budget`, but only where budgets are enforced.
+/// Asserts `elapsed` against two tiers.
+///
+///   - `ceiling` is always enforced. Breaching it means an order-of-magnitude
+///     regression — a lost cache, an accidental O(n²) — which no machine class
+///     explains. Ceilings sit at ~5× their budget: observed CI runners land
+///     2–3× slower than the calibration machine and the regressions worth
+///     catching are 10×+, so 5× separates the two with margin on both sides. A
+///     measurement whose absolute scale lets scheduler jitter dominate gets a
+///     wider ceiling, justified at its call site.
+///   - `budget` is the calibrated number, enforced only under
+///     ``mrkdwnPerformanceBudgetsEnforced``.
 func expectWithinPerformanceBudget(
   _ elapsed: Duration,
   _ budget: Duration,
+  ceiling: Duration,
   _ label: String,
   sourceLocation: SourceLocation = #_sourceLocation
 ) {
+  #expect(
+    elapsed < ceiling,
+    "\(label) took \(elapsed), past the \(ceiling) machine-independent ceiling",
+    sourceLocation: sourceLocation
+  )
   guard mrkdwnPerformanceBudgetsEnforced else { return }
   #expect(
     elapsed < budget,
@@ -44,8 +60,14 @@ struct PerformanceEnvelopeTests {
     let document = MarkdownCompiler().compile(source: source, sourceURL: nil)
     let elapsed = start.duration(to: clock.now)
 
+    print("1 MiB compile baseline: \(elapsed)")
     #expect(document.blocks.count == 10_000)
-    expectWithinPerformanceBudget(elapsed, .milliseconds(200), "1 MiB compile")
+    expectWithinPerformanceBudget(
+      elapsed,
+      .milliseconds(200),
+      ceiling: .milliseconds(1_000),
+      "1 MiB compile"
+    )
   }
 
   @MainActor
@@ -206,9 +228,29 @@ struct PerformanceEnvelopeTests {
     #expect(scrolledArtifacts.diagnostics.counts.measuredNodes < 1_250)
     #expect(scrolledArtifacts.diagnostics.counts.placedNodes < 1_250)
     #expect(scrolledArtifacts.diagnostics.counts.drawNodes < 1_250)
-    expectWithinPerformanceBudget(compileElapsed, .milliseconds(130), "table compile")
-    expectWithinPerformanceBudget(measurementElapsed, .milliseconds(300), "table measurement")
-    expectWithinPerformanceBudget(renderElapsed, .milliseconds(1_230), "table render")
-    expectWithinPerformanceBudget(scrollElapsed, .milliseconds(1_700), "table scroll")
+    expectWithinPerformanceBudget(
+      compileElapsed,
+      .milliseconds(130),
+      ceiling: .milliseconds(650),
+      "table compile"
+    )
+    expectWithinPerformanceBudget(
+      measurementElapsed,
+      .milliseconds(300),
+      ceiling: .milliseconds(1_500),
+      "table measurement"
+    )
+    expectWithinPerformanceBudget(
+      renderElapsed,
+      .milliseconds(1_230),
+      ceiling: .milliseconds(6_150),
+      "table render"
+    )
+    expectWithinPerformanceBudget(
+      scrollElapsed,
+      .milliseconds(1_700),
+      ceiling: .milliseconds(8_500),
+      "table scroll"
+    )
   }
 }
