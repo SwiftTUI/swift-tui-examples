@@ -16,18 +16,31 @@ PUBLIC_DEPENDENCIES = {
     "swift-tui": {
         "url": "https://github.com/SwiftTUI/swift-tui.git",
         "lower": "0.4.4",
-        "upper": "0.5.0",
         "resolved": "0.4.4",
         "revision": "b90487309223e2f81b10bc471e3ac3f4b9ad95bc",
     },
     "swift-markdown": {
         "url": "https://github.com/swiftlang/swift-markdown.git",
         "lower": "0.8.0",
-        "upper": "0.9.0",
         "resolved": "0.8.0",
         "revision": "3c6f9523da3a1ec2fd829673e472d95b8097a3b8",
     },
 }
+
+
+def up_to_next_minor(lower: str) -> str:
+    """The exclusive bound SwiftPM derives for `.upToNextMinor(from: lower)`.
+
+    Derived rather than stored. A stored upper bound is a second copy of the
+    version that no release step can maintain: the org bump rewrites tokens
+    equal to the *old* version, so bumping 0.4.4 to 0.5.0 would rewrite `lower`
+    and leave an `upper` of "0.5.0" behind — an empty [0.5.0, 0.5.0) range that
+    fails on release day. Every entry above uses `.upToNextMinor`; an entry that
+    ever needs another spelling must make this explicit rather than restore the
+    stored field.
+    """
+    major, minor, _ = lower.split(".", 2)
+    return f"{major}.{int(minor) + 1}.0"
 # Derived from the contract above rather than spelled out again: a second copy
 # of the version drifts the moment a release bumps only one of them.
 SWIFT_TUI_REMOTE_DEPENDENCY_PATTERN = re.compile(
@@ -150,7 +163,12 @@ def validate_dump(
             remote_url(record, identity) == contract["url"],
             f"{identity} must use {contract['url']}",
         )
-        validate_range(record, identity, contract["lower"], contract["upper"])
+        validate_range(
+            record,
+            identity,
+            contract["lower"],
+            up_to_next_minor(contract["lower"]),
+        )
 
     for identity, record in local.items():
         path = record.get("path")
