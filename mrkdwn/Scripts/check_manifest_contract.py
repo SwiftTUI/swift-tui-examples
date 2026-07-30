@@ -12,27 +12,13 @@ from typing import Any
 
 
 GIT_OID_PATTERN = re.compile(r"[0-9a-f]{40}")
-SWIFT_TUI_REMOTE_DEPENDENCY_PATTERN = re.compile(
-    r"""\.package\(
-        \s*url:\s*"https://github\.com/SwiftTUI/swift-tui\.git"\s*,
-        \s*\.upToNextMinor\(from:\s*"0\.4\.2"\)\s*
-    \)""",
-    re.VERBOSE,
-)
-SWIFT_TUI_LOCAL_DEPENDENCY_PATTERN = re.compile(
-    r"""\.package\(
-        \s*name:\s*"swift-tui"\s*,
-        \s*path:\s*"[^"]+"\s*
-    \)""",
-    re.VERBOSE,
-)
 PUBLIC_DEPENDENCIES = {
     "swift-tui": {
         "url": "https://github.com/SwiftTUI/swift-tui.git",
         "lower": "0.4.4",
         "upper": "0.5.0",
         "resolved": "0.4.4",
-        "revision": "c76c9b48e693f53956a8c5ef2e31d6c42011d33e",
+        "revision": "b90487309223e2f81b10bc471e3ac3f4b9ad95bc",
     },
     "swift-markdown": {
         "url": "https://github.com/swiftlang/swift-markdown.git",
@@ -42,6 +28,26 @@ PUBLIC_DEPENDENCIES = {
         "revision": "3c6f9523da3a1ec2fd829673e472d95b8097a3b8",
     },
 }
+# Derived from the contract above rather than spelled out again: a second copy
+# of the version drifts the moment a release bumps only one of them.
+SWIFT_TUI_REMOTE_DEPENDENCY_PATTERN = re.compile(
+    r"""\.package\(
+        \s*url:\s*"%s"\s*,
+        \s*\.upToNextMinor\(from:\s*"%s"\)\s*
+    \)"""
+    % (
+        re.escape(PUBLIC_DEPENDENCIES["swift-tui"]["url"]),
+        re.escape(PUBLIC_DEPENDENCIES["swift-tui"]["lower"]),
+    ),
+    re.VERBOSE,
+)
+SWIFT_TUI_LOCAL_DEPENDENCY_PATTERN = re.compile(
+    r"""\.package\(
+        \s*name:\s*"swift-tui"\s*,
+        \s*path:\s*"[^"]+"\s*
+    \)""",
+    re.VERBOSE,
+)
 
 
 class ContractError(Exception):

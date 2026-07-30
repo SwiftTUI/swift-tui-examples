@@ -1957,7 +1957,13 @@ struct GalleryTabSwitchTests {
 /// cancel()` before closing the file descriptor — `cancel()` tears the source
 /// down and waits until libdispatch has released its hold on the fd, which
 /// avoids the trap that closing the fd under a live source would cause.
-private final class PTYReadableSource {
+///
+/// `@unchecked Sendable` because the wall-clock watchdog below hands `self` to
+/// a libdispatch block: every stored member is a `let` of a thread-safe type
+/// (`AsyncStream`, `AsyncEvent`, and the source itself), but the Linux Dispatch
+/// overlay does not declare `DispatchSourceRead: Sendable` the way Darwin's
+/// does, so the compiler cannot see that for itself.
+private final class PTYReadableSource: @unchecked Sendable {
   let events: AsyncStream<Void>
   private let source: any DispatchSourceRead
   private let cancelled = AsyncEvent()
@@ -1992,8 +1998,10 @@ private final class PTYReadableSource {
     // the source finishes `events`, so the helper falls through to its default
     // `.timedOut` outcome instead of hanging. A normal `cancel()` before the
     // deadline makes this a no-op (DispatchSource cancellation is idempotent).
-    queue.asyncAfter(deadline: .now() + .nanoseconds(Int(timeoutNanoseconds))) {
-      source.cancel()
+    // Reach the source through `self` rather than capturing the local: the
+    // local is `any DispatchSourceRead`, which is non-Sendable on Linux.
+    queue.asyncAfter(deadline: .now() + .nanoseconds(Int(timeoutNanoseconds))) { [self] in
+      self.source.cancel()
     }
   }
 
