@@ -1,100 +1,9 @@
 import Foundation
-import Synchronization
 
 public import SwiftTUI
 
-/// Memoizes search-highlight segmentation per (runs, query).
-///
-/// The segmentation runs a case- and diacritic-insensitive `range(of:)` (an
-/// ICU scan) per run per body evaluation whenever a query is active — per
-/// notch for re-resolving table cells, and once per block per keystroke while
-/// typing (S6, org plan 2026-07-31-001). Content addressing keeps the cache
-/// sound by construction across models and documents (table cells have no
-/// per-cell identity to key by), and hashing a run array is nanoseconds
-/// against the ICU scan it replaces.
-final class InlineHighlightCache: Sendable {
-  struct Statistics: Equatable, Sendable {
-    var entryCount: Int
-    var computationCount: Int
-    var hitCount: Int
-    var evictionCount: Int
-  }
-
-  private struct Key: Hashable, Sendable {
-    var runs: [InlineRun]
-    var query: String
-  }
-
-  private struct Entry: Sendable {
-    var segments: [InlineTextView.HighlightedSegment]
-    var lastUse: UInt64
-  }
-
-  private struct State: Sendable {
-    var entries: [Key: Entry] = [:]
-    var useCounter: UInt64 = 0
-    var computationCount = 0
-    var hitCount = 0
-    var evictionCount = 0
-  }
-
-  static let shared = InlineHighlightCache(capacity: 4_096)
-
-  private let capacity: Int
-  private let state = Mutex(State())
-
-  init(capacity: Int) {
-    self.capacity = max(1, capacity)
-  }
-
-  var statistics: Statistics {
-    state.withLock { state in
-      Statistics(
-        entryCount: state.entries.count,
-        computationCount: state.computationCount,
-        hitCount: state.hitCount,
-        evictionCount: state.evictionCount
-      )
-    }
-  }
-
-  func segments(
-    runs: [InlineRun],
-    searchQuery: String?
-  ) -> [InlineTextView.HighlightedSegment] {
-    guard let searchQuery, !searchQuery.isEmpty else {
-      // No query means no ICU work — identity segmentation is cheaper than
-      // the lookup, and caching it would just flush the highlighted entries.
-      return InlineTextView.highlightedSegments(runs: runs, searchQuery: nil)
-    }
-    let key = Key(runs: runs, query: searchQuery)
-    return state.withLock { state in
-      state.useCounter &+= 1
-      if var cached = state.entries[key] {
-        state.hitCount += 1
-        cached.lastUse = state.useCounter
-        state.entries[key] = cached
-        return cached.segments
-      }
-      let segments = InlineTextView.highlightedSegments(
-        runs: runs,
-        searchQuery: searchQuery
-      )
-      state.computationCount += 1
-      if state.entries.count == capacity,
-        let evicted = state.entries.min(by: { $0.value.lastUse < $1.value.lastUse })?.key
-      {
-        state.entries.removeValue(forKey: evicted)
-        state.evictionCount += 1
-      }
-      state.entries[key] = Entry(segments: segments, lastUse: state.useCounter)
-      return segments
-    }
-  }
-}
-
 struct InlineTextView: View {
-  struct HighlightedSegment: Equatable, Sendable {
+  struct HighlightedSegment {
     var runIndex: Int
     var text: String
     var highlighted: Bool
@@ -115,7 +24,7 @@ struct InlineTextView: View {
       literalCapacity: runs.reduce(0) { $0 + $1.text.count },
       interpolationCount: runs.count
     )
-    for segment in InlineHighlightCache.shared.segments(
+    for segment in Self.highlightedSegments(
       runs: runs,
       searchQuery: searchQuery
     ) {
@@ -170,7 +79,7 @@ struct InlineTextView: View {
     return text
   }
 
-  nonisolated static func highlightedSegments(
+  static func highlightedSegments(
     runs: [InlineRun],
     searchQuery: String?
   ) -> [HighlightedSegment] {
