@@ -435,6 +435,52 @@ struct ViewContractTests {
     #expect(segments.lazy.map(\.text).joined() == source)
   }
 
+  @Test("highlight cache returns exactly the direct segmentation")
+  func highlightCacheMatchesDirectSegmentation() {
+    // The cache delegates to the pure function; this oracle pins that lookups
+    // return the *right* entry across the shapes that stress the key: traits,
+    // links, multiple matches inside one run, and case/diacritic folding.
+    let shapes: [[InlineRun]] = [
+      [InlineRun(text: "plain engine text")],
+      [
+        InlineRun(text: "bold engine", traits: .strong),
+        InlineRun(text: " and linked engine", destination: "https://example.invalid"),
+      ],
+      [InlineRun(text: "engine ENGINE éngine engine")],
+      [InlineRun(text: ""), InlineRun(text: "engine")],
+    ]
+    let cache = InlineHighlightCache(capacity: 16)
+    for runs in shapes {
+      for query in ["engine", "ENGINE", "éngine"] {
+        let direct = InlineTextView.highlightedSegments(runs: runs, searchQuery: query)
+        // Miss then hit: both must equal the direct computation.
+        #expect(cache.segments(runs: runs, searchQuery: query) == direct)
+        #expect(cache.segments(runs: runs, searchQuery: query) == direct)
+      }
+    }
+  }
+
+  @Test("repeated highlight lookups compute once per (runs, query)")
+  func highlightCacheComputesOncePerKey() {
+    let cache = InlineHighlightCache(capacity: 16)
+    let runs = [InlineRun(text: "the engine feeds the raster")]
+
+    for _ in 0..<8 {
+      _ = cache.segments(runs: runs, searchQuery: "engine")
+    }
+    #expect(cache.statistics.computationCount == 1)
+    #expect(cache.statistics.hitCount == 7)
+
+    // A different query is a different key; the empty query bypasses the
+    // cache entirely (identity segmentation is cheaper than a lookup).
+    _ = cache.segments(runs: runs, searchQuery: "raster")
+    #expect(cache.statistics.computationCount == 2)
+    _ = cache.segments(runs: runs, searchQuery: nil)
+    _ = cache.segments(runs: runs, searchQuery: "")
+    #expect(cache.statistics.computationCount == 2)
+    #expect(cache.statistics.entryCount == 2)
+  }
+
   @Test("content proposals subtract document padding and semantic nesting")
   func contentWidthAccounting() {
     let viewport = ViewerSize(width: 100, height: 24)
