@@ -23,7 +23,13 @@ struct CounterView: View {
     .background {
       if activeRipple {
         RippleLayer(reach: reach) {
-          // FIXME: This line seems to execute, but does not appear to set the state.
+          // Requires swift-tui > 0.4.4. Against the 0.4.4 pinned above this
+          // write executes but does not stick: a `withAnimation` completion
+          // fires outside any resolve pass, and a `@State` write with no
+          // authoring context bound silently updates the seed instead of the
+          // live slot, so the ripple never clears. Fixed upstream by binding
+          // the completion to its registration-time authoring scope; bump the
+          // pin when that release lands.
           activeRipple = false
         }
       }
