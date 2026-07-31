@@ -9,6 +9,12 @@ struct MarkdownBlockView: View {
   var toggleMermaidSource: (BlockID) -> Void
   var documentGeometryTop: (BlockID) -> Int?
   var resourceVisibilityChanged: (BlockID, Bool) -> Void
+  // Leaf-time readers for the model properties that live outside `state`
+  // (scroll offset, resource presentations): calling them inside this view's
+  // body scopes the observation dependency to the block that reads them.
+  var documentScrollOffset: () -> Int
+  var mermaidPresentation: (BlockID) -> MermaidPresentation?
+  var imagePresentation: (BlockID) -> ImagePresentation?
 
   var body: some View {
     rendered
@@ -87,7 +93,10 @@ struct MarkdownBlockView: View {
                 focusedMermaidID: focusedMermaidID,
                 toggleMermaidSource: toggleMermaidSource,
                 documentGeometryTop: documentGeometryTop,
-                resourceVisibilityChanged: resourceVisibilityChanged
+                resourceVisibilityChanged: resourceVisibilityChanged,
+                documentScrollOffset: documentScrollOffset,
+                mermaidPresentation: mermaidPresentation,
+                imagePresentation: imagePresentation
               )
             }
           }
@@ -103,7 +112,10 @@ struct MarkdownBlockView: View {
           focusedMermaidID: focusedMermaidID,
           toggleMermaidSource: toggleMermaidSource,
           documentGeometryTop: documentGeometryTop,
-          resourceVisibilityChanged: resourceVisibilityChanged
+          resourceVisibilityChanged: resourceVisibilityChanged,
+          documentScrollOffset: documentScrollOffset,
+          mermaidPresentation: mermaidPresentation,
+          imagePresentation: imagePresentation
         )
       )
     case .code(_, let language, let source, _):
@@ -126,7 +138,7 @@ struct MarkdownBlockView: View {
         MermaidBlockView(
           blockID: id,
           source: value.source,
-          presentation: state.mermaid[id],
+          presentation: mermaidPresentation(id),
           theme: state.theme,
           offeredWidth: offeredWidth,
           revealsSource: state.revealedMermaidSources.contains(id)
@@ -150,7 +162,7 @@ struct MarkdownBlockView: View {
           searchQuery: state.searchQuery,
           offeredWidth: offeredWidth,
           tableTop: documentGeometryTop(id).map { $0 + 1 },
-          documentScrollOffset: state.documentScrollOffset,
+          documentScrollOffset: documentScrollOffset(),
           viewportHeight: state.viewport.documentHeight,
           horizontalScrollPosition: nil
         )
@@ -164,7 +176,7 @@ struct MarkdownBlockView: View {
         ImageBlockView(
           image: image,
           documentURL: state.snapshot.url,
-          presentation: state.images[id],
+          presentation: imagePresentation(id),
           theme: state.theme
         ))
     case .html(_, let source, _):
@@ -194,6 +206,9 @@ private struct MarkdownListView: View {
   var toggleMermaidSource: (BlockID) -> Void
   var documentGeometryTop: (BlockID) -> Int?
   var resourceVisibilityChanged: (BlockID, Bool) -> Void
+  var documentScrollOffset: () -> Int
+  var mermaidPresentation: (BlockID) -> MermaidPresentation?
+  var imagePresentation: (BlockID) -> ImagePresentation?
 
   var body: some View {
     let contentWidth = MarkdownBlockLayout.listContentWidth(
@@ -223,7 +238,10 @@ private struct MarkdownListView: View {
                 focusedMermaidID: focusedMermaidID,
                 toggleMermaidSource: toggleMermaidSource,
                 documentGeometryTop: documentGeometryTop,
-                resourceVisibilityChanged: resourceVisibilityChanged
+                resourceVisibilityChanged: resourceVisibilityChanged,
+                documentScrollOffset: documentScrollOffset,
+                mermaidPresentation: mermaidPresentation,
+                imagePresentation: imagePresentation
               )
             }
           }

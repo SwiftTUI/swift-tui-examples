@@ -1,8 +1,26 @@
 public import SwiftTUI
 
+/// Holds the latest `ScrollViewProxy` published by the document pane's
+/// `ScrollViewReader`, so the root key handler can issue scroll commands
+/// without living *inside* the reader scope. The reader now wraps only
+/// `MarkdownDocumentView`: its proxy bridge invalidates the whole reader
+/// content on every programmatic scroll, and wrapping the root ZStack made
+/// each `j`/`k` keypress repaint the entire app (scroll-latency Stage 1).
+/// Routing key commands through observed state instead would add a frame of
+/// latency per keypress — the box keeps the direct dispatch path.
+@MainActor
+private final class ScrollProxyBox {
+  var proxy: ScrollViewProxy?
+
+  func adopt(_ proxy: ScrollViewProxy) {
+    self.proxy = proxy
+  }
+}
+
 public struct MrkdwnRootView: View {
   private let model: ViewerModel
   @FocusState private var focusedMermaidID: BlockID?
+  @State private var proxyBox = ScrollProxyBox()
 
   public init(model: ViewerModel) {
     self.model = model
@@ -14,46 +32,39 @@ public struct MrkdwnRootView: View {
         width: geometry.size.width,
         height: geometry.size.height
       )
-      ScrollViewReader { proxy in
-        ZStack {
-          viewer
-          if model.state.outlineVisible, viewport.width < 120 {
-            overlayCard(title: "Table of contents") {
-              OutlineView(model: model)
-            }
-          }
-          if model.state.searchVisible {
-            searchOverlay
-          }
-          if model.state.helpVisible {
-            helpOverlay
+      ZStack {
+        viewer
+        if model.state.outlineVisible, viewport.width < 120 {
+          overlayCard(title: "Table of contents") {
+            OutlineView(model: model)
           }
         }
-        .frame(
-          maxWidth: .infinity,
-          maxHeight: .infinity,
-          alignment: .topLeading
-        )
-        .foregroundStyle(model.state.theme.foreground.swiftTUIColor)
-        .background(model.state.theme.background.swiftTUIColor)
-        .openLinkAction(
-          OpenLinkAction { destination in
-            model.send(.openDestination(destination.rawValue))
-            return true
-          }
-        )
-        .focusable(true)
-        .onKeyPress(.any) { keyPress in
-          handle(keyPress, proxy: proxy)
+        if model.state.searchVisible {
+          searchOverlay
         }
-        .task(id: viewport) { @MainActor in
-          model.updateViewport(viewport)
+        if model.state.helpVisible {
+          helpOverlay
         }
-        .task(id: model.state.pendingScrollTarget) { @MainActor in
-          guard let target = model.state.pendingScrollTarget else { return }
-          _ = proxy.scrollTo(target, anchor: .top)
-          model.send(.clearScrollTarget)
+      }
+      .frame(
+        maxWidth: .infinity,
+        maxHeight: .infinity,
+        alignment: .topLeading
+      )
+      .foregroundStyle(model.state.theme.foreground.swiftTUIColor)
+      .background(model.state.theme.background.swiftTUIColor)
+      .openLinkAction(
+        OpenLinkAction { destination in
+          model.send(.openDestination(destination.rawValue))
+          return true
         }
+      )
+      .focusable(true)
+      .onKeyPress(.any) { keyPress in
+        handle(keyPress)
+      }
+      .task(id: viewport) { @MainActor in
+        model.updateViewport(viewport)
       }
     }
     .task { @MainActor in
@@ -93,15 +104,23 @@ public struct MrkdwnRootView: View {
           Divider()
         }
         Spacer(minLength: 0)
-        MarkdownDocumentView(
-          model: model,
-          focusedMermaidID: $focusedMermaidID
-        )
-        .frame(
-          maxWidth: .finite(model.state.viewport.documentFrameWidth),
-          maxHeight: .infinity,
-          alignment: .topLeading
-        )
+        ScrollViewReader { proxy in
+          let _ = proxyBox.adopt(proxy)
+          MarkdownDocumentView(
+            model: model,
+            focusedMermaidID: $focusedMermaidID
+          )
+          .frame(
+            maxWidth: .finite(model.state.viewport.documentFrameWidth),
+            maxHeight: .infinity,
+            alignment: .topLeading
+          )
+          .task(id: model.pendingScrollTarget) { @MainActor in
+            guard let target = model.pendingScrollTarget else { return }
+            _ = proxy.scrollTo(target, anchor: .top)
+            model.send(.clearScrollTarget)
+          }
+        }
         Spacer(minLength: 0)
       }
       Divider()
@@ -199,10 +218,7 @@ public struct MrkdwnRootView: View {
     .border(model.state.theme.tableBorder.swiftTUIColor)
   }
 
-  private func handle(
-    _ keyPress: KeyPress,
-    proxy: ScrollViewProxy
-  ) -> KeyPressResult {
+  private func handle(_ keyPress: KeyPress) -> KeyPressResult {
     if CommandCatalog.runtimeExitKeys.contains(keyPress),
       !model.state.searchVisible
     {
@@ -224,18 +240,18 @@ public struct MrkdwnRootView: View {
     let page = model.state.viewport.documentHeight
     switch keyPress {
     case KeyPress(.character("j")), KeyPress(.arrowDown):
-      _ = proxy.scrollBy(y: 1)
+      _ = proxyBox.proxy?.scrollBy(y: 1)
     case KeyPress(.character("k")), KeyPress(.arrowUp):
-      _ = proxy.scrollBy(y: -1)
+      _ = proxyBox.proxy?.scrollBy(y: -1)
     case KeyPress(.pageDown), KeyPress(.space):
-      _ = proxy.scrollBy(y: page)
+      _ = proxyBox.proxy?.scrollBy(y: page)
     case KeyPress(.pageUp), KeyPress(.space, modifiers: .shift):
-      _ = proxy.scrollBy(y: -page)
+      _ = proxyBox.proxy?.scrollBy(y: -page)
     case KeyPress(.character("g")), KeyPress(.home):
-      _ = proxy.scrollTo(edge: .top)
+      _ = proxyBox.proxy?.scrollTo(edge: .top)
     case KeyPress(.character("G")), KeyPress(.character("g"), modifiers: .shift),
       KeyPress(.end):
-      _ = proxy.scrollTo(edge: .bottom)
+      _ = proxyBox.proxy?.scrollTo(edge: .bottom)
     case KeyPress(.character("]")):
       model.send(.nextHeading)
     case KeyPress(.character("[")):
@@ -328,7 +344,7 @@ private struct MarkdownDocumentView: View {
       showsIndicators: true,
       position: Binding(
         get: {
-          ScrollPosition(y: model.state.documentScrollOffset)
+          ScrollPosition(y: model.documentScrollOffset)
         },
         set: {
           model.updateDocumentScrollOffset($0.y)
@@ -355,7 +371,14 @@ private struct MarkdownDocumentView: View {
                 } else {
                   model.resourceBecameHidden(id)
                 }
-              }
+              },
+              // Read at leaf-body time, not here: the closures execute inside
+              // the block views' bodies, so the observation dependency on the
+              // split model properties lands on the leaf that needs it, not
+              // on this ForEach.
+              documentScrollOffset: { model.documentScrollOffset },
+              mermaidPresentation: { model.mermaid[$0] },
+              imagePresentation: { model.images[$0] }
             )
           }
         } else {

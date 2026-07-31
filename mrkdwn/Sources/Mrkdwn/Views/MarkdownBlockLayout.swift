@@ -138,6 +138,17 @@ enum MarkdownBlockLayout {
     }.max() ?? 1
   }
 
+  /// The presentation state renderedGeometry needs, passed explicitly: the
+  /// resource presentations live on `ViewerModel` as their own observed
+  /// properties (not in `ViewerState`), so geometry cannot read them from the
+  /// state value.
+  struct GeometryInputs {
+    var mermaid: [BlockID: MermaidPresentation] = [:]
+    var images: [BlockID: ImagePresentation] = [:]
+    var revealedMermaidSources: Set<BlockID> = []
+    var documentURL: URL?
+  }
+
   struct GeometryEntry: Equatable, Sendable {
     var blockID: BlockID
     var stableIdentity: String
@@ -149,12 +160,12 @@ enum MarkdownBlockLayout {
 
   static func renderedGeometry(
     _ blocks: [MarkdownBlock],
-    state: ViewerState,
+    inputs: GeometryInputs,
     offeredWidth: Int
   ) -> [GeometryEntry] {
     geometryForBlocks(
       blocks,
-      state: state,
+      inputs: inputs,
       offeredWidth: max(1, offeredWidth),
       originY: 0
     ).entries
@@ -162,7 +173,7 @@ enum MarkdownBlockLayout {
 
   private static func geometryForBlocks(
     _ blocks: [MarkdownBlock],
-    state: ViewerState,
+    inputs: GeometryInputs,
     offeredWidth: Int,
     originY: Int,
     siblingSpacing: Int = 1
@@ -173,7 +184,7 @@ enum MarkdownBlockLayout {
       if index > 0 { cursor += siblingSpacing }
       let geometry = geometryForBlock(
         block,
-        state: state,
+        inputs: inputs,
         offeredWidth: offeredWidth,
         originY: cursor
       )
@@ -185,7 +196,7 @@ enum MarkdownBlockLayout {
 
   private static func geometryForBlock(
     _ block: MarkdownBlock,
-    state: ViewerState,
+    inputs: GeometryInputs,
     offeredWidth: Int,
     originY: Int
   ) -> (height: Int, entries: [GeometryEntry]) {
@@ -205,7 +216,7 @@ enum MarkdownBlockLayout {
       headingAnchor = nil
       let nestedGeometry = geometryForBlocks(
         nested,
-        state: state,
+        inputs: inputs,
         offeredWidth: quoteContentWidth(width),
         originY: originY
       )
@@ -218,7 +229,7 @@ enum MarkdownBlockLayout {
       for item in list.items {
         let itemGeometry = geometryForBlocks(
           item.blocks,
-          state: state,
+          inputs: inputs,
           offeredWidth: contentWidth,
           originY: itemOrigin,
           siblingSpacing: 0
@@ -233,7 +244,7 @@ enum MarkdownBlockLayout {
     case .mermaid(let id, let value, _):
       headingAnchor = nil
       let sourceHeight = literalHeight(value.source)
-      switch state.mermaid[id] {
+      switch inputs.mermaid[id] {
       case .ready(let rendered)?, .reflowing(let rendered)?:
         height =
           max(1, rendered.height)
@@ -244,7 +255,7 @@ enum MarkdownBlockLayout {
               } ?? 0
               : 0
           )
-          + (state.revealedMermaidSources.contains(id) ? sourceHeight : 0)
+          + (inputs.revealedMermaidSources.contains(id) ? sourceHeight : 0)
       case .unavailable(let diagnostic)?:
         height =
           textHeight(mermaidUnavailableText(diagnostic), width: width)
@@ -252,7 +263,7 @@ enum MarkdownBlockLayout {
       case .pending?, nil:
         height =
           textHeight(mermaidPendingText, width: width)
-          + (state.revealedMermaidSources.contains(id) ? sourceHeight : 0)
+          + (inputs.revealedMermaidSources.contains(id) ? sourceHeight : 0)
       }
     case .table(_, let table, _):
       headingAnchor = nil
@@ -266,10 +277,10 @@ enum MarkdownBlockLayout {
       height = 1
     case .image(let id, let image, _):
       headingAnchor = nil
-      let presentation = state.images[id]
+      let presentation = inputs.images[id]
       let url = imageURL(
         image: image,
-        documentURL: state.snapshot.url,
+        documentURL: inputs.documentURL,
         presentation: presentation
       )
       let metadataHeight = textHeight(

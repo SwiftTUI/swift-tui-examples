@@ -159,14 +159,6 @@ struct ViewContractTests {
     #expect(metrics.bodyRowHeights == [3])
     #expect(metrics.totalHeight == 5)
 
-    let state = ViewerState(
-      snapshot: DocumentSnapshot(
-        source: "",
-        url: nil,
-        displayName: "table.md"
-      ),
-      theme: .default
-    )
     let geometry = MarkdownBlockLayout.renderedGeometry(
       [
         .table(
@@ -175,7 +167,7 @@ struct ViewContractTests {
           source: nil
         )
       ],
-      state: state,
+      inputs: .init(),
       offeredWidth: 80
     )
 
@@ -222,14 +214,10 @@ struct ViewContractTests {
         """,
       sourceURL: nil
     )
-    let state = ViewerState(
-      snapshot: DocumentSnapshot(source: "", url: nil, displayName: "loose-list.md"),
-      theme: .default
-    )
     let descriptors = MarkdownBlockLayout.flattened(document.blocks, offeredWidth: 80)
     let geometry = MarkdownBlockLayout.renderedGeometry(
       document.blocks,
-      state: state,
+      inputs: .init(),
       offeredWidth: 80
     )
     let entriesByID = Dictionary(
@@ -442,12 +430,9 @@ struct ViewContractTests {
   func unavailableMermaidSourceGeometry() throws {
     let id = BlockID("unavailable-mermaid")
     let source = "flowchart LR\nUNIQUE-SOURCE --> END"
-    var state = ViewerState(
-      snapshot: DocumentSnapshot(source: "", url: nil, displayName: "mermaid.md"),
-      theme: .default
-    )
-    state.mermaid[id] = .unavailable(diagnostic: "renderer unavailable")
-    state.revealedMermaidSources.insert(id)
+    var inputs = MarkdownBlockLayout.GeometryInputs()
+    inputs.mermaid[id] = .unavailable(diagnostic: "renderer unavailable")
+    inputs.revealedMermaidSources.insert(id)
     let block = MarkdownBlock.mermaid(
       id: id,
       value: MermaidBlock(source: source),
@@ -456,7 +441,7 @@ struct ViewContractTests {
     let geometry = try #require(
       MarkdownBlockLayout.renderedGeometry(
         [block],
-        state: state,
+        inputs: inputs,
         offeredWidth: 80
       ).first
     )
@@ -464,7 +449,7 @@ struct ViewContractTests {
       MermaidBlockView(
         blockID: id,
         source: source,
-        presentation: state.mermaid[id],
+        presentation: inputs.mermaid[id],
         theme: .default,
         offeredWidth: 80,
         revealsSource: true
@@ -485,11 +470,8 @@ struct ViewContractTests {
     let source = "flowchart LR\nA --> B"
     let diagnostic = String(repeating: "renderer unavailable ", count: 5)
     let width = 24
-    var state = ViewerState(
-      snapshot: DocumentSnapshot(source: "", url: nil, displayName: "mermaid.md"),
-      theme: .default
-    )
-    state.mermaid[id] = .unavailable(diagnostic: diagnostic)
+    var inputs = MarkdownBlockLayout.GeometryInputs()
+    inputs.mermaid[id] = .unavailable(diagnostic: diagnostic)
     let block = MarkdownBlock.mermaid(
       id: id,
       value: MermaidBlock(source: source),
@@ -498,7 +480,7 @@ struct ViewContractTests {
     let geometry = try #require(
       MarkdownBlockLayout.renderedGeometry(
         [block],
-        state: state,
+        inputs: inputs,
         offeredWidth: width
       ).first
     )
@@ -506,7 +488,7 @@ struct ViewContractTests {
       MermaidBlockView(
         blockID: id,
         source: source,
-        presentation: state.mermaid[id],
+        presentation: inputs.mermaid[id],
         theme: .default,
         offeredWidth: width,
         revealsSource: false
@@ -528,11 +510,8 @@ struct ViewContractTests {
       title: "System overview for the complete deployment"
     )
     let diagnostic = String(repeating: "image scheme unsupported ", count: 4)
-    var state = ViewerState(
-      snapshot: DocumentSnapshot(source: "", url: nil, displayName: "image.md"),
-      theme: .default
-    )
-    state.images[id] = .failed(
+    var inputs = MarkdownBlockLayout.GeometryInputs()
+    inputs.images[id] = .failed(
       resolvedURL: URL(string: reference.source),
       diagnostic: diagnostic
     )
@@ -540,15 +519,15 @@ struct ViewContractTests {
     let geometry = try #require(
       MarkdownBlockLayout.renderedGeometry(
         [block],
-        state: state,
+        inputs: inputs,
         offeredWidth: width
       ).first
     )
     let artifacts = DefaultRenderer().render(
       ImageBlockView(
         image: reference,
-        documentURL: state.snapshot.url,
-        presentation: state.images[id],
+        documentURL: nil,
+        presentation: inputs.images[id],
         theme: .default
       ),
       context: .init(identity: Identity(components: [.named("WrappedImageFallback")])),
@@ -575,13 +554,9 @@ struct ViewContractTests {
       sourceText: unsupportedSource,
       source: nil
     )
-    let state = ViewerState(
-      snapshot: DocumentSnapshot(source: "", url: nil, displayName: "fallback.md"),
-      theme: .default
-    )
     let geometry = MarkdownBlockLayout.renderedGeometry(
       [html, unsupported],
-      state: state,
+      inputs: .init(),
       offeredWidth: width
     )
     let htmlArtifacts = DefaultRenderer().render(

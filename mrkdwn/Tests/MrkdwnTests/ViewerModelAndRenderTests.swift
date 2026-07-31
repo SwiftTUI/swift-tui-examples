@@ -292,12 +292,12 @@ struct ViewerModelAndRenderTests {
     #expect(model.state.isSearching)
     await waitUntil { !model.state.isSearching }
     #expect(model.state.searchMatches.count == 2)
-    #expect(model.state.pendingScrollTarget != nil)
+    #expect(model.pendingScrollTarget != nil)
     model.send(.nextHeading)
-    #expect(model.state.pendingScrollTarget == model.state.document?.outline.first?.id)
+    #expect(model.pendingScrollTarget == model.state.document?.outline.first?.id)
     model.send(.clearScrollTarget)
     model.send(.nextHeading)
-    #expect(model.state.pendingScrollTarget == model.state.document?.outline.last?.id)
+    #expect(model.pendingScrollTarget == model.state.document?.outline.last?.id)
     model.send(.endSearch)
     #expect(!model.state.searchVisible)
 
@@ -413,7 +413,7 @@ struct ViewerModelAndRenderTests {
     await waitUntil { model.state.snapshot.url == expectedURL }
 
     #expect(reads.withLock { $0 } == [expectedURL])
-    #expect(model.state.pendingScrollTarget == model.state.document?.outline.first?.id)
+    #expect(model.pendingScrollTarget == model.state.document?.outline.first?.id)
 
     model.send(.openDestination("missing.md#absent"))
     await waitUntil { model.state.snapshot.url?.lastPathComponent == "missing.md" }
@@ -680,7 +680,7 @@ struct ViewerModelAndRenderTests {
 
     let reloadedKeep = model.state.document?.outline.first(where: { $0.anchor == "keep" })
     #expect(reloadedKeep != nil)
-    #expect(model.state.pendingScrollTarget == reloadedKeep?.id)
+    #expect(model.pendingScrollTarget == reloadedKeep?.id)
     #expect(reloadedKeep?.id != keep?.id)
     await model.shutdown()
   }
@@ -785,7 +785,12 @@ struct ViewerModelAndRenderTests {
     model.updateViewport(ViewerSize(width: 24, height: 16))
     let oldGeometry = MarkdownBlockLayout.renderedGeometry(
       try #require(model.state.document?.blocks),
-      state: model.state,
+      inputs: .init(
+        mermaid: model.mermaid,
+        images: model.images,
+        revealedMermaidSources: model.state.revealedMermaidSources,
+        documentURL: model.state.snapshot.url
+      ),
       offeredWidth: model.state.viewport.documentWidth
     )
     let oldParagraph = try #require(
@@ -804,12 +809,17 @@ struct ViewerModelAndRenderTests {
     )
     let newGeometry = MarkdownBlockLayout.renderedGeometry(
       newDocument.blocks,
-      state: model.state,
+      inputs: .init(
+        mermaid: model.mermaid,
+        images: model.images,
+        revealedMermaidSources: model.state.revealedMermaidSources,
+        documentURL: model.state.snapshot.url
+      ),
       offeredWidth: model.state.viewport.documentWidth
     )
     let newParagraph = try #require(newGeometry.first { $0.blockID == retainedID })
-    #expect(model.state.pendingScrollTarget == nil)
-    #expect(model.state.documentScrollOffset == newParagraph.top + 1)
+    #expect(model.pendingScrollTarget == nil)
+    #expect(model.documentScrollOffset == newParagraph.top + 1)
     await model.shutdown()
   }
 
@@ -971,7 +981,7 @@ struct ViewerModelAndRenderTests {
     }
     model.resourceBecameVisible(id)
     await waitUntil(attempts: 5_000) {
-      if case .unavailable? = model.state.mermaid[id] { return true }
+      if case .unavailable? = model.mermaid[id] { return true }
       return false
     }
     model.resourceBecameHidden(id)
@@ -1112,13 +1122,13 @@ struct ViewerModelAndRenderTests {
     #expect(occupancy.imageEntries <= ViewerModel.maximumRetainedImagePresentations)
     #expect(occupancy.imageBytes <= ViewerModel.maximumRetainedImageBytes)
     #expect(
-      model.state.mermaid.values.filter {
+      model.mermaid.values.filter {
         if case .ready = $0 { return true }
         return false
       }.count == occupancy.mermaidEntries
     )
     #expect(
-      model.state.images.values.filter {
+      model.images.values.filter {
         if case .ready = $0 { return true }
         return false
       }.count == occupancy.imageEntries
@@ -1131,7 +1141,7 @@ struct ViewerModelAndRenderTests {
     // released placeholder asserted by the visible-overflow suites. Both are
     // evictions; only a retained `.ready` presentation is not.
     let releasedMermaid = mermaidIDs.first {
-      switch model.state.mermaid[$0] {
+      switch model.mermaid[$0] {
       case nil, .unavailable?: true
       default: false
       }
@@ -1140,7 +1150,7 @@ struct ViewerModelAndRenderTests {
       model.resourceBecameHidden(evictedMermaid)
       model.resourceBecameVisible(evictedMermaid)
       await waitUntil(attempts: 5_000) {
-        if case .ready? = model.state.mermaid[evictedMermaid] { return true }
+        if case .ready? = model.mermaid[evictedMermaid] { return true }
         return false
       }
       #expect(await mermaidRequests.requests.count == 101)
@@ -1148,7 +1158,7 @@ struct ViewerModelAndRenderTests {
       Issue.record("Expected at least one Mermaid presentation eviction")
     }
     let releasedImage = imageIDs.first {
-      switch model.state.images[$0] {
+      switch model.images[$0] {
       case nil, .terminalFallback?: true
       default: false
       }
@@ -1157,7 +1167,7 @@ struct ViewerModelAndRenderTests {
       model.resourceBecameHidden(evictedImage)
       model.resourceBecameVisible(evictedImage)
       await waitUntil(attempts: 5_000) {
-        if case .ready? = model.state.images[evictedImage] { return true }
+        if case .ready? = model.images[evictedImage] { return true }
         return false
       }
       #expect(await imageRequests.sources.count == 101)
@@ -1225,10 +1235,10 @@ struct ViewerModelAndRenderTests {
       model.retainedPresentationOccupancy.mermaidEntries
         <= ViewerModel.maximumRetainedMermaidPresentations
     )
-    #expect(model.state.mermaid.count <= ViewerModel.maximumRetainedResourceStates)
+    #expect(model.mermaid.count <= ViewerModel.maximumRetainedResourceStates)
     #expect(
       ids.allSatisfy { id in
-        switch model.state.mermaid[id] {
+        switch model.mermaid[id] {
         case .ready?, .unavailable?:
           true
         case .pending?, .reflowing?, nil:
@@ -1238,7 +1248,7 @@ struct ViewerModelAndRenderTests {
     )
     #expect(
       ids.contains { id in
-        if case .unavailable? = model.state.mermaid[id] { return true }
+        if case .unavailable? = model.mermaid[id] { return true }
         return false
       }
     )
@@ -1311,10 +1321,10 @@ struct ViewerModelAndRenderTests {
       model.retainedPresentationOccupancy.imageEntries
         <= ViewerModel.maximumRetainedImagePresentations
     )
-    #expect(model.state.images.count <= ViewerModel.maximumRetainedResourceStates)
+    #expect(model.images.count <= ViewerModel.maximumRetainedResourceStates)
     #expect(
       ids.allSatisfy { id in
-        switch model.state.images[id] {
+        switch model.images[id] {
         case .ready?, .terminalFallback?:
           true
         case .loading?, .blocked?, .failed?, nil:
@@ -1324,7 +1334,7 @@ struct ViewerModelAndRenderTests {
     )
     #expect(
       ids.contains { id in
-        if case .terminalFallback? = model.state.images[id] { return true }
+        if case .terminalFallback? = model.images[id] { return true }
         return false
       }
     )
@@ -1552,8 +1562,8 @@ struct ViewerModelAndRenderTests {
     #expect(model.ownedEffectCount == 0)
     #expect(model.retainedPresentationOccupancy.mermaidEntries == 0)
     #expect(model.retainedPresentationOccupancy.imageEntries == 0)
-    #expect(!model.state.mermaid.values.contains { if case .ready = $0 { true } else { false } })
-    #expect(!model.state.images.values.contains { if case .ready = $0 { true } else { false } })
+    #expect(!model.mermaid.values.contains { if case .ready = $0 { true } else { false } })
+    #expect(!model.images.values.contains { if case .ready = $0 { true } else { false } })
 
     model.send(.reload)
     model.updateViewport(ViewerSize(width: 120, height: 40))
@@ -1766,6 +1776,57 @@ struct ViewerModelAndRenderTests {
     }
     await waitUntilAsync { await recorder.requests.count == 1 }
     #expect(await recorder.requests.first?.configuration == configuration)
+    await model.shutdown()
+  }
+
+  @Test("scroll-frequency writes bypass whole-state observers")
+  func scrollWritesBypassStateObservers() async throws {
+    let model = makeModel("# One\n\nalpha\n\nbeta\n\ngamma")
+    await model.start()
+    model.updateViewport(ViewerSize(width: 80, height: 24))
+
+    // A chrome-shaped observer: reads only `state`, the way the header,
+    // status bar, and overlays do. A per-notch offset write must not fire it —
+    // that cone is exactly what Stage 1's split removes.
+    let stateFired = Mutex(false)
+    withObservationTracking {
+      _ = model.state
+    } onChange: {
+      stateFired.withLock { $0 = true }
+    }
+    let offsetFired = Mutex(false)
+    withObservationTracking {
+      _ = model.documentScrollOffset
+    } onChange: {
+      offsetFired.withLock { $0 = true }
+    }
+
+    model.updateDocumentScrollOffset(2)
+    #expect(offsetFired.withLock { $0 })
+    #expect(!stateFired.withLock { $0 })
+
+    // Navigation targets are also split out: a heading jump fires neither the
+    // chrome observer nor the offset observer.
+    let targetFired = Mutex(false)
+    withObservationTracking {
+      _ = model.pendingScrollTarget
+    } onChange: {
+      targetFired.withLock { $0 = true }
+    }
+    let heading = try #require(model.state.document?.outline.first?.id)
+    model.send(.scrollToHeading(heading))
+    #expect(targetFired.withLock { $0 })
+    #expect(!stateFired.withLock { $0 })
+
+    // And the reverse direction: a genuine `state` write does fire the
+    // chrome observer (the tracking above was consumed, so re-register).
+    withObservationTracking {
+      _ = model.state
+    } onChange: {
+      stateFired.withLock { $0 = true }
+    }
+    model.send(.toggleOutline)
+    #expect(stateFired.withLock { $0 })
     await model.shutdown()
   }
 

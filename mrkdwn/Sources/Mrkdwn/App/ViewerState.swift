@@ -119,10 +119,6 @@ public struct ViewerState: Equatable, Sendable {
   public var searchResultsTruncated: Bool
   public var isSearching: Bool
   public var selectedSearchMatch: Int?
-  public var pendingScrollTarget: BlockID?
-  public var documentScrollOffset: Int
-  public var mermaid: [BlockID: MermaidPresentation]
-  public var images: [BlockID: ImagePresentation]
   public var revealedMermaidSources: Set<BlockID>
   public var canGoBack: Bool
   public var canGoForward: Bool
@@ -147,10 +143,6 @@ public struct ViewerState: Equatable, Sendable {
     searchResultsTruncated = false
     isSearching = false
     selectedSearchMatch = nil
-    pendingScrollTarget = nil
-    documentScrollOffset = 0
-    mermaid = [:]
-    images = [:]
     revealedMermaidSources = []
     canGoBack = false
     canGoForward = false

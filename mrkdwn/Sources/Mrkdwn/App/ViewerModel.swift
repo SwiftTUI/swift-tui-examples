@@ -110,6 +110,19 @@ public final class ViewerModel {
 
   public private(set) var state: ViewerState
 
+  // The scroll-frequency fields live outside `state` on purpose: `@Observable`
+  // tracks dependencies per observed *property*, so any view that reads any
+  // `state` field depends on all of it. Keeping the per-notch writes
+  // (`documentScrollOffset`), the per-navigation writes
+  // (`pendingScrollTarget`), and the scroll-driven resource commits
+  // (`mermaid`/`images`) on their own properties bounds each write's
+  // invalidation cone to the views that actually read that property
+  // (scroll-latency program Stage 1, plan 2026-07-31-001).
+  public private(set) var documentScrollOffset: Int = 0
+  public private(set) var pendingScrollTarget: BlockID?
+  public private(set) var mermaid: [BlockID: MermaidPresentation] = [:]
+  public private(set) var images: [BlockID: ImagePresentation] = [:]
+
   @ObservationIgnored private let compiler: MarkdownCompiler
   @ObservationIgnored private let linkResolver: LinkResolver
   @ObservationIgnored private let dependencies: ViewerDependencies
@@ -248,7 +261,7 @@ public final class ViewerModel {
       open(destination)
     case .scrollToHeading(let id):
       currentHeadingID = id
-      state.pendingScrollTarget = id
+      pendingScrollTarget = id
     case .nextHeading:
       moveHeading(by: 1)
     case .previousHeading:
@@ -283,7 +296,7 @@ public final class ViewerModel {
     case .dismissError:
       state.diagnostic = nil
     case .clearScrollTarget:
-      state.pendingScrollTarget = nil
+      pendingScrollTarget = nil
     }
   }
 
@@ -345,9 +358,9 @@ public final class ViewerModel {
   public func updateDocumentScrollOffset(_ offset: Int) {
     guard !isShuttingDown else { return }
     let clamped = max(0, offset)
-    guard state.documentScrollOffset != clamped else { return }
-    state.documentScrollOffset = clamped
-    guard state.pendingScrollTarget == nil, state.document != nil else {
+    guard documentScrollOffset != clamped else { return }
+    documentScrollOffset = clamped
+    guard pendingScrollTarget == nil, state.document != nil else {
       return
     }
     currentHeadingID = renderedGeometry().heading(atOrBefore: clamped)?.blockID
@@ -442,8 +455,8 @@ public final class ViewerModel {
     cancelImageEffects()
     state.snapshot = snapshot
     state.document = compiled
-    state.mermaid = [:]
-    state.images = [:]
+    mermaid = [:]
+    images = [:]
     state.revealedMermaidSources = []
     state.contentRevision &+= 1
     activeMermaidRequests.removeAll(keepingCapacity: true)
@@ -544,11 +557,11 @@ public final class ViewerModel {
   }
 
   private func discardNonReadyMermaidPresentation(_ id: BlockID) {
-    switch state.mermaid[id] {
+    switch mermaid[id] {
     case .pending?:
       evictMermaidState(id)
     case .reflowing(let previous)?:
-      state.mermaid[id] = .ready(previous)
+      mermaid[id] = .ready(previous)
       recordMermaidState(id)
     case .ready?, .unavailable?, nil:
       break
@@ -556,7 +569,7 @@ public final class ViewerModel {
   }
 
   private func discardNonReadyImagePresentation(_ id: BlockID) {
-    switch state.images[id] {
+    switch images[id] {
     case .loading?, .blocked?, .failed?, .terminalFallback?:
       evictImageState(id)
     case .ready?, nil:
@@ -578,7 +591,7 @@ public final class ViewerModel {
     )
     if activeMermaidRequests[id]?.request == request { return }
     if retainedMermaidRequests[id] == request {
-      if case .ready = state.mermaid[id] {
+      if case .ready = mermaid[id] {
         touch(id, in: &mermaidPresentationRecency)
         touch(id, in: &mermaidStateRecency)
       }
@@ -596,12 +609,12 @@ public final class ViewerModel {
       token: token,
       effectID: nil
     )
-    if case .ready(let previous)? = state.mermaid[id] {
-      state.mermaid[id] = .reflowing(previous)
-    } else if case .reflowing(let previous)? = state.mermaid[id] {
-      state.mermaid[id] = .reflowing(previous)
+    if case .ready(let previous)? = mermaid[id] {
+      mermaid[id] = .reflowing(previous)
+    } else if case .reflowing(let previous)? = mermaid[id] {
+      mermaid[id] = .reflowing(previous)
     } else {
-      state.mermaid[id] = .pending
+      mermaid[id] = .pending
     }
     recordMermaidState(id)
     let effectID = spawnMermaidEffect { [weak self] in
@@ -630,7 +643,7 @@ public final class ViewerModel {
     documentGeneration generation: UInt64
   ) {
     if activeImageRequests[id] != nil { return }
-    if let presentation = state.images[id] {
+    if let presentation = images[id] {
       if case .ready = presentation {
         touch(id, in: &imagePresentationRecency)
         touch(id, in: &imageStateRecency)
@@ -653,7 +666,7 @@ public final class ViewerModel {
       token: token,
       effectID: nil
     )
-    state.images[id] = .loading(resolvedURL: resolvedURL)
+    images[id] = .loading(resolvedURL: resolvedURL)
     recordImageState(id)
     let effectID = spawnImageEffect { [weak self] in
       guard let self else { return }
@@ -950,7 +963,7 @@ public final class ViewerModel {
         return
       }
       currentHeadingID = target.id
-      state.pendingScrollTarget = target.id
+      pendingScrollTarget = target.id
     case .markdownDocument(let url, let anchor):
       navigate(to: url, anchor: anchor, history: .recordCurrent)
     case .external(let url), .file(let url):
@@ -1026,7 +1039,7 @@ public final class ViewerModel {
     if let anchor {
       if let target = state.document?.outline.first(where: { $0.anchor == anchor }) {
         currentHeadingID = target.id
-        state.pendingScrollTarget = target.id
+        pendingScrollTarget = target.id
       } else {
         state.diagnostic = ViewerDiagnostic(.warning, "No heading named #\(anchor)")
       }
@@ -1091,7 +1104,7 @@ public final class ViewerModel {
     state.searchResultsTruncated = false
     state.selectedSearchMatch = nil
     if scrollsToFirstMatch {
-      state.pendingScrollTarget = nil
+      pendingScrollTarget = nil
     }
     guard !query.isEmpty, let index else {
       state.isSearching = false
@@ -1142,7 +1155,7 @@ public final class ViewerModel {
       state.isSearching = false
       if request.scrollsToFirstMatch, let first = result.matches.first {
         currentHeadingID = nil
-        state.pendingScrollTarget = first.blockID
+        pendingScrollTarget = first.blockID
       }
     }
     searchWorkerTask = nil
@@ -1155,7 +1168,7 @@ public final class ViewerModel {
     let next = (current + delta + count) % count
     state.selectedSearchMatch = next
     currentHeadingID = nil
-    state.pendingScrollTarget = state.searchMatches[next].blockID
+    pendingScrollTarget = state.searchMatches[next].blockID
   }
 
   private func moveHeading(by delta: Int) {
@@ -1166,7 +1179,7 @@ public final class ViewerModel {
       } ?? (delta > 0 ? -1 : 0)
     let next = min(max(current + delta, 0), outline.count - 1)
     currentHeadingID = outline[next].id
-    state.pendingScrollTarget = currentHeadingID
+    pendingScrollTarget = currentHeadingID
   }
 
   private func revealNextMermaidSource() {
@@ -1187,7 +1200,7 @@ public final class ViewerModel {
   }
 
   private func captureScrollRestorationAnchor() -> ScrollRestorationAnchor {
-    let offset = state.documentScrollOffset
+    let offset = documentScrollOffset
     guard state.document != nil else {
       return ScrollRestorationAnchor(
         headingAnchor: nil,
@@ -1215,8 +1228,8 @@ public final class ViewerModel {
     switch policy {
     case .top:
       currentHeadingID = nil
-      state.pendingScrollTarget = nil
-      state.documentScrollOffset = 0
+      pendingScrollTarget = nil
+      documentScrollOffset = 0
     case .preserve(let anchor):
       let geometry = renderedGeometry().entries
       if let target = anchor.blockIdentity.flatMap({ identity in
@@ -1229,17 +1242,17 @@ public final class ViewerModel {
           })?.blockID
           : target.blockID
         if target.headingAnchor != nil {
-          state.pendingScrollTarget = target.blockID
+          pendingScrollTarget = target.blockID
         } else {
-          state.pendingScrollTarget = nil
-          state.documentScrollOffset =
+          pendingScrollTarget = nil
+          documentScrollOffset =
             target.top + min(anchor.intraBlockOffset, max(0, target.height - 1))
         }
       } else if let target = anchor.headingAnchor.flatMap({ headingAnchor in
         geometry.first(where: { $0.headingAnchor == headingAnchor })
       }) {
         currentHeadingID = target.blockID
-        state.pendingScrollTarget = target.blockID
+        pendingScrollTarget = target.blockID
       } else if let target = geometry.compactMap({ entry -> GeometrySourceCandidate? in
         guard let sourceLine = entry.sourceLine else { return nil }
         return GeometrySourceCandidate(entry: entry, sourceLine: sourceLine)
@@ -1250,12 +1263,12 @@ public final class ViewerModel {
           geometry.last(where: {
             $0.headingAnchor != nil && $0.top <= target.top
           })?.blockID
-        state.pendingScrollTarget = nil
-        state.documentScrollOffset = target.top
+        pendingScrollTarget = nil
+        documentScrollOffset = target.top
       } else {
         currentHeadingID = nil
-        state.pendingScrollTarget = nil
-        state.documentScrollOffset = anchor.absoluteOffset
+        pendingScrollTarget = nil
+        documentScrollOffset = anchor.absoluteOffset
       }
     }
   }
@@ -1284,7 +1297,12 @@ public final class ViewerModel {
     }
     let entries = MarkdownBlockLayout.renderedGeometry(
       document.blocks,
-      state: state,
+      inputs: MarkdownBlockLayout.GeometryInputs(
+        mermaid: mermaid,
+        images: images,
+        revealedMermaidSources: state.revealedMermaidSources,
+        documentURL: state.snapshot.url
+      ),
       offeredWidth: state.viewport.documentWidth
     )
     let snapshot = GeometrySnapshot(
@@ -1334,8 +1352,8 @@ public final class ViewerModel {
   {
     (
       visibleResourceIDs.count,
-      state.mermaid.count,
-      state.images.count,
+      mermaid.count,
+      images.count,
       activeMermaidRequests.count,
       activeImageRequests.count
     )
@@ -1347,7 +1365,7 @@ public final class ViewerModel {
     request: MermaidRenderRequest
   ) {
     removeMermaidPresentationAccounting(for: id)
-    state.mermaid[id] = presentation
+    mermaid[id] = presentation
     retainedMermaidRequests[id] = request
     recordMermaidState(id)
     guard case .ready = presentation else { return }
@@ -1357,7 +1375,7 @@ public final class ViewerModel {
       request: request
     )
     guard cost <= Self.maximumRetainedMermaidBytes else {
-      state.mermaid[id] = .unavailable(
+      mermaid[id] = .unavailable(
         diagnostic:
           "Diagram exceeds the bounded presentation budget; reveal its source to inspect it."
       )
@@ -1381,13 +1399,13 @@ public final class ViewerModel {
     id: BlockID
   ) {
     removeImagePresentationAccounting(for: id)
-    state.images[id] = presentation
+    images[id] = presentation
     recordImageState(id)
     guard case .ready(let loaded) = presentation else { return }
 
     let cost = addingSaturated(loaded.data.count, 128)
     guard cost <= Self.maximumRetainedImageBytes else {
-      state.images[id] = .terminalFallback(
+      images[id] = .terminalFallback(
         resolvedURL: loaded.url,
         diagnostic: "image exceeds the bounded presentation budget"
       )
@@ -1408,7 +1426,7 @@ public final class ViewerModel {
 
   private func recordMermaidState(_ id: BlockID) {
     touch(id, in: &mermaidStateRecency)
-    while state.mermaid.count > Self.maximumRetainedResourceStates {
+    while mermaid.count > Self.maximumRetainedResourceStates {
       guard
         let oldest = mermaidStateRecency.first(where: {
           activeMermaidRequests[$0] == nil && !visibleResourceIDs.contains($0)
@@ -1422,7 +1440,7 @@ public final class ViewerModel {
 
   private func recordImageState(_ id: BlockID) {
     touch(id, in: &imageStateRecency)
-    while state.images.count > Self.maximumRetainedResourceStates {
+    while images.count > Self.maximumRetainedResourceStates {
       guard
         let oldest = imageStateRecency.first(where: {
           activeImageRequests[$0] == nil && !visibleResourceIDs.contains($0)
@@ -1441,7 +1459,7 @@ public final class ViewerModel {
       evictMermaidState(id)
       return
     }
-    state.mermaid[id] = .unavailable(
+    mermaid[id] = .unavailable(
       diagnostic:
         "Diagram was released from the bounded render cache; reveal its source or revisit it."
     )
@@ -1452,12 +1470,12 @@ public final class ViewerModel {
     removeMermaidPresentationAccounting(for: id)
     retainedMermaidRequests.removeValue(forKey: id)
     mermaidStateRecency.removeAll { $0 == id }
-    state.mermaid.removeValue(forKey: id)
+    mermaid.removeValue(forKey: id)
   }
 
   private func evictImagePresentation(_ id: BlockID) {
     let resolvedURL =
-      if case .ready(let loaded)? = state.images[id] {
+      if case .ready(let loaded)? = images[id] {
         loaded.url
       } else {
         nil as URL?
@@ -1467,7 +1485,7 @@ public final class ViewerModel {
       evictImageState(id)
       return
     }
-    state.images[id] = .terminalFallback(
+    images[id] = .terminalFallback(
       resolvedURL: resolvedURL,
       diagnostic: "image was released from the bounded render cache"
     )
@@ -1477,7 +1495,7 @@ public final class ViewerModel {
   private func evictImageState(_ id: BlockID) {
     removeImagePresentationAccounting(for: id)
     imageStateRecency.removeAll { $0 == id }
-    state.images.removeValue(forKey: id)
+    images.removeValue(forKey: id)
   }
 
   private func removeMermaidPresentationAccounting(for id: BlockID) {
