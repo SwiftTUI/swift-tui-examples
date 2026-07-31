@@ -10,13 +10,13 @@ struct MarkdownTableView: View {
   var documentScrollOffset: Int
   var viewportHeight: Int
   var horizontalScrollPosition: Binding<ScrollPosition>?
+  // Supplied by the document tree so metrics come from the model-owned
+  // identity-keyed cache; standalone constructions compute directly.
+  var metricsProvider: ((MarkdownTable) -> MarkdownTableLayoutMetrics)? = nil
   @State private var internalHorizontalScrollPosition = ScrollPosition.zero
 
   var body: some View {
-    let metrics = MarkdownTableLayout.metrics(
-      for: table,
-      offeredWidth: offeredWidth
-    )
+    let metrics = metricsProvider?(table) ?? MarkdownTableLayout.metrics(for: table)
     let visibleSlice = MarkdownTableLayout.visibleSlice(
       metrics,
       tableTop: tableTop ?? documentScrollOffset,
@@ -159,13 +159,75 @@ struct MarkdownTableVisibleColumnSlice: Equatable, Sendable {
 enum MarkdownTableLayout {
   private static let viewportOverscan = 2
   private static let columnOverscan = 1
-  private static let cache = MarkdownTableLayoutCache(capacity: 16)
 
-  static func metrics(
-    for table: MarkdownTable,
-    offeredWidth: Int
+  /// The uncached pure computation. Metrics are width-independent — column
+  /// widths derive from cell content clamped to [3, 32] — which is why the
+  /// cache key carries no viewport bucket.
+  static func metrics(for table: MarkdownTable) -> MarkdownTableLayoutMetrics {
+    computeMetrics(for: table)
+  }
+
+  fileprivate static func computeMetrics(
+    for table: MarkdownTable
   ) -> MarkdownTableLayoutMetrics {
-    cache.metrics(for: table, offeredWidth: offeredWidth)
+    let allRows = [table.header] + table.rows
+    let columnCount = allRows.map(\.count).max() ?? 0
+    let columnWidths = (0..<columnCount).map { column in
+      let intrinsic =
+        allRows.compactMap { row -> Int? in
+          guard row.indices.contains(column) else { return nil }
+          return terminalDisplayWidth(of: row[column].map(\.text).joined())
+        }.max() ?? 1
+      return min(max(intrinsic, 3), 32)
+    }
+    let separator =
+      columnWidths.isEmpty
+      ? ""
+      : "├"
+        + columnWidths
+        .map { String(repeating: "─", count: $0 + 2) }
+        .joined(separator: "┼")
+        + "┤"
+    let headerRowHeight = rowHeight(
+      table.header,
+      columnWidths: columnWidths
+    )
+    let bodyRowHeights = table.rows.map {
+      rowHeight($0, columnWidths: columnWidths)
+    }
+    let rowOffsets =
+      ([headerRowHeight, 1] + bodyRowHeights)
+      .reduce(into: [0]) { offsets, height in
+        offsets.append(offsets[offsets.count - 1] + height)
+      }
+    let columnOffsets =
+      columnWidths.reduce(into: [0]) { offsets, width in
+        offsets.append(offsets[offsets.count - 1] + width + 3)
+      }
+    return MarkdownTableLayoutMetrics(
+      columnWidths: columnWidths,
+      separator: separator,
+      headerRowHeight: headerRowHeight,
+      bodyRowHeights: bodyRowHeights,
+      rowOffsets: rowOffsets,
+      columnOffsets: columnOffsets
+    )
+  }
+
+  private static func rowHeight(
+    _ cells: [[InlineRun]],
+    columnWidths: [Int]
+  ) -> Int {
+    max(
+      1,
+      columnWidths.enumerated().map { column, width in
+        let source =
+          cells.indices.contains(column)
+          ? cells[column].map(\.text).joined()
+          : ""
+        return layoutText(for: source, width: width).size.height
+      }.max() ?? 1
+    )
   }
 
   static func visibleSlice(
@@ -288,15 +350,18 @@ final class MarkdownTableLayoutCache: Sendable {
   }
 
   private struct Key: Equatable, Hashable, Sendable {
-    var header: [[InlineRun]]
-    var rows: [[[InlineRun]]]
-    var alignments: [TableAlignment]
-    var viewportBucket: Int
+    var blockID: BlockID
+    var contentRevision: UInt64
+  }
+
+  private struct Entry: Sendable {
+    var metrics: MarkdownTableLayoutMetrics
+    var lastUse: UInt64
   }
 
   private struct State: Sendable {
-    var entries: [Key: MarkdownTableLayoutMetrics] = [:]
-    var recency: [Key] = []
+    var entries: [Key: Entry] = [:]
+    var useCounter: UInt64 = 0
     var computationCount = 0
     var hitCount = 0
     var evictionCount = 0
@@ -322,97 +387,29 @@ final class MarkdownTableLayoutCache: Sendable {
 
   func metrics(
     for table: MarkdownTable,
-    offeredWidth: Int
+    identity: BlockID,
+    contentRevision: UInt64
   ) -> MarkdownTableLayoutMetrics {
-    let key = Key(
-      header: table.header,
-      rows: table.rows,
-      alignments: table.alignments,
-      viewportBucket: max(1, offeredWidth)
-    )
+    let key = Key(blockID: identity, contentRevision: contentRevision)
     return state.withLock { state in
-      if let cached = state.entries[key] {
+      state.useCounter &+= 1
+      if var cached = state.entries[key] {
         state.hitCount += 1
-        if let index = state.recency.firstIndex(of: key) {
-          state.recency.remove(at: index)
-        }
-        state.recency.append(key)
-        return cached
+        cached.lastUse = state.useCounter
+        state.entries[key] = cached
+        return cached.metrics
       }
 
-      let metrics = Self.computeMetrics(for: table)
+      let metrics = MarkdownTableLayout.metrics(for: table)
       state.computationCount += 1
-      if state.entries.count == capacity, let evicted = state.recency.first {
+      if state.entries.count == capacity,
+        let evicted = state.entries.min(by: { $0.value.lastUse < $1.value.lastUse })?.key
+      {
         state.entries.removeValue(forKey: evicted)
-        state.recency.removeFirst()
         state.evictionCount += 1
       }
-      state.entries[key] = metrics
-      state.recency.append(key)
+      state.entries[key] = Entry(metrics: metrics, lastUse: state.useCounter)
       return metrics
     }
-  }
-
-  private static func computeMetrics(
-    for table: MarkdownTable
-  ) -> MarkdownTableLayoutMetrics {
-    let allRows = [table.header] + table.rows
-    let columnCount = allRows.map(\.count).max() ?? 0
-    let columnWidths = (0..<columnCount).map { column in
-      let intrinsic =
-        allRows.compactMap { row -> Int? in
-          guard row.indices.contains(column) else { return nil }
-          return terminalDisplayWidth(of: row[column].map(\.text).joined())
-        }.max() ?? 1
-      return min(max(intrinsic, 3), 32)
-    }
-    let separator =
-      columnWidths.isEmpty
-      ? ""
-      : "├"
-        + columnWidths
-        .map { String(repeating: "─", count: $0 + 2) }
-        .joined(separator: "┼")
-        + "┤"
-    let headerRowHeight = rowHeight(
-      table.header,
-      columnWidths: columnWidths
-    )
-    let bodyRowHeights = table.rows.map {
-      rowHeight($0, columnWidths: columnWidths)
-    }
-    let rowOffsets =
-      ([headerRowHeight, 1] + bodyRowHeights)
-      .reduce(into: [0]) { offsets, height in
-        offsets.append(offsets[offsets.count - 1] + height)
-      }
-    let columnOffsets =
-      columnWidths.reduce(into: [0]) { offsets, width in
-        offsets.append(offsets[offsets.count - 1] + width + 3)
-      }
-    return MarkdownTableLayoutMetrics(
-      columnWidths: columnWidths,
-      separator: separator,
-      headerRowHeight: headerRowHeight,
-      bodyRowHeights: bodyRowHeights,
-      rowOffsets: rowOffsets,
-      columnOffsets: columnOffsets
-    )
-  }
-
-  private static func rowHeight(
-    _ cells: [[InlineRun]],
-    columnWidths: [Int]
-  ) -> Int {
-    max(
-      1,
-      columnWidths.enumerated().map { column, width in
-        let source =
-          cells.indices.contains(column)
-          ? cells[column].map(\.text).joined()
-          : ""
-        return layoutText(for: source, width: width).size.height
-      }.max() ?? 1
-    )
   }
 }

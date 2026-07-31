@@ -93,10 +93,7 @@ struct PerformanceEnvelopeTests {
     #expect(table.rows.count == 500)
 
     let measurementStart = clock.now
-    let metrics = MarkdownTableLayoutCache(capacity: 1).metrics(
-      for: table,
-      offeredWidth: 80
-    )
+    let metrics = MarkdownTableLayout.metrics(for: table)
     let measurementElapsed = measurementStart.duration(to: clock.now)
 
     let documentScrollPosition = Mutex(ScrollPosition.zero)

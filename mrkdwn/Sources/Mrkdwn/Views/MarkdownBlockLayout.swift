@@ -147,6 +147,8 @@ enum MarkdownBlockLayout {
     var images: [BlockID: ImagePresentation] = [:]
     var revealedMermaidSources: Set<BlockID> = []
     var documentURL: URL?
+    // Model-owned identity-keyed metrics; nil computes directly (tests).
+    var tableMetrics: ((BlockID, MarkdownTable) -> MarkdownTableLayoutMetrics)? = nil
   }
 
   struct GeometryEntry: Equatable, Sendable {
@@ -265,12 +267,10 @@ enum MarkdownBlockLayout {
           textHeight(mermaidPendingText, width: width)
           + (inputs.revealedMermaidSources.contains(id) ? sourceHeight : 0)
       }
-    case .table(_, let table, _):
+    case .table(let id, let table, _):
       headingAnchor = nil
-      let metrics = MarkdownTableLayout.metrics(
-        for: table,
-        offeredWidth: width
-      )
+      let metrics =
+        inputs.tableMetrics?(id, table) ?? MarkdownTableLayout.metrics(for: table)
       height = metrics.totalHeight
     case .rule:
       headingAnchor = nil

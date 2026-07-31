@@ -47,7 +47,7 @@ struct ViewContractTests {
     #expect(MarkdownBlockLayout.listContentWidth(list, offeredWidth: 12) == 8)
   }
 
-  @Test("table metrics reuse one bounded viewport-bucket cache entry")
+  @Test("table metrics cache is identity-keyed with LRU eviction")
   func tableMetricsCacheReuse() {
     let table = MarkdownTable(
       header: [[InlineRun(text: "Name")], [InlineRun(text: "Value")]],
@@ -58,20 +58,62 @@ struct ViewContractTests {
     )
     let cache = MarkdownTableLayoutCache(capacity: 2)
 
-    let first = cache.metrics(for: table, offeredWidth: 80)
-    let reused = cache.metrics(for: table, offeredWidth: 80)
+    let first = cache.metrics(for: table, identity: BlockID("t:1"), contentRevision: 1)
+    let reused = cache.metrics(for: table, identity: BlockID("t:1"), contentRevision: 1)
 
     #expect(reused == first)
     #expect(cache.statistics.entryCount == 1)
     #expect(cache.statistics.computationCount == 1)
     #expect(cache.statistics.hitCount == 1)
 
-    _ = cache.metrics(for: table, offeredWidth: 79)
-    _ = cache.metrics(for: table, offeredWidth: 78)
+    // A reload bumps the revision: same identity recomputes, never reuses.
+    _ = cache.metrics(for: table, identity: BlockID("t:1"), contentRevision: 2)
+    #expect(cache.statistics.computationCount == 2)
 
+    // Third distinct key at capacity 2 evicts the least-recently used.
+    _ = cache.metrics(for: table, identity: BlockID("t:2"), contentRevision: 2)
     #expect(cache.statistics.entryCount == 2)
     #expect(cache.statistics.computationCount == 3)
     #expect(cache.statistics.evictionCount == 1)
+  }
+
+  @Test("table metrics are width-independent so the key needs no viewport bucket")
+  func tableMetricsWidthIndependence() {
+    let table = MarkdownTable(
+      header: [[InlineRun(text: String(repeating: "wide-header ", count: 12))]],
+      rows: [[[InlineRun(text: String(repeating: "wide-content ", count: 20))]]],
+      alignments: [.leading]
+    )
+    let metrics = MarkdownTableLayout.metrics(for: table)
+    // Column widths derive from content clamped to [3, 32]; nothing about the
+    // offered viewport reaches the computation. This is the invariant that
+    // lets the cache key drop the width axis.
+    #expect(metrics.columnWidths.allSatisfy { $0 >= 3 && $0 <= 32 })
+  }
+
+  @Test("model-owned caches keep colliding BlockIDs from crossing documents")
+  @MainActor
+  func tableMetricsCacheCrossModelIsolation() {
+    // BlockIDs are source-position strings, so two different documents mint
+    // identical IDs for a table at the same position. Instance-scoped caches
+    // must never serve one document's metrics for the other's table.
+    let narrow = MarkdownTable(
+      header: [[InlineRun(text: "a")]],
+      rows: [[[InlineRun(text: "b")]]],
+      alignments: [.leading]
+    )
+    let wide = MarkdownTable(
+      header: [[InlineRun(text: String(repeating: "wide ", count: 8))]],
+      rows: [[[InlineRun(text: String(repeating: "cell ", count: 8))]]],
+      alignments: [.leading]
+    )
+    let id = BlockID("table:3:1-5:10")
+    let first = MarkdownTableLayoutCache(capacity: 4)
+    let second = MarkdownTableLayoutCache(capacity: 4)
+    let narrowMetrics = first.metrics(for: narrow, identity: id, contentRevision: 1)
+    let wideMetrics = second.metrics(for: wide, identity: id, contentRevision: 1)
+    #expect(narrowMetrics != wideMetrics)
+    #expect(wideMetrics.columnWidths == [32])
   }
 
   @Test("concurrent table metrics requests compute one cache entry")
@@ -88,7 +130,7 @@ struct ViewContractTests {
     await withTaskGroup(of: Void.self) { group in
       for _ in 0..<16 {
         group.addTask {
-          _ = cache.metrics(for: table, offeredWidth: 80)
+          _ = cache.metrics(for: table, identity: BlockID("t:1"), contentRevision: 1)
         }
       }
     }
@@ -107,10 +149,7 @@ struct ViewContractTests {
       },
       alignments: [.leading]
     )
-    let metrics = MarkdownTableLayoutCache(capacity: 1).metrics(
-      for: table,
-      offeredWidth: 80
-    )
+    let metrics = MarkdownTableLayout.metrics(for: table)
 
     let slice = MarkdownTableLayout.visibleSlice(
       metrics,
@@ -149,10 +188,7 @@ struct ViewContractTests {
       ],
       alignments: [.leading]
     )
-    let metrics = MarkdownTableLayoutCache(capacity: 1).metrics(
-      for: table,
-      offeredWidth: 80
-    )
+    let metrics = MarkdownTableLayout.metrics(for: table)
 
     #expect(metrics.columnWidths == [32])
     #expect(metrics.headerRowHeight == 1)

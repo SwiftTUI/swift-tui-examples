@@ -378,7 +378,8 @@ private struct MarkdownDocumentView: View {
               // on this ForEach.
               documentScrollOffset: { model.documentScrollOffset },
               mermaidPresentation: { model.mermaid[$0] },
-              imagePresentation: { model.images[$0] }
+              imagePresentation: { model.images[$0] },
+              tableMetrics: { model.tableMetrics(for: $1, identity: $0) }
             )
           }
         } else {

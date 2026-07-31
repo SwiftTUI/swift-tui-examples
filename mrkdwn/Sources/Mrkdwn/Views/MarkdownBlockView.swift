@@ -15,6 +15,7 @@ struct MarkdownBlockView: View {
   var documentScrollOffset: () -> Int
   var mermaidPresentation: (BlockID) -> MermaidPresentation?
   var imagePresentation: (BlockID) -> ImagePresentation?
+  var tableMetrics: (BlockID, MarkdownTable) -> MarkdownTableLayoutMetrics
 
   var body: some View {
     rendered
@@ -96,7 +97,8 @@ struct MarkdownBlockView: View {
                 resourceVisibilityChanged: resourceVisibilityChanged,
                 documentScrollOffset: documentScrollOffset,
                 mermaidPresentation: mermaidPresentation,
-                imagePresentation: imagePresentation
+                imagePresentation: imagePresentation,
+                tableMetrics: tableMetrics
               )
             }
           }
@@ -115,7 +117,8 @@ struct MarkdownBlockView: View {
           resourceVisibilityChanged: resourceVisibilityChanged,
           documentScrollOffset: documentScrollOffset,
           mermaidPresentation: mermaidPresentation,
-          imagePresentation: imagePresentation
+          imagePresentation: imagePresentation,
+          tableMetrics: tableMetrics
         )
       )
     case .code(_, let language, let source, _):
@@ -164,7 +167,8 @@ struct MarkdownBlockView: View {
           tableTop: documentGeometryTop(id).map { $0 + 1 },
           documentScrollOffset: documentScrollOffset(),
           viewportHeight: state.viewport.documentHeight,
-          horizontalScrollPosition: nil
+          horizontalScrollPosition: nil,
+          metricsProvider: { tableMetrics(id, $0) }
         )
       )
     case .rule:
@@ -209,6 +213,7 @@ private struct MarkdownListView: View {
   var documentScrollOffset: () -> Int
   var mermaidPresentation: (BlockID) -> MermaidPresentation?
   var imagePresentation: (BlockID) -> ImagePresentation?
+  var tableMetrics: (BlockID, MarkdownTable) -> MarkdownTableLayoutMetrics
 
   var body: some View {
     let contentWidth = MarkdownBlockLayout.listContentWidth(
@@ -241,7 +246,8 @@ private struct MarkdownListView: View {
                 resourceVisibilityChanged: resourceVisibilityChanged,
                 documentScrollOffset: documentScrollOffset,
                 mermaidPresentation: mermaidPresentation,
-                imagePresentation: imagePresentation
+                imagePresentation: imagePresentation,
+                tableMetrics: tableMetrics
               )
             }
           }

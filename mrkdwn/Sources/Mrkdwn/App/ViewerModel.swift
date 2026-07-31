@@ -123,6 +123,11 @@ public final class ViewerModel {
   public private(set) var mermaid: [BlockID: MermaidPresentation] = [:]
   public private(set) var images: [BlockID: ImagePresentation] = [:]
 
+  // Model-owned so identity-keyed entries can never collide across
+  // documents or model instances: BlockIDs are minted from source positions
+  // and repeat across compiles (S5, plan 2026-07-31-001).
+  @ObservationIgnored private let tableLayoutCache = MarkdownTableLayoutCache(capacity: 16)
+
   @ObservationIgnored private let compiler: MarkdownCompiler
   @ObservationIgnored private let linkResolver: LinkResolver
   @ObservationIgnored private let dependencies: ViewerDependencies
@@ -1301,7 +1306,10 @@ public final class ViewerModel {
         mermaid: mermaid,
         images: images,
         revealedMermaidSources: state.revealedMermaidSources,
-        documentURL: state.snapshot.url
+        documentURL: state.snapshot.url,
+        tableMetrics: { [tableLayoutCache, revision = state.contentRevision] id, table in
+          tableLayoutCache.metrics(for: table, identity: id, contentRevision: revision)
+        }
       ),
       offeredWidth: state.viewport.documentWidth
     )
@@ -1320,6 +1328,18 @@ public final class ViewerModel {
 
   func documentGeometryTop(for id: BlockID) -> Int? {
     renderedGeometry().entry(for: id)?.top
+  }
+
+  func tableMetrics(for table: MarkdownTable, identity: BlockID) -> MarkdownTableLayoutMetrics {
+    tableLayoutCache.metrics(
+      for: table,
+      identity: identity,
+      contentRevision: state.contentRevision
+    )
+  }
+
+  var tableLayoutCacheStatistics: MarkdownTableLayoutCache.Statistics {
+    tableLayoutCache.statistics
   }
 
   var retainedPresentationOccupancy:
