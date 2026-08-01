@@ -188,32 +188,53 @@ private func fileSystemIdentity(at url: URL) -> UInt64? {
 #endif
 
 #if canImport(Glibc)
+  /// Stop flag shared between the watcher thread and the stream's termination
+  /// handler. A class wrapper because `Atomic` is noncopyable and both
+  /// closures need the same instance.
+  private final class LinuxWatcherStopFlag: Sendable {
+    let isStopped = Atomic(false)
+  }
+
+  /// The blocking inotify/`poll(2)` loop runs on its own dedicated thread,
+  /// never on a Swift concurrency executor. The loop blocks for its whole
+  /// lifetime, so a cooperative-pool worker it occupies never comes back — and
+  /// the pool is sized to the host's CPU count. On a 2-CPU host the document
+  /// and theme watchers together pin the ENTIRE pool and the app deadlocks
+  /// before its first frame: the run loop's main-actor jobs have no worker
+  /// left to run on, and cancellation cannot be delivered either. The armed
+  /// `--watch` PTY journey caught exactly that wedge on 2-vCPU CI runners
+  /// (viewer alive, zero bytes ever written).
   private func linuxChanges(to url: URL) -> AsyncStream<Void> {
     fileChangeStream { continuation in
-      let task = Task.detached {
-        await runLinuxWatcher(url: url, continuation: continuation)
+      let stopFlag = LinuxWatcherStopFlag()
+      let thread = Thread {
+        runLinuxWatcher(url: url, continuation: continuation, stopFlag: stopFlag)
       }
+      thread.name = "mrkdwn.file-watcher"
+      thread.start()
       continuation.onTermination = { _ in
-        task.cancel()
+        stopFlag.isStopped.store(true, ordering: .relaxed)
       }
     }
   }
 
   private func runLinuxWatcher(
     url: URL,
-    continuation: AsyncStream<Void>.Continuation
-  ) async {
+    continuation: AsyncStream<Void>.Continuation,
+    stopFlag: LinuxWatcherStopFlag
+  ) {
     var previous = signature(of: url)
     let directoryPath = url.deletingLastPathComponent().path
     let mask = UInt32(
       IN_CLOSE_WRITE | IN_MOVED_TO | IN_CREATE | IN_DELETE | IN_ATTRIB
         | IN_MOVE_SELF | IN_DELETE_SELF
     )
+    let isStopped = { stopFlag.isStopped.load(ordering: .relaxed) }
 
-    while !Task.isCancelled {
+    while !isStopped() {
       let descriptor = inotify_init1(Int32(IN_NONBLOCK | IN_CLOEXEC))
       guard descriptor >= 0 else {
-        try? await Task.sleep(for: .milliseconds(100))
+        Thread.sleep(forTimeInterval: 0.1)
         continue
       }
       let watch = unsafe directoryPath.withCString {
@@ -221,14 +242,14 @@ private func fileSystemIdentity(at url: URL) -> UInt64? {
       }
       guard watch >= 0 else {
         close(descriptor)
-        try? await Task.sleep(for: .milliseconds(100))
+        Thread.sleep(forTimeInterval: 0.1)
         continue
       }
 
       var shouldRearm = false
       var pollDescriptor = pollfd(fd: descriptor, events: Int16(POLLIN), revents: 0)
       var buffer = [UInt8](repeating: 0, count: 16 * 1_024)
-      while !Task.isCancelled, !shouldRearm {
+      while !isStopped(), !shouldRearm {
         let result = unsafe poll(&pollDescriptor, 1, 250)
         if result < 0 {
           if errno == EINTR { continue }

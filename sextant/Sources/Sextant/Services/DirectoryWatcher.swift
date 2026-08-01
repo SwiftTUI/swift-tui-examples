@@ -1,10 +1,20 @@
 import Dispatch
 import Foundation
+import Synchronization
 
 #if canImport(Darwin)
   import Darwin
 #elseif canImport(Glibc)
   import Glibc
+#endif
+
+#if canImport(Glibc)
+  /// Stop flag shared between a watcher thread and the actor that armed it.
+  /// A class wrapper because `Atomic` is noncopyable and both sides need the
+  /// same instance.
+  final class LinuxWatcherStopFlag: Sendable {
+    let isStopped = Atomic(false)
+  }
 #endif
 
 struct DirectoryWatchEvent: Equatable, Sendable {
@@ -73,7 +83,7 @@ actor LiveDirectoryWatcher: DirectoryWatching {
       var url: URL
       var fileDescriptor: Int32
       var watch: Int32
-      var task: Task<Void, Never>
+      var stopFlag: LinuxWatcherStopFlag
     }
   #endif
 
@@ -185,28 +195,42 @@ actor LiveDirectoryWatcher: DirectoryWatching {
         _ = Glibc.close(descriptor)
         return nil
       }
-      // The weak reference is re-read every iteration rather than bound once:
-      // binding it would keep this actor alive for as long as the task runs,
-      // and the actor owns the task, so the pair would never be released.
-      let task = Task.detached { [weak self] in
+      // The blocking poll/read loop runs on its own dedicated thread, never
+      // on a Swift concurrency executor: its idle path never suspends, so a
+      // cooperative-pool worker it occupied would be pinned for the watcher's
+      // whole lifetime — and the pool is sized to the host's CPU count, so a
+      // browse across as few directories as the host has CPUs would starve
+      // the entire concurrency runtime (the mechanism behind mrkdwn's
+      // 2-vCPU-CI first-paint deadlock; see mrkdwn FileWatcher.swift). The
+      // thread owns the descriptor and closes it on exit; `close(_:)` only
+      // raises the stop flag. The weak reference is re-read per event rather
+      // than bound once so an orphan thread cannot keep this actor alive.
+      let stopFlag = LinuxWatcherStopFlag()
+      let thread = Thread { [weak self] in
         var reader = INotifyReader(descriptor: descriptor)
-        while !Task.isCancelled {
+        loop: while !stopFlag.isStopped.load(ordering: .relaxed) {
           switch reader.next() {
           case .idle:
             continue
           case .changed(let watchEnded):
-            await self?.record(url)
-            if watchEnded { return }
+            Task { [weak self] in
+              await self?.record(url)
+            }
+            if watchEnded { break loop }
           case .failed:
-            return
+            break loop
           }
         }
+        _ = inotify_rm_watch(descriptor, watch)
+        _ = Glibc.close(descriptor)
       }
+      thread.name = "sextant.directory-watcher"
+      thread.start()
       return WatchedSource(
         url: url,
         fileDescriptor: descriptor,
         watch: watch,
-        task: task
+        stopFlag: stopFlag
       )
     }
 
@@ -319,12 +343,10 @@ actor LiveDirectoryWatcher: DirectoryWatching {
     }
   #elseif canImport(Glibc)
     private func close(_ watched: WatchedSource) async {
-      // Await the poll loop before closing: the descriptor must stay valid
-      // while `poll`/`read` can still touch it.
-      watched.task.cancel()
-      await watched.task.value
-      _ = inotify_rm_watch(watched.fileDescriptor, watched.watch)
-      _ = Glibc.close(watched.fileDescriptor)
+      // The watcher thread owns the descriptor: it observes the flag within
+      // one poll timeout and closes the descriptor itself, so it can never
+      // poll/read a descriptor another context already closed.
+      watched.stopFlag.isStopped.store(true, ordering: .relaxed)
     }
   #endif
 
