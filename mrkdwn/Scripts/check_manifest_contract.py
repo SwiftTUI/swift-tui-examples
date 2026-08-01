@@ -15,9 +15,9 @@ GIT_OID_PATTERN = re.compile(r"[0-9a-f]{40}")
 PUBLIC_DEPENDENCIES = {
     "swift-tui": {
         "url": "https://github.com/SwiftTUI/swift-tui.git",
-        "lower": "0.4.5",
-        "resolved": "0.4.5",
-        "revision": "7f4908ee464ce255bf3ca6bd7b3a6662c258927f",
+        "lower": "0.4.6",
+        "resolved": "0.4.6",
+        "revision": "b913fa17cc486b21a0209900a4fd22389e8cf3f7",
     },
     "swift-markdown": {
         "url": "https://github.com/swiftlang/swift-markdown.git",
@@ -33,7 +33,7 @@ def up_to_next_minor(lower: str) -> str:
 
     Derived rather than stored. A stored upper bound is a second copy of the
     version that no release step can maintain: the org bump rewrites tokens
-    equal to the *old* version, so bumping 0.4.5 to 0.5.0 would rewrite `lower`
+    equal to the *old* version, so bumping 0.4.6 to 0.5.0 would rewrite `lower`
     and leave an `upper` of "0.5.0" behind — an empty [0.5.0, 0.5.0) range that
     fails on release day. Every entry above uses `.upToNextMinor`; an entry that
     ever needs another spelling must make this explicit rather than restore the

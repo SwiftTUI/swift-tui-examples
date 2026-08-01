@@ -23,7 +23,7 @@ let package = Package(
   dependencies: [
     .package(
       url: "https://github.com/SwiftTUI/swift-tui.git",
-      .upToNextMinor(from: "0.4.5")
+      .upToNextMinor(from: "0.4.6")
     ),
     .package(
       url: "https://github.com/swiftlang/swift-markdown.git",
