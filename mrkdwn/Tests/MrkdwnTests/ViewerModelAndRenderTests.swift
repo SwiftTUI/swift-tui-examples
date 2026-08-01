@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 import SwiftTUI
 import Synchronization
 import Testing
