@@ -130,9 +130,22 @@ struct MrkdwnRealTerminalJourneyTests {
       await shutdownDrain.cancel()
       #expect(status == 0)
     } catch {
-      if process.isRunning { process.terminate() }
+      // A silent journey has two very different causes — a viewer that never
+      // painted and one that already died. Record which, so a CI-only failure
+      // distinguishes a startup hang from a startup crash.
+      let wasRunning = process.isRunning
+      if wasRunning { process.terminate() }
       pair.closeMaster()
       _ = try? await waitForExit(process, timeout: .seconds(5))
+      if wasRunning {
+        Issue.record("viewer was still running at the failure; terminated for cleanup")
+      } else {
+        let reason =
+          process.terminationReason == .uncaughtSignal ? "uncaught signal" : "exit"
+        Issue.record(
+          "viewer had already died before the failure: \(reason) status \(process.terminationStatus)"
+        )
+      }
       throw error
     }
   }
@@ -238,9 +251,22 @@ struct MrkdwnRealTerminalJourneyTests {
       await shutdownDrain.cancel()
       #expect(status == 0)
     } catch {
-      if process.isRunning { process.terminate() }
+      // A silent journey has two very different causes — a viewer that never
+      // painted and one that already died. Record which, so a CI-only failure
+      // distinguishes a startup hang from a startup crash.
+      let wasRunning = process.isRunning
+      if wasRunning { process.terminate() }
       pair.closeMaster()
       _ = try? await waitForExit(process, timeout: .seconds(5))
+      if wasRunning {
+        Issue.record("viewer was still running at the failure; terminated for cleanup")
+      } else {
+        let reason =
+          process.terminationReason == .uncaughtSignal ? "uncaught signal" : "exit"
+        Issue.record(
+          "viewer had already died before the failure: \(reason) status \(process.terminationStatus)"
+        )
+      }
       throw error
     }
   }
@@ -420,9 +446,22 @@ struct MrkdwnRealTerminalJourneyTests {
       await shutdownDrain.cancel()
       #expect(status == 0)
     } catch {
-      if process.isRunning { process.terminate() }
+      // A silent journey has two very different causes — a viewer that never
+      // painted and one that already died. Record which, so a CI-only failure
+      // distinguishes a startup hang from a startup crash.
+      let wasRunning = process.isRunning
+      if wasRunning { process.terminate() }
       pair.closeMaster()
       _ = try? await waitForExit(process, timeout: .seconds(5))
+      if wasRunning {
+        Issue.record("viewer was still running at the failure; terminated for cleanup")
+      } else {
+        let reason =
+          process.terminationReason == .uncaughtSignal ? "uncaught signal" : "exit"
+        Issue.record(
+          "viewer had already died before the failure: \(reason) status \(process.terminationStatus)"
+        )
+      }
       throw error
     }
   }
@@ -467,9 +506,22 @@ struct MrkdwnRealTerminalJourneyTests {
       await shutdownDrain.cancel()
       #expect(status == 0)
     } catch {
-      if process.isRunning { process.terminate() }
+      // A silent journey has two very different causes — a viewer that never
+      // painted and one that already died. Record which, so a CI-only failure
+      // distinguishes a startup hang from a startup crash.
+      let wasRunning = process.isRunning
+      if wasRunning { process.terminate() }
       pair.closeMaster()
       _ = try? await waitForExit(process, timeout: .seconds(5))
+      if wasRunning {
+        Issue.record("viewer was still running at the failure; terminated for cleanup")
+      } else {
+        let reason =
+          process.terminationReason == .uncaughtSignal ? "uncaught signal" : "exit"
+        Issue.record(
+          "viewer had already died before the failure: \(reason) status \(process.terminationStatus)"
+        )
+      }
       throw error
     }
   }
@@ -634,9 +686,22 @@ struct MrkdwnRealTerminalJourneyTests {
       await shutdownDrain.cancel()
       #expect(status == 0)
     } catch {
-      if process.isRunning { process.terminate() }
+      // A silent journey has two very different causes — a viewer that never
+      // painted and one that already died. Record which, so a CI-only failure
+      // distinguishes a startup hang from a startup crash.
+      let wasRunning = process.isRunning
+      if wasRunning { process.terminate() }
       pair.closeMaster()
       _ = try? await waitForExit(process, timeout: .seconds(5))
+      if wasRunning {
+        Issue.record("viewer was still running at the failure; terminated for cleanup")
+      } else {
+        let reason =
+          process.terminationReason == .uncaughtSignal ? "uncaught signal" : "exit"
+        Issue.record(
+          "viewer had already died before the failure: \(reason) status \(process.terminationStatus)"
+        )
+      }
       throw error
     }
   }
