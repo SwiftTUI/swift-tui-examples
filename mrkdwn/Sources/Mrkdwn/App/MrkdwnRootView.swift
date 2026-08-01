@@ -112,9 +112,17 @@ public struct MrkdwnRootView: View {
           )
           .frame(
             maxWidth: .finite(model.state.viewport.documentFrameWidth),
-            maxHeight: .infinity,
             alignment: .topLeading
           )
+          // A fixed pane height, not `maxHeight: .infinity`: the enclosing
+          // VStack's ideal pass measures a flexible pane at an unspecified
+          // height, and the scroll layout declares no measure viewport for an
+          // unknown axis — the document then realizes and measures every
+          // block on every frame instead of the visible window. The model
+          // already knows the pane height (the viewport minus the 4 chrome
+          // rows), so a fixed frame keeps every proposal the scroll view
+          // sees finite and the document windowed.
+          .frame(height: model.state.viewport.documentHeight)
           .task(id: model.pendingScrollTarget) { @MainActor in
             guard let target = model.pendingScrollTarget else { return }
             _ = proxy.scrollTo(target, anchor: .top)
