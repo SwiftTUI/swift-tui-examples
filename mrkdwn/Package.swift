@@ -54,6 +54,7 @@ let package = Package(
         "Mrkdwn",
         .product(name: "SwiftTUI", package: "swift-tui"),
         .product(name: "SwiftTUICLI", package: "swift-tui"),
+        .product(name: "SwiftTUIProfiling", package: "swift-tui"),
       ],
       swiftSettings: swiftSettings
     ),

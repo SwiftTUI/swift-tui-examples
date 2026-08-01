@@ -2,6 +2,7 @@ import Foundation
 import Mrkdwn
 import SwiftTUI
 import SwiftTUICLI
+import SwiftTUIProfiling
 import SwiftTUIRuntime
 
 @main
@@ -60,6 +61,8 @@ struct MrkdwnCommand: SwiftTUI.App {
       }
     }
     .exitOnKeys(CommandCatalog.runtimeExitKeys)
+    // Env-gated: a complete no-op unless SWIFTTUI_PROFILE is set.
+    .profiling()
   }
 
   mutating func run() async throws {
