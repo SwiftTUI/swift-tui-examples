@@ -178,7 +178,7 @@ enum MarkdownBlockLayout {
     inputs: GeometryInputs,
     offeredWidth: Int,
     originY: Int,
-    siblingSpacing: Int = 1
+    siblingSpacing: Int = 0
   ) -> (height: Int, entries: [GeometryEntry]) {
     var cursor = originY
     var entries: [GeometryEntry] = []
@@ -250,13 +250,11 @@ enum MarkdownBlockLayout {
       case .ready(let rendered)?, .reflowing(let rendered)?:
         height =
           max(1, rendered.height)
-          + (
-            rendered.isPartial
-              ? rendered.diagnostics.first.map {
-                textHeight(mermaidDiagnosticText($0), width: width)
-              } ?? 0
-              : 0
-          )
+          + (rendered.isPartial
+            ? rendered.diagnostics.first.map {
+              textHeight(mermaidDiagnosticText($0), width: width)
+            } ?? 0
+            : 0)
           + (inputs.revealedMermaidSources.contains(id) ? sourceHeight : 0)
       case .unavailable(let diagnostic)?:
         height =

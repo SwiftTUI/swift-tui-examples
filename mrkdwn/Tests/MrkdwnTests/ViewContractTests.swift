@@ -284,8 +284,8 @@ struct ViewContractTests {
 
     #expect(secondParagraph.top == firstParagraph.top + firstParagraph.height)
     #expect(nestedTable.top == secondParagraph.top + secondParagraph.height)
-    #expect(laterHeading.top == nestedTable.top + nestedTable.height + 1)
-    #expect(followingTable.top == laterHeading.top + laterHeading.height + 1)
+    #expect(laterHeading.top == nestedTable.top + nestedTable.height)
+    #expect(followingTable.top == laterHeading.top + laterHeading.height)
   }
 
   @Test(
@@ -438,13 +438,23 @@ struct ViewContractTests {
   @Test("content proposals use the available terminal width")
   func contentWidthAccounting() {
     let viewport = ViewerSize(width: 100, height: 24)
-    #expect(viewport.documentFrameWidth == 96)
-    #expect(viewport.documentWidth == 94)
+    #expect(viewport.documentFrameWidth == 100)
+    #expect(viewport.documentWidth == 97)
     #expect(viewport.documentHeight == 20)
 
     let wideViewport = ViewerSize(width: 180, height: 60)
-    #expect(wideViewport.documentFrameWidth == 148)
-    #expect(wideViewport.documentWidth == 146)
+    #expect(wideViewport.documentFrameWidth == 151)
+    #expect(wideViewport.documentWidth == 148)
+
+    var wideState = ViewerState(
+      snapshot: DocumentSnapshot(source: "", url: nil, displayName: "width.md"),
+      theme: .default,
+      viewport: wideViewport
+    )
+    #expect(wideState.documentFrameWidth == 151)
+    wideState.outlineVisible = false
+    #expect(wideState.documentFrameWidth == 180)
+    #expect(wideState.documentWidth == 177)
 
     let nested = MarkdownCompiler().compile(
       source: """

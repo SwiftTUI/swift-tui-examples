@@ -284,7 +284,13 @@ public final class ViewerModel {
     case .reload:
       reload()
     case .toggleOutline:
+      let oldWidth = state.documentWidth
+      let scrollAnchor =
+        pendingScrollTarget == nil && documentScrollOffset > 0
+        ? captureScrollRestorationAnchor()
+        : nil
       state.outlineVisible.toggle()
+      updateDocumentWidth(from: oldWidth, restoring: scrollAnchor)
     case .toggleHelp:
       state.helpVisible.toggle()
     case .toggleMermaidSource(let id):
@@ -308,14 +314,28 @@ public final class ViewerModel {
   public func updateViewport(_ size: ViewerSize) {
     guard !isShuttingDown else { return }
     guard size != state.viewport else { return }
-    let oldWidth = state.viewport.documentWidth
+    let oldWidth = state.documentWidth
+    let scrollAnchor =
+      pendingScrollTarget == nil && documentScrollOffset > 0
+      ? captureScrollRestorationAnchor()
+      : nil
     state.viewport = size
     if size.width < 80 {
       state.outlineVisible = false
     }
-    guard oldWidth != size.documentWidth, let document = state.document else { return }
+    updateDocumentWidth(from: oldWidth, restoring: scrollAnchor)
+  }
+
+  private func updateDocumentWidth(
+    from oldWidth: Int,
+    restoring scrollAnchor: ScrollRestorationAnchor?
+  ) {
+    guard oldWidth != state.documentWidth, let document = state.document else { return }
     invalidateGeometry()
     rebuildResourceDescriptors(for: document)
+    if let scrollAnchor {
+      restoreScroll(.preserve(scrollAnchor))
+    }
     let visibleMermaidIDs = visibleResourceIDs.filter {
       if case .mermaid? = resourceDescriptors[$0]?.block { return true }
       return false
@@ -493,7 +513,7 @@ public final class ViewerModel {
     resourceDescriptors = Dictionary(
       uniqueKeysWithValues: MarkdownBlockLayout.flattened(
         document.blocks,
-        offeredWidth: state.viewport.documentWidth
+        offeredWidth: state.documentWidth
       ).compactMap { descriptor in
         switch descriptor.block {
         case .mermaid(let id, _, _), .image(let id, _, _):
@@ -1191,7 +1211,7 @@ public final class ViewerModel {
     guard let document = state.document else { return }
     let next = MarkdownBlockLayout.flattened(
       document.blocks,
-      offeredWidth: state.viewport.documentWidth
+      offeredWidth: state.documentWidth
     ).compactMap { descriptor -> BlockID? in
       if case .mermaid(let id, _, _) = descriptor.block { return id }
       return nil
@@ -1291,7 +1311,7 @@ public final class ViewerModel {
   private func renderedGeometry() -> GeometrySnapshot {
     let key = GeometryCacheKey(
       contentRevision: state.contentRevision,
-      documentWidth: state.viewport.documentWidth,
+      documentWidth: state.documentWidth,
       layoutRevision: layoutRevision
     )
     if let geometryCache, geometryCache.key == key {
@@ -1311,7 +1331,7 @@ public final class ViewerModel {
           tableLayoutCache.metrics(for: table, identity: id, contentRevision: revision)
         }
       ),
-      offeredWidth: state.viewport.documentWidth
+      offeredWidth: state.documentWidth
     )
     let snapshot = GeometrySnapshot(
       entries: entries,

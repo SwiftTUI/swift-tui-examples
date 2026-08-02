@@ -357,14 +357,14 @@ struct MrkdwnRealTerminalJourneyTests {
         on: pair.master,
         screen: &screen,
         deadline: .now() + .seconds(15)
-      ) { $0.contains("Search") && $0.contains("Type to search") }
+      ) { $0.contains("/▏") && $0.contains("Type to search") }
       try writeAllBytes(Array("q".utf8), to: pair.master)
       let searched = try await waitForANSIVisibleScreen(
         on: pair.master,
         screen: &screen,
         deadline: .now() + .seconds(15)
       ) {
-        $0.contains("Search") && $0.contains("/q")
+        $0.contains("/q▏")
           && $0.contains("matches") && !$0.contains("Searching")
       }
       #expect(searched.contains("matches"))
@@ -374,7 +374,8 @@ struct MrkdwnRealTerminalJourneyTests {
         screen: &screen,
         deadline: .now() + .seconds(15)
       ) {
-        $0.contains("qwerty is visible") && !$0.contains("Type to search")
+        $0.contains("qwerty is visible") && $0.contains("q quit")
+          && !$0.contains("/q▏")
       }
 
       // `m` resolves the first nested Mermaid block when no diagram owns
@@ -660,14 +661,14 @@ struct MrkdwnRealTerminalJourneyTests {
         on: pair.master,
         screen: &screen,
         deadline: .now() + .seconds(15)
-      ) { $0.contains("Search") && $0.contains("Type to search") }
+      ) { $0.contains("/▏") && $0.contains("Type to search") }
       try writeAllBytes(Array("q".utf8), to: pair.master)
       let searched = try await waitForANSIVisibleScreen(
         on: pair.master,
         screen: &screen,
         deadline: .now() + .seconds(15)
       ) {
-        $0.contains("Search") && $0.contains("/q")
+        $0.contains("/q▏")
           && $0.contains("matches") && !$0.contains("Searching")
       }
       #expect(searched.contains("matches"))
@@ -678,7 +679,8 @@ struct MrkdwnRealTerminalJourneyTests {
         screen: &screen,
         deadline: .now() + .seconds(15)
       ) {
-        $0.contains("qwerty is visible") && !$0.contains("Type to search")
+        $0.contains("qwerty is visible") && $0.contains("q quit")
+          && !$0.contains("/q▏")
       }
       let shutdownDrain = MrkdwnPTYOutputDrain(fileDescriptor: pair.master)
       try writeAllBytes(Array("q".utf8), to: pair.master)

@@ -39,9 +39,6 @@ public struct MrkdwnRootView: View {
             OutlineView(model: model)
           }
         }
-        if model.state.searchVisible {
-          searchOverlay
-        }
         if model.state.helpVisible {
           helpOverlay
         }
@@ -53,6 +50,11 @@ public struct MrkdwnRootView: View {
       )
       .foregroundStyle(model.state.theme.foreground.swiftTUIColor)
       .background(model.state.theme.background.swiftTUIColor)
+      .tint(model.state.theme.accent.swiftTUIColor)
+      .environment(
+        \.terminalAppearance,
+        model.state.theme.terminalAppearance
+      )
       .openLinkAction(
         OpenLinkAction { destination in
           model.send(.openDestination(destination.rawValue))
@@ -97,13 +99,12 @@ public struct MrkdwnRootView: View {
         regularHeader
       }
       Divider()
-      HStack(alignment: .top, spacing: 2) {
-        if model.state.viewport.width >= 120, model.state.outlineVisible {
+      HStack(alignment: .top, spacing: 0) {
+        if model.state.showsInlineOutline {
           OutlineView(model: model)
             .frame(width: 28, alignment: .topLeading)
           Divider()
         }
-        Spacer(minLength: 0)
         ScrollViewReader { proxy in
           let _ = proxyBox.adopt(proxy)
           MarkdownDocumentView(
@@ -111,7 +112,7 @@ public struct MrkdwnRootView: View {
             focusedMermaidID: $focusedMermaidID
           )
           .frame(
-            maxWidth: .finite(model.state.viewport.documentFrameWidth),
+            width: model.state.documentFrameWidth,
             alignment: .topLeading
           )
           // A fixed pane height, not `maxHeight: .infinity`: the enclosing
@@ -129,7 +130,6 @@ public struct MrkdwnRootView: View {
             model.send(.clearScrollTarget)
           }
         }
-        Spacer(minLength: 0)
       }
       Divider()
       StatusView(state: model.state)
@@ -158,31 +158,6 @@ public struct MrkdwnRootView: View {
       Text("?")
         .foregroundStyle(model.state.theme.muted.swiftTUIColor)
     }
-  }
-
-  private var searchOverlay: some View {
-    overlayCard(title: "Search") {
-      VStack(alignment: .leading, spacing: 1) {
-        Text("/\(model.state.searchQuery)▏")
-          .foregroundStyle(model.state.theme.searchMatch.swiftTUIColor)
-        Text(searchSummary)
-          .foregroundStyle(model.state.theme.muted.swiftTUIColor)
-        Text("Type to search · Enter/Escape close · n/N move")
-          .foregroundStyle(model.state.theme.muted.swiftTUIColor)
-      }
-    }
-  }
-
-  private var searchSummary: String {
-    if model.state.isSearching { return "Searching…" }
-    guard !model.state.searchMatches.isEmpty else {
-      return model.state.searchResultsTruncated
-        ? "No retained matches · search capped"
-        : "No matches"
-    }
-    let selected = (model.state.selectedSearchMatch ?? 0) + 1
-    let suffix = model.state.searchResultsTruncated ? "+ matches · capped" : " matches"
-    return "\(selected) of \(model.state.searchMatches.count)\(suffix)"
   }
 
   private var helpOverlay: some View {
@@ -334,7 +309,7 @@ public struct MrkdwnRootView: View {
     guard let document = model.state.document else { return [] }
     return MarkdownBlockLayout.flattened(
       document.blocks,
-      offeredWidth: model.state.viewport.documentWidth
+      offeredWidth: model.state.documentWidth
     ).compactMap {
       if case .mermaid(let id, _, _) = $0.block { return id }
       return nil
@@ -359,13 +334,13 @@ private struct MarkdownDocumentView: View {
         }
       )
     ) {
-      LazyVStack(alignment: .leading, spacing: 1) {
+      LazyVStack(alignment: .leading, spacing: 0) {
         if let document = model.state.document {
           ForEach(document.blocks, id: \.id) {
             MarkdownBlockView(
               block: $0,
               state: model.state,
-              offeredWidth: model.state.viewport.documentWidth,
+              offeredWidth: model.state.documentWidth,
               focusedMermaidID: focusedMermaidID,
               toggleMermaidSource: {
                 model.send(.toggleMermaidSource($0))
@@ -436,25 +411,40 @@ private struct StatusView: View {
 
   var body: some View {
     HStack(spacing: 1) {
-      Text(state.isReloading ? "reloading" : "ready")
-        .foregroundStyle(
-          state.isReloading
-            ? state.theme.accent.swiftTUIColor
-            : state.theme.muted.swiftTUIColor
-        )
-      if state.canGoBack { Text("←") }
-      if state.canGoForward { Text("→") }
-      if let diagnostic = state.diagnostic {
-        Text("· \(diagnostic.message)")
-          .foregroundStyle(color(for: diagnostic.severity))
+      if state.searchVisible {
+        Text("/\(state.searchQuery)▏")
+          .foregroundStyle(state.theme.searchMatch.swiftTUIColor)
           .lineLimit(1)
-      } else if !state.searchQuery.isEmpty {
-        Text(searchStatus)
+          .truncationMode(.head)
+        Text(activeSearchSummary)
+          .foregroundStyle(state.theme.muted.swiftTUIColor)
+          .lineLimit(1)
+        Spacer(minLength: 0)
+        if state.viewport.width >= 80 {
+          Text("Enter done · Esc close")
+            .foregroundStyle(state.theme.muted.swiftTUIColor)
+        }
+      } else {
+        Text(state.isReloading ? "reloading" : "ready")
+          .foregroundStyle(
+            state.isReloading
+              ? state.theme.accent.swiftTUIColor
+              : state.theme.muted.swiftTUIColor
+          )
+        if state.canGoBack { Text("←") }
+        if state.canGoForward { Text("→") }
+        if let diagnostic = state.diagnostic {
+          Text("· \(diagnostic.message)")
+            .foregroundStyle(color(for: diagnostic.severity))
+            .lineLimit(1)
+        } else if !state.searchQuery.isEmpty {
+          Text(searchStatus)
+            .foregroundStyle(state.theme.muted.swiftTUIColor)
+        }
+        Spacer(minLength: 0)
+        Text("q quit · ? help")
           .foregroundStyle(state.theme.muted.swiftTUIColor)
       }
-      Spacer(minLength: 0)
-      Text("q quit · ? help")
-        .foregroundStyle(state.theme.muted.swiftTUIColor)
     }
     .padding(.init(horizontal: 1, vertical: 0))
     .accessibilityRole(.status)
@@ -464,6 +454,19 @@ private struct StatusView: View {
     if state.isSearching { return "· searching" }
     let suffix = state.searchResultsTruncated ? "+" : ""
     return "· \(state.searchMatches.count)\(suffix) search matches"
+  }
+
+  private var activeSearchSummary: String {
+    if state.searchQuery.isEmpty { return "Type to search" }
+    if state.isSearching { return "Searching…" }
+    guard !state.searchMatches.isEmpty else {
+      return state.searchResultsTruncated
+        ? "No retained matches · capped"
+        : "No matches"
+    }
+    let selected = (state.selectedSearchMatch ?? 0) + 1
+    let suffix = state.searchResultsTruncated ? "+ matches · capped" : " matches"
+    return "\(selected) of \(state.searchMatches.count)\(suffix)"
   }
 
   private func color(for severity: ViewerDiagnostic.Severity) -> Color {

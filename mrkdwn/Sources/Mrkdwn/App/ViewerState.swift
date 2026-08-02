@@ -1,6 +1,11 @@
 public import Foundation
 
 public struct ViewerSize: Equatable, Hashable, Sendable {
+  private static let documentHorizontalPadding = 2
+  private static let verticalScrollIndicatorWidth = 1
+  private static let inlineOutlineWidth = 28
+  private static let inlineOutlineDividerWidth = 1
+
   public var width: Int
   public var height: Int
 
@@ -10,14 +15,28 @@ public struct ViewerSize: Equatable, Hashable, Sendable {
   }
 
   public var documentWidth: Int {
-    // Resource proposals describe the cells inside the document's horizontal
-    // padding, not the padded scroll-view frame. Use every cell left after
-    // the shell and, on wide terminals, the inline outline.
-    max(1, (width >= 120 ? width - 32 : width - 4) - 2)
+    documentWidth(showsInlineOutline: width >= 120)
   }
 
   public var documentFrameWidth: Int {
-    documentWidth + 2
+    documentFrameWidth(showsInlineOutline: width >= 120)
+  }
+
+  public func documentWidth(showsInlineOutline: Bool) -> Int {
+    max(
+      1,
+      documentFrameWidth(showsInlineOutline: showsInlineOutline)
+        - Self.documentHorizontalPadding
+        - Self.verticalScrollIndicatorWidth
+    )
+  }
+
+  public func documentFrameWidth(showsInlineOutline: Bool) -> Int {
+    let inlineOutlineChrome =
+      showsInlineOutline
+      ? Self.inlineOutlineWidth + Self.inlineOutlineDividerWidth
+      : 0
+    return max(1, width - inlineOutlineChrome)
   }
 
   public var documentHeight: Int {
@@ -126,6 +145,18 @@ public struct ViewerState: Equatable, Sendable {
   public var diagnostic: ViewerDiagnostic?
   public var isReloading: Bool
   public var contentRevision: UInt64
+
+  public var showsInlineOutline: Bool {
+    viewport.width >= 120 && outlineVisible
+  }
+
+  public var documentWidth: Int {
+    viewport.documentWidth(showsInlineOutline: showsInlineOutline)
+  }
+
+  public var documentFrameWidth: Int {
+    viewport.documentFrameWidth(showsInlineOutline: showsInlineOutline)
+  }
 
   public init(
     snapshot: DocumentSnapshot,

@@ -52,8 +52,8 @@ payloads still pass encoded, dimension, and decoded-size checks before
 SwiftTUI sees them.
 
 Search runs outside the UI actor. A bounded document scan retains the first
-1,000 matches. If the scan discards more matches, the search overlay and status
-line show a `+`.
+1,000 matches. Search input and result counts stay in the bottom toolbar. If
+the scan discards more matches, the toolbar shows a `+`.
 
 ## Keys
 

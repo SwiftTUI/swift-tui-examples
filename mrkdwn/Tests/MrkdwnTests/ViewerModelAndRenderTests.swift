@@ -1,6 +1,6 @@
 import Foundation
 import Observation
-import SwiftTUI
+@_spi(Runners) import SwiftTUI
 import Synchronization
 import Testing
 
@@ -15,6 +15,23 @@ private actor MermaidRequestRecorder {
 
   func record(_ request: MermaidRenderRequest) {
     requests.append(request)
+  }
+}
+
+private actor MermaidReflowProbe {
+  private(set) var requests: [MermaidRenderRequest] = []
+  private(set) var cancellationCount = 0
+
+  func render(_ request: MermaidRenderRequest) async -> MermaidPresentation {
+    requests.append(request)
+    if request.width == 177 {
+      do {
+        try await Task.sleep(for: .seconds(30))
+      } catch {
+        cancellationCount += 1
+      }
+    }
+    return .unavailable(diagnostic: "width \(request.width)")
   }
 }
 
@@ -454,6 +471,176 @@ struct ViewerModelAndRenderTests {
     await model.shutdown()
   }
 
+  @Test(
+    "viewer presentation uses the full pane, compact paragraphs, inline search, and themed scrollbars"
+  )
+  func viewerPresentationContract() async throws {
+    let theme = try ThemeTOMLDecoder().decode(
+      """
+      version = 1
+      [theme]
+      accent = "#FF0000"
+      """
+    )
+    let source =
+      ([
+        "# Presentation",
+        "First paragraph.",
+        "Second paragraph.",
+      ] + (0..<40).map { "Overflow row \($0)." })
+      .joined(separator: "\n\n")
+    let model = makeModel(source, theme: theme)
+    await model.start()
+    let size = ViewerSize(width: 100, height: 12)
+    model.updateViewport(size)
+
+    var environment = EnvironmentValues()
+    environment.terminalSize = CellSize(width: size.width, height: size.height)
+    let initial = DefaultRenderer().render(
+      MrkdwnRootView(model: model),
+      context: .init(
+        identity: Identity(components: [.named("MrkdwnPresentation")]),
+        environmentValues: environment
+      ),
+      proposal: ProposedSize(width: size.width, height: size.height)
+    )
+    let documentRoute = try #require(
+      initial.semanticSnapshot.scrollRoutes.first {
+        $0.contentBounds.size.height > $0.viewportRect.size.height
+      }
+    )
+    #expect(documentRoute.viewportRect.origin.x == 0)
+    #expect(
+      documentRoute.viewportRect.origin.x
+        + documentRoute.viewportRect.size.width == size.width
+    )
+
+    let initialLines = initial.rasterSurface.lines
+    let firstParagraphRow = try #require(
+      initialLines.firstIndex { $0.contains("First paragraph.") }
+    )
+    let secondParagraphRow = try #require(
+      initialLines.firstIndex { $0.contains("Second paragraph.") }
+    )
+    #expect(secondParagraphRow == firstParagraphRow + 1)
+
+    let wideSize = ViewerSize(width: 180, height: size.height)
+    model.updateViewport(wideSize)
+    model.send(.toggleOutline)
+    var wideEnvironment = EnvironmentValues()
+    wideEnvironment.terminalSize = CellSize(width: wideSize.width, height: wideSize.height)
+    let wide = DefaultRenderer().render(
+      MrkdwnRootView(model: model),
+      context: .init(
+        identity: Identity(components: [.named("MrkdwnWidePresentation")]),
+        environmentValues: wideEnvironment
+      ),
+      proposal: ProposedSize(width: wideSize.width, height: wideSize.height)
+    )
+    let wideDocumentRoute = try #require(
+      wide.semanticSnapshot.scrollRoutes.first {
+        $0.viewportRect.origin.x > 0
+          && $0.contentBounds.size.height > $0.viewportRect.size.height
+      }
+    )
+    #expect(wideDocumentRoute.viewportRect.origin.x == 29)
+    #expect(
+      wideDocumentRoute.viewportRect.origin.x
+        + wideDocumentRoute.viewportRect.size.width == wideSize.width
+    )
+
+    let surface = HostedRasterSurface(
+      surfaceSize: .init(width: wideSize.width, height: wideSize.height),
+      appearance: .fallback
+    ) { _ in }
+    ViewerPresentationTestApp.model = model
+    defer { ViewerPresentationTestApp.model = nil }
+    let session = try HostedSceneSession(
+      for: ViewerPresentationTestApp(),
+      sceneID: ViewerPresentationTestApp.sceneID,
+      surface: surface
+    )
+    let sessionTask = Task { try await session.start() }
+    do {
+      var frames = await surface.waitForFrames { !$0.isEmpty }
+      var runtimeFrame = try #require(frames.last)
+      let runtimeRoute = try #require(
+        runtimeFrame.semantics.scrollRoutes.first {
+          $0.viewportRect.origin.x > 0
+            && $0.contentBounds.size.height > $0.viewportRect.size.height
+        }
+      )
+      for _ in 0..<4 where runtimeFrame.focusedIdentity != runtimeRoute.identity {
+        let previousCount = frames.count
+        session.send(.key(.init(.tab)))
+        frames = await surface.waitForFrames { $0.count > previousCount }
+        runtimeFrame = try #require(frames.last)
+      }
+      #expect(runtimeFrame.focusedIdentity == runtimeRoute.identity)
+      let runtimeIndicatorColumn =
+        runtimeRoute.viewportRect.origin.x + runtimeRoute.viewportRect.size.width - 1
+      let runtimeIndicatorStart = runtimeRoute.viewportRect.origin.y
+      let runtimeIndicatorEnd = runtimeIndicatorStart + runtimeRoute.viewportRect.size.height
+      let runtimeIndicatorRows = runtimeIndicatorStart..<runtimeIndicatorEnd
+      let runtimeIndicator = try #require(
+        runtimeFrame.raster.cells[runtimeIndicatorRows].compactMap { row -> RasterCell? in
+          guard row.indices.contains(runtimeIndicatorColumn),
+            row[runtimeIndicatorColumn].character != " "
+          else {
+            return nil
+          }
+          return row[runtimeIndicatorColumn]
+        }.first
+      )
+      let runtimeIndicatorColor = try #require(runtimeIndicator.style?.foregroundColor)
+      #expect(runtimeIndicatorColor.red > runtimeIndicatorColor.green)
+      #expect(runtimeIndicatorColor.red > runtimeIndicatorColor.blue)
+      session.send(.key(.init(.character("d"), modifiers: .ctrl)))
+      _ = try await sessionTask.value
+    } catch {
+      session.stop()
+      _ = try? await sessionTask.value
+      throw error
+    }
+
+    model.updateViewport(size)
+    model.send(.beginSearch)
+    model.send(.updateSearch("First"))
+    await waitUntil { !model.state.isSearching }
+    let searching = DefaultRenderer().render(
+      MrkdwnRootView(model: model),
+      context: .init(
+        identity: Identity(components: [.named("MrkdwnPresentation")]),
+        environmentValues: environment
+      ),
+      proposal: ProposedSize(width: size.width, height: size.height)
+    )
+    #expect(searching.rasterSurface.lines[size.height - 1].contains("/First▏"))
+
+    let longQuery = String(repeating: "prefix-", count: 20) + "visible-suffix"
+    model.send(.updateSearch(longQuery))
+    for width in [100, 60] {
+      let toolbarSize = ViewerSize(width: width, height: size.height)
+      model.updateViewport(toolbarSize)
+      var toolbarEnvironment = EnvironmentValues()
+      toolbarEnvironment.terminalSize = CellSize(
+        width: toolbarSize.width,
+        height: toolbarSize.height
+      )
+      let toolbar = DefaultRenderer().render(
+        MrkdwnRootView(model: model),
+        context: .init(
+          identity: Identity(components: [.named("MrkdwnSearchToolbar")]),
+          environmentValues: toolbarEnvironment
+        ),
+        proposal: ProposedSize(width: toolbarSize.width, height: toolbarSize.height)
+      )
+      #expect(toolbar.rasterSurface.lines[toolbarSize.height - 1].contains("visible-suffix▏"))
+    }
+
+    await model.shutdown()
+  }
+
   @Test("outline and links expose pointer hit regions and accessibility metadata")
   func pointerAndAccessibilitySurface() async throws {
     let model = makeModel(
@@ -496,9 +683,9 @@ struct ViewerModelAndRenderTests {
     await model.shutdown()
   }
 
-  @Test("rapid viewport changes coalesce to one Mermaid reflow")
+  @Test("rapid viewport and outline changes coalesce Mermaid reflow at the visible width")
   func viewportDebounce() async {
-    let recorder = MermaidRequestRecorder()
+    let recorder = MermaidReflowProbe()
     let model = ViewerModel(
       snapshot: DocumentSnapshot(
         source: "```mermaid\nflowchart LR\nA --> B\n```",
@@ -514,10 +701,7 @@ struct ViewerModelAndRenderTests {
         readDocument: { _ in throw StubFailure.unavailable },
         loadTheme: { LoadedTheme(theme: .default, sourceURL: nil) },
         watchFile: { _ in AsyncStream { $0.finish() } },
-        renderMermaid: { request in
-          await recorder.record(request)
-          return .unavailable(diagnostic: "stub")
-        },
+        renderMermaid: { await recorder.render($0) },
         loadImage: { _, _ in throw StubFailure.unavailable },
         openExternal: { _ in true },
         sleep: { duration in try? await Task.sleep(for: duration) }
@@ -545,7 +729,63 @@ struct ViewerModelAndRenderTests {
 
     let requests = await recorder.requests
     #expect(requests.count == 2)
-    #expect(requests.last?.width == 94)
+    #expect(requests.last?.width == 97)
+
+    // The narrow viewport hid the outline. Growing wide therefore gives the
+    // document the whole pane, and restoring the inline outline must reflow at
+    // the smaller width that remains after its chrome.
+    model.updateViewport(ViewerSize(width: 180, height: 20))
+    await waitUntilAsync { await recorder.requests.count == 3 }
+    #expect(await recorder.requests.last?.width == 177)
+    model.send(.toggleOutline)
+    await waitUntilAsync { await recorder.requests.count == 4 }
+    #expect(await recorder.requests.last?.width == 148)
+    await waitUntilAsync { await recorder.cancellationCount == 1 }
+    await waitUntil {
+      if case .unavailable(let diagnostic)? = model.mermaid[id] {
+        return diagnostic == "width 148"
+      }
+      return false
+    }
+    await model.shutdown()
+  }
+
+  @Test("outline width changes retain the visible block and heading navigation context")
+  func outlineWidthRetainsScrollAnchor() async throws {
+    let wrappingParagraph = Array(repeating: "wrapping", count: 18).joined(separator: " ")
+    let model = makeModel(
+      """
+      # One
+
+      \(wrappingParagraph)
+
+      ## Two
+
+      Retained visible paragraph.
+
+      ## Three
+      """
+    )
+    await model.start()
+    model.updateViewport(ViewerSize(width: 60, height: 20))
+    model.updateViewport(ViewerSize(width: 180, height: 20))
+    model.send(.clearScrollTarget)
+    let retainedID = try #require(
+      model.state.document?.blocks.first {
+        $0.searchableText == "Retained visible paragraph."
+      }?.id
+    )
+    let oldTop = try #require(model.documentGeometryTop(for: retainedID))
+    model.updateDocumentScrollOffset(oldTop)
+
+    model.send(.toggleOutline)
+
+    let newTop = try #require(model.documentGeometryTop(for: retainedID))
+    #expect(newTop > oldTop)
+    #expect(model.pendingScrollTarget == nil)
+    #expect(model.documentScrollOffset == newTop)
+    model.send(.nextHeading)
+    #expect(model.pendingScrollTarget == model.state.document?.outline.last?.id)
     await model.shutdown()
   }
 
@@ -1831,10 +2071,13 @@ struct ViewerModelAndRenderTests {
     await model.shutdown()
   }
 
-  private func makeModel(_ source: String) -> ViewerModel {
+  private func makeModel(
+    _ source: String,
+    theme: ViewerTheme = .default
+  ) -> ViewerModel {
     ViewerModel(
       snapshot: DocumentSnapshot(source: source, url: nil, displayName: "fixture.md"),
-      theme: .default,
+      theme: theme,
       watchesDocument: false,
       compiler: MarkdownCompiler(),
       linkResolver: LinkResolver(),
@@ -1882,5 +2125,18 @@ struct ViewerModelAndRenderTests {
       try? await Task.sleep(for: .milliseconds(1))
     }
     Issue.record("Viewer model did not reach the expected async state")
+  }
+}
+
+private struct ViewerPresentationTestApp: SwiftTUI.App {
+  static let sceneID = WindowIdentifier("mrkdwn-presentation-contract")
+  @MainActor static var model: ViewerModel?
+
+  nonisolated init() {}
+
+  var body: some Scene {
+    WindowGroup("mrkdwn presentation", id: Self.sceneID) {
+      MrkdwnRootView(model: Self.model!)
+    }
   }
 }

@@ -85,7 +85,7 @@ struct MarkdownBlockView: View {
       return AnyView(
         HStack(alignment: .top, spacing: 1) {
           Text("│").foregroundStyle(state.theme.quote.swiftTUIColor)
-          LazyVStack(alignment: .leading, spacing: 1) {
+          LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(blocks, id: \.id) {
               MarkdownBlockView(
                 block: $0,
