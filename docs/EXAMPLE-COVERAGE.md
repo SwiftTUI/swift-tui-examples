@@ -37,6 +37,7 @@ target. Every other SwiftTUI product resolves from `swift-tui`.
 | [sextant](../sextant) | Focused product sample | `SwiftTUI`, `SwiftTUITerminal` | Miller-column browser and embedded terminal process previews | Terminal app plus child processes | Linux native gate builds debug and release. Focused SwiftPM tests run in `check:focused`. |
 | [terminal-workspace](../terminal-workspace) | Focused product sample | `SwiftTUI`, `SwiftTUITerminalWorkspace` | Tabs, splits, retained sessions, command palette actions, persisted workspace metadata | Terminal workspace app | Linux native gate builds debug and release. Focused SwiftPM tests run in `check:focused`. |
 | [mrkdwn](../mrkdwn) | Advanced app and focused product sample | `SwiftTUI`, `Markdown`, vendored `MrkdwnMermaid` | Complete CommonMark/GFM compilation, responsive outline/search/navigation, XDG TOML theming, bounded images, and Unicode semantic-cell Mermaid rendering | Terminal app on macOS and Linux | Linux and macOS gates clean and build debug and release. They also run the focused SwiftPM suite in `check:focused`. |
+| [csvui](../csvui) | Advanced app, focused product sample, and stress/regression sample | `SwiftTUI` | Lazy byte-indexed CSV/TSV viewing, sparse edits and bounded history, search/filter/sort projections, XDG TOML theming, live reload, conflict detection, and atomic saves | Terminal app on macOS and Linux | Linux and macOS gates clean and build debug and release. They also run the focused SwiftPM and rebuilt real-PTY suites in `check:focused`. |
 | [git-viz](../git-viz) | Copyable tutorial and focused product sample | `SwiftTUI`, `SwiftTUICLI`, `SwiftTUICharts` | Non-interactive git reporting and chart primitives | Terminal CLI report generator | Linux native gate builds debug and release. Focused SwiftPM tests run in `check:focused`. |
 | [gifcat](../gifcat) | Copyable tutorial and focused product sample | `SwiftTUI`, `SwiftTUIAnimatedImage` | GIF playback, source delays, image attachments, row-major tiling | Terminal app | Linux native gate builds debug and release. Focused SwiftPM tests run in `check:focused`. |
 | [gifeditor](../gifeditor) | Advanced app and stress/regression sample | `SwiftTUI`, `SwiftTUIWebHostCLI`, `GIFEditorCore`, `GIFEditorUI` | Half-cell canvas, palette, tools, layers, timeline, pointer input, undo/redo, GIF import/export | Terminal app plus optional localhost WebHost | Linux native gate builds debug and release. Focused SwiftPM tests run in `check:focused`. |
@@ -63,7 +64,7 @@ shared counter from `three-hosts-demo`.
   `swift-tui-web` host package.
 - `bun run check:focused` is the slower behavior-test gate for examples with test
   targets: `gallery`, `layouts`, `gifeditor`, `git-viz`, `sextant`,
-  `terminal-runner`, `gifcat`, `terminal-workspace`, `mrkdwn`,
+  `terminal-runner`, `gifcat`, `terminal-workspace`, `mrkdwn`, `csvui`,
   `WebHostExample`, and `WebExample`.
 
 ## New Example Checklist

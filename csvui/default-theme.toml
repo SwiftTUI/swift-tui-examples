@@ -1,0 +1,21 @@
+version = 1
+
+[theme]
+background = "#0D1117"
+foreground = "#C9D1D9"
+muted = "#8B949E"
+accent = "#58A6FF"
+border = "#30363D"
+menu_background = "#161B22"
+menu_foreground = "#C9D1D9"
+menu_active_background = "#1F6FEB"
+menu_active_foreground = "#FFFFFF"
+header_background = "#161B22"
+header_foreground = "#E6EDF3"
+gutter = "#8B949E"
+cursor_background = "#1F6FEB"
+cursor_foreground = "#FFFFFF"
+search_match = "#E3B341"
+edited = "#D2A8FF"
+warning = "#FFA657"
+error = "#FF7B72"

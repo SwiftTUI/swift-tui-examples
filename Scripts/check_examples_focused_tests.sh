@@ -7,6 +7,7 @@ framework_root=${SWIFTTUI_CHECKOUT:-}
 swiftpm_scratch=${SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH:-}
 runtime_tmpdir=
 mrkdwn_package_path="$repo_root/mrkdwn"
+csvui_package_path="$repo_root/csvui"
 skip_bun_install=0
 failures=""
 
@@ -21,9 +22,9 @@ separate so CI and pre-tag lanes can choose the right contract explicitly.
 Set SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH to reuse one sequential SwiftPM scratch
 directory across the example package tests. Do not share that directory across
 parallel checks.
-When SWIFTTUI_CHECKOUT is set, mrkdwn runs from a disposable package root whose
-SwiftTUI dependency points at that exact checkout; the public manifest is not
-modified.
+When SWIFTTUI_CHECKOUT is set, mrkdwn and csvui run from disposable package
+roots whose SwiftTUI dependency points at that exact checkout; public manifests
+are not modified.
 EOF
 }
 
@@ -110,6 +111,27 @@ prepare_mrkdwn_package() {
   mrkdwn_package_path=$localized_root
 }
 
+prepare_csvui_package() {
+  if [ -z "$framework_root" ]; then
+    return
+  fi
+
+  ensure_runtime_tmpdir
+  localized_root="$runtime_tmpdir/csvui"
+  mkdir -p "$localized_root"
+  cp "$repo_root/csvui/Package.swift" \
+    "$repo_root/csvui/Package.resolved" \
+    "$repo_root/csvui/default-theme.toml" \
+    "$localized_root/"
+  cp -R "$repo_root/csvui/Sources" "$repo_root/csvui/Tests" "$localized_root/"
+  python3 "$repo_root/csvui/Scripts/check_manifest_contract.py" \
+    --localize-manifest \
+    "$repo_root/csvui/Package.swift" \
+    "$localized_root/Package.swift" \
+    "$framework_root"
+  csvui_package_path=$localized_root
+}
+
 require_command swiftly
 require_command bun
 require_command python3
@@ -117,6 +139,7 @@ ensure_runtime_tmpdir
 if [ -n "$framework_root" ]; then
   require_checkout "$framework_root" "swift-tui"
   prepare_mrkdwn_package
+  prepare_csvui_package
 fi
 
 run_swift() {
@@ -152,6 +175,33 @@ run_mrkdwn_tests() {
   run_mrkdwn_manifest_contract || return 1
   export MRKDWN_REAL_PTY_TESTS=1
   run_swift test --package-path "$mrkdwn_package_path"
+}
+
+run_csvui_manifest_contract() {
+  ensure_runtime_tmpdir
+  dump_file="$runtime_tmpdir/csvui-dump-package.json"
+  status=0
+  if ! swiftly run swift package \
+    --package-path "$csvui_package_path" \
+    dump-package >"$dump_file"; then
+    status=1
+  elif [ -n "$framework_root" ]; then
+    if ! python3 "$repo_root/csvui/Scripts/check_manifest_contract.py" \
+      --overlay "$framework_root" "$dump_file" "$csvui_package_path"; then
+      status=1
+    fi
+  elif ! python3 "$repo_root/csvui/Scripts/check_manifest_contract.py" \
+    "$dump_file" "$csvui_package_path"; then
+    status=1
+  fi
+  rm -f "$dump_file"
+  return "$status"
+}
+
+run_csvui_tests() {
+  run_csvui_manifest_contract || return 1
+  export CSVUI_REAL_PTY_TESTS=1
+  run_swift test --package-path "$csvui_package_path"
 }
 
 run_step() {
@@ -196,6 +246,11 @@ run_step \
   "Test mrkdwn" \
   "$repo_root" \
   run_mrkdwn_tests
+
+run_step \
+  "Test csvui" \
+  "$repo_root" \
+  run_csvui_tests
 
 echo ""
 echo "### Focused browser behavior tests"

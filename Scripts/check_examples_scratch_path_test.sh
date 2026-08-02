@@ -248,13 +248,25 @@ if ! grep -Fq -- "--overlay $framework_root" "$python_log"; then
 fi
 
 if ! grep -Fq -- "--localize-manifest" "$python_log"; then
-  echo "Expected local checkout mode to create a disposable mrkdwn manifest" >&2
+  echo "Expected local checkout mode to create disposable manifests" >&2
+  cat "$python_log" >&2
+  exit 1
+fi
+
+if ! grep -Eq -- "/csvui/Scripts/check_manifest_contract.py --localize-manifest" "$python_log"; then
+  echo "Expected local checkout mode to create a disposable csvui manifest" >&2
   cat "$python_log" >&2
   exit 1
 fi
 
 if grep -Fq -- "--package-path mrkdwn" "$swiftly_log"; then
   echo "Did not expect local checkout mode to build the public mrkdwn package root" >&2
+  cat "$swiftly_log" >&2
+  exit 1
+fi
+
+if grep -Fq -- "--package-path csvui" "$swiftly_log"; then
+  echo "Did not expect local checkout mode to build the public csvui package root" >&2
   cat "$swiftly_log" >&2
   exit 1
 fi
@@ -407,6 +419,30 @@ if ! grep -Eq -- \
   "test --package-path .*/mrkdwn --scratch-path $scratch_path" \
   "$swiftly_log"; then
   echo "Expected the Linux lane to test mrkdwn through the shared scratch path" >&2
+  cat "$swiftly_log" >&2
+  exit 1
+fi
+
+if ! grep -Eq -- \
+  "build --package-path .*/csvui --scratch-path $scratch_path" \
+  "$swiftly_log"; then
+  echo "Expected the Linux lane to build csvui through the shared scratch path" >&2
+  cat "$swiftly_log" >&2
+  exit 1
+fi
+
+if ! grep -Eq -- \
+  "build -c release --package-path .*/csvui --scratch-path $scratch_path" \
+  "$swiftly_log"; then
+  echo "Expected the Linux lane to release-build csvui through the shared scratch path" >&2
+  cat "$swiftly_log" >&2
+  exit 1
+fi
+
+if ! grep -Eq -- \
+  "test --package-path .*/csvui --scratch-path $scratch_path" \
+  "$swiftly_log"; then
+  echo "Expected the Linux lane to test csvui through the shared scratch path" >&2
   cat "$swiftly_log" >&2
   exit 1
 fi

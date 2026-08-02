@@ -1,0 +1,61 @@
+import Foundation
+
+public enum CSVAction: Equatable, Sendable {
+  case updateViewport(CSVViewport)
+  case selectCell(CSVCellAddress)
+  case moveRows(Int)
+  case moveColumns(Int)
+  case pageRows(Int)
+  case scrollWheel(deltaX: Int, deltaY: Int)
+  case firstRow
+  case lastRow
+  case firstColumn
+  case lastColumn
+  case openMenu(CSVMenu)
+  case dismissTransient
+  case openHelp
+  case openPalette
+  case openRowDetail
+  case beginFind
+  case beginFilterCurrent
+  case beginFilterAll
+  case updatePrompt(String)
+  case submitPrompt
+  case nextMatch
+  case previousMatch
+  case clearFilter
+  case cycleSort
+  case sort(CSVSortDirection)
+  case clearSort
+  case increaseWidth
+  case decreaseWidth
+  case resetWidth
+  case freezeThroughCurrentColumn
+  case clearFrozenColumns
+  case openColumns
+  case toggleCurrentColumnVisibility
+  case toggleColumnVisibility(ColumnID)
+  case resetView
+  case beginEditCell
+  case beginRenameHeader
+  case updateEditor(String)
+  case commitEditor
+  case insertRowAbove
+  case insertRowBelow
+  case deleteRow
+  case insertColumnLeft
+  case insertColumnRight
+  case deleteColumn
+  case undo
+  case redo
+  case beginSaveAs
+  case updateSaveAsPath(String)
+  case save
+  case confirmSaveAs(overwrite: Bool)
+  case reload
+  case confirmDiscard
+  case cancelConfirmation
+  case copySucceeded(String)
+  case copyFailed
+  case clearDiagnostic
+}
