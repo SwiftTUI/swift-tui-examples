@@ -1,6 +1,8 @@
 # Equatable Demo
 
-The smallest checked-in proof of `View.equatable()` — SwiftTUI's opt-in for memoized-body reuse, showing a stable subtree skip re-evaluation while the rest of the screen ticks, rendered in the terminal.
+This is the smallest example of `View.equatable()`. This API enables
+memoized-body reuse. A stable subtree skips evaluation while the rest of the
+terminal screen changes.
 
 ## Run
 
@@ -8,17 +10,26 @@ The smallest checked-in proof of `View.equatable()` — SwiftTUI's opt-in for me
 swiftly run swift run --package-path equatable-demo EquatableDemo
 ```
 
-Press `tick` (or the spacebar) and watch the counter change while the panel below stays put — that panel is reused, not rebuilt, on each tick.
+Press `tick` or the spacebar. The counter changes, but the panel below does not.
+The runtime reuses the panel on each tick.
 
 ## Demonstrates
 
-- `View.equatable()` applied to a stable boundary view — which means SwiftTUI compares the view by `==` and reuses its whole rendered subtree instead of re-evaluating it.
-- The boundary requirement: `DashboardPanel`'s body reads no `@State`/`@Observable`/focus state, so it is a sound, profitable memo boundary.
-- The `==`-is-a-correctness-contract caveat: a lossy `==` would serve a stale subtree.
+- `View.equatable()` applies to a stable boundary view. SwiftTUI compares the
+  view with `==` and reuses its rendered subtree.
+- `DashboardPanel` satisfies the boundary requirement. Its body reads no
+  `@State`, `@Observable`, or focus state.
+- `==` is a correctness contract. A comparison that omits state can return a
+  stale subtree.
 
 ## How it works
 
-A `@State` counter (`ticks`) updates on every `tick` press, invalidating the root. A large static `DashboardPanel` sits beneath it. Because `DashboardPanel` conforms to `Equatable` and is applied with `.equatable()`, SwiftTUI compares it by `==` and reuses its whole rendered subtree across ticks instead of re-evaluating all 48 cells — the panel is unchanged, so its `==` returns equal.
+A `@State` counter named `ticks` changes after each `tick` press. This change
+invalidates the root. A large, static `DashboardPanel` is below the counter.
+`DashboardPanel` conforms to `Equatable` and uses `.equatable()`. SwiftTUI
+compares it with `==` and reuses its rendered subtree. SwiftTUI calls `==`
+before it reuses the panel. If `==` returns true, it does not evaluate all 48
+cells again.
 
 ## Controls
 
@@ -28,7 +39,7 @@ A `@State` counter (`ticks`) updates on every `tick` press, invalidating the roo
 
 ## Test
 
-No test target.
+The package has no test target.
 
 ## See also
 

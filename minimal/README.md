@@ -10,20 +10,22 @@ swiftly run swift run --package-path minimal minimal
 
 ## Demonstrates
 
-- `RenderOnce.print(...)` — which means you can emit a SwiftTUI view tree as terminal output without standing up an interactive runtime.
-- Snapshot rendering with no `App`, `Scene`, `RunLoop`, `TerminalRunner`, or argument parsing — the right shape for report-like CLI commands that print once and exit.
-- `SwiftTUICLI` width selection plus terminal capability/color/glyph policy — which means correct output is chosen for you instead of hand-managing renderer internals.
+- `RenderOnce.print(...)` writes a SwiftTUI view tree as terminal output. It
+  does not start an interactive runtime.
+- Snapshot rendering uses no `App`, `Scene`, `RunLoop`, `TerminalRunner`, or
+  argument parser. This structure is for CLI reports that print once and exit.
+- `SwiftTUICLI` selects the width, terminal features, colors, and glyph policy.
+  The example does not manage renderer internals directly.
 
 ## Notes
 
-Use this as a compact reference for one-shot rendering and documentation
-snippets. Reach for the lower-level `DefaultRenderer` /
-`TerminalSurfaceRenderer` directly only when you need renderer internals rather
-than a copyable app-authoring path.
+Use this example as a compact reference for one-shot rendering and
+documentation snippets. If you need renderer internals, use `DefaultRenderer`
+or `TerminalSurfaceRenderer` instead of this copyable app-authoring path.
 
 ## Test
 
-No test target.
+The package has no test target.
 
 ## See also
 

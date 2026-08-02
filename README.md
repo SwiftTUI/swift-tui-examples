@@ -30,8 +30,8 @@ proves, or jump straight to a package in [By product](#by-product).
 - **Swift 6.3.x** (`.swift-version` pins 6.3.3), plus **[Bun](https://bun.sh)**
   for the browser/WASI example.
 - Commands below use **[`swiftly`](https://swiftly.dev)** so every example builds
-  against the repo's pinned toolchain. Already have Swift 6.3.x active (Xcode 26,
-  or a toolchain on `PATH`)? Drop the `swiftly run` prefix and run the bare
+  against the repository pinned toolchain. If Swift 6.3.x is active through
+  Xcode 26 or `PATH`, remove the `swiftly run` prefix. Then run the bare
   `swift ...` command.
 
 Run from the repo root unless a local README says otherwise.
@@ -52,12 +52,12 @@ bun install
 bun --cwd WebExample run build
 ```
 
-Everything builds from a fresh clone using tagged HTTPS dependencies. Every
-example declares the compatible `0.4.x` release graph — Gallery on the matching
-`swift-tui`/`swift-tui-charts` pair, WebExample on the `swift-tui-web` `0.4.0`
-release tarballs for `@swifttui/web` and `@swifttui/build`, and `mrkdwn` on the
-independently released `swift-markdown` range. No sibling source checkout is
-required.
+Each example builds from a fresh clone with tagged HTTPS dependencies. Each
+example declares a compatible `0.4.x` release graph. Gallery uses matching
+`swift-tui` and `swift-tui-charts` versions. WebExample uses `swift-tui-web`
+`0.4.0` release tarballs for `@swifttui/web` and `@swifttui/build`. `mrkdwn`
+uses the independent `swift-markdown` release range. No sibling source checkout
+is necessary.
 
 ## Roster
 
@@ -94,26 +94,26 @@ Already know the package you need? Jump straight to an example that uses it.
 | `SwiftTUICLI` / one-shot rendering and terminal launch | [minimal](minimal), [terminal-runner](terminal-runner), [git-viz](git-viz) |
 | `SwiftTUIArguments` / `SwiftTUICommand` | [argparse](argparse), [gallery](gallery), [gifeditor](gifeditor), [git-viz](git-viz) |
 | `SwiftTUICharts` (separate [`swift-tui-charts`](https://github.com/SwiftTUI/swift-tui-charts) package) | [git-viz](git-viz), [gallery](gallery), [layouts](layouts) |
-| `SwiftTUIAnimatedImage` | Included by `SwiftTUI`; used directly by [gifcat](gifcat), [gallery](gallery) |
+| `SwiftTUIAnimatedImage` | Included by `SwiftTUI`. Used directly by [gifcat](gifcat) and [gallery](gallery) |
 | `SwiftTUITerminal` | [sextant](sextant) |
 | `SwiftTUITerminalWorkspace` | [terminal-workspace](terminal-workspace) |
 | `SwiftUIHost` | [SwiftUIExample](SwiftUIExample), [three-hosts-demo](three-hosts-demo) |
 | `SwiftTUIAndroidHost` | [AndroidGallery](AndroidGallery) |
-| `SwiftTUIWebHostCLI` | Included by `SwiftTUI`; used directly by [gifeditor](gifeditor) |
+| `SwiftTUIWebHostCLI` | Included by `SwiftTUI`. Used directly by [gifeditor](gifeditor) |
 | `SwiftTUIWASI`, `@swifttui/web`, `@swifttui/build` | [WebExample](WebExample) |
 
-The full coverage matrix, category definitions, gate contract, and new-example
-checklist live in [docs/EXAMPLE-COVERAGE.md](docs/EXAMPLE-COVERAGE.md). For the
-authored APIs behind these demos, read the
+The [coverage document](docs/EXAMPLE-COVERAGE.md) contains the full matrix,
+category definitions, gate contract, and new-example checklist. For the APIs
+behind these demos, read the
 [DocC reference](https://swifttui.sh/docs/documentation/).
 
 ## Tests
 
-Run the full focused behavior-test lane with `bun run check:focused`, or test one
-example with `swiftly run swift test --package-path <example>`. Examples without
-focused suites are still build-checked by the repo gates. For the build/gate
-lanes (`check:linux`, `check:macos`, `check:web`, `check`) and their
-scratch-directory environment variables, see [`AGENTS.md`](AGENTS.md).
+Run `bun run check:focused` for all focused behavior tests. To test one example,
+run `swiftly run swift test --package-path <example>`. The repository gates also
+build examples that have no focused test suite. See [`AGENTS.md`](AGENTS.md) for
+the `check:linux`, `check:macos`, `check:web`, and `check` build gates. That file
+also describes their scratch-directory environment variables.
 
 ## License
 

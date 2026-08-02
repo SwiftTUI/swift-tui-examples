@@ -12,16 +12,21 @@ The app launches directly into the full-screen push/pop picker.
 
 ## Demonstrates
 
-- `SwiftTUI` measure/place/proposal model — which means you can see each geometry rule (sizing, placement, proposal handling) demonstrated in isolation rather than tangled in a real app.
-- `SwiftTUIRuntime` and `SwiftTUICharts` (from the separate [`swift-tui-charts`](https://github.com/SwiftTUI/swift-tui-charts) package) surfaces — overlays, scrolling, shapes, matched geometry, and custom layouts each get a dedicated entry.
-- A self-checking catalog — every entry is pinned by a smoke test, and `.behaviour`-tagged layouts add targeted tests for the specific measure/place rule they exist to show.
+- The `SwiftTUI` measure, place, and proposal model demonstrates each geometry
+  rule separately. The rules cover size, placement, and proposal handling.
+- The catalog has a separate entry for each `SwiftTUIRuntime` and
+  `SwiftTUICharts` surface. Entries cover overlays, scrolling, shapes, matched
+  geometry, and custom layouts. The chart product comes from the separate
+  [`swift-tui-charts`](https://github.com/SwiftTUI/swift-tui-charts) package.
+- Each catalog entry has a smoke test. Layouts tagged with `.behaviour` also
+  have focused tests for their measure and place rules.
 
 ## Scope
 
-Keep this example focused on layout behavior: measuring, placement, proposal
-handling, geometry, overlays, scrolling, shapes, matched geometry, and custom
-layouts. Component and workflow demonstrations belong in the gallery so this
-catalog stays useful as a focused layout reference.
+Keep this example focused on layout behavior. Its scope includes measurement,
+placement, proposals, geometry, overlays, scrolling, shapes, matched geometry,
+and custom layouts. Put component and workflow demonstrations in the gallery.
+Thus, this catalog remains a focused layout reference.
 
 ## Controls
 
@@ -38,17 +43,15 @@ catalog stays useful as a focused layout reference.
 swiftly run swift test --package-path layouts
 ```
 
-81 tests across 54 suites: 56 parameterised smoke tests (one per
-catalog entry), targeted behaviour tests for the `.behaviour` tier,
-catalog-integrity invariants, and a picker-shell test that
-rasterises every category section.
+The package has 81 tests across 54 suites. It has 56 parameterized smoke tests,
+one for each catalog entry. Focused behavior tests cover the `.behaviour` tier.
+Other tests cover catalog integrity and rasterize each picker category.
 
 ## Findings
 
-Library divergences and design questions surfaced while implementing the
-behaviour tests are documented inline in the behaviour test files.
-Behaviour tests pin the *observed* behaviour today; update a test's
-comment and open a discussion before changing the library.
+The behavior test files describe library differences and design questions.
+Behavior tests record the current behavior. Before you change the library,
+update the test comment and open a discussion.
 
 ## See also
 

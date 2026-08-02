@@ -8,7 +8,8 @@
 swiftly run swift run --package-path terminal-runner terminal-runner
 ```
 
-This example deliberately rejects browser hosting — passing `--web` exits before launch:
+The example rejects browser hosting. If you pass `--web`, it exits before
+launch:
 
 ```bash
 swiftly run swift run --package-path terminal-runner terminal-runner --web
@@ -16,22 +17,25 @@ swiftly run swift run --package-path terminal-runner terminal-runner --web
 
 ## Demonstrates
 
-- `SwiftTUICLI` — which means you get the terminal `TerminalRunner` APIs directly, without the WebHost convenience layer that `SwiftTUI` bundles in.
-- A custom `static main() async throws` — which means launch policy (here, the `--web` rejection) runs before the framework parses terminal scene commands.
-- `RuntimeConfiguration.detect(environment:isStdoutTTY:)` fed into `TerminalRunner.run(_:configuration:)` — which means the app boots from an explicit, environment- and TTY-aware configuration rather than implicit defaults.
+- `SwiftTUICLI` provides the terminal `TerminalRunner` APIs without the WebHost
+  convenience layer in `SwiftTUI`.
+- A custom `static main() async throws` applies the launch policy. In this
+  example, it rejects `--web` before the framework parses scene commands.
+- `RuntimeConfiguration.detect(environment:isStdoutTTY:)` supplies
+  `TerminalRunner.run(_:configuration:)`. Thus, the app starts with an explicit
+  configuration based on its environment and TTY state.
 
 ## What to copy
 
-- Import `SwiftTUICLI` when you want terminal runner APIs without the WebHost
-  convenience surface.
-- Implement a custom `static main()` when launch policy must run before the
-  framework parses terminal scene commands.
+- If you need terminal runner APIs without the WebHost convenience surface,
+  import `SwiftTUICLI`.
+- If launch policy must run before scene-command parsing, implement a custom
+  `static main()`.
 - Build a `RuntimeConfiguration` from environment and TTY status, then call
   `TerminalRunner.run(Self.self, configuration:)`.
 
-The deliberate `--web` rejection is the teaching beat: a `TerminalRunner`-based
-launcher is terminal-only by design. Use `WebHostExample` when the goal is the
-smallest app that accepts `--web`.
+The `--web` rejection demonstrates that a `TerminalRunner` launcher is
+terminal-only. Use `WebHostExample` for the smallest app that accepts `--web`.
 
 ## Test
 

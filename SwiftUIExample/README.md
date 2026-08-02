@@ -8,7 +8,8 @@
 open SwiftUIExample/SwiftUIExample.xcodeproj
 ```
 
-Then run the app scheme from Xcode. The reusable scene package also builds headless, without opening Xcode:
+Run the app scheme from Xcode. To build the reusable scene package without
+Xcode, run:
 
 ```bash
 swiftly run swift build --package-path SwiftUIExample/TerminalApp
@@ -16,18 +17,30 @@ swiftly run swift build --package-path SwiftUIExample/TerminalApp
 
 ## Demonstrates
 
-- `SwiftUIHost` (`SwiftUIHostAppView`) — which means you can drop a SwiftTUI scene into a native SwiftUI view hierarchy and run it in the standard SwiftUI app lifecycle.
-- Reusing SwiftTUI scenes from a separate Swift package (`TerminalApp`) — which means the same scene code is authored once and consumed by multiple hosts.
-- Hosting the shared `GalleryDemoViews` surface natively — which means the terminal component gallery renders identically inside the Apple app.
-- Multi-scene authoring through a component-gallery scene and a details scene — which means a host app can compose more than one embedded SwiftTUI surface.
+- `SwiftUIHost` provides `SwiftUIHostAppView`. This view embeds a SwiftTUI scene in a native SwiftUI view
+  hierarchy. The scene uses the standard SwiftUI app lifecycle.
+- A separate Swift package, `TerminalApp`, contains reusable SwiftTUI scenes.
+  Multiple hosts consume the same scene code.
+- The Apple app hosts the shared `GalleryDemoViews` surface. Thus, it renders
+  the terminal component gallery natively.
+- A component-gallery scene and a details scene demonstrate multi-scene
+  authoring. A host app can compose multiple SwiftTUI surfaces.
 
 ## Architecture
 
-The Xcode project owns the native app shell. `TerminalApp/` is a local Swift package whose `ExampleScenes` library defines the reusable SwiftTUI scenes (including the component-gallery views), and the SwiftUI app embeds those scenes with `SwiftUIHostAppView`. `ExampleScenes` depends on `GalleryDemoViews`, `SharedHostScenes`, and `SwiftTUIRuntime` (the embedded host pulls the runtime, never the `SwiftTUI` umbrella, to keep the iOS build clean).
+The Xcode project owns the native app shell. `TerminalApp/` is a local Swift
+package. Its `ExampleScenes` library defines the reusable SwiftTUI scenes,
+including the component-gallery views. The SwiftUI app embeds these scenes with
+`SwiftUIHostAppView`. `ExampleScenes` depends on `GalleryDemoViews`,
+`SharedHostScenes`, and `SwiftTUIRuntime`. The embedded host uses the runtime
+instead of the `SwiftTUI` umbrella. Thus, the iOS build does not include host
+code that it cannot use.
 
 ## Test
 
-No test target. The shared gallery views are tested by `gallery`, and the host product is tested in the `swift-tui-swiftui` package's `SwiftUIHost` suite.
+The package has no test target. The `gallery` package tests the shared gallery
+views. The
+`SwiftUIHost` suite in `swift-tui-swiftui` tests the host product.
 
 ## See also
 

@@ -1,27 +1,28 @@
 # AGENTS.md
 
 Guidance for agentic assistants working in **`swift-tui-examples`**. Keep this
-concise; [`README.md`](README.md) is the canonical roster and source of truth —
-update it there when adding an example.
+file concise. [`README.md`](README.md) is the canonical roster. If you add an
+example, update that file.
 
 ## What this repo is
 
-The maintained, consumer-facing roster of runnable SwiftTUI example apps (one
-directory + README per example). Examples exercise the public products
-(`SwiftTUI`, `SwiftTUIRuntime`, `SwiftUIHost`, `SwiftTUIWASI`, …) and the
-separate `swift-tui-charts` package's `SwiftTUICharts` product. Use the README roster table for the exact run/test command
-per example.
+This repository contains the maintained list of runnable SwiftTUI example apps.
+Each example has one directory and one README. The examples exercise public
+products such as `SwiftTUI`, `SwiftTUIRuntime`, `SwiftUIHost`, and
+`SwiftTUIWASI`. They also use the `SwiftTUICharts` product from the separate
+`swift-tui-charts` package. Use the README roster for the run and test commands
+of each example.
 
-This repo is public beta. Default manifests must use tagged HTTPS
-SwiftPM dependencies and released package artifacts, not sibling source
-checkouts. Do not add coordination-only pin files; pre-tag integration belongs
-in `swift-tui-org`.
+This repository is a public beta. Default manifests must use tagged HTTPS
+SwiftPM dependencies and released package artifacts. They must not use sibling
+source checkouts. Do not add coordination-only pin files. Pre-tag integration
+belongs in `swift-tui-org`.
 
 ## Toolchains
 
-Use **`swiftly` run** for Swift packages so examples use the repo's pinned Swift
-6.3.x toolchain — not bare `swift`/`xcrun swift`. The browser example also needs
-**Bun**.
+Use **`swiftly` run** for Swift packages. This command uses the pinned Swift
+6.3.x toolchain. Do not use bare `swift` or `xcrun swift`. The browser example
+also requires **Bun**.
 
 ## Commands
 
@@ -46,4 +47,4 @@ are still build-checked by that script.
 
 ## Conventions
 
-`AGENTS.md` is the real file; `CLAUDE.md` is a symlink to it. Edit `AGENTS.md`.
+`AGENTS.md` is the real file. `CLAUDE.md` is a symlink to it. Edit `AGENTS.md`.

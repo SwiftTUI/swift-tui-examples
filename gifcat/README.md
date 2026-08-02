@@ -18,13 +18,19 @@ swiftly run swift run --package-path gifcat gifcat first.gif second.gif third.gi
 
 ## Demonstrates
 
-- `SwiftTUIAnimatedImage` — which means GIFs are decoded and animated using their source frame delays, no manual frame loop.
-- Rendering image attachments through the standard SwiftTUI image surface — image content composites like any other view.
-- Argument-order-preserving, row-major tiling of multiple animated inputs at their decoded size, with one terminal cell of spacing between images.
+- `SwiftTUIAnimatedImage` decodes and animates GIFs with their source frame
+  delays. The example has no manual frame loop.
+- The standard SwiftTUI image surface renders image attachments. Image content
+  combines with other views.
+- The example preserves argument order when it tiles multiple animated inputs.
+  It uses row-major order, decoded image sizes, and one terminal cell between
+  images.
 
 ## App layout
 
-A tiny app/library split: `GifCat` owns the view and `GifCatApp` owns the executable, so the rendering view is importable and testable apart from the CLI entry point.
+The example has separate app and library targets. `GifCat` owns the view, and
+`GifCatApp` owns the executable. Thus, tests can import the rendering view
+without the CLI entry point.
 
 ## Test
 
@@ -32,7 +38,9 @@ A tiny app/library split: `GifCat` owns the view and `GifCatApp` owns the execut
 swiftly run swift test --package-path gifcat
 ```
 
-The tests cover input path normalization, row-major tiling, image attachment placement, animated frame advancement, missing-file diagnostics, and empty-invocation usage text.
+The tests cover input-path normalization, row-major tiling, and image placement.
+They also cover frame advancement, missing-file diagnostics, and usage text for
+an empty command.
 
 ## See also
 

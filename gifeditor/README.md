@@ -1,6 +1,9 @@
 # GIF Editor
 
-A terminal-native, frame-by-frame animated-GIF editor: paint on a color canvas where one GIF pixel maps to one terminal half-cell, wield a keyboard- or pointer-driven toolbox, and read and write real GIF89a files — all in the terminal (and over a localhost WebHost via `--web`).
+This terminal-native app edits animated GIFs one frame at a time. One GIF pixel
+maps to one terminal half-cell on the color canvas. You can use the keyboard or
+pointer tools. The app reads and writes GIF89a files. It runs in the terminal
+and through a local WebHost with `--web`.
 
 ## Run
 
@@ -12,19 +15,31 @@ swiftly run swift run --package-path gifeditor gifeditor
 swiftly run swift run --package-path gifeditor gifeditor gifeditor/nyan.gif   # edit a real GIF instead of a fresh 32x32 document
 ```
 
-Press `?` for the keyboard overlay — every shortcut the editor answers to, rendered from the same table that generates [docs/KEYBINDINGS.md](docs/KEYBINDINGS.md). `Ctrl+Q` quits, prompting when there is unsaved work.
+Press `?` to open the keyboard overlay. The same table generates
+[docs/KEYBINDINGS.md](docs/KEYBINDINGS.md). Press `Ctrl+Q` to quit. If the
+document has unsaved work, the app asks for a decision.
 
 ## Demonstrates
 
-- `SwiftTUI` Canvas — which means a half-block color grid renders one GIF pixel per terminal half-cell, with sub-cell pointer locations mapped onto GIF pixels for direct painting.
-- `SwiftTUIWebHostCLI` — the same terminal app hosts itself over a localhost browser session, so one executable serves both surfaces without a separate web build.
-- Sheets, a menu bar, a scrolling overlay and a modal unsaved-changes guard composed into one screen that still fits an 80×24 terminal.
-- A pure value-type document model with bounded undo / redo and a vendored GIF89a encoder/decoder bridge (`EditorGIF`) — which means canvas behavior and round-trip fidelity are testable without any UI.
-- One command surface serving two modes: with no subcommand the executable is the editor, and `info` / `optimize` / `export` are headless verbs over the same model code.
+- A `SwiftTUI` Canvas renders one GIF pixel in each terminal half-cell. It maps
+  sub-cell pointer locations to GIF pixels for direct painting.
+- `SwiftTUIWebHostCLI` hosts the terminal app in a local browser session. One
+  executable serves both surfaces without a separate web build.
+- One 80×24 screen contains sheets, a menu bar, a scrolling overlay, and an
+  unsaved-changes guard.
+- The document is a pure value type with bounded undo and redo. The vendored
+  `EditorGIF` bridge encodes and decodes GIF89a data. Tests can make sure that
+  canvas behavior and round-trip fidelity are correct without a UI.
+- One command surface has two modes. Without a subcommand, the executable opens
+  the editor. `info`, `optimize`, and `export` run without a UI on the same
+  model code.
 
 ## Target boundaries
 
-This is an advanced application and regression sample, not starter tutorial code. Copy the target boundaries and host pattern selectively rather than the whole editor. The example is intentionally split so it can grow into a multi-platform app later without restructuring:
+This is an advanced application and regression sample, not starter tutorial
+code. Copy selected target boundaries and host patterns. Do not copy the
+complete editor as a tutorial. The target split supports additional platforms
+without a restructure:
 
 | Target          | Role                                              | Depends on                        |
 | --------------- | ------------------------------------------------- | --------------------------------- |
@@ -34,26 +49,52 @@ This is an advanced application and regression sample, not starter tutorial code
 | `GIFEditor`     | Composition root and the headless subcommands     | `GIFEditorUI`, `SwiftTUI`         |
 | `GIFEditorApp`  | The `gifeditor` executable, terminal or WebHost   | `GIFEditor`, `SwiftTUIWebHostCLI` |
 
-A future SwiftUI / UIKit port would reuse `GIFEditorCore` verbatim and add a parallel `GIFEditorUI_SwiftUI` target alongside `GIFEditorUI`.
+A SwiftUI or UIKit port can reuse `GIFEditorCore`. It can add a parallel
+`GIFEditorUI_SwiftUI` target next to `GIFEditorUI`.
 
 ## Editing model
 
-- The document carries a fixed-size **indexed-color frame buffer** (`UInt8?` per pixel — `nil` means transparent) plus a shared **256-slot palette** whose slot 0 is the reserved transparency sentinel.
-- Every frame is a stack of **layers** painted bottom-to-top. A layer's transparent pixels show whatever painted below it on the same frame.
-- Tools: pen, eraser, bucket fill, gradient, marquee, move, eyedropper, and rectangle / ellipse shapes that span two corners. Selections clip the tools that respect them; a mirror-X mode lays every pen and eraser stroke twice about the canvas's vertical centre line.
+- The document has a fixed-size **indexed-color frame buffer**. Each pixel is a
+  `UInt8?`, where `nil` means transparent. A shared palette has 256 slots. Slot
+  0 is the reserved transparency sentinel.
+- Each frame is a stack of **layers** painted from bottom to top. Transparent
+  pixels show painted pixels on lower layers of the same frame.
+- The tools are pen, eraser, bucket fill, gradient, marquee, move, eyedropper,
+  rectangle, and ellipse. Rectangle and ellipse shapes span two corners.
+  Selections clip applicable tools. Mirror-X mode copies pen and eraser strokes
+  across the vertical center line of the canvas.
 - Transforms flip and quarter-turn either the selection or the whole layer.
-- The palette is editable in place — add, remove, sort, compact, and import a Lospec `.hex` or GIMP `.gpl` file — and every reorder renumbers the artwork in the same undoable edit, so nothing recolors. Slot 0 is pinned and never moves.
-- The timeline owns frame order, per-frame delay, per-frame disposal and the loop count. Onion skin ghosts neighbouring frames over the canvas without touching the document.
-- The canvas zooms and pans independently of the document; zoom is a view concern and is never saved.
-- Document edits are captured in a bounded undo / redo stack. Pointer strokes and pointer-applied gradients are grouped as single history entries.
+- You can add, remove, sort, and compact palette entries. You can also import a
+  Lospec `.hex` or GIMP `.gpl` file. Each reorder renumbers the artwork in one
+  undoable edit. Thus, colors do not change. Slot 0 never moves.
+- The timeline owns frame order, frame delay, frame disposal, and loop count.
+  Onion skin shows neighboring frames over the canvas without changing the
+  document.
+- The canvas zooms and pans independently of the document. Zoom is a view state
+  and is not saved.
+- A bounded undo and redo stack records document edits. One pointer stroke or
+  pointer-applied gradient creates one history entry.
 
 ## Files
 
-- **`.halfcell` is the project format** — a versioned JSON envelope around the whole document, layers and palette order included. It is what `Save` writes and the only lossless representation.
-- **GIF is an export.** `Export GIF…` flattens every layer, so saving a layered document as GIF and reopening it comes back as one opaque layer per frame. `Save` on a document that came from a GIF therefore falls through to `Save As…` rather than quietly flattening it.
-- The exporter trims the global color table to the colors the document actually uses, and writes frames after the first as the changed rectangle under `.keep` disposal — unless the author wrote a disposal of their own, which is honoured verbatim at full-canvas size instead.
-- Opening routes on content rather than on the extension, so a project saved without one, or a GIF someone renamed, still reaches the right reader. A project file is treated as untrusted input: every invariant a renderer indexes without asking is re-established on decode, and a damaged file is reported rather than trapped on.
-- Unsaved work is autosaved to a state directory and offered back on the next launch; `New`, `Open` and quitting all pass through the same unsaved-changes guard.
+- **`.halfcell` is the project format.** It is a versioned JSON envelope for the
+  complete document. The document includes layers and palette order. `Save` writes this
+  format. It is the only lossless representation.
+- **GIF is an export.** `Export GIF…` flattens all layers. When you reopen the
+  GIF, each frame has one opaque layer. If a document came from a GIF, `Save`
+  opens `Save As…`. It does not flatten the document without notice.
+- The exporter limits the global color table to colors that the document uses.
+  After the first frame, it writes the changed rectangle with `.keep` disposal.
+  An authored disposal overrides this behavior. The exporter writes that
+  disposal at full-canvas size.
+- The reader detects content instead of relying on the file extension. Thus,
+  it can open a project without an extension or a renamed GIF. The decoder
+  treats a project file as untrusted input. It restores each invariant that the
+  renderer requires. It reports a damaged file instead of stopping with a
+  trap.
+- The app automatically saves unsaved work to a state directory. At the next
+  launch, it offers to restore that work. `New`, `Open`, and quit use the same
+  unsaved-changes guard.
 
 ## Headless subcommands
 
@@ -67,18 +108,28 @@ gifeditor export in.gif --frames -o ./out      # one zero-padded PNG per frame
 gifeditor export in.gif --apng -o out.png      # a single animated PNG
 ```
 
-All of them read both formats and run the same `GIFEditorCore` code the editor does.
+All subcommands read both formats. They use the same `GIFEditorCore` code as the
+editor.
 
 ## What to copy
 
-- For reusable app code, copy the split between pure model code (`GIFEditorCore`) and SwiftTUI-specific view code (`GIFEditorUI`).
-- For a terminal app with optional localhost browser hosting, copy the thin executable shape that depends on `SwiftTUIWebHostCLI`.
-- For an app that is also a CLI, copy `GIFEditorApp.main()` — a root command with a positional argument shadows its own subcommands, and the comment there explains the one-level-up workaround.
-- For testable canvas behavior, copy the value-type document model and focused model/UI tests. The menu layout, keybindings, and editor-specific command set are application code, not required SwiftTUI structure.
+- For reusable app code, copy the split between `GIFEditorCore` model code and
+  `GIFEditorUI` view code.
+- For optional local browser hosting, copy the small executable that depends on
+  `SwiftTUIWebHostCLI`.
+- For an app that is also a CLI, copy `GIFEditorApp.main()`. A root command with
+  a positional argument hides its subcommands. The source comment explains the
+  one-level-up solution.
+- For testable canvas behavior, copy the value-type document model and focused
+  model and UI tests. The menu, key bindings, and editor commands are app code.
+  SwiftTUI does not require this structure.
 
 ## Controls
 
-`?` opens the keyboard overlay in the app; `↑↓`, `PgUp`/`PgDn` and `Home`/`End` scroll it. [docs/KEYBINDINGS.md](docs/KEYBINDINGS.md) is the same table on disk, generated from `KeyBindingCatalog` by `Scripts/generate-keybindings-doc.sh` with a test that fails when the two disagree.
+Press `?` to open the keyboard overlay. Use `↑↓`, `PgUp`/`PgDn`, or
+`Home`/`End` to scroll it. [docs/KEYBINDINGS.md](docs/KEYBINDINGS.md) contains
+the same table. `Scripts/generate-keybindings-doc.sh` generates it from
+`KeyBindingCatalog`. A test fails if the tables differ.
 
 ## Test
 
@@ -86,13 +137,19 @@ All of them read both formats and run the same `GIFEditorCore` code the editor d
 swiftly run swift test --package-path gifeditor
 ```
 
-The suite verifies:
+The suite covers these contracts:
 
-- The `swift-gif` encoder bridge produces output the decoder can read back pixel-for-pixel for hand-built documents and a round-trip of `nyan.gif`, including the delta-coded and full-frame codings agreeing on every rendered pixel.
-- Document edits (pen, fill, gradient, shapes, transforms, marquee copy/paste, palette edits) leave the model in expected states.
-- The project format round-trips, and a corpus of malformed files is rejected rather than trapped on.
-- The terminal UI renders the editor canvas through a Canvas-backed half-block color grid and maps sub-cell pointer locations onto GIF pixels.
-- Real key presses through a real run loop reach the editor, the sheets and the keyboard overlay.
+- The `swift-gif` encoder bridge produces output that the decoder reads back
+  pixel for pixel. Tests use hand-built documents and a `nyan.gif` round trip.
+  Delta and full-frame encodings produce the same pixels.
+- Pen, fill, gradient, shape, transform, marquee, clipboard, and palette edits
+  leave the model in the expected states.
+- The project format completes a round trip. The decoder rejects a corpus of
+  malformed files without a trap.
+- The terminal UI renders the editor canvas as a half-block color grid. It maps
+  sub-cell pointer locations to GIF pixels.
+- Real key presses through a real run loop reach the editor, sheets, and
+  keyboard overlay.
 
 ## See also
 

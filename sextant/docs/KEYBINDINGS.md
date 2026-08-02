@@ -1,6 +1,6 @@
 # Sextant key bindings
 
-This file is generated from `CommandCatalog`.
+`CommandCatalog` generates this file.
 
 ## Navigation
 

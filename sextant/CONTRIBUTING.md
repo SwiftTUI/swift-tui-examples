@@ -1,7 +1,6 @@
 # Contributing
 
-Sextant is pre-1.0 software. Small, focused issues and pull requests are easiest
-to review.
+Sextant is pre-1.0 software. Keep issues and pull requests small and focused.
 
 Use the pinned Swift toolchain and run the native gate:
 
@@ -10,8 +9,8 @@ swiftly run swift test
 swiftly run swift build -c release
 ```
 
-Behavior changes should include focused tests through `BrowserModel.send` or
-the relevant deterministic adapter. Keep Sextant read-only: file mutation,
-shell evaluation, and unbounded filesystem work are outside the v0.1 contract.
+Add focused tests for each behavior change. Use `BrowserModel.send` or the
+applicable deterministic adapter. Keep Sextant read-only. File changes, shell
+evaluation, and unbounded filesystem work are outside the v0.1 contract.
 
 Architecture, testing, and release details live in [`docs/`](docs/).

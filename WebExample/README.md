@@ -1,6 +1,9 @@
 # Web Example
 
-The reference embedding pattern for running a real SwiftTUI `App` in the browser with no terminal emulator: the app is compiled to WebAssembly and mounted onto a canvas by `@swifttui/web`, so a developer sees exactly what it takes to ship a SwiftTUI surface to the web. Its canonical host is a static WASI bundle in the browser.
+This example is the reference embedding pattern for a SwiftTUI `App` in the
+browser. It does not use a terminal emulator. The build compiles the app to
+WebAssembly. Then `@swifttui/web` mounts the app on a canvas. Its canonical host
+is a static WASI bundle in the browser.
 
 ## Run
 
@@ -8,13 +11,22 @@ The reference embedding pattern for running a real SwiftTUI `App` in the browser
 bun --cwd WebExample dev
 ```
 
-`dev` first builds the Swift WASI artifacts (`TerminalApp/dist/scene-manifest.json` and `TerminalApp/dist/assets/app.wasm`), then serves them behind a small proxy that adds the COOP/COEP headers. HMR is disabled — refresh the page after frontend edits.
+`dev` first builds the Swift WASI artifacts:
+`TerminalApp/dist/scene-manifest.json` and
+`TerminalApp/dist/assets/app.wasm`. Then it serves them through a small proxy
+that adds the COOP/COEP headers. HMR is disabled. Refresh the page after
+frontend edits.
 
 ## Demonstrates
 
-- `@swifttui/web` (`createWebHostApp` + `createWasmSceneRuntimeFactory`) — which means a developer can mount a SwiftTUI scene onto a DOM element with a small, explicit bootstrap and no terminal-emulator dependency.
-- `@swifttui/build` (`SwiftTUIWASI` / `WASIRunner` in manifest mode) — which means the same `App` declaration is packaged into a static manifest + wasm the WebHost can read, deployable as a plain static bundle.
-- Reuse of `ThreeHostsDemoCore.CounterApp` inside the WASI target — which means the exact app used by the terminal and native SwiftUI hosts also runs unchanged in the browser.
+- `@swifttui/web` provides `createWebHostApp` and
+  `createWasmSceneRuntimeFactory`. A small bootstrap mounts a SwiftTUI scene on
+  a DOM element without a terminal emulator.
+- `@swifttui/build` uses `SwiftTUIWASI` and `WASIRunner` in manifest mode. It
+  packages the same `App` declaration as a static manifest and wasm file. The
+  WebHost can deploy these files as a static bundle.
+- The WASI target reuses `ThreeHostsDemoCore.CounterApp`. Thus, the terminal,
+  native SwiftUI, and browser hosts use the same app.
 
 ## What to copy when adopting this pattern
 
@@ -26,18 +38,28 @@ The minimum a host needs:
 4. Dependencies on `@swifttui/web` and `@swifttui/build`.
 5. The mount sequence from `src/frontend.ts:bootstrap()` — `createWebHostApp` + `createWasmSceneRuntimeFactory`.
 
-Everything else in `src/frontend.ts` is page chrome and state reporting around a viewport-sized mount. A host page can render whatever surrounding chrome it likes — only the `.terminal-host` mount and WebHost bootstrap are load-bearing.
+The other code in `src/frontend.ts` draws page controls and reports state around
+a viewport-sized mount. A host page can provide different controls. Only the
+`.terminal-host` mount and WebHost bootstrap are required.
 
 ## App relationship to three-hosts-demo
 
-`WebExample` imports `ThreeHostsDemoCore` and exposes its `CounterApp` through the stable `WebExampleApp` name. The terminal, native SwiftUI, and static browser hosts therefore compile the exact same `CounterView` and `CounterApp` source. Larger component and stress examples remain in `gallery`; the public browser embedding reference stays deliberately single-scene.
+`WebExample` imports `ThreeHostsDemoCore`. It exposes `CounterApp` through the
+stable `WebExampleApp` name. Thus, the terminal, native SwiftUI, and browser
+hosts compile the same `CounterView` and `CounterApp` source. The `gallery`
+package contains larger component and stress examples. The public browser
+reference contains one scene.
 
 ## Build
 
 This package has two cooperating parts:
 
-- **`TerminalApp/`** — a Swift package with a reusable `WebExampleScenes` library plus a thin `WebExampleApp` executable that calls `WASIRunner.run(WebExampleApp.self)`.
-- **`src/`** — a Bun host that invokes the Swift WASI build, serves the artifacts with COOP/COEP headers, and mounts `WebHost` against the manifest and wasm.
+- **`TerminalApp/`** — A Swift package with the reusable `WebExampleScenes`
+  library. A small `WebExampleApp` executable calls
+  `WASIRunner.run(WebExampleApp.self)`.
+- **`src/`** — A Bun host that starts the Swift WASI build and serves the
+  artifacts with COOP/COEP headers. It mounts `WebHost` with the manifest and
+  wasm file.
 
 ```bash
 bun install            # install @swifttui/web + @swifttui/build (release tarballs)
@@ -45,9 +67,14 @@ bun --cwd WebExample build   # dist/ (web bundle) + pages-dist/ (web bundle + Te
 bun --cwd WebExample start   # serve a production build
 ```
 
-`pages-dist/` is what the website repository deploys under `/webexample/` so the public site can iframe it as the live demo.
+The website repository deploys `pages-dist/` under `/webexample/`. The public
+site uses it as the live demo in an iframe.
 
-The WASI build flags and COOP/COEP header requirements are load-bearing and non-obvious; they are documented once in [`AGENTS.md`](AGENTS.md) and captured in the build script (`src/build-terminal.ts`). See the SwiftTUI package [`docs/DEVELOPMENT.md`](https://github.com/SwiftTUI/swift-tui/blob/main/docs/DEVELOPMENT.md) for the canonical toolchain story (Swift 6.3.3 + the `swift-6.3.3-RELEASE_wasm` SDK, via `swiftly`).
+The WASI build flags and COOP/COEP headers are required. [`AGENTS.md`](AGENTS.md)
+describes them, and `src/build-terminal.ts` implements them. See the SwiftTUI
+package [`docs/DEVELOPMENT.md`](https://github.com/SwiftTUI/swift-tui/blob/main/docs/DEVELOPMENT.md)
+for the toolchain requirements. They include Swift 6.3.3,
+`swift-6.3.3-RELEASE_wasm`, and `swiftly`.
 
 ## Test
 
@@ -55,7 +82,8 @@ The WASI build flags and COOP/COEP header requirements are load-bearing and non-
 bun test --cwd WebExample
 ```
 
-Browser-integration specs (Playwright) run separately via `bun --cwd WebExample run test:browser`.
+Run the Playwright browser-integration specifications separately with
+`bun --cwd WebExample run test:browser`.
 
 ## See also
 

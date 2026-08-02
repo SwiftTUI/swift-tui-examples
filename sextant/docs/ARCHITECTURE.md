@@ -2,8 +2,8 @@
 
 Sextant is a read-only SwiftTUI application with one semantic state owner:
 `@MainActor BrowserModel`. Views render `BrowserState` and translate input or
-pointer events into `BrowserAction`; they do not own filesystem, preview,
-search, or watcher lifecycles.
+pointer events into `BrowserAction`. They do not own filesystem, preview,
+search, or directory-watch lifecycles.
 
 ## Browser domain
 
@@ -14,20 +14,20 @@ cached directory snapshots.
 
 `BrowserLayoutPolicy` selects a bounded surface window before `MillerLayout`
 measures children. At most two browser columns and one preview surface are
-composed, independent of trail depth. The window only ever looks backwards —
-parent and active — so the trail node the model prefetches for the selected
-directory stays off screen until the user advances into it.
+composed, independent of trail depth. The window looks only at the parent and
+active nodes. Thus, the prefetched node for a selected directory remains off
+screen until the user enters it.
 
 ## Filesystem
 
 `FileSystemClient` is the only listing/metadata/prefix seam. The live adapter
-retains typed failures and filesystem kinds; the in-memory adapter makes model
+retains typed failures and filesystem kinds. The in-memory adapter makes model
 tests deterministic.
 
-`DirectoryStore` limits reads to four, caches at most 64 snapshots and 50,000
-items, pins the visible window, and cancels or supersedes abandoned requests.
-Watcher events invalidate store entries and ask the model to refresh; they
-never mutate state directly.
+`DirectoryStore` permits four reads at one time. It caches at most 64 snapshots
+and 50,000 items. It pins the visible window and cancels abandoned requests.
+Directory-watch events invalidate store entries and request a model refresh.
+They do not change state directly.
 
 ## Preview
 
@@ -49,8 +49,8 @@ runtime-owned command, so configuration rejects `application.quit` overrides
 instead of presenting a binding the runtime cannot honor.
 
 Configuration and persistent state use versioned Codable values with atomic
-same-directory writes. Handoff uses argv arrays and a tested POSIX-word lexer;
-no action evaluates shell source. External preview templates require `{path}` as
+same-directory writes. Handoff uses argv arrays and a tested POSIX-word lexer.
+No action evaluates shell source. External preview templates require `{path}` as
 a standalone argv element, and every adapter failure retains the built-in
 preview.
 

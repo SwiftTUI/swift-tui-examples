@@ -1,34 +1,34 @@
 # AGENTS.md
 
-Guidance for agentic assistants working in **WebExample**. Keep this concise;
-[`README.md`](README.md) is the full reference.
+Guidance for agentic assistants working in **WebExample**. Keep this file
+concise. [`README.md`](README.md) is the full reference.
 
 ## What this is
 
-The **reference embedding pattern** for SwiftTUI in a Bun-served browser app. A
-real SwiftTUI `App` is built for WASI and mounted onto a canvas via
-`@swifttui/web` — there is **no terminal-emulator dependency**. The public
-website iframes this as the live demo; keep this package small and focused on
-the embedding contract.
+This package contains the **reference embedding pattern** for SwiftTUI in a
+Bun-served browser app. The build compiles a real SwiftTUI `App` for WASI.
+`@swifttui/web` mounts the app on a canvas. This package has **no terminal
+emulator dependency**. The public website uses this package for the live demo.
+Keep the package small and focused on the embedding contract.
 
 Two cooperating parts:
 
-- **`TerminalApp/`** — a Swift package: a stable `WebExampleApp` alias for the
-  shared `ThreeHostsDemoCore.CounterApp` + a thin executable that calls
+- **`TerminalApp/`** — A Swift package with a stable `WebExampleApp` alias for
+  the shared `ThreeHostsDemoCore.CounterApp`. A small executable calls
   `WASIRunner.run(...)`.
-- **`src/`** — a Bun host that runs the Swift WASI build, serves the artifacts
+- **`src/`** — A Bun host that runs the Swift WASI build, serves the artifacts
   with COOP/COEP headers, and mounts `WebHost`. The load-bearing bootstrap is
   in [`src/frontend.ts`](src/frontend.ts).
 
-Depends on `@swifttui/web` and `@swifttui/build`. Pre-public source checkouts
-may use workspace deps, but the public cutover should use npm versions or
-public release tarballs.
+The package depends on `@swifttui/web` and `@swifttui/build`. Pre-public source
+checkouts can use workspace dependencies. Public releases must use npm versions
+or public release tarballs.
 
 ## Toolchains
 
-- **Bun** for the web app, bundler, and test runner.
-- **`swiftly`** Swift 6.3.3 + the `swift-6.3.3-RELEASE_wasm` SDK for the WASI
-  build. Use `swiftly run swift ...`, not bare `swift`.
+- Use **Bun** for the web app, bundler, and test runner.
+- Use **`swiftly`** Swift 6.3.3 and the `swift-6.3.3-RELEASE_wasm` SDK for the
+  WASI build. Use `swiftly run swift ...`. Do not use bare `swift`.
 
 ## Commands
 
@@ -46,17 +46,17 @@ bun run test:browser   # Playwright browser-integration specs (*.browser.ts)
 - **WASI build flags are load-bearing.** The release build needs
   `-Xswiftc -Osize` **plus**
   `-Xswiftc -Xfrontend -Xswiftc -disable-llvm-merge-functions-pass`. Plain `-O`
-  (and on some Darwin runners even plain `-Osize`) emits merged outlined copy
-  helpers whose signatures exceed the browser WebAssembly API's 1000-parameter
-  limit, causing `WebAssembly.Module doesn't parse` at startup. The canonical
+  (and on some Darwin runners, plain `-Osize`) emits merged outlined copy
+  helpers. Their signatures exceed the browser WebAssembly API's 1000-parameter
+  limit. This causes `WebAssembly.Module doesn't parse` at startup. The canonical
   command lives in the build script (`src/build-terminal.ts` / `TerminalApp`).
 - **COOP/COEP headers are required.** The host must serve
   `Cross-Origin-Opener-Policy: same-origin` and
   `Cross-Origin-Embedder-Policy: require-corp` so `SharedArrayBuffer`-backed
-  stdin works. HMR is disabled — refresh after frontend edits.
+  stdin operates. HMR is disabled. Refresh after frontend edits.
 
 ## Conventions
 
-`AGENTS.md` is the real file; `CLAUDE.md` is a symlink to it. Edit `AGENTS.md`.
+`AGENTS.md` is the real file. `CLAUDE.md` is a symlink to it. Edit `AGENTS.md`.
 See the SwiftTUI package `docs/DEVELOPMENT.md` for the full
 toolchain/environment story.

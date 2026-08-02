@@ -29,9 +29,9 @@ The gate asserts:
 | Preview selection-to-ready | 250 ms |
 | Replacement-to-old-child termination | 900 ms |
 
-The test prints the observed values for every run. These limits are behavioral
-acceptance budgets, not claims that debug-build microbenchmarks compare across
-machines.
+The test prints the values from each run. These limits are behavior-acceptance
+budgets. They do not claim that debug-build microbenchmarks are comparable
+across machines.
 
 Accepted 2026-07-27 reference-machine run:
 
@@ -44,8 +44,8 @@ Accepted 2026-07-27 reference-machine run:
 | Preview selection-to-ready | 126.838 ms |
 | Replacement-to-old-child termination | 5.551 ms |
 
-Large directories retain their complete model snapshot while `FileColumn`
-authors 48 rows for ordinary terminal heights and grows only to the viewport
-height plus eight overscan rows for taller terminals. Height-preserving prefix
-and suffix spacers retain absolute scroll geometry without making committed
-frame work proportional to the entry count.
+Large directories retain their complete model snapshot. For ordinary terminal
+heights, `FileColumn` creates 48 rows. For taller terminals, it creates the
+viewport height plus eight overscan rows. Prefix and suffix spacers preserve
+the height and absolute scroll geometry. Thus, committed-frame work does not
+increase with the entry count.

@@ -2,13 +2,12 @@
 
 <!-- Generated from Sources/GIFEditorUI/KeyBindingCatalog.swift by Scripts/generate-keybindings-doc.sh. Do not edit by hand. -->
 
-Focused editor commands use bare keys where they map to ordinary pixel-editor
-actions. Press `?` in the editor for the same table without leaving the
-terminal.
+Focused editor commands use bare keys for standard pixel-editor actions.
+Press `?` to open this table in the editor.
 
 The bindings avoid terminal-ambiguous chords such as `Ctrl+Shift+letter`,
-`Ctrl+digit`, `Ctrl+[` / `Ctrl+]`, and `Alt+[`, because the current terminal
-input path does not receive those as distinct key presses.
+`Ctrl+digit`, `Ctrl+[` / `Ctrl+]`, and `Alt+[`.
+The terminal input path does not receive these as distinct key presses.
 
 ## Tools
 
@@ -28,26 +27,25 @@ input path does not receive those as distinct key presses.
 | `]`             | Increase brush size                                       |
 | `f`             | Filled shapes on / off                                    |
 | `s`             | Mirror-X symmetry for pen and eraser strokes              |
-| `Space / Enter` | Apply the current tool at the cursor (confirms a marquee) |
+| `Space / Enter` | Apply the current tool at the cursor (complete a marquee) |
 | `Esc`           | Clear selection                                           |
 
-The canvas also supports direct pointer editing. Drag with **Pen** or
-**Eraser** to paint connected strokes, drag with **Marquee** to select a
-rectangle, drag with **Gradient**, **Rectangle** or **Ellipse** to span the
-shape between the drag endpoints, and click with **Fill** or **Eyedropper** to
-target a single pixel. Hosts that report terminal-pixel pointer locations can
-address the top and bottom half of a cell independently; cell-only hosts fall
-back to the top half of each terminal cell.
+The canvas supports direct pointer editing. Drag with **Pen** or **Eraser** to
+paint a connected stroke. Drag with **Marquee** to select a rectangle. Drag
+with **Gradient**, **Rectangle**, or **Ellipse** to span the drag endpoints.
+Click with **Fill** or **Eyedropper** to select one pixel. Some hosts report
+pointer locations in terminal pixels. These hosts can address each half of a
+cell independently. A cell-only host uses the top half of each terminal cell.
 
-**Rectangle** and **Ellipse** anchor on the first press and paint on the
-second, exactly as the gradient does, and either drag order spans the same
-cells. The brush size is the outline's thickness until `f` fills them, and an
-active marquee clips them the way it clips a fill.
+**Rectangle**, **Ellipse**, and **Gradient** set an anchor on the first press.
+They paint on the second press. Both drag directions span the same cells. The
+brush size sets the outline thickness. Press `f` to fill the shape. An active
+marquee clips shapes and fills.
 
-**Mirror-X** is a modifier on drawing rather than a tool: while it is on, every
-pen and eraser stroke is laid twice, once as drawn and once reflected across
-the canvas's vertical centre line. The axis is the canvas, not the selection,
-so moving a marquee cannot move the line a drawing was made symmetric about.
+**Mirror-X** modifies drawing and is not a tool. When it is on, each pen and
+eraser stroke is painted twice. The second stroke is reflected across the
+vertical center line of the canvas. The canvas sets the reflection axis. A
+marquee does not move this axis.
 
 ## Transform
 
@@ -58,21 +56,18 @@ so moving a marquee cannot move the line a drawing was made symmetric about.
 | `R`      | Rotate a quarter turn clockwise                |
 | `L`      | Rotate a quarter turn counter-clockwise        |
 
-Flip, rotate and cut act on the marquee selection when there is one and on the
-whole current layer when there is not — the same rule `Ctrl+C` follows, so all
-four verbs answer "what if nothing is selected?" the same way.
+Flip, rotate, cut, and `Ctrl+C` use the same selection rule. If a marquee
+exists, they use its selection. Otherwise, they use the complete current layer.
 
-A quarter turn lands a `w × h` selection in an `h × w` one: the canvas is fixed
-but the selection is not, so the marquee moves with its pixels rather than the
-pixels being clipped to fit it. The turned region keeps the old one's top-left
-corner, nudged back on if that would hang it off an edge — corner-pinned rather
-than centred because a region whose sides sum to an odd number has its centre
-on a half cell, and rounding that half cell would drift the rect a place every
-half turn. So four turns are the identity and the two directions are inverses,
-for any region. A turn that cannot fit at all — which for the whole canvas
-means any non-square one — falls back to rotating about the centre and
-clipping, because when something must be lost the edges are the better thing to
-lose. Undo brings those pixels back.
+A quarter turn maps a `w × h` selection to an `h × w` selection. The canvas
+size does not change. The marquee moves with its pixels, so the pixels are not
+clipped to the old selection. The rotated region keeps its old top-left corner.
+If the region crosses an edge, the app moves it back onto the canvas. This
+corner-pinned rule prevents half-cell rounding drift for odd dimensions. Four
+turns restore the region. Clockwise and counterclockwise turns are inverse
+operations. If a rotated selection cannot fit, the app rotates it around the
+center and clips the edges. A non-square canvas uses this path for a
+whole-canvas turn. Undo restores clipped pixels.
 
 ## Cursor
 
@@ -99,12 +94,12 @@ lose. Undo brings those pixels back.
 | `Alt+↑`  | Pan the viewport up half a screen    |
 | `Alt+↓`  | Pan the viewport down half a screen  |
 
-Every cursor move keeps the cursor inside the visible rect, so keyboard drawing
-can't walk off-screen. Panning is the one action that deliberately does *not*
-follow the cursor — looking somewhere the cursor is not is its entire purpose.
+Each cursor move keeps the cursor inside the visible rectangle. Thus, keyboard
+drawing cannot move off-screen. Panning does not follow the cursor. It lets you
+view a different part of the canvas.
 
-The digit row stays consistent: bare digits pick colors, `Alt`-digits touch
-frame timing, and the two symbols beside them scale the view.
+Bare digits select colors. `Alt`-digits change frame timing. The two adjacent
+symbols change the view scale.
 
 ## Frames / Timeline
 
@@ -128,39 +123,37 @@ frame timing, and the two symbols beside them scale the view.
 | `)`      | Toggle looping forever (the format's zero)                                      |
 | `Alt+P`  | Toggle playback                                                                 |
 
-The `,` / `.` key pair is the timeline's: `Alt` walks the selection between
-frames, the shifted spellings `<` / `>` move the current frame one slot, and
-the bare keys send it all the way to either end.
+The `,` / `.` key pair controls the timeline. With `Alt`, the keys move the
+selection between frames. The shifted `<` / `>` keys move the current frame by
+one position. The bare keys move it to an end.
 
-The loop count is the *exported file's*, not the editor's preview: it is what
-the GIF's `NETSCAPE2.0` block will declare. The format spells "forever" as
-zero, which is why `)` — the shifted `0` — is what toggles it, and why the
-readout says the word rather than the digit.
+The loop count belongs to the exported file, not the editor preview. It sets
+the GIF `NETSCAPE2.0` block. The format uses zero for "forever". Thus, `)`, the
+shifted `0`, toggles this value. The readout shows the word instead of the
+digit.
 
 ## Onion Skin
 
-| Shortcut | Action                                                      |
-| -------- | ----------------------------------------------------------- |
-| `o`      | Toggle onion skin                                           |
-| `O`      | Cycle which neighbours are ghosted (both / previous / next) |
-| `{`      | One fewer ghost frame per side                              |
-| `}`      | One more ghost frame per side (max 3)                       |
+| Shortcut | Action                                                     |
+| -------- | ---------------------------------------------------------- |
+| `o`      | Toggle onion skin                                          |
+| `O`      | Cycle which neighbors are ghosted (both / previous / next) |
+| `{`      | One fewer ghost frame per side                             |
+| `}`      | One more ghost frame per side (max 3)                      |
 
-Onion skin ghosts the neighbouring frames *underneath* the current one, so the
-frame you are drawing is never altered — ghosts show through only where it is
-transparent. Earlier frames are tinted cool and later ones warm, and each
-further ghost is fainter, so both direction and distance stay readable in a
-terminal's palette where dimming alone would not be.
+Onion skin shows neighboring frames *under* the current frame. It does not
+change the current frame. Ghosts are visible only through transparent pixels.
+Earlier frames have a cool tint, and later frames have a warm tint. More
+distant ghosts are fainter. Thus, the terminal palette shows direction and
+distance.
 
-Ghosting does not wrap: at the first frame there is nothing before it and at
-the last nothing after. Wrapping would draw the first frame against content the
-whole animation away at exactly the intensity a real neighbour gets, with no
-way to tell the two apart.
+Ghosting does not wrap. The first frame has no previous ghost. The last frame
+has no next ghost. This rule prevents a distant end frame from looking like an
+adjacent frame.
 
-Onion skin is display only. It never reaches the eyedropper, the exported GIF
-or the saved project, and toggling it does not mark the document dirty.
-Changing the ghost count or the ghosted side turns it on, because neither key
-has any other visible effect.
+Onion skin changes only the display. It does not affect the eyedropper,
+exported GIF, or saved project. Toggling it does not mark the document as
+changed. A change to the ghost count or side turns onion skin on.
 
 ## Layers
 
@@ -195,11 +188,11 @@ has any other visible effect.
 | `Alt+1…Alt+9` | Pick palette slot 1–9 as secondary        |
 | `Ctrl+P`      | Open the palette editor (Edit → Palette…) |
 
-The palette editor edits slot colors (hex or R/G/B), adds and removes slots,
-sorts by brightness, compacts duplicates, and imports Lospec `.hex` / GIMP
-`.gpl` files. Removing, sorting, compacting and importing renumber slots; each
-is a single undoable edit that renumbers the artwork with them, so nothing
-recolors. Slot 0 is the transparency sentinel and never moves.
+The palette editor changes slot colors in hex or R/G/B. It adds, removes,
+sorts, and compacts slots. It also imports Lospec `.hex` and GIMP `.gpl` files.
+Remove, sort, compact, and import operations renumber the slots. Each operation
+is one undoable edit. The edit also renumbers the artwork, so its colors do not
+change. Slot 0 is the transparency sentinel and never moves.
 
 ## File / App
 
@@ -213,15 +206,14 @@ recolors. Slot 0 is the transparency sentinel and never moves.
 | `Ctrl+R`     | Resize canvas… (presets 16…256, or any width × height) |
 | `Ctrl+Q`     | Quit — prompts when there are unsaved changes          |
 
-`Save` writes the layered `.halfcell` project back to its own path, and falls
-through to `Save As…` when the document came from a GIF — writing a layered
-document over an export would flatten every layer under a verb that promises
-the opposite. `Export GIF…` is the verb that *does* flatten, and it leaves the
-document unsaved. `New…`, `Open…` and quitting all pass through the same
-unsaved-changes guard.
+`Save` writes a layered `.halfcell` project to its current path. If the
+document came from a GIF, `Save` opens `Save As…`. Thus, `Save` cannot flatten
+a layered document without notice. `Export GIF…` flattens the document and
+leaves it unsaved. `New…`, `Open…`, and quit use the same unsaved-changes
+guard.
 
-The 256-per-axis limit is a New/Resize UI cap, not a format one: the project
-format stores arbitrary dimensions and the loader opens any GIF it is given.
+The New and Resize interfaces limit each axis to 256 pixels. The project format
+has no such limit. The loader opens GIFs with other dimensions.
 
 ## Help
 

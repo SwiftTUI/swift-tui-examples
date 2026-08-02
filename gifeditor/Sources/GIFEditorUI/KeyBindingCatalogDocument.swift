@@ -24,13 +24,12 @@ extension KeyBindingCatalog {
       "",
       generatedFileBanner,
       "",
-      "Focused editor commands use bare keys where they map to ordinary pixel-editor",
-      "actions. Press `?` in the editor for the same table without leaving the",
-      "terminal.",
+      "Focused editor commands use bare keys for standard pixel-editor actions.",
+      "Press `?` to open this table in the editor.",
       "",
       "The bindings avoid terminal-ambiguous chords such as `Ctrl+Shift+letter`,",
-      "`Ctrl+digit`, `Ctrl+[` / `Ctrl+]`, and `Alt+[`, because the current terminal",
-      "input path does not receive those as distinct key presses.",
+      "`Ctrl+digit`, `Ctrl+[` / `Ctrl+]`, and `Alt+[`.",
+      "The terminal input path does not receive these as distinct key presses.",
     ]
 
     for section in populatedSections {

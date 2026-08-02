@@ -301,7 +301,7 @@ public struct CommandCatalog: Sendable {
     var lines = [
       "# Sextant key bindings",
       "",
-      "This file is generated from `CommandCatalog`.",
+      "`CommandCatalog` generates this file.",
       "",
     ]
     for section in CommandSection.allCases {

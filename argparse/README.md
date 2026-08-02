@@ -1,6 +1,8 @@
 # Argparse
 
-A focused command-line integration example showing how a SwiftTUI `App` owns its own consumer flags while exposing the framework's standard runtime options — small enough that the argument-parsing shape is easy to copy. Runs in the terminal (CLI).
+This focused command-line example shows how a SwiftTUI `App` owns app flags. It
+also exposes the standard framework runtime options. The example runs in the
+terminal as a CLI.
 
 ## Run
 
@@ -15,14 +17,20 @@ swiftly run swift run --package-path argparse argparse-demo --widgets 8 --show-i
 
 ## Demonstrates
 
-- `SwiftTUI.App` command conformance through `import SwiftTUI` — which means an app type doubles as a Swift Argument Parser command with no extra boilerplate.
-- Consumer-defined flags such as `--widgets` and `--show-ids` coexist with the framework's options — your app keeps its own argument surface.
-- Standard SwiftTUI flags (`--no-color`, `--ascii`, `--reduce-motion`, `--debug`, `--json`, and accessibility options) are exposed automatically via `SwiftTUIOptions`.
-- The built-in completions subcommand from Swift Argument Parser ships for free — shell completions without hand-writing them.
+- `import SwiftTUI` gives `SwiftTUI.App` command conformance. An app type is also
+  a Swift Argument Parser command without additional code.
+- App flags such as `--widgets` and `--show-ids` work with the framework
+  options. The app keeps its own argument surface.
+- `SwiftTUIOptions` automatically exposes the standard SwiftTUI flags. These
+  include `--no-color`, `--ascii`, `--reduce-motion`, `--debug`, `--json`, and
+  accessibility options.
+- Swift Argument Parser provides the built-in completions subcommand. You do
+  not have to write shell completions.
 
 ## Test
 
-No test target. This example is covered by the root command-surface tests and by the source-level shape documented in the root README.
+The package has no test target. The root command-surface tests cover this example. The root
+README describes its source structure.
 
 ## See also
 

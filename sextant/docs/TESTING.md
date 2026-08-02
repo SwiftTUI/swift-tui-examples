@@ -10,22 +10,22 @@ Run performance separately:
 swiftly run swift test --filter SextantPerformanceTests
 ```
 
-The performance lane synchronously renders committed frames on the main actor.
-Isolating it prevents test-runner contention from inflating its measurements or
-delaying unrelated main-actor cancellation checks.
+The performance lane renders committed frames synchronously on the main actor.
+An isolated run prevents test-runner contention. This contention can increase
+measurements or delay unrelated main-actor cancellation checks.
 
-The real-terminal journey uses production async rendering and verifies input,
+The real-terminal journey uses production async rendering. It covers input,
 resize, preview replacement, host Escape interception, and bounded shutdown. It
-owns a PTY and child processes, so run it in an isolated test process:
+owns a PTY and child processes. Run it in an isolated test process:
 
 ```sh
 SEXTANT_REAL_PTY_TESTS=1 swiftly run swift test \
   --filter SextantRealTerminalJourneyTests
 ```
 
-The performance suite measures selection and filtering through committed
-SwiftTUI renders, records the other end-to-end slices, and keeps 10,000-entry
-selection, filtering, layout, directory, and preview work within the budgets in
-the checked-in [performance baseline](PERFORMANCE.md).
+The performance suite measures selection and filters through committed SwiftTUI
+renders. It records the other end-to-end segments. The
+[performance baseline](PERFORMANCE.md) contains budgets for 10,000-entry
+selection, filters, layout, directory, and preview work.
 
 Run `Scripts/check.sh` for the release-shaped native gate.

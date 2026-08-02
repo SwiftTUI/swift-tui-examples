@@ -3,13 +3,13 @@
 `mrkdwn` is a responsive terminal Markdown reader built as an advanced
 [SwiftTUI](https://github.com/SwiftTUI/swift-tui) example. It compiles
 CommonMark and GitHub-flavored Markdown with
-[`swift-markdown`](https://github.com/swiftlang/swift-markdown), renders
-Mermaid fences with `MrkdwnMermaid` — a portable, dependency-free terminal
-Mermaid renderer vendored into this example (see
+[`swift-markdown`](https://github.com/swiftlang/swift-markdown). It renders
+Mermaid fences with the vendored `MrkdwnMermaid` renderer. This portable
+renderer has no dependencies. See
 [`Sources/MrkdwnMermaid/NOTICE`](Sources/MrkdwnMermaid/NOTICE) for its Apache-2.0
-provenance and [`SYNTAX.md`](Sources/MrkdwnMermaid/SYNTAX.md) for the supported
-diagram families) — and keeps all navigation, search, reload, and resource state
-behind one observable model.
+provenance. [`SYNTAX.md`](Sources/MrkdwnMermaid/SYNTAX.md) lists the supported
+diagram families. One observable model owns navigation, search, reload, and
+resource state.
 
 ## Run it
 
@@ -27,34 +27,33 @@ mrkdwn [FILE|-] [--config PATH] [--no-config] [--watch|--no-watch]
                  [--allow-remote-images] [--print-default-theme]
 ```
 
-A missing `FILE` selects `README.md` in the launch directory. Regular files
-watch for changes by default; standard input is read once. Source is UTF-8 and
-capped at 16 MiB. Source and explicit-theme failures are printed before
-SwiftTUI takes over the terminal.
+If `FILE` is absent, the app selects `README.md` in the launch directory. By
+default, the app watches regular files for changes. It reads standard input
+once. Source text is UTF-8 and has a 16 MiB limit. The app prints source and
+explicit-theme failures before SwiftTUI controls the terminal.
 
-For an interactive `mrkdwn -`, the app consumes the document from standard
-input and then scopes terminal input to the process's controlling `/dev/tty`;
-the original descriptor is restored during teardown. This means an interactive
-stdin launch needs a controlling terminal even though the Markdown arrives
-through a pipe. Non-TTY output uses SwiftTUI's render-once path and does not
-need that handoff.
+For an interactive `mrkdwn -`, the app reads the document from standard input.
+Then it reads terminal input from the process `/dev/tty`. During shutdown, it
+restores the original descriptor. Thus, an interactive standard-input launch
+requires a controlling terminal. The Markdown can still arrive through a pipe.
+Non-TTY output uses the SwiftTUI render-once path and does not require this
+handoff.
 
-Remote images are disabled by default. Opt in with
+Remote images are disabled by default. Enable them with
 `--allow-remote-images`. Remote loads accept only credential-free HTTP(S)
-destinations on standard ports whose authority is a literal public IPv4 or
-IPv6 address. DNS hostnames are rejected before URLSession starts so a
-rebinding hostname cannot send a blind request to a local service. Every
-redirect must remain a literal public address, and URLSession's collected
-transaction metrics must identify the same class of direct public-network
-peer before any buffered response is accepted. Loopback, private, link-local,
-hostname, proxy, and Private Relay transactions are rejected.
+destinations on standard ports. The authority must be a literal public IPv4 or
+IPv6 address. The app rejects DNS hostnames before URLSession starts. Thus, DNS
+rebinding cannot send a request to a local service. Each redirect must remain a
+literal public address. Before the app accepts a response, URLSession metrics
+must identify a direct public-network peer. The app rejects loopback, private,
+link-local, hostname, proxy, and Private Relay transactions.
 Local image and theme inputs must be regular files. Local and remote PNG/JPEG
 payloads still pass encoded, dimension, and decoded-size checks before
 SwiftTUI sees them.
 
-Search runs outside the UI actor and retains at most the first 1,000 matches
-from a bounded document scan. The search overlay and status line show a `+`
-when additional matches were intentionally discarded.
+Search runs outside the UI actor. A bounded document scan retains the first
+1,000 matches. If the scan discards more matches, the search overlay and status
+line show a `+`.
 
 ## Keys
 
@@ -65,17 +64,17 @@ when additional matches were intentionally discarded.
 | `g` / `G`, Home / End | Top / bottom |
 | `]` / `[` | Next / previous heading |
 | `t` | Toggle table of contents |
-| `/` | Search; `n` / `N` moves between matches |
+| `/` | Search. `n` / `N` moves between matches |
 | `b` / `f` | Back / forward local Markdown history |
 | `r` | Reload document and theme |
-| `m` / `Alt-M` | Toggle the focused/first Mermaid source; reveal the next hidden Mermaid source |
+| `m` / `Alt-M` | Toggle the focused or first Mermaid source. Reveal the next hidden Mermaid source |
 | `?` | Help |
 | `q`, Control-C | Quit |
 
-Tab and Shift-Tab retain SwiftTUI's normal focus traversal for links and
-controls. Enter activates the focused item. When nested view composition does
-not expose a Mermaid diagram through that traversal, `Alt-M` globally reveals
-the next hidden diagram in deterministic authored order.
+Tab and Shift-Tab use the standard SwiftTUI focus traversal for links and
+controls. Enter activates the focused item. If nested views hide a Mermaid
+diagram from this traversal, `Alt-M` reveals the next hidden diagram. It uses
+the authored order.
 
 ## Theme
 
@@ -91,9 +90,9 @@ swiftly run swift run --package-path mrkdwn mrkdwn --print-default-theme \
 Lookup order is `--no-config`, `--config PATH`, an absolute nonempty
 `$XDG_CONFIG_HOME/mrkdwn/theme.toml`, then
 `~/.config/mrkdwn/theme.toml`. A missing implicit file selects the built-in
-theme; a missing explicit file is an error.
+theme. A missing explicit file is an error.
 
-The decoder intentionally supports only the profile printed by
+The decoder supports only the profile printed by
 `--print-default-theme`: TOML `version = 1`, comments, basic quoted strings,
 and the `[theme]` / `[theme.mermaid]` tables. Unknown or duplicate keys,
 unsupported TOML constructs, and colors other than `#RRGGBB` fail with a
@@ -102,16 +101,16 @@ complete schema.
 
 ## Markdown and Mermaid
 
-The viewer handles headings, paragraphs, breaks, nested inline styles, code,
-links and autolinks, standalone and mixed images, quotes, ordered/unordered
-lists, tasks, fenced/indented code, rules, GFM tables, and literal raw HTML.
+The viewer supports headings, paragraphs, breaks, inline styles, code, links,
+autolinks, images, and quotes. It also supports ordered and unordered lists,
+tasks, fenced and indented code, rules, GFM tables, and literal raw HTML.
 Unknown nodes produce a visible source fallback and compiler diagnostic.
 
-A normalized `mermaid` code fence is rendered asynchronously. MrkdwnMermaid
-provides semantic cells and intrinsic/minimum sizing; the app preserves wide
-grapheme leaders and continuation columns when mapping them into a
-SwiftTUI `ForeignSurface`. Unsupported or malformed diagrams show their source
-and a local diagnostic without blanking the document.
+The app renders a normalized `mermaid` code fence asynchronously.
+MrkdwnMermaid provides semantic cells and intrinsic and minimum sizes. The app
+preserves wide grapheme leaders and continuation columns in a SwiftTUI
+`ForeignSurface`. Unsupported or malformed diagrams show their source and a
+local diagnostic. They do not clear the document.
 
 ## Test it
 
@@ -123,15 +122,14 @@ swiftly run swift build -c release --package-path mrkdwn
 ```
 
 The focused suite covers the Markdown matrix, TOML and XDG contracts, links,
-image headers and bounds, cache eviction, model actions, responsive
-60/80/120/180-column rendering, Mermaid sizing, and Unicode continuation-cell
-bridging. The environment-gated lane additionally owns real PTYs and runs the
-rebuilt executable through document history, search, nested Mermaid keyboard
-traversal/source reveal,
-atomic live reload, invalid-theme recovery, resize, platform link-opening
-failure, invalid preflight, and clean exit. It also proves standard-input
-descriptor handoff and restoration; the examples gate enables it on macOS and
-Linux.
+image bounds, cache eviction, and model actions. It also covers responsive
+60/80/120/180-column rendering, Mermaid sizes, and Unicode continuation cells.
+The environment gate owns real PTYs. It runs the rebuilt executable through
+history, search, and nested Mermaid keyboard traversal. It also covers source
+reveal, atomic reload, invalid-theme recovery, resize, link failures, invalid
+preflight, and clean exit. The gate makes sure that standard-input descriptor
+handoff and restoration succeed. The examples gate enables this lane on macOS
+and Linux.
 
 ## Capture it
 
@@ -144,65 +142,65 @@ swiftly run swift run --package-path mrkdwn mrkdwn \
   --no-config --no-watch
 ```
 
-Wait for the Mermaid surface to replace its pending state before capturing.
-Keep remote images disabled, include the terminal name and `swift --version`
-with published captures, and state any dimensions other than 120×40. Use the
-same command at 60×16 when capturing the compact layout.
+Before you capture, wait for the Mermaid surface to replace its pending state.
+Keep remote images disabled. Include the terminal name and `swift --version`
+with published captures. If the dimensions are not 120×40, state the actual
+dimensions. For the compact layout, use the same command at 60×16.
 
 ## Performance envelope
 
-Timing assertions come in two tiers. Every measurement below is checked against
-a **ceiling** everywhere, including the native Linux gate: ceilings sit at ~5×
-their budget, so breaching one means an order-of-magnitude regression — a lost
-cache, an accidental O(n²) — rather than a slow machine. The tight **budgets**
-themselves are **opt-in** under `MRKDWN_PERFORMANCE_BUDGETS=1`, because shared
-CI runners land 2–3× slower than the calibration machine and enforcing a
-developer-machine number there reports hardware noise as a product regression.
-Run the budget lane on a quiet machine. Durations are always printed either way,
-and every *structural* assertion in the same tests — node counts, geometry
-recomputation counts, visible rows, scroll positions, cache bounds — runs
-everywhere.
+Timing assertions have two tiers. Every environment makes sure that each
+measurement is below a **ceiling**. The native Linux gate also uses this
+ceiling. A ceiling is
+approximately five times its budget. A result above a ceiling indicates a
+large regression, such as a lost cache or accidental O(n²) behavior. Tight
+**budgets** are optional under `MRKDWN_PERFORMANCE_BUDGETS=1`. Shared CI runners
+are two to three times slower than the calibration machine. Thus, CI does not
+apply developer-machine budgets. Run the budget lane on a quiet machine. Tests
+always print durations. All environments apply limits to node counts, geometry
+computations, visible rows, scroll positions, and cache size.
 
-The reference run was an Apple M5 Max Mac17,7 with 128 GiB RAM, macOS 27, and
-Swift 6.3.3. The Phase 4 debug baseline compiled the 1 MiB / 10,000-block
-document in about 0.10 seconds, against a 0.20-second budget. The settled
-geometry path took about 0.60 seconds for its first 10,000-block layout and
-0.8 milliseconds for 1,000 cached scroll updates; their budgets are 1.20 seconds
-and 1.5 milliseconds.
+The reference machine was an Apple M5 Max Mac17,7 with 128 GiB RAM, macOS 27,
+and Swift 6.3.3. The Phase 4 debug baseline compiled a 1 MiB, 10,000-block
+document in approximately 0.10 seconds. Its budget is 0.20 seconds. The settled
+geometry path took approximately 0.60 seconds for the first 10,000-block
+layout. It took 0.8 milliseconds for 1,000 cached scroll updates. The budgets
+are 1.20 seconds and 1.5 milliseconds.
 
-The root-shaped 80×24 table fixture compiled 500×20 cells in about 0.064
-seconds, computed wrapped metrics in 0.151 seconds, painted its first frame in
-0.62 seconds, and repainted after combined outer-vertical and inner-horizontal
-scrolling in 0.85 seconds. Their budgets are 0.130, 0.300, 1.230, and 1.700
-seconds respectively, and fewer than 1,250 render-pipeline nodes per table frame
-is checked unconditionally. Separate fixtures submit 100 Mermaid jobs and assert
-a peak of two, and insert 100 image payloads while asserting the 64-entry /
-64 MiB encoded cache bounds. Viewer admission and retained ready/error/loading
-states are capped at 128 resources; image execution admits four active and 64
-queued loads, with hidden work canceled. These are regression budgets, not
-user-facing speed claims.
+The root-shaped 80×24 table fixture compiled 500×20 cells in approximately
+0.064 seconds. It computed wrapped metrics in 0.151 seconds and painted the
+first frame in 0.62 seconds. A combined vertical and horizontal scroll caused
+a repaint in 0.85 seconds. The respective budgets are 0.130, 0.300, 1.230, and
+1.700 seconds. Each environment limits a table frame to fewer than 1,250 render
+nodes. Separate fixtures submit 100 Mermaid jobs and permit two active jobs.
+They also insert 100 image payloads. These fixtures make sure that the encoded
+cache stays within 64 entries and 64 MiB. Viewer admission and retained resource
+states have a limit of 128.
+Image execution permits four active loads and 64 queued loads. The app cancels
+hidden work. These are regression budgets, not user-facing speed claims.
 
 ## What to copy
 
 This is an advanced app, not a minimal tutorial. The useful boundaries to copy
 are:
 
-- compile third-party syntax once into app-owned `Sendable` values;
-- isolate effects and generation checks in one observable model;
-- negotiate foreign renderer width before constructing an exact-size
-  `ForeignSurface`; and
-- validate configuration and resource limits before handing data to views.
+- Compile third-party syntax once into app-owned `Sendable` values.
+- Isolate effects and generation checks in one observable model.
+- Negotiate the foreign-renderer width before you construct an exact-size
+  `ForeignSurface`.
+- Make sure that the configuration and resource limits are valid before you
+  give data to views.
 
 ## Current limitations
 
-- Markdown is read-only; task checkboxes are presentation only.
+- Markdown is read-only. Task checkboxes are presentation only.
 - Raw HTML is displayed literally and never executed.
 - Code has a language label but no syntax highlighting.
 - Mermaid support is MrkdwnMermaid's documented six-family subset, not
   Mermaid.js compatibility.
-- Bidirectional controls are rejected by MrkdwnMermaid; strong RTL text is
+- Bidirectional controls are rejected by MrkdwnMermaid. Strong RTL text is
   retained in logical source order with a fidelity warning.
-- Terminal image display depends on host attachment support; alt text remains
+- Terminal image display depends on host attachment support. Alt text remains
   visible for blocked or failed images.
 - Remote image loading intentionally does not operate through HTTP proxies or
   iCloud Private Relay because those transports hide the origin peer address.

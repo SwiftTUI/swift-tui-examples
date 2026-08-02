@@ -10,15 +10,19 @@ swiftly run swift run --package-path terminal-workspace terminal-workspace
 
 ## Demonstrates
 
-- `SwiftTUITerminalWorkspace` — which means a developer gets a ready-made tabbed, split-pane terminal workspace surface rather than hand-building one.
-- Retained terminal sessions with visible active-pane chrome and a `Ctrl+K` command palette — directional focus movement, splitting, zoom, and pane lifecycle out of the box.
-- Layout and command-metadata persistence to `~/.swift-tui-terminal-workspace.json`, restored on launch.
+- `SwiftTUITerminalWorkspace` provides a terminal workspace with tabs and split
+  panes.
+- Retained terminal sessions have visible active-pane controls and a `Ctrl+K`
+  command palette. The palette controls focus, splits, zoom, and the pane
+  lifecycle.
+- The example writes layout and command metadata to
+  `~/.swift-tui-terminal-workspace.json`. It restores this data at launch.
 
 ## Persistence
 
 The example persists layout and command metadata to
-`~/.swift-tui-terminal-workspace.json`. It intentionally restores fresh
-processes on launch; detach/reattach is future workspace-session work.
+`~/.swift-tui-terminal-workspace.json`. It restores new processes at launch.
+It does not support process detach and reattach.
 
 ## Controls
 
@@ -38,8 +42,8 @@ processes on launch; detach/reattach is future workspace-session work.
 swiftly run swift test --package-path terminal-workspace
 ```
 
-The focused test pins the initial dev/ops workspace shape and pane identifiers
-so the example remains useful as the workspace product evolves.
+The focused test makes sure that the initial development and operations
+workspace has the expected structure. It also covers the pane identifiers.
 
 ## See also
 

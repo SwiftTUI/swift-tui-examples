@@ -8,19 +8,23 @@
 swiftly run swift run --package-path WebHostExample WebHostExample --web
 ```
 
-Drop `--web` to run the same binary as a normal terminal program:
+Remove `--web` to run the same binary as a terminal program:
 
 ```bash
 swiftly run swift run --package-path WebHostExample WebHostExample
 ```
 
-The normal WebHost flags are available here, including `--port`, `--bind`, `--open`, and `--scene`.
+The example accepts the standard WebHost flags: `--port`, `--bind`, `--open`,
+and `--scene`.
 
 ## Demonstrates
 
-- The `SwiftTUI` convenience product's combined terminal/WebHost launcher — which means one import and one binary serve both the terminal and the browser, with no separate host wiring.
-- A single `WindowGroup` with an explicit scene identifier — which means the scene is addressable (e.g. via `--scene`) when hosted.
-- The default `--web` path without importing lower-level WebHost products — which means the browser runner ships through the public convenience surface, not internal modules.
+- The `SwiftTUI` convenience product provides a combined terminal and WebHost
+  launcher. One import and one binary serve both hosts.
+- One `WindowGroup` has an explicit scene identifier. The host can select this
+  scene with `--scene`.
+- The default `--web` path does not import lower-level WebHost products. The
+  browser runner uses the public convenience surface, not internal modules.
 
 ## Test
 
@@ -28,7 +32,8 @@ The normal WebHost flags are available here, including `--port`, `--bind`, `--op
 swiftly run swift test --package-path WebHostExample
 ```
 
-The test pins the intended package boundary: the example imports `SwiftTUI` and does not directly wire the lower-level WebHost runner.
+The test makes sure that the package boundary stays intact. The example imports
+`SwiftTUI` and does not connect the lower-level WebHost runner directly.
 
 ## See also
 

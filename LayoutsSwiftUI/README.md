@@ -8,13 +8,18 @@
 swiftly run swift run --package-path LayoutsSwiftUI layouts-swiftui-demo
 ```
 
-The app launches directly into a sidebar plus a comparison detail. Selecting a layout updates both panes to the same catalog ID.
+The app opens a sidebar and a comparison detail. When you select a layout, both
+panes use the same catalog ID.
 
 ## Demonstrates
 
-- `SwiftUIHost` — which means a SwiftTUI scene can be embedded as a live subview inside a real SwiftUI window, so the two engines render the same catalog ID side by side in one app.
-- A shared layout catalog (the `Layouts` product from the `layouts` example) drives both panes from one source of truth, so divergences between SwiftUI and SwiftTUI are immediately visible.
-- 56 focused layout shapes exercised against the public SwiftTUI layout surface, giving a developer a direct visual parity check rather than prose claims.
+- `SwiftUIHost` embeds a live SwiftTUI scene in a SwiftUI window. Both engines
+  render the same catalog ID side by side.
+- A shared layout catalog drives both panes. This catalog is the `Layouts`
+  product from the `layouts` example. Differences between SwiftUI and SwiftTUI
+  are visible in the two panes.
+- The app exercises 56 focused layout shapes against the public SwiftTUI layout
+  surface. Developers can compare the results visually.
 
 ## Build
 
@@ -26,7 +31,9 @@ This is a GUI app (native SwiftUI host) targeting macOS 15+ / iOS 18+.
 
 ## Findings
 
-Library divergences and design questions surfaced while implementing the behaviour tests are documented inline in the behaviour/test files. Behaviour tests pin the *observed* behaviour today; update a test's comment and open a discussion before changing the library.
+The behavior test files describe differences between the libraries and open
+design questions. Behavior tests record the current behavior. Before you
+change the library, update the test comment and open a discussion.
 
 ## Test
 
@@ -34,7 +41,10 @@ Library divergences and design questions surfaced while implementing the behavio
 swiftly run swift test --package-path LayoutsSwiftUI
 ```
 
-The `LayoutsSwiftUITests` target asserts catalog parity (the SwiftUI port covers the same shared catalog IDs as the SwiftTUI original). The SwiftTUI raster smoke and rasterising behaviour tests for those IDs live in the corresponding SwiftTUI layouts package, which has the public `DefaultRenderer` / `RasterSurface` this SwiftUI port cannot use.
+The `LayoutsSwiftUITests` target makes sure that both catalogs have the same
+IDs. Raster smoke and behavior tests for these IDs are in the SwiftTUI layouts
+package. That package has the public `DefaultRenderer` and `RasterSurface`
+APIs. This SwiftUI port cannot use those APIs.
 
 ## See also
 

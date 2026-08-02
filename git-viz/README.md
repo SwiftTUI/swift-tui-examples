@@ -15,12 +15,11 @@ swiftly run swift run --package-path git-viz git-viz deltas    # insertions / de
 ```
 
 Every subcommand inherits the framework's `--no-color`, `--ascii`,
-`--reduce-motion` and `--plain` flags from `SwiftTUIOptions`, and accepts
-`--width`.
+`--reduce-motion`, and `--plain` flags from `SwiftTUIOptions`. Each subcommand
+also accepts `--width`.
 
-Beyond that, a subcommand declares only the options it actually honours, so
-`--help` lists exactly what has an effect and passing anything else is an error
-rather than a silently unchanged chart:
+Each subcommand declares only the options that it uses. Thus, `--help` lists
+only effective options. An unsupported option produces an error.
 
 | Option group | Options | Applies to |
 | --- | --- | --- |
@@ -29,21 +28,27 @@ rather than a silently unchanged chart:
 | `DateWindowOptions` | `--since`, `--until` | the subcommands that pass a window through to git |
 | `RankingOptions` | `--top` | the four subcommands that rank something |
 
-`activity`, `health`, `pulse` and `recent-vs-all` take no `--since`/`--until`
-on purpose: each renders a fixed window (a calendar year, one year, five weeks,
-30-days-versus-all-time) that *is* the chart's definition, so overriding it
-would change what the chart means rather than what it covers.
+`activity`, `health`, `pulse`, and `recent-vs-all` do not accept `--since` or
+`--until`. Each command has a fixed window that defines the chart. The windows
+are a calendar year, one year, five weeks, and 30 days versus all time.
 
-`--since` and `--until` take a `YYYY-MM-DD` calendar day and are validated
-during argument parsing, so a typo fails immediately instead of quietly
-widening the window.
+`--since` and `--until` accept a `YYYY-MM-DD` calendar day. Argument parsing
+makes sure that the value has this format. An incorrect value stops the command
+instead of increasing the date window.
 
 ## Demonstrates
 
-- `SwiftTUICharts` (from the separate [`swift-tui-charts`](https://github.com/SwiftTUI/swift-tui-charts) package) — which means a developer gets ready-made terminal chart primitives (heatmaps, sparklines, line/bar/column charts, gauges, timelines) instead of hand-rolling cell drawing. Every chart type in the module is exercised by at least one subcommand.
-- `SwiftTUICLI` argument parsing — a single executable fans out into many named subcommands, each with shared `SwiftTUIOptions` flags.
-- One-shot terminal rendering — each subcommand prints a chart and exits, with no interactive loop, so the output composes cleanly into pipes and scripts.
-- A testable seam over a subprocess — `GitRunning` separates *building* a git command line from *running* one, so tests can assert the exact `argv` the app issues and replay real recorded output without spawning `git`.
+- `SwiftTUICharts` comes from the separate
+  [`swift-tui-charts`](https://github.com/SwiftTUI/swift-tui-charts) package. It
+  provides heatmaps, sparklines, charts, gauges, and timelines. At least one
+  subcommand uses each chart type in the module.
+- `SwiftTUICLI` parses arguments for one executable with multiple named
+  subcommands. Each subcommand shares the `SwiftTUIOptions` flags.
+- Each subcommand renders one chart and exits without an interactive loop.
+  Thus, pipes and scripts can use the output.
+- `GitRunning` separates the creation of a git command from its execution.
+  Tests can examine the exact `argv` and replay recorded output without a git
+  process. They do not start `git`.
 
 ## Subcommand roster
 
@@ -72,19 +77,19 @@ widening the window.
 swiftly run swift test --package-path git-viz
 ```
 
-Tests run against bytes recorded from a real `git` rather than hand-written
-samples. To refresh them:
+Tests use bytes from a real `git` process instead of hand-written samples. To
+update the recordings, run:
 
 ```bash
 git-viz/Scripts/record_git_fixtures.sh
 ```
 
-The script builds a throwaway repository containing the shapes that actually
-break parsers — a merge (which emits no numstat block), a rename (a
-three-token NUL entry under `-z`), a unicode subject, and both tag kinds —
-then runs the exact `argv` `GitRepo` issues. Commit dates are pinned, so
-re-running produces byte-identical fixtures; a diff means git's output format
-changed. Provenance is recorded in
+The script builds a temporary repository with inputs that can break parsers. It
+includes a merge without a numstat block and a rename with a three-token NUL
+entry under `-z`. It also includes a Unicode subject and both tag types. Then
+the script runs the exact `argv` from `GitRepo`. Fixed commit dates produce
+byte-identical fixtures. A diff indicates a change in the git output format.
+The provenance record is in
 [`Tests/GitVizTests/Fixtures/PROVENANCE.md`](Tests/GitVizTests/Fixtures/PROVENANCE.md).
 
 ## See also

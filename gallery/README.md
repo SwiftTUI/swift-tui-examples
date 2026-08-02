@@ -14,17 +14,26 @@ Run the same gallery through the batteries-included WebHost mode:
 swiftly run swift run --package-path gallery gallery-demo --web
 ```
 
-Pass `--tab <key>` to land on a specific tab for screenshots or manual checks, for example `--tab images`. Run `gallery-demo --help` for the full list of tab keys.
+Pass `--tab <key>` to open a specific tab for screenshots or manual checks. For
+example, pass `--tab images`. Run `gallery-demo --help` for all tab keys.
 
 ## Demonstrates
 
-- `SwiftTUI` — which means the full app surface: automatic chrome, tabbed panes, sidebar navigation, multiline editing, focus, and terminal-native alert/sheet/popover presentation.
-- `SwiftTUICharts` (from the separate [`swift-tui-charts`](https://github.com/SwiftTUI/swift-tui-charts) package) and `SwiftTUIAnimatedImage` — which means drop-in charting and animated-image playback rendered directly into terminal cells.
-- Command-palette-driven workspace patterns (`Ctrl+K`) — which means the same command and presentation surfaces app authors use, composed locally as an example.
+- `SwiftTUI` provides the full app surface. The example uses automatic controls,
+  tabbed panes, sidebar navigation, multiline editing, focus, alerts, sheets,
+  and popovers.
+- `SwiftTUICharts` comes from the separate
+  [`swift-tui-charts`](https://github.com/SwiftTUI/swift-tui-charts) package. The
+  example renders its charts and `SwiftTUIAnimatedImage` playback in terminal
+  cells.
+- The `Ctrl+K` command palette demonstrates a workspace pattern. It uses the
+  same command and presentation surfaces that apps use.
 
 ## Tabs
 
-This example app is a full-screen component workbench. It is designed to feel like a terminal workspace rather than a scrolled showcase page, using tabbed panes, sidebar navigation, and preview regions, and mirrors command-palette-driven terminal workspace patterns through local example composition.
+This example is a full-screen component workbench. It uses tabbed panes,
+sidebar navigation, and preview regions. Its local components demonstrate a
+terminal workspace with a command palette.
 
 | Tab | Coverage |
 | --- | --- |
@@ -53,7 +62,7 @@ This example app is a full-screen component workbench. It is designed to feel li
 | `Ctrl+K` | Open the command palette |
 | `--tab <key>` | Launch directly on a named tab (CLI flag) |
 
-The gallery intentionally exercises the same command and presentation surfaces that app authors use.
+The gallery exercises the same command and presentation surfaces that apps use.
 
 ## Test
 
@@ -61,7 +70,9 @@ The gallery intentionally exercises the same command and presentation surfaces t
 swiftly run swift test --package-path gallery
 ```
 
-The test target covers tab switching, palette composition, text input, animation regressions, WebHost package composition, and focused behavior for individual tabs.
+The test target covers tab selection, palette composition, text input, and
+animation regressions. It also covers WebHost package composition and behavior
+of individual tabs.
 
 ## See also
 
