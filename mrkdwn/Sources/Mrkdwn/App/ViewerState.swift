@@ -11,8 +11,9 @@ public struct ViewerSize: Equatable, Hashable, Sendable {
 
   public var documentWidth: Int {
     // Resource proposals describe the cells inside the document's horizontal
-    // padding, not the padded scroll-view frame.
-    max(1, min(96, (width >= 120 ? width - 32 : width - 4) - 2))
+    // padding, not the padded scroll-view frame. Use every cell left after
+    // the shell and, on wide terminals, the inline outline.
+    max(1, (width >= 120 ? width - 32 : width - 4) - 2)
   }
 
   public var documentFrameWidth: Int {

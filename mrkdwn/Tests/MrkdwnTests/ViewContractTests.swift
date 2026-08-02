@@ -435,12 +435,16 @@ struct ViewContractTests {
     #expect(segments.lazy.map(\.text).joined() == source)
   }
 
-  @Test("content proposals subtract document padding and semantic nesting")
+  @Test("content proposals use the available terminal width")
   func contentWidthAccounting() {
     let viewport = ViewerSize(width: 100, height: 24)
     #expect(viewport.documentFrameWidth == 96)
     #expect(viewport.documentWidth == 94)
     #expect(viewport.documentHeight == 20)
+
+    let wideViewport = ViewerSize(width: 180, height: 60)
+    #expect(wideViewport.documentFrameWidth == 148)
+    #expect(wideViewport.documentWidth == 146)
 
     let nested = MarkdownCompiler().compile(
       source: """
