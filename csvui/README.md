@@ -13,15 +13,7 @@ swiftly run swift run --package-path csvui csvui data.tsv --read-only
 cat data.csv | swiftly run swift run --package-path csvui csvui -
 ```
 
-The current local-only implementation uses framework APIs newer than `0.4.6`.
-From the SwiftTUI organization root, materialize the worktree overlay before
-running it against the local framework tip:
-
-```bash
-overlay="$(mise run overlay -- examples 2>/dev/null | tail -1)"
-swiftly run swift run --package-path "$overlay/swift-tui-examples/csvui" \
-  csvui data.csv
-```
+`csvui` requires SwiftTUI `0.4.7` or newer.
 
 The executable requires a TTY for output. Standard-input documents remain
 editable in memory; their first save uses Save As because they have no writable
