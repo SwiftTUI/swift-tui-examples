@@ -44,7 +44,7 @@ struct ManifestContractTests {
       ),
       "swift-tui": (
         "https://github.com/SwiftTUI/swift-tui.git",
-        "0.4.7"
+        "0.5.0"
       ),
     ]
     let identities = Set(pins.compactMap { $0["identity"] as? String })

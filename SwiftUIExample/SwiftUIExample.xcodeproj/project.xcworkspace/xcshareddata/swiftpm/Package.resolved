@@ -42,8 +42,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/SwiftTUI/swift-tui.git",
       "state" : {
-        "revision" : "66ec439adfe6a1f6890cee694a8668c23337a68e",
-        "version" : "0.4.7"
+        "revision" : "695b672882588ad0ae050ad8e8c6bde1685afc1f",
+        "version" : "0.5.0"
       }
     },
     {
@@ -51,8 +51,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/SwiftTUI/swift-tui-charts.git",
       "state" : {
-        "revision" : "10d0957fa926067e4845654e35b5dbaeafb1c52c",
-        "version" : "0.4.7"
+        "revision" : "0d4246276b28f84de978cdeb00ef0a5f241070b9",
+        "version" : "0.5.0"
       }
     },
     {
@@ -60,8 +60,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/SwiftTUI/swift-tui-swiftui.git",
       "state" : {
-        "revision" : "ed15f54ca4cf0331cb4db8c0fc4080fe24977c16",
-        "version" : "0.4.7"
+        "revision" : "e54d426ad0a3b6f44c400f5a81bebc7533962bb1",
+        "version" : "0.5.0"
       }
     },
     {

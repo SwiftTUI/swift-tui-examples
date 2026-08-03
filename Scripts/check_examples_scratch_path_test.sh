@@ -43,7 +43,7 @@ cat >"$public_dump" <<'EOF'
       "sourceControl": [{
         "identity": "swift-tui",
         "location": {"remote": [{"urlString": "https://github.com/SwiftTUI/swift-tui.git"}]},
-        "requirement": {"range": [{"lowerBound": "0.4.7", "upperBound": "0.5.0"}]}
+        "requirement": {"range": [{"lowerBound": "0.5.0", "upperBound": "0.6.0"}]}
       }]
     },
     {
