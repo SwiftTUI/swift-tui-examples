@@ -151,6 +151,92 @@ struct MrkdwnRealTerminalJourneyTests {
   }
 
   @Test(
+    "rebuilt executable preserves Markdown block spacing while scrolling",
+    .enabled(if: mrkdwnViewerPTYTestsEnabled, mrkdwnViewerPTYTestGateComment),
+    .timeLimit(.minutes(1))
+  )
+  func scrollingPreservesBlockSpacingJourney() async throws {
+    let document = try #require(
+      Bundle.module.url(
+        forResource: "spacing-regression",
+        withExtension: "md",
+        subdirectory: "Fixtures"
+      )
+    )
+
+    let size = CellSize(width: 85, height: 34)
+    let pair = try RealTerminalPTYPair.open(size: size)
+    defer { pair.close() }
+    let process = try launchMrkdwn(
+      arguments: [document.path, "--no-config", "--no-watch"],
+      workingDirectory: document.deletingLastPathComponent(),
+      terminal: pair
+    )
+
+    do {
+      var screen = ANSIVisibleScreen(size: size)
+      let initial = try await waitForANSIVisibleScreen(
+        on: pair.master,
+        screen: &screen,
+        deadline: .now() + .seconds(15)
+      ) {
+        $0.contains("Image blocked") && $0.contains("Image: Status")
+          && $0.contains("Start here") && $0.contains("q quit")
+      }
+      let initialLines = initial.split(separator: "\n", omittingEmptySubsequences: false)
+      let initialImageMetadataRow = try #require(
+        initialLines.firstIndex { $0.contains("Image: Status") }
+      )
+      let initialStartRow = try #require(
+        initialLines.firstIndex { $0.contains("Start here") }
+      )
+      let expectedSectionDistance = initialStartRow - initialImageMetadataRow
+
+      var previous = initial
+      for _ in 0..<8 {
+        try writeAllBytes(Array("\u{1B}[B".utf8), to: pair.master)
+        previous = try await waitForANSIVisibleScreen(
+          on: pair.master,
+          screen: &screen,
+          deadline: .now() + .seconds(15)
+        ) { $0 != previous && $0.contains("Start here") }
+        try await Task.sleep(for: .milliseconds(100))
+        previous = try await waitForANSIVisibleScreen(
+          on: pair.master,
+          screen: &screen,
+          deadline: .now() + .seconds(2)
+        ) { _ in true }
+      }
+      try await Task.sleep(for: .milliseconds(100))
+      let scrolled = try await waitForANSIVisibleScreen(
+        on: pair.master,
+        screen: &screen,
+        deadline: .now() + .seconds(2)
+      ) { _ in true }
+      let scrolledLines = scrolled.split(separator: "\n", omittingEmptySubsequences: false)
+      let scrolledImageMetadataRow = try #require(
+        scrolledLines.firstIndex { $0.contains("Image: Status") }
+      )
+      let scrolledStartRow = try #require(
+        scrolledLines.firstIndex { $0.contains("Start here") }
+      )
+      #expect(scrolledStartRow - scrolledImageMetadataRow == expectedSectionDistance)
+
+      let shutdownDrain = MrkdwnPTYOutputDrain(fileDescriptor: pair.master)
+      try writeAllBytes(Array("q".utf8), to: pair.master)
+      let status = try await waitForExit(process, timeout: .seconds(10))
+      await shutdownDrain.cancel()
+      #expect(status == 0)
+    } catch {
+      let wasRunning = process.isRunning
+      if wasRunning { process.terminate() }
+      pair.closeMaster()
+      _ = try? await waitForExit(process, timeout: .seconds(5))
+      throw error
+    }
+  }
+
+  @Test(
     "rebuilt executable covers navigation, search, reload, resize, and quit",
     .enabled(if: mrkdwnViewerPTYTestsEnabled, mrkdwnViewerPTYTestGateComment),
     .timeLimit(.minutes(1))

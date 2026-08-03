@@ -596,6 +596,77 @@ struct ViewerModelAndRenderTests {
     await model.shutdown()
   }
 
+  @Test("down-arrow scrolling preserves spacing between Markdown blocks")
+  func downArrowScrollPreservesBlockSpacing() async throws {
+    let document = try #require(
+      Bundle.module.url(
+        forResource: "spacing-regression",
+        withExtension: "md",
+        subdirectory: "Fixtures"
+      )
+    )
+    let source = try String(contentsOf: document, encoding: .utf8)
+    let model = makeModel(source)
+    await model.start()
+    let size = ViewerSize(width: 85, height: 34)
+    model.updateViewport(size)
+
+    let surface = HostedRasterSurface(
+      surfaceSize: .init(width: size.width, height: size.height),
+      appearance: .fallback
+    ) { _ in }
+    SpacingRegressionPresentationTestApp.model = model
+    defer { SpacingRegressionPresentationTestApp.model = nil }
+    let session = try HostedSceneSession(
+      for: SpacingRegressionPresentationTestApp(),
+      sceneID: SpacingRegressionPresentationTestApp.sceneID,
+      surface: surface
+    )
+    let sessionTask = Task { try await session.start() }
+
+    do {
+      var frames = await surface.waitForFrames {
+        $0.last?.raster.lines.contains(where: { $0.contains("Start here") })
+          == true
+      }
+      let initialFrame = try #require(frames.last)
+      let initialImageMetadataRow = try #require(
+        initialFrame.raster.lines.firstIndex { $0.contains("Image: Status") }
+      )
+      let initialStartRow = try #require(
+        initialFrame.raster.lines.firstIndex { $0.contains("Start here") }
+      )
+      let expectedSectionDistance = initialStartRow - initialImageMetadataRow
+
+      for expectedOffset in 1...8 {
+        let previousCount = frames.count
+        session.send(.key(.init(.arrowDown)))
+        await waitUntil { model.documentScrollOffset == expectedOffset }
+        frames = await surface.waitForFrames { $0.count > previousCount }
+      }
+      try await Task.sleep(for: .milliseconds(100))
+      frames = await surface.waitForFrames { !$0.isEmpty }
+
+      let scrolledFrame = try #require(frames.last)
+      let scrolledImageMetadataRow = try #require(
+        scrolledFrame.raster.lines.firstIndex { $0.contains("Image: Status") }
+      )
+      let scrolledStartRow = try #require(
+        scrolledFrame.raster.lines.firstIndex { $0.contains("Start here") }
+      )
+      #expect(scrolledStartRow - scrolledImageMetadataRow == expectedSectionDistance)
+
+      session.send(.key(.init(.character("d"), modifiers: .ctrl)))
+      _ = try await sessionTask.value
+    } catch {
+      session.stop()
+      _ = try? await sessionTask.value
+      await model.shutdown()
+      throw error
+    }
+    await model.shutdown()
+  }
+
   @Test("outline and links expose pointer hit regions and accessibility metadata")
   func pointerAndAccessibilitySurface() async throws {
     let model = makeModel(
@@ -1532,6 +1603,19 @@ private struct ViewerPresentationTestApp: SwiftTUI.App {
 
   var body: some Scene {
     WindowGroup("mrkdwn presentation", id: Self.sceneID) {
+      MrkdwnRootView(model: Self.model!)
+    }
+  }
+}
+
+private struct SpacingRegressionPresentationTestApp: SwiftTUI.App {
+  static let sceneID = WindowIdentifier("mrkdwn-spacing-regression")
+  @MainActor static var model: ViewerModel?
+
+  nonisolated init() {}
+
+  var body: some Scene {
+    WindowGroup("mrkdwn spacing regression", id: Self.sceneID) {
       MrkdwnRootView(model: Self.model!)
     }
   }
