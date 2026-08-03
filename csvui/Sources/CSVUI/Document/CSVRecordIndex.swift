@@ -73,12 +73,16 @@ public struct CSVRecordIndex: Equatable, Sendable {
 
 public struct CSVRecordIndexer: Sendable {
   private enum State { case fieldStart, unquoted, quoted, afterQuote }
+  private let cancellationCheckObserver: (@Sendable (Int) -> Void)?
 
-  public init() {}
+  public init() { cancellationCheckObserver = nil }
+
+  init(cancellationCheckObserver: @escaping @Sendable (Int) -> Void) {
+    self.cancellationCheckObserver = cancellationCheckObserver
+  }
 
   public func index(_ data: Data, delimiter: CSVDelimiter) throws -> CSVRecordIndex {
     try Task.checkCancellation()
-    try validateUTF8AndNUL(data)
     let hasBOM = data.count >= 3 && data[0] == 0xEF && data[1] == 0xBB && data[2] == 0xBF
     let contentStart = hasBOM ? 3 : 0
     guard contentStart < data.count else {
@@ -94,6 +98,9 @@ public struct CSVRecordIndexer: Sendable {
     var records: [CSVRecordDescriptor] = []
     records.reserveCapacity(min(16_384, max(1, data.count / 32)))
     var lineEndingCounts: [CSVLineEnding: Int] = [:]
+    var fieldCountFrequencies: [Int: Int] = [:]
+    var maximumFieldCount = 0
+    var validatedUTF8Through = contentStart
     var state: State = .fieldStart
     var recordStart = contentStart
     var recordStartLine = 1
@@ -101,6 +108,9 @@ public struct CSVRecordIndexer: Sendable {
     var line = 1
     var column = 1
     var index = contentStart
+    let cancellationInterval = 64 * 1_024
+    var nextCancellationCheck = cancellationInterval
+    var deferredSyntaxError: CSVFormatError?
 
     func appendRecord(end: Int, separatorEnd: Int, ending: CSVLineEnding?) throws {
       guard fieldCount <= CSVRecordIndex.maximumColumns else {
@@ -128,11 +138,26 @@ public struct CSVRecordIndexer: Sendable {
           physicalStartLine: recordStartLine
         )
       )
+      maximumFieldCount = max(maximumFieldCount, fieldCount)
+      fieldCountFrequencies[fieldCount, default: 0] += 1
       if let ending { lineEndingCounts[ending, default: 0] += 1 }
     }
 
     while index < data.count {
-      if index.isMultiple(of: 64 * 1_024) { try Task.checkCancellation() }
+      if index >= nextCancellationCheck {
+        cancellationCheckObserver?(index)
+        try Task.checkCancellation()
+        repeat {
+          nextCancellationCheck += cancellationInterval
+        } while index >= nextCancellationCheck
+      }
+      if index >= validatedUTF8Through {
+        validatedUTF8Through = try validateUTF8Sequence(in: data, at: index)
+      }
+      if deferredSyntaxError != nil {
+        index += 1
+        continue
+      }
       let byte = data[index]
       switch state {
       case .fieldStart:
@@ -216,16 +241,18 @@ public struct CSVRecordIndexer: Sendable {
           fieldCount = 1
           state = .fieldStart
         } else {
-          throw CSVFormatError(
+          deferredSyntaxError = CSVFormatError(
             message: "unexpected byte after closing quote",
             line: line,
             column: column,
             byteOffset: index
           )
+          index += 1
         }
       }
     }
 
+    if let deferredSyntaxError { throw deferredSyntaxError }
     if state == .quoted {
       throw CSVFormatError(
         message: "unclosed quoted field",
@@ -238,10 +265,7 @@ public struct CSVRecordIndexer: Sendable {
       try appendRecord(end: data.count, separatorEnd: data.count, ending: nil)
     }
 
-    let maximumFieldCount = records.map(\.fieldCount).max() ?? 0
-    let irregular = records.reduce(into: 0) { count, record in
-      if record.fieldCount != maximumFieldCount { count += 1 }
-    }
+    let irregular = records.count - fieldCountFrequencies[maximumFieldCount, default: 0]
     return CSVRecordIndex(
       records: records,
       maximumFieldCount: maximumFieldCount,
@@ -266,63 +290,56 @@ public struct CSVRecordIndexer: Sendable {
     }
   }
 
-  private func validateUTF8AndNUL(_ data: Data) throws {
-    var index = 0
-    while index < data.count {
-      if index.isMultiple(of: 64 * 1_024) { try Task.checkCancellation() }
-      let first = data[index]
-      if first == 0 {
-        throw CSVFormatError(
-          message: "NUL bytes are not supported",
-          line: 1,
-          column: index + 1,
-          byteOffset: index
-        )
-      }
-      if first <= 0x7F {
-        index += 1
-        continue
-      }
+  private func validateUTF8Sequence(in data: Data, at index: Int) throws -> Int {
+    let first = data[index]
+    if first == 0 {
+      throw CSVFormatError(
+        message: "NUL bytes are not supported",
+        line: 1,
+        column: index + 1,
+        byteOffset: index
+      )
+    }
+    guard first > 0x7F else { return index + 1 }
 
-      let length: Int
-      let secondRange: ClosedRange<UInt8>
-      switch first {
-      case 0xC2...0xDF:
-        length = 2
-        secondRange = 0x80...0xBF
-      case 0xE0:
-        length = 3
-        secondRange = 0xA0...0xBF
-      case 0xE1...0xEC, 0xEE...0xEF:
-        length = 3
-        secondRange = 0x80...0xBF
-      case 0xED:
-        length = 3
-        secondRange = 0x80...0x9F
-      case 0xF0:
-        length = 4
-        secondRange = 0x90...0xBF
-      case 0xF1...0xF3:
-        length = 4
-        secondRange = 0x80...0xBF
-      case 0xF4:
-        length = 4
-        secondRange = 0x80...0x8F
-      default:
-        throw invalidUTF8(at: index)
-      }
-      guard index + length <= data.count, secondRange.contains(data[index + 1]) else {
-        throw invalidUTF8(at: index)
-      }
-      if length > 2 {
-        for continuation in (index + 2)..<(index + length) {
-          guard (0x80...0xBF).contains(data[continuation]) else {
-            throw invalidUTF8(at: continuation)
-          }
+    let length: Int
+    let secondRange: ClosedRange<UInt8>
+    switch first {
+    case 0xC2...0xDF:
+      length = 2
+      secondRange = 0x80...0xBF
+    case 0xE0:
+      length = 3
+      secondRange = 0xA0...0xBF
+    case 0xE1...0xEC, 0xEE...0xEF:
+      length = 3
+      secondRange = 0x80...0xBF
+    case 0xED:
+      length = 3
+      secondRange = 0x80...0x9F
+    case 0xF0:
+      length = 4
+      secondRange = 0x90...0xBF
+    case 0xF1...0xF3:
+      length = 4
+      secondRange = 0x80...0xBF
+    case 0xF4:
+      length = 4
+      secondRange = 0x80...0x8F
+    default:
+      throw invalidUTF8(at: index)
+    }
+    guard index + length <= data.count, secondRange.contains(data[index + 1]) else {
+      throw invalidUTF8(at: index)
+    }
+    if length > 2 {
+      for continuation in (index + 2)..<(index + length) {
+        guard (0x80...0xBF).contains(data[continuation]) else {
+          throw invalidUTF8(at: continuation)
         }
       }
-      index += length
     }
+    return index + length
   }
 
   private func invalidUTF8(at offset: Int) -> CSVFormatError {

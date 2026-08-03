@@ -5,51 +5,44 @@ public struct CSVRootView: View {
   private let model: CSVModel
   @Environment(\.clipboardWriteAction) private var clipboardWrite
   @Environment(\.requestTermination) private var requestTermination
-  @FocusState private var editorFocused: Bool
 
   public init(model: CSVModel) { self.model = model }
 
   public var body: some View {
+    let rootAcceptsFocus = model.rootAcceptsFocusPresentation()
     GeometryReader { geometry in
       let viewport = CSVViewport(width: geometry.size.width, height: geometry.size.height)
       ZStack(alignment: .topLeading) {
+        CSVRootBackgroundRegion(model: model)
         if viewport.isTooSmall {
-          terminalTooSmall
+          CSVTerminalFloorRegion(model: model)
         } else {
           VStack(alignment: .leading, spacing: 0) {
-            toolbar
-            if model.state.isLoading {
-              loadingSurface
-                .frame(
-                  width: viewport.width,
-                  height: max(1, viewport.height - 2),
-                  alignment: .center
-                )
-            } else {
-              CSVGridView(model: model)
-                .frame(
-                  width: viewport.width,
-                  height: max(1, viewport.height - 2),
-                  alignment: .topLeading
-                )
-            }
-            statusRow
+            CSVToolbarRegion(model: model)
+            CSVGridRegion(model: model)
+              .frame(
+                width: viewport.width,
+                height: max(1, viewport.height - 2),
+                alignment: .topLeading
+              )
+            CSVStatusRegion(model: model)
           }
-          .disabled(model.state.mode != .browse)
+          CSVGridSelectionRegion(model: model)
+            .frame(
+              width: viewport.width,
+              height: max(1, viewport.height - 2),
+              alignment: .topLeading
+            )
+            .offset(y: 1)
         }
-        transientOverlay
+        CSVOverlayRegion(model: model, dispatchDefinition: dispatch)
+        CSVTerminationRegion(model: model) { requestTermination() }
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-      .foregroundStyle(model.state.theme.foreground.swiftTUIColor)
-      .background(model.state.theme.background.swiftTUIColor)
-      .focusable(!isEditingCell)
+      .focusable(rootAcceptsFocus)
       .onKeyPress(.any, perform: handleKeyPress)
       .task(id: viewport) { @MainActor in
         model.send(.updateViewport(viewport))
-      }
-      .task(id: model.state.terminationRequestGeneration) { @MainActor in
-        guard model.state.terminationRequestGeneration > 0 else { return }
-        _ = requestTermination()
       }
       .onTerminationRequest { request in
         if case .inputEnded = request { return .allow }
@@ -63,364 +56,6 @@ public struct CSVRootView: View {
   }
 
   public func shutdown() async { await model.shutdown() }
-
-  private var isEditingCell: Bool {
-    if case .editing = model.state.mode { return true }
-    return false
-  }
-
-  private var terminalTooSmall: some View {
-    VStack(alignment: .leading, spacing: 1) {
-      Text("csvui").bold().foregroundStyle(model.state.theme.accent.swiftTUIColor)
-      Text("terminal too small (need 40×10)")
-      Text("resize or press Ctrl-C to quit")
-        .foregroundStyle(model.state.theme.muted.swiftTUIColor)
-    }
-    .padding(1)
-  }
-
-  private var loadingSurface: some View {
-    VStack(alignment: .center, spacing: 1) {
-      Text("csvui").bold().foregroundStyle(model.state.theme.accent.swiftTUIColor)
-      Text(model.state.diagnostic?.message ?? "loading…")
-      Text("q or Ctrl-C quits safely")
-        .foregroundStyle(model.state.theme.muted.swiftTUIColor)
-    }
-  }
-
-  private var toolbar: some View {
-    HStack(spacing: 1) {
-      ForEach(CSVMenu.allCases, id: \.self) { menu in
-        Button(menu.rawValue) { model.send(.openMenu(menu)) }
-          .buttonStyle(.plain)
-          .fixedSize(horizontal: true, vertical: true)
-          .foregroundStyle(
-            model.state.mode == .menu(menu)
-              ? model.state.theme.menuActiveForeground.swiftTUIColor
-              : model.state.theme.menuForeground.swiftTUIColor
-          )
-          .background(
-            model.state.mode == .menu(menu)
-              ? model.state.theme.menuActiveBackground.swiftTUIColor
-              : model.state.theme.menuBackground.swiftTUIColor
-          )
-      }
-      Spacer(minLength: 0)
-      if model.state.viewport.width >= 72 {
-        Text(model.state.document.source.displayName)
-          .lineLimit(1)
-          .foregroundStyle(model.state.theme.muted.swiftTUIColor)
-        Text(model.state.isDirty ? "●" : "")
-          .foregroundStyle(model.state.theme.edited.swiftTUIColor)
-        Text("\(model.state.rowCount) × \(model.state.columnCount)")
-          .foregroundStyle(model.state.theme.muted.swiftTUIColor)
-      }
-    }
-    .padding(.horizontal, 1)
-    .frame(height: 1, alignment: .topLeading)
-    .background(model.state.theme.menuBackground.swiftTUIColor)
-  }
-
-  @ViewBuilder
-  private var statusRow: some View {
-    if case .prompt(let prompt) = model.state.mode {
-      HStack(spacing: 1) {
-        Text(promptPrefix(prompt) + model.state.prompt.text + "▏")
-          .foregroundStyle(model.state.theme.accent.swiftTUIColor)
-          .lineLimit(1)
-        Spacer(minLength: 0)
-        if let diagnostic = model.state.prompt.diagnostic {
-          Text(diagnostic)
-            .foregroundStyle(model.state.theme.error.swiftTUIColor)
-            .lineLimit(1)
-        }
-      }
-      .padding(.horizontal, 1)
-      .frame(height: 1)
-    } else {
-      HStack(spacing: 1) {
-        Text(cellStatus)
-          .lineLimit(1)
-        Spacer(minLength: 0)
-        Text(projectionStatus)
-          .foregroundStyle(statusColor)
-          .lineLimit(1)
-      }
-      .padding(.horizontal, 1)
-      .frame(height: 1)
-    }
-  }
-
-  private var cellStatus: String {
-    guard let row = model.state.cursor.row, let column = model.state.cursor.column else {
-      return model.state.diagnostic?.message ?? "empty document"
-    }
-    if let diagnostic = model.state.diagnostic { return diagnostic.message }
-    let rowPosition = (model.state.projection.visibleRows.firstIndex(of: row) ?? 0) + 1
-    let columnPosition = (model.state.projection.visibleColumns.firstIndex(of: column) ?? 0) + 1
-    let coordinate = Self.columnCoordinate(columnPosition) + String(rowPosition)
-    return "\(coordinate) · \(model.headerLabel(column)) · \(model.value(row: row, column: column))"
-  }
-
-  private var projectionStatus: String {
-    var values: [String] = []
-    if model.state.readOnly { values.append("READ ONLY") }
-    if model.state.externalChangePending { values.append("EXTERNAL CHANGE") }
-    if model.state.isSaving { values.append("SAVING…") }
-    if model.state.isReloading { values.append("RELOADING…") }
-    if model.state.isFiltering {
-      values.append("FILTERING…")
-    } else if let filter = model.state.projection.filter {
-      var label = "FILTER \(model.state.projection.visibleRows.count)/\(model.state.rowCount)"
-      if case .column(let column) = filter.scope,
-        model.state.projection.hiddenColumns.contains(column)
-      {
-        label += " HIDDEN COLUMN"
-      }
-      values.append(label)
-    }
-    if model.state.isSorting {
-      values.append("SORTING…")
-    } else if let sort = model.state.projection.sort {
-      values.append("SORT \(model.headerLabel(sort.column)) \(sort.direction.marker)")
-    }
-    if model.state.isSearching {
-      values.append("SEARCHING…")
-    } else if !model.state.searchQuery.isEmpty {
-      values.append(
-        "MATCH \(model.state.searchMatches.count)\(model.state.searchResultsTruncated ? "+" : "")")
-    }
-    if model.state.document.irregularDataRecordCount > 0 {
-      values.append("IRREGULAR \(model.state.document.irregularDataRecordCount)")
-    }
-    return values.joined(separator: "  ")
-  }
-
-  private var statusColor: Color {
-    guard let diagnostic = model.state.diagnostic else {
-      return model.state.theme.muted.swiftTUIColor
-    }
-    return switch diagnostic.severity {
-    case .information: model.state.theme.muted.swiftTUIColor
-    case .warning: model.state.theme.warning.swiftTUIColor
-    case .error: model.state.theme.error.swiftTUIColor
-    }
-  }
-
-  @ViewBuilder
-  private var transientOverlay: some View {
-    switch model.state.mode {
-    case .menu(let menu):
-      CSVMenuDropdown(menu: menu, model: model, dispatch: dispatch)
-        .offset(x: menuOffset(menu), y: 1)
-    case .help:
-      overlayCard(title: "Keyboard Reference") { helpContent }
-    case .palette:
-      overlayCard(title: "Command Palette") { paletteContent }
-    case .rowDetail(let row):
-      overlayCard(title: "Row \(model.rowLabel(row))") { rowDetail(row) }
-    case .editing(let address):
-      overlayCard(title: "Edit \(model.headerLabel(address.column))") {
-        editorContent(address)
-      }
-    case .columns:
-      overlayCard(title: "Columns") { columnsContent }
-    case .saveAs:
-      overlayCard(title: "Save As") { saveAsContent }
-    case .confirmation(let confirmation):
-      overlayCard(title: "Confirm") { confirmationContent(confirmation) }
-    default:
-      EmptyView()
-    }
-  }
-
-  private var helpContent: some View {
-    ScrollView(.vertical, showsIndicators: true) {
-      VStack(alignment: .leading, spacing: 0) {
-        ForEach(CSVCommandCatalog.definitions, id: \.id) { definition in
-          HStack(spacing: 1) {
-            Text(definition.chord ?? "")
-              .frame(width: 12, alignment: .leading)
-              .foregroundStyle(model.state.theme.accent.swiftTUIColor)
-            Text(definition.title)
-          }
-        }
-        Text("Arrows/hjkl move · PgUp/PgDn page · g/G first/last row · 0/$ first/last column")
-          .foregroundStyle(model.state.theme.muted.swiftTUIColor)
-        Text("csvui 0.1 · viewer-first CSV/TSV reader and safe editor")
-          .foregroundStyle(model.state.theme.muted.swiftTUIColor)
-      }
-    }
-  }
-
-  private var paletteContent: some View {
-    let matches = paletteMatches
-    return VStack(alignment: .leading, spacing: 0) {
-      Text(":" + model.state.prompt.text + "▏")
-        .foregroundStyle(model.state.theme.accent.swiftTUIColor)
-      Divider()
-      ForEach(Array(matches.prefix(12)), id: \.id) { definition in
-        let availability = definition.availability(in: model.state)
-        Button(action: { dispatch(definition) }) {
-          HStack(spacing: 1) {
-            Text(definition.title)
-            Spacer(minLength: 1)
-            Text(definition.chord ?? "")
-              .foregroundStyle(model.state.theme.muted.swiftTUIColor)
-          }
-        }
-        .buttonStyle(.plain)
-        .disabled(!availability.isEnabled)
-      }
-      if matches.isEmpty { Text("No matching commands") }
-    }
-  }
-
-  private var paletteMatches: [CSVCommandDefinition] {
-    let query = model.state.prompt.text
-    guard !query.isEmpty else { return CSVCommandCatalog.definitions }
-    return CSVCommandCatalog.definitions.filter {
-      $0.title.range(of: query, options: .caseInsensitive) != nil
-    }
-  }
-
-  private func rowDetail(_ row: RowID) -> some View {
-    VStack(alignment: .leading, spacing: 1) {
-      ScrollView(.vertical, showsIndicators: true) {
-        VStack(alignment: .leading, spacing: 1) {
-          ForEach(model.state.projection.visibleColumns, id: \.self) { column in
-            VStack(alignment: .leading, spacing: 0) {
-              Text(model.headerLabel(column)).bold()
-                .foregroundStyle(model.state.theme.accent.swiftTUIColor)
-              Text(detailValue(row: row, column: column))
-            }
-          }
-        }
-      }
-      HStack(spacing: 2) {
-        Button("Copy Cell") { dispatch(CSVCommandCatalog.definition(.copyCell)) }
-        Button("Edit Cell") { dispatch(CSVCommandCatalog.definition(.editCell)) }
-          .disabled(model.state.readOnly)
-      }
-    }
-  }
-
-  private func detailValue(row: RowID, column: ColumnID) -> String {
-    let value = model.value(row: row, column: column)
-    if !value.isEmpty { return value }
-    guard let base = model.state.journal.originalColumnOrder.firstIndex(of: column),
-      let decoded = try? model.state.document.decodeSourceRow(row)
-    else { return "(missing)" }
-    return decoded.fields.indices.contains(base) ? "(empty)" : "(missing)"
-  }
-
-  private func editorContent(_ address: CSVCellAddress) -> some View {
-    VStack(alignment: .leading, spacing: 1) {
-      Text("\(model.rowLabel(address.row)) · \(model.headerLabel(address.column))")
-        .foregroundStyle(model.state.theme.muted.swiftTUIColor)
-      TextEditor(
-        text: Binding(
-          get: { model.state.editor.text },
-          set: { model.send(.updateEditor($0)) }
-        )
-      )
-      .focused($editorFocused)
-      .defaultFocus($editorFocused, true)
-      .frame(
-        width: max(20, min(68, model.state.viewport.width - 8)),
-        height: max(4, min(12, model.state.viewport.height - 10))
-      )
-      HStack(spacing: 2) {
-        Button("Save  Ctrl-S") { model.send(.commitEditor) }
-        Button("Cancel  Esc") { model.send(.dismissTransient) }
-      }
-    }
-  }
-
-  private var columnsContent: some View {
-    ScrollView(.vertical, showsIndicators: true) {
-      VStack(alignment: .leading, spacing: 0) {
-        ForEach(model.state.journal.columnOrder, id: \.self) { column in
-          let hidden = model.state.projection.hiddenColumns.contains(column)
-          Button("\(hidden ? "○" : "●") \(model.headerLabel(column))") {
-            model.send(.toggleColumnVisibility(column))
-          }
-          .buttonStyle(.plain)
-        }
-      }
-    }
-  }
-
-  private var saveAsContent: some View {
-    VStack(alignment: .leading, spacing: 1) {
-      Text("Path")
-      Text(model.state.saveAsPath + "▏")
-        .foregroundStyle(model.state.theme.accent.swiftTUIColor)
-      Text("Enter save · Escape cancel")
-        .foregroundStyle(model.state.theme.muted.swiftTUIColor)
-    }
-  }
-
-  private func confirmationContent(_ confirmation: CSVConfirmation) -> some View {
-    VStack(alignment: .leading, spacing: 1) {
-      Text(confirmationMessage(confirmation))
-      HStack(spacing: 2) {
-        if confirmation == .dirtyQuit || confirmation == .dirtyReload {
-          Button("Save") { model.send(.save) }
-          Button("Discard") { model.send(.confirmDiscard) }
-        } else if case .overwrite = confirmation {
-          Button("Overwrite") { model.send(.confirmSaveAs(overwrite: true)) }
-        } else if confirmation == .externalConflict {
-          Button("Reload") { model.send(.reload) }
-          Button("Save As") { model.send(.beginSaveAs) }
-        }
-        Button("Cancel") { model.send(.cancelConfirmation) }
-      }
-      Text(confirmationHint(confirmation))
-        .foregroundStyle(model.state.theme.muted.swiftTUIColor)
-    }
-  }
-
-  private func confirmationHint(_ confirmation: CSVConfirmation) -> String {
-    switch confirmation {
-    case .dirtyQuit, .dirtyReload: "S save · D discard · Esc cancel"
-    case .overwrite: "O overwrite · Esc cancel"
-    case .externalConflict: "R reload · A Save As · Esc cancel"
-    }
-  }
-
-  private func confirmationMessage(_ confirmation: CSVConfirmation) -> String {
-    switch confirmation {
-    case .dirtyQuit: "Save changes before quitting?"
-    case .dirtyReload: "Reload will discard unsaved changes."
-    case .overwrite(let url): "Overwrite \(url.path)?"
-    case .externalConflict: "The source changed outside csvui."
-    }
-  }
-
-  private func overlayCard<Content: View>(
-    title: String,
-    @ViewBuilder content: () -> Content
-  ) -> some View {
-    VStack(alignment: .leading, spacing: 1) {
-      HStack(spacing: 1) {
-        Text(title).bold()
-        Spacer(minLength: 0)
-        Text("Esc").foregroundStyle(model.state.theme.muted.swiftTUIColor)
-      }
-      Divider()
-      content()
-    }
-    .padding(1)
-    .frame(
-      width: min(76, max(28, model.state.viewport.width - 4)),
-      height: min(20, max(8, model.state.viewport.height - 4)),
-      alignment: .topLeading
-    )
-    .background(model.state.theme.background.swiftTUIColor)
-    .border(model.state.theme.border.swiftTUIColor)
-    .offset(x: 2, y: 2)
-  }
 
   private func handleKeyPress(_ keyPress: KeyPress) -> KeyPressResult {
     if CSVCommandCatalog.runtimeExitKeys.contains(keyPress), model.state.mode == .browse {
@@ -498,7 +133,12 @@ public struct CSVRootView: View {
 
   private func handlePaletteKey(_ keyPress: KeyPress) -> KeyPressResult {
     if keyPress.key == .return {
-      if let first = paletteMatches.first { dispatch(first) }
+      if let presentation = model.overlayPresentation(),
+        case .palette(_, let rows) = presentation.content,
+        let first = rows.first
+      {
+        dispatch(first.definition)
+      }
       return .handled
     }
     return handlePromptKey(keyPress)
@@ -580,15 +220,394 @@ public struct CSVRootView: View {
       if model.requestQuitFromCommand() { _ = requestTermination() }
     }
   }
+}
 
-  private func promptPrefix(_ prompt: CSVPrompt) -> String {
-    switch prompt {
-    case .find: "/"
-    case .filterCurrent: "filter column: "
-    case .filterAll: "filter all: "
-    case .renameHeader: "header: "
-    case .goTo: "go to: "
+private struct CSVRootBackgroundRegion: View {
+  let model: CSVModel
+
+  var body: some View {
+    CSVRootBackgroundSurface(presentation: model.rootStylePresentation())
+  }
+}
+
+private struct CSVTerminalFloorRegion: View {
+  let model: CSVModel
+
+  var body: some View {
+    CSVTerminalFloorSurface(presentation: model.rootStylePresentation())
+  }
+}
+
+private struct CSVToolbarRegion: View {
+  let model: CSVModel
+
+  var body: some View {
+    CSVToolbarSurface(
+      presentation: model.toolbarPresentation(),
+      dispatch: model.send
+    )
+  }
+}
+
+private struct CSVGridRegion: View {
+  let model: CSVModel
+
+  @ViewBuilder
+  var body: some View {
+    if let loading = model.loadingPresentation() {
+      CSVLoadingSurface(presentation: loading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+    } else {
+      CSVGridSurface(
+        presentation: model.gridPresentation(),
+        dispatch: model.performPresentationAction
+      )
     }
+  }
+}
+
+private struct CSVStatusRegion: View {
+  let model: CSVModel
+
+  var body: some View {
+    CSVStatusSurface(presentation: model.statusPresentation())
+  }
+}
+
+private struct CSVGridSelectionRegion: View {
+  let model: CSVModel
+
+  @ViewBuilder
+  var body: some View {
+    if let presentation = model.gridSelectionPresentation() {
+      CSVGridSelectionSurface(presentation: presentation)
+    } else {
+      EmptyView()
+    }
+  }
+}
+
+private struct CSVOverlayRegion: View {
+  let model: CSVModel
+  let dispatchDefinition: @MainActor (CSVCommandDefinition) -> Void
+
+  @ViewBuilder
+  var body: some View {
+    if let presentation = model.overlayPresentation() {
+      CSVOverlaySurface(
+        presentation: presentation,
+        dispatchAction: model.send,
+        dispatchDefinition: dispatchDefinition
+      )
+    } else {
+      EmptyView()
+    }
+  }
+}
+
+private struct CSVTerminationRegion: View {
+  let model: CSVModel
+  let requestTermination: @MainActor () -> Bool
+
+  var body: some View {
+    let presentation = model.terminationPresentation()
+    EmptyView()
+      .task(id: presentation.requestGeneration) { @MainActor in
+        guard presentation.requestGeneration > 0 else { return }
+        _ = requestTermination()
+      }
+  }
+}
+
+private struct CSVRootBackgroundSurface: View {
+  let presentation: CSVRootStylePresentation
+
+  var body: some View {
+    Text("")
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
+      .background(presentation.theme.background.swiftTUIColor)
+  }
+}
+
+private struct CSVTerminalFloorSurface: View {
+  let presentation: CSVRootStylePresentation
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 1) {
+      Text("csvui").bold().foregroundStyle(presentation.theme.accent.swiftTUIColor)
+      Text("terminal too small (need 40×10)")
+      Text("resize or press Ctrl-C to quit")
+        .foregroundStyle(presentation.theme.muted.swiftTUIColor)
+    }
+    .padding(1)
+    .foregroundStyle(presentation.theme.foreground.swiftTUIColor)
+  }
+}
+
+private struct CSVToolbarSurface: View {
+  let presentation: CSVToolbarPresentation
+  let dispatch: @MainActor (CSVAction) -> Void
+
+  var body: some View {
+    HStack(spacing: 1) {
+      ForEach(presentation.items, id: \.menu) { item in
+        Text(item.menu.rawValue)
+          .onTapGesture { dispatch(.openMenu(item.menu)) }
+          .fixedSize(horizontal: true, vertical: true)
+          .foregroundStyle(item.foreground.swiftTUIColor)
+          .background(item.background.swiftTUIColor)
+      }
+      Spacer(minLength: 0)
+      if let sourceLabel = presentation.sourceLabel {
+        Text(sourceLabel)
+          .lineLimit(1)
+          .foregroundStyle(presentation.theme.muted.swiftTUIColor)
+        Text(presentation.dirtyMarker)
+          .foregroundStyle(presentation.theme.edited.swiftTUIColor)
+        Text(presentation.shapeLabel ?? "")
+          .foregroundStyle(presentation.theme.muted.swiftTUIColor)
+      }
+    }
+    .padding(.horizontal, 1)
+    .frame(height: 1, alignment: .topLeading)
+    .background(presentation.theme.menuBackground.swiftTUIColor)
+  }
+}
+
+private struct CSVLoadingSurface: View {
+  let presentation: CSVLoadingPresentation
+
+  var body: some View {
+    VStack(alignment: .center, spacing: 1) {
+      Text("csvui").bold().foregroundStyle(presentation.theme.accent.swiftTUIColor)
+      Text(presentation.message)
+      Text("q or Ctrl-C quits safely")
+        .foregroundStyle(presentation.theme.muted.swiftTUIColor)
+    }
+    .foregroundStyle(presentation.theme.foreground.swiftTUIColor)
+  }
+}
+
+private struct CSVGridSelectionSurface: View, Equatable {
+  let presentation: CSVGridSelectionPresentation
+
+  var body: some View {
+    Text(presentation.text)
+      .lineLimit(1)
+      .frame(width: presentation.width, alignment: .leading)
+      .foregroundStyle(presentation.foreground.swiftTUIColor)
+      .background(presentation.background.swiftTUIColor)
+      .allowsHitTesting(false)
+      .offset(x: presentation.x, y: presentation.y)
+  }
+}
+
+private struct CSVStatusSurface: View {
+  let presentation: CSVStatusPresentation
+
+  @ViewBuilder
+  var body: some View {
+    if let promptPrefix = presentation.promptPrefix {
+      HStack(spacing: 1) {
+        Text(promptPrefix + presentation.promptText + "▏")
+          .foregroundStyle(presentation.theme.accent.swiftTUIColor)
+          .lineLimit(1)
+        Spacer(minLength: 0)
+        if let diagnostic = presentation.promptDiagnostic {
+          Text(diagnostic)
+            .foregroundStyle(presentation.theme.error.swiftTUIColor)
+            .lineLimit(1)
+        }
+      }
+      .padding(.horizontal, 1)
+      .frame(height: 1)
+      .foregroundStyle(presentation.theme.foreground.swiftTUIColor)
+    } else {
+      HStack(spacing: 1) {
+        Text(presentation.cellStatus).lineLimit(1)
+        Spacer(minLength: 0)
+        Text(presentation.projectionStatus)
+          .foregroundStyle(presentation.statusColor.swiftTUIColor)
+          .lineLimit(1)
+      }
+      .padding(.horizontal, 1)
+      .frame(height: 1)
+      .foregroundStyle(presentation.theme.foreground.swiftTUIColor)
+    }
+  }
+}
+
+private struct CSVOverlaySurface: View {
+  let presentation: CSVOverlayPresentation
+  let dispatchAction: @MainActor (CSVAction) -> Void
+  let dispatchDefinition: @MainActor (CSVCommandDefinition) -> Void
+
+  @ViewBuilder
+  var body: some View {
+    switch presentation.content {
+    case .menu(let menu, let rows):
+      CSVMenuDropdown(rows: rows, theme: presentation.theme, dispatch: dispatchDefinition)
+        .offset(x: menuOffset(menu), y: 1)
+    case .help(let rows):
+      overlayCard { helpContent(rows) }
+    case .palette(let query, let rows):
+      overlayCard { paletteContent(query: query, rows: rows) }
+    case .rowDetail(_, let fields, let readOnly):
+      overlayCard { rowDetail(fields: fields, readOnly: readOnly) }
+    case .editing(let address, let rowLabel, let columnLabel, let text):
+      overlayCard {
+        CSVEditorContent(
+          address: address,
+          rowLabel: rowLabel,
+          columnLabel: columnLabel,
+          initialText: text,
+          presentation: presentation,
+          dispatch: dispatchAction
+        )
+      }
+    case .columns(let columns):
+      overlayCard { columnsContent(columns) }
+    case .saveAs(let path):
+      overlayCard { saveAsContent(path: path) }
+    case .confirmation(let confirmation, let message, let hint):
+      overlayCard { confirmationContent(confirmation, message: message, hint: hint) }
+    }
+  }
+
+  private func helpContent(_ definitions: [CSVCommandDefinition]) -> some View {
+    ScrollView(.vertical, showsIndicators: true) {
+      VStack(alignment: .leading, spacing: 0) {
+        ForEach(definitions, id: \.id) { definition in
+          HStack(spacing: 1) {
+            Text(definition.chord ?? "")
+              .frame(width: 12, alignment: .leading)
+              .foregroundStyle(presentation.theme.accent.swiftTUIColor)
+            Text(definition.title)
+          }
+        }
+        Text("Arrows/hjkl move · PgUp/PgDn page · g/G first/last row · 0/$ first/last column")
+          .foregroundStyle(presentation.theme.muted.swiftTUIColor)
+        Text("csvui 0.1 · viewer-first CSV/TSV reader and safe editor")
+          .foregroundStyle(presentation.theme.muted.swiftTUIColor)
+      }
+    }
+  }
+
+  private func paletteContent(
+    query: String,
+    rows: [CSVCommandRowPresentation]
+  ) -> some View {
+    VStack(alignment: .leading, spacing: 0) {
+      Text(":" + query + "▏")
+        .foregroundStyle(presentation.theme.accent.swiftTUIColor)
+      Divider()
+      ForEach(rows, id: \.definition.id) { row in
+        Button(action: { dispatchDefinition(row.definition) }) {
+          HStack(spacing: 1) {
+            Text(row.definition.title)
+            Spacer(minLength: 1)
+            Text(row.definition.chord ?? "")
+              .foregroundStyle(presentation.theme.muted.swiftTUIColor)
+          }
+        }
+        .buttonStyle(.plain)
+        .disabled(!row.availability.isEnabled)
+      }
+      if rows.isEmpty { Text("No matching commands") }
+    }
+  }
+
+  private func rowDetail(
+    fields: [CSVRowDetailFieldPresentation],
+    readOnly: Bool
+  ) -> some View {
+    VStack(alignment: .leading, spacing: 1) {
+      ScrollView(.vertical, showsIndicators: true) {
+        VStack(alignment: .leading, spacing: 1) {
+          ForEach(fields, id: \.column) { field in
+            VStack(alignment: .leading, spacing: 0) {
+              Text(field.header).bold()
+                .foregroundStyle(presentation.theme.accent.swiftTUIColor)
+              Text(field.value)
+            }
+          }
+        }
+      }
+      HStack(spacing: 2) {
+        Button("Copy Cell") { dispatchDefinition(CSVCommandCatalog.definition(.copyCell)) }
+        Button("Edit Cell") { dispatchDefinition(CSVCommandCatalog.definition(.editCell)) }
+          .disabled(readOnly)
+      }
+    }
+  }
+
+  private func columnsContent(_ columns: [CSVColumnPresentation]) -> some View {
+    ScrollView(.vertical, showsIndicators: true) {
+      VStack(alignment: .leading, spacing: 0) {
+        ForEach(columns, id: \.column) { column in
+          Button("\(column.isHidden ? "○" : "●") \(column.label)") {
+            dispatchAction(.toggleColumnVisibility(column.column))
+          }
+          .buttonStyle(.plain)
+        }
+      }
+    }
+  }
+
+  private func saveAsContent(path: String) -> some View {
+    VStack(alignment: .leading, spacing: 1) {
+      Text("Path")
+      Text(path + "▏").foregroundStyle(presentation.theme.accent.swiftTUIColor)
+      Text("Enter save · Escape cancel")
+        .foregroundStyle(presentation.theme.muted.swiftTUIColor)
+    }
+  }
+
+  private func confirmationContent(
+    _ confirmation: CSVConfirmation,
+    message: String,
+    hint: String
+  ) -> some View {
+    VStack(alignment: .leading, spacing: 1) {
+      Text(message)
+      HStack(spacing: 2) {
+        if confirmation == .dirtyQuit || confirmation == .dirtyReload {
+          Button("Save") { dispatchAction(.save) }
+          Button("Discard") { dispatchAction(.confirmDiscard) }
+        } else if case .overwrite = confirmation {
+          Button("Overwrite") { dispatchAction(.confirmSaveAs(overwrite: true)) }
+        } else if confirmation == .externalConflict {
+          Button("Reload") { dispatchAction(.reload) }
+          Button("Save As") { dispatchAction(.beginSaveAs) }
+        }
+        Button("Cancel") { dispatchAction(.cancelConfirmation) }
+      }
+      Text(hint).foregroundStyle(presentation.theme.muted.swiftTUIColor)
+    }
+  }
+
+  private func overlayCard<Content: View>(
+    @ViewBuilder content: () -> Content
+  ) -> some View {
+    VStack(alignment: .leading, spacing: 1) {
+      HStack(spacing: 1) {
+        Text(presentation.title).bold()
+        Spacer(minLength: 0)
+        Text("Esc").foregroundStyle(presentation.theme.muted.swiftTUIColor)
+      }
+      Divider()
+      content()
+    }
+    .padding(1)
+    .frame(
+      width: min(76, max(28, presentation.viewport.width - 4)),
+      height: min(20, max(8, presentation.viewport.height - 4)),
+      alignment: .topLeading
+    )
+    .foregroundStyle(presentation.theme.foreground.swiftTUIColor)
+    .background(presentation.theme.background.swiftTUIColor)
+    .border(presentation.theme.border.swiftTUIColor)
+    .offset(x: 2, y: 2)
   }
 
   private func menuOffset(_ menu: CSVMenu) -> Int {
@@ -600,124 +619,264 @@ public struct CSVRootView: View {
     case .help: 25
     }
   }
+}
 
-  private static func columnCoordinate(_ oneBased: Int) -> String {
-    var value = max(1, oneBased)
-    var result = ""
-    while value > 0 {
-      value -= 1
-      result.insert(Character(UnicodeScalar(65 + value % 26)!), at: result.startIndex)
-      value /= 26
+private struct CSVEditorContent: View {
+  let address: CSVCellAddress
+  let rowLabel: String
+  let columnLabel: String
+  let presentation: CSVOverlayPresentation
+  let dispatch: @MainActor (CSVAction) -> Void
+  @State private var text: String
+  @FocusState private var focused: Bool
+
+  init(
+    address: CSVCellAddress,
+    rowLabel: String,
+    columnLabel: String,
+    initialText: String,
+    presentation: CSVOverlayPresentation,
+    dispatch: @escaping @MainActor (CSVAction) -> Void
+  ) {
+    self.address = address
+    self.rowLabel = rowLabel
+    self.columnLabel = columnLabel
+    self.presentation = presentation
+    self.dispatch = dispatch
+    _text = State(wrappedValue: initialText)
+    _focused = FocusState()
+    focused = true
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 1) {
+      Text("\(rowLabel) · \(columnLabel)")
+        .foregroundStyle(presentation.theme.muted.swiftTUIColor)
+      TextEditor(text: $text)
+        .focused($focused)
+        .frame(
+          width: max(20, min(68, presentation.viewport.width - 8)),
+          height: max(4, min(12, presentation.viewport.height - 10))
+        )
+        .onChange(of: text) { _, newValue in
+          dispatch(.updateEditor(newValue))
+        }
+      HStack(spacing: 2) {
+        Button("Save  Ctrl-S") { dispatch(.commitEditor) }
+          .buttonStyle(.plain)
+        Button("Cancel  Esc") { dispatch(.dismissTransient) }
+          .buttonStyle(.plain)
+      }
     }
-    return result
   }
 }
 
 private struct CSVMenuDropdown: View {
-  let menu: CSVMenu
-  let model: CSVModel
+  let rows: [CSVCommandRowPresentation]
+  let theme: CSVTheme
   let dispatch: @MainActor (CSVCommandDefinition) -> Void
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
-      ForEach(CSVCommandCatalog.definitions(for: menu), id: \.id) { definition in
-        let availability = definition.availability(in: model.state)
-        Button(action: { dispatch(definition) }) {
+      ForEach(rows, id: \.definition.id) { row in
+        Button(action: { dispatch(row.definition) }) {
           HStack(spacing: 1) {
-            Text(definition.title)
+            Text(row.definition.title)
             Spacer(minLength: 2)
-            Text(definition.chord ?? "")
-              .foregroundStyle(model.state.theme.muted.swiftTUIColor)
+            Text(row.definition.chord ?? "")
+              .foregroundStyle(theme.muted.swiftTUIColor)
           }
         }
         .buttonStyle(.plain)
-        .disabled(!availability.isEnabled)
+        .disabled(!row.availability.isEnabled)
       }
     }
     .padding(1)
     .frame(minWidth: 26, alignment: .leading)
-    .background(model.state.theme.menuBackground.swiftTUIColor)
-    .border(model.state.theme.border.swiftTUIColor)
+    .background(theme.menuBackground.swiftTUIColor)
+    .border(theme.border.swiftTUIColor)
   }
 }
 
-private struct CSVGridView: View {
-  let model: CSVModel
+struct CSVGridTextHitRegion: Equatable, Sendable {
+  let rect: CellRect
+  let action: CSVPresentationAction?
+}
+
+@MainActor
+struct CSVGridTextLayout {
+  let content: Text.RichContent
+  let hitRegions: [CSVGridTextHitRegion]
+  let hitPath: Path
+
+  init(presentation: CSVGridPresentation) {
+    var interpolation = Text.StringInterpolation(
+      literalCapacity: 0,
+      interpolationCount: (presentation.rows.count + 1) * (presentation.header.cells.count * 2 + 1)
+    )
+    var hitRegions: [CSVGridTextHitRegion] = []
+    hitRegions.reserveCapacity(
+      (presentation.rows.count + 1) * presentation.header.cells.count
+    )
+
+    Self.appendRow(
+      presentation.header,
+      y: 0,
+      gutterWidth: presentation.gutterWidth,
+      gutterForeground: presentation.gutterForeground,
+      gutterBackground: presentation.gutterBackground,
+      border: presentation.border,
+      interpolation: &interpolation,
+      hitRegions: &hitRegions
+    )
+    for (index, row) in presentation.rows.enumerated() {
+      interpolation.appendLiteral("\n")
+      Self.appendRow(
+        row,
+        y: index + 1,
+        gutterWidth: presentation.gutterWidth,
+        gutterForeground: presentation.gutterForeground,
+        gutterBackground: presentation.gutterBackground,
+        border: presentation.border,
+        interpolation: &interpolation,
+        hitRegions: &hitRegions
+      )
+    }
+
+    var hitPath = Path()
+    for region in hitRegions {
+      hitPath.addRect(
+        Rect(
+          origin: Point(
+            x: Double(region.rect.origin.x),
+            y: Double(region.rect.origin.y)
+          ),
+          size: Size(
+            width: Double(region.rect.size.width),
+            height: Double(region.rect.size.height)
+          )
+        )
+      )
+    }
+    content = Text.RichContent(stringInterpolation: interpolation)
+    self.hitRegions = hitRegions
+    self.hitPath = hitPath
+  }
+
+  func action(at point: Point) -> CSVPresentationAction? {
+    hitRegions.first { $0.rect.contains(point) }?.action
+  }
+
+  static func fittedText(_ text: String, width: Int) -> String {
+    fittedText(text, width: width, trailingAlignment: false)
+  }
+
+  private static func fittedText(
+    _ text: String,
+    width: Int,
+    trailingAlignment: Bool
+  ) -> String {
+    let width = max(1, width)
+    let line =
+      layoutText(
+        for: text,
+        width: width,
+        lineLimit: 1,
+        truncationMode: .tail
+      ).lines.first ?? TextLayoutLine()
+    let padding = String(repeating: " ", count: max(0, width - line.cellWidth))
+    return trailingAlignment ? padding + line.text : line.text + padding
+  }
+
+  private static func appendRow(
+    _ row: CSVGridRowPresentation,
+    y: Int,
+    gutterWidth: Int,
+    gutterForeground: CSVThemeColor,
+    gutterBackground: CSVThemeColor,
+    border: CSVThemeColor,
+    interpolation: inout Text.StringInterpolation,
+    hitRegions: inout [CSVGridTextHitRegion]
+  ) {
+    appendStyled(
+      fittedText(row.label, width: gutterWidth, trailingAlignment: true),
+      foreground: gutterForeground,
+      background: gutterBackground,
+      interpolation: &interpolation
+    )
+    appendStyled(
+      "│",
+      foreground: border,
+      background: nil,
+      interpolation: &interpolation
+    )
+    var x = gutterWidth + 1
+    for cell in row.cells {
+      appendStyled(
+        fittedText(cell.text, width: cell.width),
+        foreground: cell.foreground,
+        background: cell.background,
+        interpolation: &interpolation
+      )
+      let action = cell.address.map {
+        CSVPresentationAction.selectCell(
+          $0,
+          projectedRowOrdinal: cell.projectedRowOrdinal ?? 0,
+          projectedColumnOrdinal: cell.projectedColumnOrdinal
+        )
+      }
+      hitRegions.append(
+        CSVGridTextHitRegion(
+          rect: CellRect(
+            origin: CellPoint(x: x, y: y),
+            size: CellSize(width: cell.width, height: 1)
+          ),
+          action: action
+        )
+      )
+      x += cell.width
+      appendStyled(
+        "│",
+        foreground: border,
+        background: nil,
+        interpolation: &interpolation
+      )
+      x += 1
+    }
+  }
+
+  private static func appendStyled(
+    _ value: String,
+    foreground: CSVThemeColor,
+    background: CSVThemeColor?,
+    interpolation: inout Text.StringInterpolation
+  ) {
+    var fragment = Text(value).foregroundStyle(foreground.swiftTUIColor)
+    if let background {
+      fragment = fragment.backgroundStyle(background.swiftTUIColor)
+    }
+    interpolation.appendInterpolation(fragment)
+  }
+}
+
+private struct CSVGridSurface: View {
+  let presentation: CSVGridPresentation
+  let dispatch: @MainActor (CSVPresentationAction) -> Bool
 
   var body: some View {
-    let slice = CSVGridLayout.slice(state: model.state)
-    VStack(alignment: .leading, spacing: 0) {
-      gridRow(slice: slice, row: nil)
-      ForEach(slice.rows, id: \.self) { row in
-        gridRow(slice: slice, row: row)
-      }
-      Spacer(minLength: 0)
-    }
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    .onScrollWheel { event in
-      let previous = model.state.cursor
-      model.send(.scrollWheel(deltaX: event.deltaX, deltaY: event.deltaY))
-      return model.state.cursor == previous ? .ignored : .handled
-    }
-  }
-
-  private func gridRow(slice: CSVGridSlice, row: RowID?) -> some View {
-    HStack(spacing: 0) {
-      Text(row.map(model.rowLabel) ?? "row")
-        .frame(width: slice.gutterWidth, alignment: .trailing)
-        .foregroundStyle(model.state.theme.gutter.swiftTUIColor)
-        .background(model.state.theme.headerBackground.swiftTUIColor)
-      Text("│").foregroundStyle(model.state.theme.border.swiftTUIColor)
-      ForEach(slice.frozenColumns, id: \.self) { column in
-        cell(row: row, column: column, width: slice.widths[column, default: 4])
-        Text("│").foregroundStyle(model.state.theme.border.swiftTUIColor)
-      }
-      ForEach(slice.scrollingColumns, id: \.self) { column in
-        cell(row: row, column: column, width: slice.widths[column, default: 4])
-        Text("│").foregroundStyle(model.state.theme.border.swiftTUIColor)
-      }
-      Spacer(minLength: 0)
-    }
-    .frame(height: 1)
-  }
-
-  private func cell(row: RowID?, column: ColumnID, width: Int) -> some View {
-    let selected =
-      row != nil && row == model.state.cursor.row && column == model.state.cursor.column
-    let searchMatch = row.map { model.isSearchMatch(row: $0, column: column) } ?? false
-    let text: String
-    if let row {
-      text = model.displayValue(row: row, column: column)
-    } else {
-      let marker =
-        model.state.projection.sort?.column == column
-        ? " \(model.state.projection.sort!.direction.marker)"
-        : ""
-      text = model.headerLabel(column) + marker
-    }
-    return Text(" " + text)
-      .lineLimit(1)
-      .frame(width: max(1, width), alignment: .leading)
-      .foregroundStyle(
-        selected
-          ? model.state.theme.cursorForeground.swiftTUIColor
-          : row == nil
-            ? model.state.theme.headerForeground.swiftTUIColor
-            : searchMatch
-              ? model.state.theme.searchMatch.swiftTUIColor
-              : model.isEdited(row: row!, column: column)
-                ? model.state.theme.edited.swiftTUIColor
-                : model.state.theme.foreground.swiftTUIColor
+    let layout = CSVGridTextLayout(presentation: presentation)
+    Text(layout.content)
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+      .contentShape(layout.hitPath)
+      .gesture(
+        SpatialTapGesture().onEnded { value in
+          if let action = layout.action(at: value.location) {
+            _ = dispatch(action)
+          }
+        }
       )
-      .background(
-        selected
-          ? model.state.theme.cursorBackground.swiftTUIColor
-          : row == nil
-            ? model.state.theme.headerBackground.swiftTUIColor
-            : model.state.theme.background.swiftTUIColor
-      )
-      .onTapGesture {
-        if let row { model.send(.selectCell(CSVCellAddress(row: row, column: column))) }
+      .onScrollWheel { event in
+        dispatch(.scrollWheel(deltaX: event.deltaX, deltaY: event.deltaY)) ? .handled : .ignored
       }
   }
 }

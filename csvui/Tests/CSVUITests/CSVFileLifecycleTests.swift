@@ -5,6 +5,58 @@ import Testing
 
 @Suite("CSV file lifecycle", .serialized)
 struct CSVFileLifecycleTests {
+  @Test(
+    "generated load phase probe reports the range-projection decision trigger",
+    .enabled(
+      if: ProcessInfo.processInfo.environment["CSVUI_LOAD_BENCHMARKS"] == "1",
+      "Local performance probe; set CSVUI_LOAD_BENCHMARKS=1 to run."
+    ),
+    .timeLimit(.minutes(2))
+  )
+  func generatedLoadPhaseProbe() throws {
+    let directory = try temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    for requestedBytes in [8 * 1_024 * 1_024, 40 * 1_024 * 1_024] {
+      let file = directory.appendingPathComponent("generated-\(requestedBytes).tsv")
+      var bytes = Data("id\tname\tcity\tutf8\tnote\n".utf8)
+      bytes.reserveCapacity(requestedBytes + 256)
+      let row = Data(
+        "123456\tgenerated-name\tgenerated-city\t東京-🙂\tstable-padding-0123456789abcdef\n".utf8
+      )
+      while bytes.count < requestedBytes { bytes.append(row) }
+      try bytes.write(to: file)
+
+      let totalStarted = ContinuousClock.now
+      let source = try CSVSourceReader().read(fileURL: file, metricsEnabled: true)
+      let result = try CSVDocument.load(
+        source: source,
+        delimiter: .tab,
+        hasHeaders: true,
+        metricsEnabled: true
+      )
+      let journalStarted = ContinuousClock.now
+      let journal = CSVEditJournal(document: result.document)
+      let journalNanoseconds = CSVLoadMetrics.nanoseconds(journalStarted.duration(to: .now))
+      let totalNanoseconds = CSVLoadMetrics.nanoseconds(totalStarted.duration(to: .now))
+      let triggerPercent =
+        totalNanoseconds == 0
+        ? 0
+        : Double(journalNanoseconds) / Double(totalNanoseconds) * 100
+      let metrics = try #require(result.metrics)
+      print(
+        "csvui_load_probe bytes=\(bytes.count) rows=\(journal.rowOrder.count) "
+          + "source_read_ns=\(metrics.sourceReadNanoseconds) "
+          + "validation_indexing_ns=\(metrics.validationAndIndexingNanoseconds) "
+          + "document_ns=\(metrics.documentConstructionNanoseconds) "
+          + "widths_ns=\(metrics.initialWidthSamplingNanoseconds) "
+          + "journal_ns=\(journalNanoseconds) journal_percent=\(triggerPercent) "
+          + "total_ns=\(totalNanoseconds)"
+      )
+      #expect(result.initialWidths.sampleCount == 1_000)
+    }
+  }
+
   @Test("Save As is atomic, preserves permissions, and grants authority")
   func saveAsAndOverwrite() throws {
     let directory = try temporaryDirectory()
@@ -74,6 +126,55 @@ struct CSVFileLifecycleTests {
     try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target)
     let source = try CSVSourceReader().read(fileURL: link)
     #expect(source.writeBackAuthority == nil)
+  }
+
+  @Test("file-backed load attribution includes the measured source read")
+  func sourceReadAttribution() throws {
+    let directory = try temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let file = directory.appendingPathComponent("measured.csv")
+    try Data(("value\n" + String(repeating: "x\n", count: 100_000)).utf8).write(to: file)
+
+    let source = try CSVSourceReader().read(fileURL: file, metricsEnabled: true)
+    let result = try CSVDocument.load(
+      source: source,
+      delimiter: .comma,
+      hasHeaders: true,
+      metricsEnabled: true
+    )
+
+    #expect(result.metrics?.sourceReadNanoseconds ?? 0 > 0)
+    #expect(result.metrics?.validationAndIndexingNanoseconds ?? 0 > 0)
+  }
+
+  @Test("disabled metrics stay out of source identity and load results")
+  func disabledMetricsAreOutOfBand() throws {
+    let directory = try temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let file = directory.appendingPathComponent("unmeasured.csv")
+    try Data("value\nx\n".utf8).write(to: file)
+
+    var first = try CSVSourceReader().read(
+      fileURL: file,
+      metricsEnabled: false
+    )
+    var second = first
+    first.sourceReadNanoseconds = 1
+    second.sourceReadNanoseconds = 9_999
+    #expect(first == second)
+
+    let unmeasured = try CSVSourceReader().read(
+      fileURL: file,
+      metricsEnabled: false
+    )
+    #expect(unmeasured.sourceReadNanoseconds == nil)
+    let result = try CSVDocument.load(
+      source: unmeasured,
+      delimiter: .comma,
+      hasHeaders: true,
+      metricsEnabled: false
+    )
+    #expect(result.metrics == nil)
   }
 
   private func temporaryDirectory() throws -> URL {

@@ -241,6 +241,7 @@ public struct CSVSourceSnapshot: Equatable, Sendable {
   public var identity: CSVSourceIdentity?
   public var writeBackAuthority: CSVWriteBackAuthority?
   public var loadGeneration: UInt64
+  var sourceReadNanoseconds: UInt64? = nil
 
   public init(
     origin: CSVSourceOrigin,
@@ -256,5 +257,14 @@ public struct CSVSourceSnapshot: Equatable, Sendable {
     self.identity = identity
     self.writeBackAuthority = writeBackAuthority
     self.loadGeneration = loadGeneration
+  }
+
+  public static func == (lhs: Self, rhs: Self) -> Bool {
+    lhs.origin == rhs.origin
+      && lhs.displayName == rhs.displayName
+      && lhs.bytes == rhs.bytes
+      && lhs.identity == rhs.identity
+      && lhs.writeBackAuthority == rhs.writeBackAuthority
+      && lhs.loadGeneration == rhs.loadGeneration
   }
 }

@@ -18,17 +18,23 @@ public struct CSVCursor: Equatable, Sendable {
   public var column: ColumnID?
   public var rowOrigin: Int
   public var scrollingColumnOrigin: Int
+  public var projectedRowOrdinal: Int?
+  public var projectedColumnOrdinal: Int?
 
   public init(
     row: RowID? = nil,
     column: ColumnID? = nil,
     rowOrigin: Int = 0,
-    scrollingColumnOrigin: Int = 0
+    scrollingColumnOrigin: Int = 0,
+    projectedRowOrdinal: Int? = nil,
+    projectedColumnOrdinal: Int? = nil
   ) {
     self.row = row
     self.column = column
     self.rowOrigin = max(0, rowOrigin)
     self.scrollingColumnOrigin = max(0, scrollingColumnOrigin)
+    self.projectedRowOrdinal = projectedRowOrdinal ?? (row == nil ? nil : 0)
+    self.projectedColumnOrdinal = projectedColumnOrdinal ?? (column == nil ? nil : 0)
   }
 }
 
@@ -167,6 +173,7 @@ public struct CSVStructuralCounters: Equatable, Sendable {
   public var realizedCells: Int
   public var decodedRows: Int
   public var widthSamples: Int
+  public var inspectedColumns: Int
 
   public init(
     realizedRows: Int = 0,
@@ -174,7 +181,8 @@ public struct CSVStructuralCounters: Equatable, Sendable {
     realizedFrozenColumns: Int = 0,
     realizedCells: Int = 0,
     decodedRows: Int = 0,
-    widthSamples: Int = 0
+    widthSamples: Int = 0,
+    inspectedColumns: Int = 0
   ) {
     self.realizedRows = realizedRows
     self.realizedScrollingColumns = realizedScrollingColumns
@@ -182,6 +190,7 @@ public struct CSVStructuralCounters: Equatable, Sendable {
     self.realizedCells = realizedCells
     self.decodedRows = decodedRows
     self.widthSamples = widthSamples
+    self.inspectedColumns = inspectedColumns
   }
 }
 

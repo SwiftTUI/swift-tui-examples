@@ -1,14 +1,51 @@
 import Foundation
 
-public struct CSVGridSlice: Equatable, Sendable {
-  public var rows: [RowID]
-  public var frozenColumns: [ColumnID]
-  public var scrollingColumns: [ColumnID]
-  public var widths: [ColumnID: Int]
-  public var gutterWidth: Int
-  public var counters: CSVStructuralCounters
+struct CSVGridLayoutInput: Equatable, Sendable {
+  let visibleRows: [RowID]
+  let visibleColumns: [ColumnID]
+  let frozenThroughOrdinal: Int?
+  let widths: [ColumnID: Int]
+  let rowOrigin: Int
+  let scrollingColumnOrigin: Int
+  let selectedColumnOrdinal: Int?
+  let viewport: CSVViewport
+  let dataRecordCount: Int
+  let widthSamples: Int
 
-  public init(
+  init(
+    visibleRows: [RowID],
+    visibleColumns: [ColumnID],
+    frozenThroughOrdinal: Int?,
+    widths: [ColumnID: Int],
+    rowOrigin: Int,
+    scrollingColumnOrigin: Int,
+    selectedColumnOrdinal: Int?,
+    viewport: CSVViewport,
+    dataRecordCount: Int,
+    widthSamples: Int
+  ) {
+    self.visibleRows = visibleRows
+    self.visibleColumns = visibleColumns
+    self.frozenThroughOrdinal = frozenThroughOrdinal
+    self.widths = widths
+    self.rowOrigin = max(0, rowOrigin)
+    self.scrollingColumnOrigin = max(0, scrollingColumnOrigin)
+    self.selectedColumnOrdinal = selectedColumnOrdinal
+    self.viewport = viewport
+    self.dataRecordCount = max(0, dataRecordCount)
+    self.widthSamples = max(0, widthSamples)
+  }
+}
+
+struct CSVGridSlice: Equatable, Sendable {
+  let rows: [RowID]
+  let frozenColumns: [ColumnID]
+  let scrollingColumns: [ColumnID]
+  let widths: [ColumnID: Int]
+  let gutterWidth: Int
+  let counters: CSVStructuralCounters
+
+  init(
     rows: [RowID],
     frozenColumns: [ColumnID],
     scrollingColumns: [ColumnID],
@@ -24,37 +61,35 @@ public struct CSVGridSlice: Equatable, Sendable {
     self.counters = counters
   }
 
-  public var allColumns: [ColumnID] { frozenColumns + scrollingColumns }
+  var allColumns: [ColumnID] { frozenColumns + scrollingColumns }
 }
 
-public enum CSVGridLayout {
-  public static func slice(state: CSVState) -> CSVGridSlice {
-    let rowStart = min(max(0, state.cursor.rowOrigin), state.projection.visibleRows.count)
+enum CSVGridLayout {
+  static func slice(input: CSVGridLayoutInput) -> CSVGridSlice {
+    let rowStart = min(max(0, input.rowOrigin), input.visibleRows.count)
     let rowEnd = min(
-      state.projection.visibleRows.count,
-      rowStart + state.viewport.dataRowCapacity
+      input.visibleRows.count,
+      rowStart + input.viewport.dataRowCapacity
     )
-    let rows = Array(state.projection.visibleRows[rowStart..<rowEnd])
-    let gutterDigits = max(3, String(max(1, state.document.dataRecordCount)).count)
+    let rows = Array(input.visibleRows[rowStart..<rowEnd])
+    let gutterDigits = max(3, String(max(1, input.dataRecordCount)).count)
     let gutterWidth = min(10, gutterDigits + 2)
-    let columns = state.projection.visibleColumns
-    let frozenCount: Int
-    if let frozen = state.projection.frozenThrough,
-      let index = columns.firstIndex(of: frozen)
-    {
-      frozenCount = index + 1
-    } else {
-      frozenCount = 0
-    }
+    let columns = input.visibleColumns
+    let frozenCount = min(
+      columns.count,
+      max(0, input.frozenThroughOrdinal.map { $0 + 1 } ?? 0)
+    )
 
-    var available = max(1, state.viewport.width - gutterWidth - 1)
+    var available = max(1, input.viewport.width - gutterWidth - 1)
     var widths: [ColumnID: Int] = [:]
     var frozenColumns: [ColumnID] = []
+    var inspectedColumns = 0
     // Preserve a minimum scrolling-cell foothold. A large frozen set is still
     // frozen semantically, but only its leading columns that physically fit
     // can be painted in a finite terminal row.
     for column in columns.prefix(frozenCount) {
-      let desired = state.projection.widths[column, default: 12]
+      inspectedColumns += 1
+      let desired = input.widths[column, default: 12]
       guard available > 4 else { break }
       let width = min(desired, max(4, available - 1))
       frozenColumns.append(column)
@@ -62,21 +97,25 @@ public enum CSVGridLayout {
       available -= width + 1
     }
 
-    let scrolling = Array(columns.dropFirst(frozenCount))
-    var start = min(max(0, state.cursor.scrollingColumnOrigin), scrolling.count)
-    if let cursor = state.cursor.column,
-      let cursorIndex = scrolling.firstIndex(of: cursor),
-      cursorIndex < start
+    let scrollingCount = columns.count - frozenCount
+    let selectedScrollingOrdinal = input.selectedColumnOrdinal.map { $0 - frozenCount }
+    var start = min(max(0, input.scrollingColumnOrigin), scrollingCount)
+    if let selectedScrollingOrdinal,
+      selectedScrollingOrdinal >= 0,
+      selectedScrollingOrdinal < start
     {
-      start = cursorIndex
+      start = selectedScrollingOrdinal
     }
     var scrollingColumns: [ColumnID] = []
     func fill(from origin: Int) -> [ColumnID] {
       var result: [ColumnID] = []
       var remaining = available
-      for column in scrolling.dropFirst(origin) {
+      guard origin < scrollingCount else { return result }
+      for scrollingOrdinal in origin..<scrollingCount {
         guard remaining > 0 else { break }
-        let desired = state.projection.widths[column, default: 12]
+        inspectedColumns += 1
+        let column = columns[frozenCount + scrollingOrdinal]
+        let desired = input.widths[column, default: 12]
         let width = result.isEmpty ? min(desired, max(1, remaining)) : desired
         if !result.isEmpty, width > remaining { break }
         result.append(column)
@@ -86,11 +125,12 @@ public enum CSVGridLayout {
       return result
     }
     scrollingColumns = fill(from: start)
-    if let cursor = state.cursor.column,
-      let cursorIndex = scrolling.firstIndex(of: cursor),
-      !scrollingColumns.contains(cursor)
+    if let selectedScrollingOrdinal,
+      selectedScrollingOrdinal >= 0,
+      selectedScrollingOrdinal < scrollingCount,
+      !scrollingColumns.contains(columns[frozenCount + selectedScrollingOrdinal])
     {
-      scrollingColumns = fill(from: cursorIndex)
+      scrollingColumns = fill(from: selectedScrollingOrdinal)
     }
 
     let columnCount = frozenColumns.count + scrollingColumns.count
@@ -100,7 +140,8 @@ public enum CSVGridLayout {
       realizedFrozenColumns: frozenColumns.count,
       realizedCells: rows.count * columnCount,
       decodedRows: rows.count,
-      widthSamples: state.counters.widthSamples
+      widthSamples: input.widthSamples,
+      inspectedColumns: inspectedColumns
     )
     return CSVGridSlice(
       rows: rows,

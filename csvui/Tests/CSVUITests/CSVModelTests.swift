@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 import Testing
 
 @testable import CSVUI
@@ -6,6 +7,28 @@ import Testing
 @MainActor
 @Suite("CSV model")
 struct CSVModelTests {
+  @Test("compact row ordinals fit the maximum admitted source shape")
+  func compactRowOrdinals() throws {
+    let rows = (0..<CSVRecordIndex.maximumRecords).map(RowID.init(sourceIndex:))
+    let index = try CSVRowOrdinalIndex(rows: rows)
+
+    #expect(index.storageByteCount == CSVRecordIndex.maximumRecords * MemoryLayout<Int32>.stride)
+    #expect(index.storageByteCount < CSVProjectionEngine.maximumWorkspaceBytes)
+    #expect(index.ordinal(for: RowID(sourceIndex: 0)) == 0)
+    #expect(index.ordinal(for: RowID(sourceIndex: 1_000_000)) == 1_000_000)
+    #expect(index.ordinal(for: RowID(sourceIndex: CSVRecordIndex.maximumRecords - 1)) == 1_999_999)
+    #expect(index.ordinal(for: RowID(insertedID: 1)) == nil)
+  }
+
+  @Test("compact row ordinals reject storage beyond the projection budget")
+  func compactRowOrdinalBudget() {
+    let firstOutOfBudgetSourceIndex =
+      CSVProjectionEngine.maximumWorkspaceBytes / MemoryLayout<Int32>.stride
+    #expect(throws: CSVProjectionError.workspaceLimit) {
+      try CSVRowOrdinalIndex(rows: [RowID(sourceIndex: firstOutOfBudgetSourceIndex)])
+    }
+  }
+
   @Test("navigation keeps cursor identity visible")
   func navigation() throws {
     let model = try makeModel()
@@ -145,6 +168,46 @@ struct CSVModelTests {
     #expect(model.state.diagnostic?.message.contains("clear filter and sort") == true)
   }
 
+  @Test("deep pristine insertion uses the selected ordinal")
+  func deepPristineInsertion() async throws {
+    let rows = (0..<20_000).map { "row-\($0),\($0)" }
+    let document = try CSVDocument.parse(
+      source: CSVSourceSnapshot(
+        origin: .standardInput,
+        displayName: "deep.csv",
+        bytes: Data((["name,value"] + rows).joined(separator: "\n").utf8)
+      ),
+      delimiter: .comma,
+      hasHeaders: true
+    )
+    let model = CSVModel(document: document)
+    model.send(.lastRow)
+    model.send(.insertRowAbove)
+    await model.waitForIdle()
+
+    let inserted = try #require(model.state.cursor.row)
+    #expect(inserted.sourceIndex == nil)
+    #expect(model.state.journal.rowOrder[19_999] == inserted)
+  }
+
+  @Test("filtered and sorted deletion resolves through projected and journal ordinals")
+  func projectedDeletionOrdinals() async throws {
+    let model = try makeModel()
+    model.send(.beginFilterAll)
+    model.send(.updatePrompt("group-a"))
+    model.send(.submitPrompt)
+    await model.waitForIdle()
+    model.send(.sort(.descending))
+    await model.waitForIdle()
+    let selected = try #require(model.state.projection.visibleRows.last)
+    model.send(.selectCell(CSVCellAddress(row: selected, column: ColumnID(1))))
+    model.send(.deleteRow)
+    await model.waitForIdle()
+
+    #expect(!model.state.journal.rowOrder.contains(selected))
+    #expect(!model.state.projection.visibleRows.contains(selected))
+  }
+
   @Test("read-only mode disables every mutation entry point")
   func readOnly() async throws {
     let document = try makeDocument()
@@ -197,6 +260,102 @@ struct CSVModelTests {
     #expect(model.state.document.source.displayName == "loaded.csv")
     #expect(model.state.diagnostic?.severity == .error)
     #expect(model.state.diagnostic?.message.contains("unclosed quoted field") == true)
+  }
+
+  @Test("superseded initial load cannot commit its width sample")
+  func generationSafeInitialWidths() async throws {
+    let placeholder = try CSVDocument.parse(
+      source: CSVSourceSnapshot(
+        origin: .standardInput,
+        displayName: "loading.csv",
+        bytes: Data()
+      ),
+      delimiter: .comma,
+      hasHeaders: true
+    )
+    let model = CSVModel(document: placeholder)
+    let slowRows = Array(repeating: String(repeating: "x", count: 38), count: 20_000)
+    model.loadInitial(
+      source: CSVSourceSnapshot(
+        origin: .standardInput,
+        displayName: "superseded.csv",
+        bytes: Data((["value"] + slowRows).joined(separator: "\n").utf8)
+      ),
+      delimiter: .comma,
+      hasHeaders: true
+    )
+    model.loadInitial(
+      source: CSVSourceSnapshot(
+        origin: .standardInput,
+        displayName: "current.csv",
+        bytes: Data("value\ny\n".utf8)
+      ),
+      delimiter: .comma,
+      hasHeaders: true
+    )
+
+    await model.waitForIdle()
+    #expect(model.state.document.source.displayName == "current.csv")
+    #expect(model.state.projection.widths[ColumnID(0)] == 7)
+    #expect(model.state.counters.widthSamples == 1)
+  }
+
+  @Test("superseding a source load cancels its detached parse worker")
+  func supersededLoadCancelsDetachedWorker() async throws {
+    let placeholder = try CSVDocument.parse(
+      source: CSVSourceSnapshot(
+        origin: .standardInput,
+        displayName: "loading.csv",
+        bytes: Data()
+      ),
+      delimiter: .comma,
+      hasHeaders: true
+    )
+    let model = CSVModel(document: placeholder)
+    let probe = Mutex((started: false, cancelled: false))
+    model.installDocumentLoaderForTesting { source, delimiter, hasHeaders in
+      if source.displayName == "superseded.csv" {
+        probe.withLock { $0.started = true }
+        do {
+          while true {
+            try Task.checkCancellation()
+            for _ in 0..<10_000 { _ = 1 &+ 1 }
+          }
+        } catch {
+          probe.withLock { $0.cancelled = true }
+          throw error
+        }
+      }
+      return try CSVDocument.load(
+        source: source,
+        delimiter: delimiter,
+        hasHeaders: hasHeaders
+      )
+    }
+
+    model.loadInitial(
+      source: CSVSourceSnapshot(
+        origin: .standardInput,
+        displayName: "superseded.csv",
+        bytes: Data("value\nx\n".utf8)
+      ),
+      delimiter: .comma,
+      hasHeaders: true
+    )
+    while !probe.withLock({ $0.started }) { await Task.yield() }
+    model.loadInitial(
+      source: CSVSourceSnapshot(
+        origin: .standardInput,
+        displayName: "current.csv",
+        bytes: Data("value\ny\n".utf8)
+      ),
+      delimiter: .comma,
+      hasHeaders: true
+    )
+
+    await model.waitForIdle()
+    #expect(probe.withLock { $0.cancelled })
+    #expect(model.state.document.source.displayName == "current.csv")
   }
 
   private func makeModel() throws -> CSVModel {

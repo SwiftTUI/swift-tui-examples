@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 import Testing
 
 @testable import CSVUI
@@ -67,6 +68,61 @@ struct CSVDocumentCoreTests {
       #expect(error.byteOffset == 1)
     } catch {
       Issue.record("unexpected error: \(error)")
+    }
+  }
+
+  @Test("fused validation preserves UTF-8 and NUL byte diagnostics at chunk edges")
+  func fusedValidationBoundaries() throws {
+    let invalidCases: [(bytes: [UInt8], offset: Int)] = [
+      ([0x61, 0xC2], 1),
+      ([0x61, 0xE0, 0x80, 0x80], 1),
+      ([0x61, 0xE1, 0x80, 0x41], 3),
+      (Array("a\n\"x\"".utf8) + [0xC0], 5),
+    ]
+    for fixture in invalidCases {
+      do {
+        _ = try parse(Data(fixture.bytes))
+        Issue.record("expected invalid UTF-8 at \(fixture.offset)")
+      } catch let error as CSVFormatError {
+        #expect(error.message == "invalid UTF-8")
+        #expect(error.byteOffset == fixture.offset)
+        #expect(error.column == fixture.offset + 1)
+      }
+    }
+
+    var chunked = Data(repeating: 0x61, count: 64 * 1_024 - 1)
+    chunked.append(contentsOf: [0xE2, 0x82, 0xAC, 0x00])
+    do {
+      _ = try CSVRecordIndexer().index(chunked, delimiter: .comma)
+      Issue.record("expected NUL rejection")
+    } catch let error as CSVFormatError {
+      #expect(error.message == "NUL bytes are not supported")
+      #expect(error.byteOffset == 64 * 1_024 + 2)
+    }
+  }
+
+  @Test("validation still precedes an earlier quote syntax failure")
+  func validationPrepassPrecedence() {
+    let syntaxPrefix = Array("a,b\n\"x\"z,".utf8)
+    let cases: [(suffix: [UInt8], message: String, offset: Int)] = [
+      ([0x00], "NUL bytes are not supported", syntaxPrefix.count),
+      ([0xC0, 0xAF], "invalid UTF-8", syntaxPrefix.count),
+    ]
+
+    for fixture in cases {
+      do {
+        _ = try CSVRecordIndexer().index(
+          Data(syntaxPrefix + fixture.suffix),
+          delimiter: .comma
+        )
+        Issue.record("expected validation failure before quote syntax failure")
+      } catch let error as CSVFormatError {
+        #expect(error.message == fixture.message)
+        #expect(error.byteOffset == fixture.offset)
+        #expect(error.column == fixture.offset + 1)
+      } catch {
+        Issue.record("unexpected error: \(error)")
+      }
     }
   }
 
@@ -178,6 +234,57 @@ struct CSVDocumentCoreTests {
     } catch {
       Issue.record("expected CancellationError, got \(error)")
     }
+  }
+
+  @Test("fused indexing checks cancellation at 64 KiB scan boundaries")
+  func indexingCancellationDuringScan() async {
+    let bytes = Data(repeating: 0x61, count: 64 * 1_024 * 1_024)
+    let task = Task.detached {
+      try CSVRecordIndexer().index(bytes, delimiter: .comma)
+    }
+    await Task.yield()
+    task.cancel()
+    do {
+      _ = try await task.value
+      Issue.record("cancelled in-flight indexing unexpectedly completed")
+    } catch is CancellationError {
+      // Expected at a periodic fused-scan cancellation check.
+    } catch {
+      Issue.record("expected CancellationError, got \(error)")
+    }
+  }
+
+  @Test("CRLF jumps cannot skip a periodic cancellation threshold")
+  func cancellationThresholdAcrossCRLF() throws {
+    var bytes = Data([0x61])
+    for _ in 0..<40_000 { bytes.append(contentsOf: [0x0D, 0x0A]) }
+    let observedOffsets = Mutex<[Int]>([])
+    _ = try CSVRecordIndexer { offset in
+      observedOffsets.withLock { $0.append(offset) }
+    }.index(bytes, delimiter: .comma)
+
+    #expect(observedOffsets.withLock { $0.first } == 64 * 1_024 + 1)
+  }
+
+  @Test("load result carries phase attribution and initial widths")
+  func attributedLoadResult() throws {
+    let source = CSVSourceSnapshot(
+      origin: .standardInput,
+      displayName: "widths.csv",
+      bytes: Data("short,long\na,1234567890\nwide-value,x\n".utf8)
+    )
+    let result = try CSVDocument.load(
+      source: source,
+      delimiter: .comma,
+      hasHeaders: true,
+      metricsEnabled: true
+    )
+
+    #expect(result.document.dataRecordCount == 2)
+    #expect(result.initialWidths.widths[ColumnID(0)] == 12)
+    #expect(result.initialWidths.widths[ColumnID(1)] == 12)
+    #expect(result.initialWidths.sampleCount == 2)
+    #expect(result.metrics != nil)
   }
 
   @Test("branching after undo releases the abandoned redo budget")

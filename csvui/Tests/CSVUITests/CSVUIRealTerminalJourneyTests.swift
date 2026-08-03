@@ -15,12 +15,67 @@ import Testing
 
 private let csvuiPTYTestsEnabled =
   ProcessInfo.processInfo.environment["CSVUI_REAL_PTY_TESTS"] != nil
+private let csvuiLatencyPTYTestsEnabled =
+  csvuiPTYTestsEnabled
+  || ProcessInfo.processInfo.environment["CSVUI_LATENCY_PTY_TESTS"] != nil
 private let csvuiPTYTestGateComment: Comment =
   "Production-async PTY test; set CSVUI_REAL_PTY_TESTS=1 to run."
 
 @MainActor
 @Suite(.serialized)
 struct CSVUIRealTerminalJourneyTests {
+  @Test(
+    "settled generated 100x40 document responds to cursor actions within the regression ceiling",
+    .enabled(
+      if: csvuiLatencyPTYTestsEnabled,
+      "Performance guard; set CSVUI_REAL_PTY_TESTS=1 to run the full PTY gate."
+    ),
+    .timeLimit(.minutes(1))
+  )
+  func generatedCursorLatencyGuard() async throws {
+    let directory = try makeCSVUITemporaryDirectory("latency")
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let document = directory.appendingPathComponent("generated.tsv")
+    let header = (0..<12).map { "c\($0)" }.joined(separator: "\t")
+    let rows = (0..<240).map { row in
+      (0..<12).map { column in "r\(row)c\(column)" }.joined(separator: "\t")
+    }
+    try Data(([header] + rows).joined(separator: "\n").utf8).write(to: document)
+
+    try await withCSVUITerminalSession(
+      arguments: [document.path, "--no-config", "--no-watch"],
+      workingDirectory: directory,
+      size: CellSize(width: 100, height: 40)
+    ) { session in
+      _ = try await session.wait("settled generated grid") {
+        $0.contains("A1 · c0 · r0c0") && $0.contains("r36c0")
+      }
+
+      let firstStarted = ContinuousClock.now
+      try session.send("l")
+      _ = try await session.wait("one generated cursor action", timeout: .seconds(10)) {
+        $0.contains("B1 · c1 · r0c1")
+      }
+      let firstElapsed = firstStarted.duration(to: .now)
+      #expect(
+        firstElapsed < .seconds(2),
+        "first cursor action exceeded the generous regression ceiling: \(firstElapsed)"
+      )
+
+      let secondStarted = ContinuousClock.now
+      try session.send("l")
+      _ = try await session.wait("second generated cursor action", timeout: .seconds(10)) {
+        $0.contains("C1 · c2 · r0c2")
+      }
+      let secondElapsed = secondStarted.duration(to: .now)
+      #expect(
+        secondElapsed < .seconds(2),
+        "second cursor action exceeded the generous regression ceiling: \(secondElapsed)"
+      )
+      #expect(try await session.finish(sending: Array("q".utf8)) == 0)
+    }
+  }
+
   @Test(
     "rebuilt executable edits a cell and guards dirty quit",
     .enabled(if: csvuiPTYTestsEnabled, csvuiPTYTestGateComment),
@@ -84,16 +139,45 @@ struct CSVUIRealTerminalJourneyTests {
       // `q` is an application quit command only in browse mode. A focused
       // TextEditor must receive it as ordinary text and keep the app alive.
       try writeAllBytes(Array("q".utf8), to: terminal.master)
-      try await Task.sleep(for: .milliseconds(150))
+      _ = try await waitForANSIVisibleScreen(
+        on: terminal.master,
+        screen: &screen,
+        deadline: .now() + .seconds(10)
+      ) { $0.contains("qAlice") || $0.contains("Aliceq") }
       #expect(process.isRunning)
 
-      try writeAllBytes([0x13], to: terminal.master)  // Ctrl-S
+      // Tab reaches the focusable Save button and Return activates it.
+      try writeAllBytes([0x09, 0x0D], to: terminal.master)
       _ = try await waitForANSIVisibleScreen(
         on: terminal.master,
         screen: &screen,
         deadline: .now() + .seconds(10)
       ) {
         !$0.contains("Edit name") && ($0.contains("qAlice") || $0.contains("Aliceq"))
+      }
+
+      try writeAllBytes(Array("e".utf8), to: terminal.master)
+      _ = try await waitForANSIVisibleScreen(
+        on: terminal.master,
+        screen: &screen,
+        deadline: .now() + .seconds(10)
+      ) { $0.contains("Edit name") && $0.contains("Save  Ctrl-S") }
+      try writeAllBytes(Array("discard-me".utf8), to: terminal.master)
+      _ = try await waitForANSIVisibleScreen(
+        on: terminal.master,
+        screen: &screen,
+        deadline: .now() + .seconds(10)
+      ) { $0.contains("discard-me") }
+      // Shift-Tab wraps backward from the editor to Cancel; Return dismisses
+      // the overlay without committing the local editor value.
+      try writeAllBytes([0x1B, 0x5B, 0x5A, 0x0D], to: terminal.master)
+      _ = try await waitForANSIVisibleScreen(
+        on: terminal.master,
+        screen: &screen,
+        deadline: .now() + .seconds(10)
+      ) {
+        !$0.contains("Edit name") && !$0.contains("discard-me")
+          && ($0.contains("qAlice") || $0.contains("Aliceq"))
       }
 
       try writeAllBytes(Array("q".utf8), to: terminal.master)
@@ -238,19 +322,26 @@ struct CSVUIRealTerminalJourneyTests {
       arguments: [document.path, "--no-config", "--no-watch"],
       workingDirectory: directory
     ) { session in
-      _ = try await session.wait { $0.contains("A1 · note ·") }
+      _ = try await session.wait("initial multiline grid") { $0.contains("A1 · note ·") }
       try session.send("e")
-      _ = try await session.wait { $0.contains("Edit note") && $0.contains("Save  Ctrl-S") }
+      _ = try await session.wait("multiline editor") {
+        $0.contains("Edit note") && $0.contains("Save  Ctrl-S")
+      }
       try session.send("Line1")
       try session.send(bytes: [0x0D])
       try session.send("Line2")
+      _ = try await session.wait("multiline editor accepted input") {
+        $0.contains("Line1") && $0.contains("Line2")
+      }
       try session.send(bytes: [0x13])
-      _ = try await session.wait { $0.contains("Line1↵Line2") }
+      _ = try await session.wait("committed multiline value") { $0.contains("Line1↵Line2") }
       try session.send("u")
       try session.send(bytes: [0x12])  // Ctrl-R
-      _ = try await session.wait { $0.contains("Line1↵Line2") }
+      _ = try await session.wait("redone multiline value") { $0.contains("Line1↵Line2") }
       try session.send("q")
-      _ = try await session.wait { $0.contains("Save changes before quitting?") }
+      _ = try await session.wait("multiline dirty quit") {
+        $0.contains("Save changes before quitting?")
+      }
       #expect(try await session.finish(sending: Array("S".utf8)) == 0)
     }
 
@@ -259,7 +350,9 @@ struct CSVUIRealTerminalJourneyTests {
       arguments: [document.path, "--no-config", "--no-watch"],
       workingDirectory: directory
     ) { session in
-      _ = try await session.wait { $0.contains("Line1↵Line2") && $0.contains("A1 · note ·") }
+      _ = try await session.wait("reopened multiline value") {
+        $0.contains("Line1↵Line2") && $0.contains("A1 · note ·")
+      }
       #expect(try await session.finish(sending: Array("q".utf8)) == 0)
     }
   }
@@ -303,6 +396,9 @@ struct CSVUIRealTerminalJourneyTests {
       try session.send("e")
       _ = try await session.wait { $0.contains("Edit name") && $0.contains("Save  Ctrl-S") }
       try session.send("q")
+      _ = try await session.wait("watcher editor accepted input") {
+        $0.contains("qCara") || $0.contains("Caraq")
+      }
       try session.send(bytes: [0x13])
       _ = try await session.wait { $0.contains("qCara") || $0.contains("Caraq") }
       try Data("name,city\nDana,Denver\n".utf8).write(to: document, options: .atomic)
@@ -321,19 +417,21 @@ struct CSVUIRealTerminalJourneyTests {
   func standardInputSaveAsJourney() async throws {
     let directory = try makeCSVUITemporaryDirectory("stdin")
     defer { try? FileManager.default.removeItem(at: directory) }
-    let pipe = Pipe()
+    let input = directory.appendingPathComponent("standard-input.csv")
+    try Data("note,other\n,x\n".utf8).write(to: input)
+    let standardInput = try FileHandle(forReadingFrom: input)
+    defer { try? standardInput.close() }
 
     try await withCSVUITerminalSession(
       arguments: ["-", "--no-config"],
       workingDirectory: directory,
-      standardInput: pipe
+      standardInput: standardInput
     ) { session in
-      pipe.fileHandleForWriting.write(Data("note,other\n,x\n".utf8))
-      try pipe.fileHandleForWriting.close()
       _ = try await session.wait { $0.contains("A1 · note ·") }
       try session.send("e")
       _ = try await session.wait { $0.contains("Edit note") && $0.contains("Save  Ctrl-S") }
       try session.send("stdin-value")
+      _ = try await session.wait("stdin editor accepted input") { $0.contains("stdin-value") }
       try session.send(bytes: [0x13])
       _ = try await session.wait { $0.contains("stdin-value") }
       try session.send(bytes: [0x13])

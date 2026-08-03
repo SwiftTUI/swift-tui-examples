@@ -65,6 +65,13 @@ public struct CSVEditJournal: Equatable, Sendable {
   @discardableResult
   public mutating func deleteRow(_ id: RowID) -> Bool {
     guard let index = rowOrder.firstIndex(of: id) else { return false }
+    return deleteRow(at: index)
+  }
+
+  @discardableResult
+  mutating func deleteRow(at index: Int) -> Bool {
+    guard rowOrder.indices.contains(index) else { return false }
+    let id = rowOrder[index]
     rowOrder.remove(at: index)
     insertedRows.removeValue(forKey: id)
     cellReplacements = cellReplacements.filter { $0.key.row != id }
@@ -79,6 +86,13 @@ public struct CSVEditJournal: Equatable, Sendable {
   @discardableResult
   public mutating func deleteColumn(_ id: ColumnID) -> Bool {
     guard let index = columnOrder.firstIndex(of: id) else { return false }
+    return deleteColumn(at: index)
+  }
+
+  @discardableResult
+  mutating func deleteColumn(at index: Int) -> Bool {
+    guard columnOrder.indices.contains(index) else { return false }
+    let id = columnOrder[index]
     columnOrder.remove(at: index)
     headerReplacements.removeValue(forKey: id)
     cellReplacements = cellReplacements.filter { $0.key.column != id }

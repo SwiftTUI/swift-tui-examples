@@ -48,6 +48,11 @@ public final class CSVTerminalInputLease: Sendable {
     public func activateControllingTerminal() throws {
       let descriptor = unsafe open("/dev/tty", O_RDONLY | O_CLOEXEC)
       if descriptor >= 0 {
+        if isatty(STDOUT_FILENO) == 1, !Self.isSameTerminal(descriptor, STDOUT_FILENO) {
+          _ = close(descriptor)
+          try activate(fileDescriptor: STDOUT_FILENO)
+          return
+        }
         guard descriptor != STDIN_FILENO else { return }
         defer { _ = close(descriptor) }
         try activate(fileDescriptor: descriptor)
@@ -57,6 +62,15 @@ public final class CSVTerminalInputLease: Sendable {
         throw CSVTerminalInputLeaseError.controllingTerminalUnavailable
       }
       try activate(fileDescriptor: STDOUT_FILENO)
+    }
+
+    private static func isSameTerminal(_ lhs: Int32, _ rhs: Int32) -> Bool {
+      var lhsStatus = stat()
+      var rhsStatus = stat()
+      guard unsafe fstat(lhs, &lhsStatus) == 0, unsafe fstat(rhs, &rhsStatus) == 0 else {
+        return true
+      }
+      return lhsStatus.st_dev == rhsStatus.st_dev && lhsStatus.st_rdev == rhsStatus.st_rdev
     }
 
     func activate(fileDescriptor: Int32) throws {

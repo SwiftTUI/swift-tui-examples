@@ -30,6 +30,19 @@ public struct CSVSourceReader: Sendable {
   public init() {}
 
   public func read(fileURL: URL, generation: UInt64 = 0) throws -> CSVSourceSnapshot {
+    try read(
+      fileURL: fileURL,
+      generation: generation,
+      metricsEnabled: CSVLoadMetrics.isEnabled
+    )
+  }
+
+  func read(
+    fileURL: URL,
+    generation: UInt64 = 0,
+    metricsEnabled: Bool
+  ) throws -> CSVSourceSnapshot {
+    let started = metricsEnabled ? ContinuousClock.now : nil
     let standardized = fileURL.standardizedFileURL
     let descriptor = try openReadOnly(standardized)
     defer { _ = close(descriptor) }
@@ -87,7 +100,7 @@ public struct CSVSourceReader: Sendable {
       isDirectRegularPath && finalIdentity.linkCount == 1 && isWritable
       ? CSVWriteBackAuthority(destination: standardized, identity: finalIdentity)
       : nil
-    return CSVSourceSnapshot(
+    var snapshot = CSVSourceSnapshot(
       origin: .regularFile(standardized),
       displayName: standardized.lastPathComponent,
       bytes: data,
@@ -95,9 +108,14 @@ public struct CSVSourceReader: Sendable {
       writeBackAuthority: authority,
       loadGeneration: generation
     )
+    snapshot.sourceReadNanoseconds = started.map {
+      CSVLoadMetrics.nanoseconds($0.duration(to: .now))
+    }
+    return snapshot
   }
 
   public func readStandardInput(generation: UInt64 = 0) throws -> CSVSourceSnapshot {
+    let started = CSVLoadMetrics.isEnabled ? ContinuousClock.now : nil
     var data = Data()
     while true {
       guard !Task.isCancelled else { throw CSVSourceReadError.cancelled }
@@ -111,12 +129,16 @@ public struct CSVSourceReader: Sendable {
       }
       data.append(chunk)
     }
-    return CSVSourceSnapshot(
+    var snapshot = CSVSourceSnapshot(
       origin: .standardInput,
       displayName: "stdin",
       bytes: data,
       loadGeneration: generation
     )
+    snapshot.sourceReadNanoseconds = started.map {
+      CSVLoadMetrics.nanoseconds($0.duration(to: .now))
+    }
+    return snapshot
   }
 
   public func currentIdentity(of url: URL) throws -> CSVSourceIdentity {
