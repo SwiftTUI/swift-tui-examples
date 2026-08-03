@@ -400,7 +400,13 @@ struct CSVUIRealTerminalJourneyTests {
         $0.contains("qCara") || $0.contains("Caraq")
       }
       try session.send(bytes: [0x13])
-      _ = try await session.wait { $0.contains("qCara") || $0.contains("Caraq") }
+      // The external write below must lose the race against this Ctrl-S:
+      // only a committed (dirty) document takes the conflict path. The cell
+      // text alone is already on screen, so wait for the toolbar's dirty
+      // marker — the first observable proof the commit was processed.
+      _ = try await session.wait("editor commit marked the document dirty") {
+        ($0.contains("qCara") || $0.contains("Caraq")) && $0.contains("●")
+      }
       try Data("name,city\nDana,Denver\n".utf8).write(to: document, options: .atomic)
       _ = try await session.wait { $0.contains("EXTERNAL CHANGE") }
       try session.send("q")
