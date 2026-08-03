@@ -123,16 +123,6 @@ public struct MarkdownList: Equatable, Sendable {
   }
 }
 
-public struct MermaidBlock: Equatable, Sendable {
-  public var source: String
-  public var language: String
-
-  public init(source: String, language: String = "mermaid") {
-    self.source = source
-    self.language = language
-  }
-}
-
 public indirect enum MarkdownBlock: Equatable, Sendable {
   case heading(
     id: BlockID,
@@ -145,7 +135,6 @@ public indirect enum MarkdownBlock: Equatable, Sendable {
   case quote(id: BlockID, blocks: [MarkdownBlock], source: SourceSpan?)
   case list(id: BlockID, value: MarkdownList, source: SourceSpan?)
   case code(id: BlockID, language: String?, sourceText: String, source: SourceSpan?)
-  case mermaid(id: BlockID, value: MermaidBlock, source: SourceSpan?)
   case table(id: BlockID, value: MarkdownTable, source: SourceSpan?)
   case rule(id: BlockID, source: SourceSpan?)
   case image(id: BlockID, value: ImageReference, source: SourceSpan?)
@@ -159,7 +148,6 @@ public indirect enum MarkdownBlock: Equatable, Sendable {
       .quote(let id, _, _),
       .list(let id, _, _),
       .code(let id, _, _, _),
-      .mermaid(let id, _, _),
       .table(let id, _, _),
       .rule(let id, _),
       .image(let id, _, _),
@@ -176,7 +164,6 @@ public indirect enum MarkdownBlock: Equatable, Sendable {
       .quote(_, _, let span),
       .list(_, _, let span),
       .code(_, _, _, let span),
-      .mermaid(_, _, let span),
       .table(_, _, let span),
       .rule(_, let span),
       .image(_, _, let span),
@@ -196,8 +183,6 @@ public indirect enum MarkdownBlock: Equatable, Sendable {
       list.items.flatMap(\.blocks).map(\.searchableText).joined(separator: "\n")
     case .code(_, _, let source, _), .html(_, let source, _):
       source
-    case .mermaid(_, let value, _):
-      value.source
     case .table(_, let table, _):
       (table.header + table.rows.flatMap { $0 })
         .flatMap { $0 }

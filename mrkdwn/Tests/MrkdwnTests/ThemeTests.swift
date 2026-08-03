@@ -17,12 +17,11 @@ struct ThemeTests {
       version = 1
       [theme]
       accent = "#010203"
-      [theme.mermaid]
-      edge_label = "#A0B0C0"
+      code_background = "#A0B0C0"
       """
     )
     #expect(theme.accent.hex == "#010203")
-    #expect(theme.mermaid.edgeLabel.hex == "#A0B0C0")
+    #expect(theme.codeBackground.hex == "#A0B0C0")
     #expect(theme.foreground == ViewerTheme.default.foreground)
   }
 

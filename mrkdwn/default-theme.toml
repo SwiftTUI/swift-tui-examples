@@ -20,11 +20,3 @@ table_border = "#30363D"
 rule = "#30363D"
 search_match = "#E3B341"
 error = "#FF7B72"
-
-[theme.mermaid]
-background = "#161B22"
-border = "#8B949E"
-text = "#E6EDF3"
-edge = "#8B949E"
-edge_label = "#C9D1D9"
-title = "#79C0FF"

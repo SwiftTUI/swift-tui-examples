@@ -151,128 +151,7 @@ struct MrkdwnRealTerminalJourneyTests {
   }
 
   @Test(
-    "rebuilt executable reaches nested Mermaid blocks with keyboard commands",
-    .enabled(if: mrkdwnViewerPTYTestsEnabled, mrkdwnViewerPTYTestGateComment),
-    .timeLimit(.minutes(1))
-  )
-  func focusedNestedMermaidJourney() async throws {
-    let directory = URL(fileURLWithPath: "/tmp", isDirectory: true)
-      .appendingPathComponent("mrkdwn-focus-\(UUID().uuidString)", isDirectory: true)
-    try FileManager.default.createDirectory(
-      at: directory,
-      withIntermediateDirectories: true
-    )
-    defer { try? FileManager.default.removeItem(at: directory) }
-    let document = directory.appendingPathComponent("focus.md")
-    let source =
-      """
-      # Diagrams
-
-      ```mermaid
-      flowchart LR
-      FIRST --> A
-      style FIRST fill:#010101
-      ```
-
-      > ```mermaid
-      > flowchart LR
-      > SECOND --> B
-      > style SECOND fill:#020202
-      > ```
-      """
-    try Data(source.utf8).write(to: document)
-    let compiled = MarkdownCompiler().compile(source: source, sourceURL: document)
-    let mermaidIDs = MarkdownBlockLayout.flattened(
-      compiled.blocks,
-      offeredWidth: 80
-    ).compactMap { descriptor -> BlockID? in
-      if case .mermaid(let id, _, _) = descriptor.block { return id }
-      return nil
-    }
-    #expect(Set(mermaidIDs).count == 2)
-    let size = CellSize(width: 100, height: 80)
-    let pair = try RealTerminalPTYPair.open(size: size)
-    defer { pair.close() }
-    let process = try launchMrkdwn(
-      arguments: [document.path, "--no-config", "--no-watch"],
-      workingDirectory: directory,
-      terminal: pair
-    )
-    do {
-      var screen = ANSIVisibleScreen(size: size)
-      let initial = try await waitForANSIVisibleScreen(
-        on: pair.master,
-        screen: &screen,
-        deadline: .now() + .seconds(15)
-      ) {
-        $0.contains("FIRST") && $0.contains("SECOND") && $0.contains("q quit")
-      }
-      #expect(!initial.contains("style FIRST fill:#010101"))
-      #expect(!initial.contains("style SECOND fill:#020202"))
-      // Traverse document ScrollView → first Mermaid, then exercise the
-      // focused lowercase command. The surrounding Panel is a command scope,
-      // not a focus stop.
-      try writeAllBytes([0x09, 0x09], to: pair.master)
-      try await Task.sleep(for: .milliseconds(100))
-      try writeAllBytes(Array("m".utf8), to: pair.master)
-      _ = try await waitForANSIVisibleScreen(
-        on: pair.master,
-        screen: &screen,
-        deadline: .now() + .seconds(15)
-      ) { $0.contains("style FIRST fill:#010101") }
-
-      // The newly revealed source ScrollView is the next focus stop. Alt-M
-      // must dispatch from that descendant through the app-global Panel
-      // command scope.
-      try writeAllBytes([0x09], to: pair.master)
-      _ = try await waitForANSIVisibleScreen(
-        on: pair.master,
-        screen: &screen,
-        deadline: .now() + .seconds(15)
-      ) { $0.contains("style FIRST fill:#010101") }
-      try writeAllBytes(Array("\u{1B}[109;3u".utf8), to: pair.master)
-      try await Task.sleep(for: .milliseconds(200))
-      _ = try await waitForANSIVisibleScreen(
-        on: pair.master,
-        screen: &screen,
-        deadline: .now() + .seconds(15)
-      ) { $0.contains("style SECOND fill:#020202") }
-
-      // Once every authored block has been revealed, Alt-M is a stable no-op.
-      // Exercise that terminal route once more; the model test owns the exact
-      // retained-set assertion while this rebuilt process proves the command
-      // remains safe at the terminal boundary.
-      try writeAllBytes(Array("\u{1B}[109;3u".utf8), to: pair.master)
-      try await Task.sleep(for: .milliseconds(100))
-
-      let shutdownDrain = MrkdwnPTYOutputDrain(fileDescriptor: pair.master)
-      try writeAllBytes(Array("q".utf8), to: pair.master)
-      let status = try await waitForExit(process, timeout: .seconds(10))
-      await shutdownDrain.cancel()
-      #expect(status == 0)
-    } catch {
-      // A silent journey has two very different causes — a viewer that never
-      // painted and one that already died. Record which, so a CI-only failure
-      // distinguishes a startup hang from a startup crash.
-      let wasRunning = process.isRunning
-      if wasRunning { process.terminate() }
-      pair.closeMaster()
-      _ = try? await waitForExit(process, timeout: .seconds(5))
-      if wasRunning {
-        Issue.record("viewer was still running at the failure; terminated for cleanup")
-      } else {
-        let reason =
-          process.terminationReason == .uncaughtSignal ? "uncaught signal" : "exit"
-        Issue.record(
-          "viewer had already died before the failure: \(reason) status \(process.terminationStatus)"
-        )
-      }
-      throw error
-    }
-  }
-
-  @Test(
-    "rebuilt executable covers navigation, search, Mermaid, reload, resize, and quit",
+    "rebuilt executable covers navigation, search, reload, resize, and quit",
     .enabled(if: mrkdwnViewerPTYTestsEnabled, mrkdwnViewerPTYTestGateComment),
     .timeLimit(.minutes(1))
   )
@@ -295,11 +174,10 @@ struct MrkdwnRealTerminalJourneyTests {
 
       qwerty is visible and searchable.
 
-      ## Diagram
+      ## Code
 
-      > ```mermaid
-      > flowchart LR
-      > A --> B
+      > ```swift
+      > print("hello")
       > ```
       """.utf8
     ).write(to: document)
@@ -378,26 +256,16 @@ struct MrkdwnRealTerminalJourneyTests {
           && !$0.contains("/q▏")
       }
 
-      // `m` resolves the first nested Mermaid block when no diagram owns
-      // focus, proving recursive identity and offered-width plumbing.
-      try writeAllBytes(Array("m".utf8), to: pair.master)
-      _ = try await waitForANSIVisibleScreen(
-        on: pair.master,
-        screen: &screen,
-        deadline: .now() + .seconds(15)
-      ) { $0.contains(" flowchart LR") }
-
       try Data(
         """
         # Intro
 
         watcher replacement reached the rebuilt executable.
 
-        ## Diagram
+        ## Code
 
-        > ```mermaid
-        > flowchart LR
-        > A --> B
+        > ```swift
+        > print("hello")
         > ```
         """.utf8
       ).write(to: document, options: .atomic)

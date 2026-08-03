@@ -19,7 +19,6 @@ private final class ScrollProxyBox {
 
 public struct MrkdwnRootView: View {
   private let model: ViewerModel
-  @FocusState private var focusedMermaidID: BlockID?
   @State private var proxyBox = ScrollProxyBox()
 
   public init(model: ViewerModel) {
@@ -72,18 +71,7 @@ public struct MrkdwnRootView: View {
     .task { @MainActor in
       await model.start()
     }
-    .task(id: model.state.contentRevision) { @MainActor in
-      focusedMermaidID = nil
-    }
     .panel(id: "mrkdwn")
-    .keyCommand(
-      "Reveal next Mermaid source",
-      key: .character("m"),
-      modifiers: .alt,
-      isEnabled: !model.state.searchVisible
-    ) {
-      model.send(.revealNextMermaidSource)
-    }
   }
 
   public func shutdown() async {
@@ -107,10 +95,7 @@ public struct MrkdwnRootView: View {
         }
         ScrollViewReader { proxy in
           let _ = proxyBox.adopt(proxy)
-          MarkdownDocumentView(
-            model: model,
-            focusedMermaidID: $focusedMermaidID
-          )
+          MarkdownDocumentView(model: model)
           .frame(
             width: model.state.documentFrameWidth,
             alignment: .topLeading
@@ -253,12 +238,6 @@ public struct MrkdwnRootView: View {
       model.send(.goForward)
     case KeyPress(.character("r")):
       model.send(.reload)
-    case KeyPress(.character("m")):
-      if let id = focusedMermaidID ?? firstMermaidBlockID {
-        model.send(.toggleMermaidSource(id))
-      }
-    case KeyPress(.character("M")), KeyPress(.character("m"), modifiers: .shift):
-      model.send(.revealNextMermaidSource)
     case KeyPress(.character("?")):
       model.send(.toggleHelp)
     case KeyPress(.escape):
@@ -301,25 +280,10 @@ public struct MrkdwnRootView: View {
     return .handled
   }
 
-  private var firstMermaidBlockID: BlockID? {
-    mermaidBlockIDs.first
-  }
-
-  private var mermaidBlockIDs: [BlockID] {
-    guard let document = model.state.document else { return [] }
-    return MarkdownBlockLayout.flattened(
-      document.blocks,
-      offeredWidth: model.state.documentWidth
-    ).compactMap {
-      if case .mermaid(let id, _, _) = $0.block { return id }
-      return nil
-    }
-  }
 }
 
 private struct MarkdownDocumentView: View {
   let model: ViewerModel
-  var focusedMermaidID: FocusState<BlockID?>.Binding
 
   var body: some View {
     ScrollView(
@@ -341,10 +305,6 @@ private struct MarkdownDocumentView: View {
               block: $0,
               state: model.state,
               offeredWidth: model.state.documentWidth,
-              focusedMermaidID: focusedMermaidID,
-              toggleMermaidSource: {
-                model.send(.toggleMermaidSource($0))
-              },
               documentGeometryTop: {
                 model.documentGeometryTop(for: $0)
               },
@@ -360,7 +320,6 @@ private struct MarkdownDocumentView: View {
               // split model properties lands on the leaf that needs it, not
               // on this ForEach.
               documentScrollOffset: { model.documentScrollOffset },
-              mermaidPresentation: { model.mermaid[$0] },
               imagePresentation: { model.images[$0] },
               tableMetrics: { model.tableMetrics(for: $1, identity: $0) }
             )

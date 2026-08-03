@@ -23,10 +23,6 @@ public struct ThemeTOMLDecoder: Sendable {
     "link", "quote", "code_foreground", "code_background", "table_border", "rule",
     "search_match", "error",
   ]
-  private static let mermaidKeys: Set<String> = [
-    "background", "border", "text", "edge", "edge_label", "title",
-  ]
-
   public init() {}
 
   public func decode(_ source: String) throws -> ViewerTheme {
@@ -51,7 +47,7 @@ public struct ThemeTOMLDecoder: Sendable {
           throw error(lineNumber, 1, "unsupported table syntax")
         }
         let name = String(trimmed.dropFirst().dropLast())
-        guard name == "theme" || name == "theme.mermaid" else {
+        guard name == "theme" else {
           throw error(lineNumber, 2, "unknown table '\(name)'")
         }
         guard seenTables.insert(name).inserted else {
@@ -90,8 +86,7 @@ public struct ThemeTOMLDecoder: Sendable {
         continue
       }
 
-      let allowed = table == "theme" ? Self.themeKeys : Self.mermaidKeys
-      guard allowed.contains(key) else {
+      guard Self.themeKeys.contains(key) else {
         throw error(lineNumber, 1, "unknown key '\(table).\(key)'")
       }
       let qualified = "\(table).\(key)"
@@ -138,12 +133,6 @@ public struct ThemeTOMLDecoder: Sendable {
     try assign("theme.rule") { theme.rule = $0 }
     try assign("theme.search_match") { theme.searchMatch = $0 }
     try assign("theme.error") { theme.error = $0 }
-    try assign("theme.mermaid.background") { theme.mermaid.background = $0 }
-    try assign("theme.mermaid.border") { theme.mermaid.border = $0 }
-    try assign("theme.mermaid.text") { theme.mermaid.text = $0 }
-    try assign("theme.mermaid.edge") { theme.mermaid.edge = $0 }
-    try assign("theme.mermaid.edge_label") { theme.mermaid.edgeLabel = $0 }
-    try assign("theme.mermaid.title") { theme.mermaid.title = $0 }
     return theme
   }
 

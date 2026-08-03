@@ -90,19 +90,9 @@ private struct CompilerVisitor: MarkupVisitor {
   mutating func visitCodeBlock(_ codeBlock: CodeBlock) -> [MarkdownBlock] {
     let span = sourceSpan(codeBlock)
     let language = normalizedLanguage(codeBlock.language)
-    let id = blockID(kind: language == "mermaid" ? "mermaid" : "code", span: span)
-    if language == "mermaid" {
-      return [
-        .mermaid(
-          id: id,
-          value: MermaidBlock(source: codeBlock.code),
-          source: span
-        )
-      ]
-    }
     return [
       .code(
-        id: id,
+        id: blockID(kind: "code", span: span),
         language: language,
         sourceText: codeBlock.code,
         source: span

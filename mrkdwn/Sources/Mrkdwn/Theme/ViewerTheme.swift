@@ -36,15 +36,6 @@ public enum ThemeColorError: Error, Equatable, Sendable, LocalizedError {
   }
 }
 
-public struct MermaidTheme: Equatable, Sendable {
-  public var background: ThemeColor
-  public var border: ThemeColor
-  public var text: ThemeColor
-  public var edge: ThemeColor
-  public var edgeLabel: ThemeColor
-  public var title: ThemeColor
-}
-
 public struct ViewerTheme: Equatable, Sendable {
   public var background: ThemeColor
   public var foreground: ThemeColor
@@ -60,7 +51,6 @@ public struct ViewerTheme: Equatable, Sendable {
   public var rule: ThemeColor
   public var searchMatch: ThemeColor
   public var error: ThemeColor
-  public var mermaid: MermaidTheme
 
   public static let `default`: ViewerTheme = {
     func color(_ value: String) -> ThemeColor {
@@ -83,15 +73,7 @@ public struct ViewerTheme: Equatable, Sendable {
       tableBorder: color("#30363D"),
       rule: color("#30363D"),
       searchMatch: color("#E3B341"),
-      error: color("#FF7B72"),
-      mermaid: MermaidTheme(
-        background: color("#161B22"),
-        border: color("#8B949E"),
-        text: color("#E6EDF3"),
-        edge: color("#8B949E"),
-        edgeLabel: color("#C9D1D9"),
-        title: color("#79C0FF")
-      )
+      error: color("#FF7B72")
     )
   }()
 
@@ -118,13 +100,5 @@ public struct ViewerTheme: Equatable, Sendable {
     rule = "#30363D"
     search_match = "#E3B341"
     error = "#FF7B72"
-
-    [theme.mermaid]
-    background = "#161B22"
-    border = "#8B949E"
-    text = "#E6EDF3"
-    edge = "#8B949E"
-    edge_label = "#C9D1D9"
-    title = "#79C0FF"
     """
 }

@@ -40,12 +40,6 @@ struct MrkdwnCommand: SwiftTUI.App {
   )
   var allowRemoteImages = false
 
-  @Option(
-    name: .customLong("ambiguous-width"),
-    help: "Render East Asian ambiguous-width glyphs as 'narrow' or 'wide'."
-  )
-  var ambiguousWidth = "narrow"
-
   @Flag(
     name: .customLong("print-default-theme"),
     help: "Print the complete built-in theme as TOML and exit."
@@ -76,24 +70,12 @@ struct MrkdwnCommand: SwiftTUI.App {
     guard !(watch && noWatch) else {
       throw ValidationError("--watch and --no-watch cannot be used together")
     }
-    guard
-      let mermaidAmbiguousWidth = ViewerMermaidAmbiguousWidth(
-        rawValue: ambiguousWidth.lowercased()
-      )
-    else {
-      throw ValidationError("--ambiguous-width must be 'narrow' or 'wide'")
-    }
-
     let fileManager = FileManager.default
     let environment = ProcessInfo.processInfo.environment
     let isStdoutTTY = RenderOnce.standardOutputIsTTY()
     let resolvedRuntimeConfiguration = runtimeConfiguration(
       environment: environment,
       isStdoutTTY: isStdoutTTY
-    )
-    let mermaidConfiguration = ViewerMermaidConfiguration(
-      glyphMode: resolvedRuntimeConfiguration.glyphs == .ascii ? .ascii : .unicode,
-      ambiguousWidth: mermaidAmbiguousWidth
     )
     let currentDirectory = URL(
       fileURLWithPath: fileManager.currentDirectoryPath,
@@ -139,8 +121,7 @@ struct MrkdwnCommand: SwiftTUI.App {
       theme: loadedTheme.theme,
       themeSelection: themeSelection,
       watchesDocument: watchesDocument,
-      allowsRemoteImages: allowRemoteImages,
-      mermaidConfiguration: mermaidConfiguration
+      allowsRemoteImages: allowRemoteImages
     )
     // Complete the first app-owned document commit before the terminal run
     // loop takes over. A view lifecycle task still provides the reusable-view

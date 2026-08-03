@@ -458,9 +458,8 @@ struct ViewContractTests {
 
     let nested = MarkdownCompiler().compile(
       source: """
-        > - ```mermaid
-        >   flowchart LR
-        >   A --> B
+        > - ```swift
+        >   print("hello")
         >   ```
         """,
       sourceURL: nil
@@ -469,85 +468,11 @@ struct ViewContractTests {
       nested.blocks,
       offeredWidth: viewport.documentWidth
     ).first {
-      if case .mermaid = $0.block { return true }
+      if case .code = $0.block { return true }
       return false
     }
     #expect(descriptor != nil)
     #expect(descriptor?.offeredWidth ?? viewport.documentWidth < viewport.documentWidth)
-  }
-
-  @Test("unavailable Mermaid reveals its source once with matching geometry")
-  func unavailableMermaidSourceGeometry() throws {
-    let id = BlockID("unavailable-mermaid")
-    let source = "flowchart LR\nUNIQUE-SOURCE --> END"
-    var inputs = MarkdownBlockLayout.GeometryInputs()
-    inputs.mermaid[id] = .unavailable(diagnostic: "renderer unavailable")
-    inputs.revealedMermaidSources.insert(id)
-    let block = MarkdownBlock.mermaid(
-      id: id,
-      value: MermaidBlock(source: source),
-      source: nil
-    )
-    let geometry = try #require(
-      MarkdownBlockLayout.renderedGeometry(
-        [block],
-        inputs: inputs,
-        offeredWidth: 80
-      ).first
-    )
-    let artifacts = DefaultRenderer().render(
-      MermaidBlockView(
-        blockID: id,
-        source: source,
-        presentation: inputs.mermaid[id],
-        theme: .default,
-        offeredWidth: 80,
-        revealsSource: true
-      ),
-      context: .init(identity: Identity(components: [.named("UnavailableMermaid")])),
-      proposal: ProposedSize(width: 80, height: nil)
-    )
-    let lines = artifacts.rasterSurface.lines
-    let text = lines.joined(separator: "\n")
-
-    #expect(text.components(separatedBy: "UNIQUE-SOURCE").count - 1 == 1)
-    #expect(lines.count == geometry.height)
-  }
-
-  @Test("wrapped Mermaid diagnostics match narrow-width geometry")
-  func wrappedMermaidDiagnosticGeometry() throws {
-    let id = BlockID("wrapped-mermaid-diagnostic")
-    let source = "flowchart LR\nA --> B"
-    let diagnostic = String(repeating: "renderer unavailable ", count: 5)
-    let width = 24
-    var inputs = MarkdownBlockLayout.GeometryInputs()
-    inputs.mermaid[id] = .unavailable(diagnostic: diagnostic)
-    let block = MarkdownBlock.mermaid(
-      id: id,
-      value: MermaidBlock(source: source),
-      source: nil
-    )
-    let geometry = try #require(
-      MarkdownBlockLayout.renderedGeometry(
-        [block],
-        inputs: inputs,
-        offeredWidth: width
-      ).first
-    )
-    let artifacts = DefaultRenderer().render(
-      MermaidBlockView(
-        blockID: id,
-        source: source,
-        presentation: inputs.mermaid[id],
-        theme: .default,
-        offeredWidth: width,
-        revealsSource: false
-      ),
-      context: .init(identity: Identity(components: [.named("WrappedMermaidDiagnostic")])),
-      proposal: ProposedSize(width: width, height: nil)
-    )
-
-    #expect(artifacts.rasterSurface.lines.count == geometry.height)
   }
 
   @Test("wrapped image fallback metadata matches narrow-width geometry")
@@ -626,39 +551,6 @@ struct ViewContractTests {
 
     #expect(try #require(geometry.first).height == htmlArtifacts.rasterSurface.lines.count)
     #expect(try #require(geometry.last).height == unsupportedArtifacts.rasterSurface.lines.count)
-  }
-
-  @Test("ForeignSurface rewrites continuation ownership at a nonzero origin")
-  func nonzeroForeignSurfaceOrigin() throws {
-    let rendered = RenderedMermaid(
-      width: 3,
-      height: 1,
-      cells: [
-        [
-          MermaidPaintCell(character: "界", spanWidth: 2, role: .text),
-          MermaidPaintCell(spanWidth: 0, continuationLeadX: 0, role: .text),
-          MermaidPaintCell(character: "!", role: .title),
-        ]
-      ]
-    )
-    let artifacts = DefaultRenderer().render(
-      HStack(spacing: 0) {
-        Text("prefix")
-        ForeignSurface(payload: MermaidForeignPayload(rendered: rendered, theme: .default))
-          .frame(width: 3, height: 1)
-      }
-      .padding(.init(horizontal: 2, vertical: 1)),
-      context: .init(identity: Identity(components: [.named("NonzeroMermaid")])),
-      proposal: ProposedSize(width: 20, height: 3)
-    )
-    let row = try #require(
-      artifacts.rasterSurface.cells.first { $0.contains { $0.character == "界" } }
-    )
-    let leader = try #require(row.firstIndex { $0.character == "界" })
-    #expect(leader > 0)
-    #expect(row[leader].spanWidth == 2)
-    #expect(row[leader + 1].spanWidth == 0)
-    #expect(row[leader + 1].continuationLeadX == leader)
   }
 
   @Test("every image state keeps alt, title, and destination visibly accessible")

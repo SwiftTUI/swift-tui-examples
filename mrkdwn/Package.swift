@@ -31,18 +31,9 @@ let package = Package(
     ),
   ],
   targets: [
-    // Vendored, example-internal Mermaid renderer. Not a published product:
-    // mrkdwn owns this source outright rather than depending on a separate
-    // package. See Sources/MrkdwnMermaid/NOTICE for its Apache-2.0 provenance.
-    .target(
-      name: "MrkdwnMermaid",
-      exclude: ["LICENSE", "NOTICE", "README.md", "SYNTAX.md"],
-      swiftSettings: swiftSettings
-    ),
     .target(
       name: "Mrkdwn",
       dependencies: [
-        "MrkdwnMermaid",
         .product(name: "SwiftTUI", package: "swift-tui"),
         .product(name: "Markdown", package: "swift-markdown"),
       ],
@@ -59,16 +50,9 @@ let package = Package(
       swiftSettings: swiftSettings
     ),
     .testTarget(
-      name: "MrkdwnMermaidTests",
-      dependencies: ["MrkdwnMermaid"],
-      resources: [.copy("Fixtures")],
-      swiftSettings: swiftSettings
-    ),
-    .testTarget(
       name: "MrkdwnTests",
       dependencies: [
         "Mrkdwn",
-        "MrkdwnMermaid",
         .product(name: "SwiftTUI", package: "swift-tui"),
         .product(name: "SwiftTUITestSupport", package: "swift-tui"),
       ],

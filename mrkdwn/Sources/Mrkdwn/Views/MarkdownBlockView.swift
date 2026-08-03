@@ -5,15 +5,12 @@ struct MarkdownBlockView: View {
   var block: MarkdownBlock
   var state: ViewerState
   var offeredWidth: Int
-  var focusedMermaidID: FocusState<BlockID?>.Binding
-  var toggleMermaidSource: (BlockID) -> Void
   var documentGeometryTop: (BlockID) -> Int?
   var resourceVisibilityChanged: (BlockID, Bool) -> Void
   // Leaf-time readers for the model properties that live outside `state`
   // (scroll offset, resource presentations): calling them inside this view's
   // body scopes the observation dependency to the block that reads them.
   var documentScrollOffset: () -> Int
-  var mermaidPresentation: (BlockID) -> MermaidPresentation?
   var imagePresentation: (BlockID) -> ImagePresentation?
   var tableMetrics: (BlockID, MarkdownTable) -> MarkdownTableLayoutMetrics
 
@@ -36,12 +33,8 @@ struct MarkdownBlockView: View {
   }
 
   private var isAsynchronousResource: Bool {
-    switch block {
-    case .mermaid, .image:
-      true
-    default:
-      false
-    }
+    if case .image = block { return true }
+    return false
   }
 
   private var isSelectedSearchBlock: Bool {
@@ -91,12 +84,9 @@ struct MarkdownBlockView: View {
                 block: $0,
                 state: state,
                 offeredWidth: MarkdownBlockLayout.quoteContentWidth(offeredWidth),
-                focusedMermaidID: focusedMermaidID,
-                toggleMermaidSource: toggleMermaidSource,
                 documentGeometryTop: documentGeometryTop,
                 resourceVisibilityChanged: resourceVisibilityChanged,
                 documentScrollOffset: documentScrollOffset,
-                mermaidPresentation: mermaidPresentation,
                 imagePresentation: imagePresentation,
                 tableMetrics: tableMetrics
               )
@@ -111,12 +101,9 @@ struct MarkdownBlockView: View {
           list: list,
           state: state,
           offeredWidth: offeredWidth,
-          focusedMermaidID: focusedMermaidID,
-          toggleMermaidSource: toggleMermaidSource,
           documentGeometryTop: documentGeometryTop,
           resourceVisibilityChanged: resourceVisibilityChanged,
           documentScrollOffset: documentScrollOffset,
-          mermaidPresentation: mermaidPresentation,
           imagePresentation: imagePresentation,
           tableMetrics: tableMetrics
         )
@@ -134,27 +121,6 @@ struct MarkdownBlockView: View {
               .padding(.init(horizontal: 1, vertical: 0))
           }
           .background(state.theme.codeBackground.swiftTUIColor)
-        }
-      )
-    case .mermaid(let id, let value, _):
-      return AnyView(
-        MermaidBlockView(
-          blockID: id,
-          source: value.source,
-          presentation: mermaidPresentation(id),
-          theme: state.theme,
-          offeredWidth: offeredWidth,
-          revealsSource: state.revealedMermaidSources.contains(id)
-        )
-        .focusable(true)
-        .focused(focusedMermaidID, equals: id)
-        .accessibilityLabel("Mermaid diagram")
-        .onKeyPress(.any) { keyPress in
-          guard keyPress == KeyPress(.character("m")) else {
-            return .ignored
-          }
-          toggleMermaidSource(id)
-          return .handled
         }
       )
     case .table(let id, let table, _):
@@ -206,12 +172,9 @@ private struct MarkdownListView: View {
   var list: MarkdownList
   var state: ViewerState
   var offeredWidth: Int
-  var focusedMermaidID: FocusState<BlockID?>.Binding
-  var toggleMermaidSource: (BlockID) -> Void
   var documentGeometryTop: (BlockID) -> Int?
   var resourceVisibilityChanged: (BlockID, Bool) -> Void
   var documentScrollOffset: () -> Int
-  var mermaidPresentation: (BlockID) -> MermaidPresentation?
   var imagePresentation: (BlockID) -> ImagePresentation?
   var tableMetrics: (BlockID, MarkdownTable) -> MarkdownTableLayoutMetrics
 
@@ -240,12 +203,9 @@ private struct MarkdownListView: View {
                 block: $0,
                 state: state,
                 offeredWidth: contentWidth,
-                focusedMermaidID: focusedMermaidID,
-                toggleMermaidSource: toggleMermaidSource,
                 documentGeometryTop: documentGeometryTop,
                 resourceVisibilityChanged: resourceVisibilityChanged,
                 documentScrollOffset: documentScrollOffset,
-                mermaidPresentation: mermaidPresentation,
                 imagePresentation: imagePresentation,
                 tableMetrics: tableMetrics
               )

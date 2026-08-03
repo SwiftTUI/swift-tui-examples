@@ -10,31 +10,6 @@ private enum StubFailure: Error {
   case unavailable
 }
 
-private actor MermaidRequestRecorder {
-  private(set) var requests: [MermaidRenderRequest] = []
-
-  func record(_ request: MermaidRenderRequest) {
-    requests.append(request)
-  }
-}
-
-private actor MermaidReflowProbe {
-  private(set) var requests: [MermaidRenderRequest] = []
-  private(set) var cancellationCount = 0
-
-  func render(_ request: MermaidRenderRequest) async -> MermaidPresentation {
-    requests.append(request)
-    if request.width == 177 {
-      do {
-        try await Task.sleep(for: .seconds(30))
-      } catch {
-        cancellationCount += 1
-      }
-    }
-    return .unavailable(diagnostic: "width \(request.width)")
-  }
-}
-
 private actor ImageRequestRecorder {
   private(set) var sources: [String] = []
 
@@ -44,30 +19,12 @@ private actor ImageRequestRecorder {
 }
 
 private actor ResourceLifecycleProbe {
-  private(set) var activeMermaid = 0
   private(set) var activeImages = 0
-  private(set) var maximumMermaid = 0
   private(set) var maximumImages = 0
-  private(set) var cancelledMermaid = 0
   private(set) var cancelledImages = 0
 
-  func activeCounts() -> (mermaid: Int, images: Int) {
-    (activeMermaid, activeImages)
-  }
-
-  func unavailableMermaid(
-    delay: Duration = .milliseconds(2)
-  ) async -> MermaidPresentation {
-    activeMermaid += 1
-    maximumMermaid = max(maximumMermaid, activeMermaid)
-    defer { activeMermaid -= 1 }
-    do {
-      try await Task.sleep(for: delay)
-      return .unavailable(diagnostic: "fixture unavailable")
-    } catch {
-      cancelledMermaid += 1
-      return .unavailable(diagnostic: "fixture cancelled")
-    }
+  func activeCount() -> Int {
+    activeImages
   }
 
   func failingImage(
@@ -373,7 +330,6 @@ struct ViewerModelAndRenderTests {
         readDocument: { _ in throw StubFailure.unavailable },
         loadTheme: { LoadedTheme(theme: .default, sourceURL: nil) },
         watchFile: { _ in AsyncStream { $0.finish() } },
-        renderMermaid: { _ in .unavailable(diagnostic: "stub") },
         loadImage: { _, _ in throw StubFailure.unavailable },
         openExternal: { _ in true },
         sleep: { _ in }
@@ -420,7 +376,6 @@ struct ViewerModelAndRenderTests {
         },
         loadTheme: { LoadedTheme(theme: .default, sourceURL: nil) },
         watchFile: { _ in AsyncStream { $0.finish() } },
-        renderMermaid: { _ in .unavailable(diagnostic: "stub") },
         loadImage: { _, _ in throw StubFailure.unavailable },
         openExternal: { _ in true },
         sleep: { _ in }
@@ -683,73 +638,6 @@ struct ViewerModelAndRenderTests {
     await model.shutdown()
   }
 
-  @Test("rapid viewport and outline changes coalesce Mermaid reflow at the visible width")
-  func viewportDebounce() async {
-    let recorder = MermaidReflowProbe()
-    let model = ViewerModel(
-      snapshot: DocumentSnapshot(
-        source: "```mermaid\nflowchart LR\nA --> B\n```",
-        url: nil,
-        displayName: "diagram.md"
-      ),
-      theme: .default,
-      watchesDocument: false,
-      compiler: MarkdownCompiler(),
-      linkResolver: LinkResolver(),
-      dependencies: ViewerDependencies(
-        themeURL: nil,
-        readDocument: { _ in throw StubFailure.unavailable },
-        loadTheme: { LoadedTheme(theme: .default, sourceURL: nil) },
-        watchFile: { _ in AsyncStream { $0.finish() } },
-        renderMermaid: { await recorder.render($0) },
-        loadImage: { _, _ in throw StubFailure.unavailable },
-        openExternal: { _ in true },
-        sleep: { duration in try? await Task.sleep(for: duration) }
-      )
-    )
-    await model.start()
-    guard
-      let id = firstResourceID(
-        in: model,
-        matching: {
-          if case .mermaid = $0 { return true }
-          return false
-        })
-    else {
-      Issue.record("Expected a Mermaid block")
-      await model.shutdown()
-      return
-    }
-    model.resourceBecameVisible(id)
-    await waitUntilAsync { await recorder.requests.count == 1 }
-    model.updateViewport(ViewerSize(width: 70, height: 20))
-    model.updateViewport(ViewerSize(width: 90, height: 20))
-    model.updateViewport(ViewerSize(width: 100, height: 20))
-    await waitUntilAsync { await recorder.requests.count == 2 }
-
-    let requests = await recorder.requests
-    #expect(requests.count == 2)
-    #expect(requests.last?.width == 97)
-
-    // The narrow viewport hid the outline. Growing wide therefore gives the
-    // document the whole pane, and restoring the inline outline must reflow at
-    // the smaller width that remains after its chrome.
-    model.updateViewport(ViewerSize(width: 180, height: 20))
-    await waitUntilAsync { await recorder.requests.count == 3 }
-    #expect(await recorder.requests.last?.width == 177)
-    model.send(.toggleOutline)
-    await waitUntilAsync { await recorder.requests.count == 4 }
-    #expect(await recorder.requests.last?.width == 148)
-    await waitUntilAsync { await recorder.cancellationCount == 1 }
-    await waitUntil {
-      if case .unavailable(let diagnostic)? = model.mermaid[id] {
-        return diagnostic == "width 148"
-      }
-      return false
-    }
-    await model.shutdown()
-  }
-
   @Test("outline width changes retain the visible block and heading navigation context")
   func outlineWidthRetainsScrollAnchor() async throws {
     let wrappingParagraph = Array(repeating: "wrapping", count: 18).joined(separator: " ")
@@ -789,17 +677,13 @@ struct ViewerModelAndRenderTests {
     await model.shutdown()
   }
 
-  @Test("nested diagrams and images enter the async resource pipelines")
+  @Test("nested images enter the async resource pipeline")
   func nestedResources() async {
-    let mermaid = MermaidRequestRecorder()
     let images = ImageRequestRecorder()
     let model = ViewerModel(
       snapshot: DocumentSnapshot(
         source: """
-          > ```mermaid
-          > flowchart LR
-          > A --> B
-          > ```
+          > ![quoted](quoted.png)
 
           - ![nested](image.png)
           """,
@@ -815,10 +699,6 @@ struct ViewerModelAndRenderTests {
         readDocument: { _ in throw StubFailure.unavailable },
         loadTheme: { LoadedTheme(theme: .default, sourceURL: nil) },
         watchFile: { _ in AsyncStream { $0.finish() } },
-        renderMermaid: { request in
-          await mermaid.record(request)
-          return .unavailable(diagnostic: "stub")
-        },
         loadImage: { source, _ in
           await images.record(source)
           throw StubFailure.unavailable
@@ -833,24 +713,19 @@ struct ViewerModelAndRenderTests {
       offeredWidth: model.state.viewport.documentWidth
     ) {
       switch descriptor.block {
-      case .mermaid(let id, _, _), .image(let id, _, _):
+      case .image(let id, _, _):
         model.resourceBecameVisible(id)
       default:
         break
       }
     }
     for _ in 0..<20 {
-      if await mermaid.requests.count == 1, await images.sources.count == 1 {
+      if await images.sources.count == 2 {
         break
       }
       await Task.yield()
     }
-    #expect(await mermaid.requests.count == 1)
-    #expect(
-      await mermaid.requests.first?.width
-        == MarkdownBlockLayout.quoteContentWidth(model.state.viewport.documentWidth)
-    )
-    #expect(await images.sources == ["image.png"])
+    #expect(Set(await images.sources) == ["quoted.png", "image.png"])
     await model.shutdown()
   }
 
@@ -900,9 +775,6 @@ struct ViewerModelAndRenderTests {
         readDocument: { _ in await script.read() },
         loadTheme: { LoadedTheme(theme: .default, sourceURL: nil) },
         watchFile: { _ in AsyncStream { $0.finish() } },
-        renderMermaid: { request in
-          .unavailable(diagnostic: "stub")
-        },
         loadImage: { _, _ in throw StubFailure.unavailable },
         openExternal: { _ in true },
         sleep: { _ in }
@@ -950,7 +822,6 @@ struct ViewerModelAndRenderTests {
         readDocument: { _ in try await probe.readDocument() },
         loadTheme: { try await probe.loadTheme() },
         watchFile: { _ in AsyncStream { $0.finish() } },
-        renderMermaid: { _ in .unavailable(diagnostic: "stub") },
         loadImage: { _, _ in throw StubFailure.unavailable },
         openExternal: { _ in true },
         sleep: { _ in }
@@ -1016,7 +887,6 @@ struct ViewerModelAndRenderTests {
         readDocument: { _ in await script.read() },
         loadTheme: { LoadedTheme(theme: .default, sourceURL: nil) },
         watchFile: { _ in AsyncStream { $0.finish() } },
-        renderMermaid: { _ in .unavailable(diagnostic: "stub") },
         loadImage: { _, _ in throw StubFailure.unavailable },
         openExternal: { _ in true },
         sleep: { _ in }
@@ -1027,9 +897,7 @@ struct ViewerModelAndRenderTests {
     let oldGeometry = MarkdownBlockLayout.renderedGeometry(
       try #require(model.state.document?.blocks),
       inputs: .init(
-        mermaid: model.mermaid,
         images: model.images,
-        revealedMermaidSources: model.state.revealedMermaidSources,
         documentURL: model.state.snapshot.url
       ),
       offeredWidth: model.state.viewport.documentWidth
@@ -1051,9 +919,7 @@ struct ViewerModelAndRenderTests {
     let newGeometry = MarkdownBlockLayout.renderedGeometry(
       newDocument.blocks,
       inputs: .init(
-        mermaid: model.mermaid,
         images: model.images,
-        revealedMermaidSources: model.state.revealedMermaidSources,
         documentURL: model.state.snapshot.url
       ),
       offeredWidth: model.state.viewport.documentWidth
@@ -1079,9 +945,6 @@ struct ViewerModelAndRenderTests {
         readDocument: { try await script.read($0) },
         loadTheme: { LoadedTheme(theme: .default, sourceURL: nil) },
         watchFile: { _ in AsyncStream { $0.finish() } },
-        renderMermaid: { request in
-          .unavailable(diagnostic: "stub")
-        },
         loadImage: { _, _ in throw StubFailure.unavailable },
         openExternal: { _ in true },
         sleep: { _ in }
@@ -1129,378 +992,6 @@ struct ViewerModelAndRenderTests {
     await model.shutdown()
   }
 
-  @Test("document navigation resets Mermaid disclosure and focus revision")
-  func documentLocalPresentationReset() async {
-    let first = URL(fileURLWithPath: "/docs/one.md")
-    let second = URL(fileURLWithPath: "/docs/two.md")
-    let model = ViewerModel(
-      snapshot: DocumentSnapshot(
-        source: "```mermaid\nflowchart LR\nA --> B\n```",
-        url: first,
-        displayName: "one.md"
-      ),
-      theme: .default,
-      watchesDocument: false,
-      compiler: MarkdownCompiler(),
-      linkResolver: LinkResolver(),
-      dependencies: ViewerDependencies(
-        themeURL: nil,
-        readDocument: { url in
-          DocumentSnapshot(source: "# Two", url: url, displayName: "two.md")
-        },
-        loadTheme: { LoadedTheme(theme: .default, sourceURL: nil) },
-        watchFile: { _ in AsyncStream { $0.finish() } },
-        renderMermaid: { _ in .unavailable(diagnostic: "stub") },
-        loadImage: { _, _ in throw StubFailure.unavailable },
-        openExternal: { _ in true },
-        sleep: { _ in }
-      )
-    )
-    await model.start()
-    let mermaidID = model.state.document?.blocks.first?.id
-    if let mermaidID { model.send(.toggleMermaidSource(mermaidID)) }
-    #expect(!model.state.revealedMermaidSources.isEmpty)
-    let firstRevision = model.state.contentRevision
-
-    model.send(.openDestination(second.path))
-    await waitUntil { model.state.snapshot.url == second }
-    #expect(model.state.revealedMermaidSources.isEmpty)
-    #expect(model.state.contentRevision > firstRevision)
-    await model.shutdown()
-  }
-
-  @Test("an oversized presentation becomes a stable bounded fallback")
-  func oversizedPresentationFallback() async {
-    let recorder = MermaidRequestRecorder()
-    let oversized = RenderedMermaid(
-      width: 300,
-      height: 300,
-      cells: Array(
-        repeating: Array(
-          repeating: MermaidPaintCell(character: "A", role: .text),
-          count: 300
-        ),
-        count: 300
-      )
-    )
-    let model = ViewerModel(
-      snapshot: DocumentSnapshot(
-        source: "```mermaid\nflowchart LR\nA --> B\n```",
-        url: nil,
-        displayName: "oversized.md"
-      ),
-      theme: .default,
-      watchesDocument: false,
-      compiler: MarkdownCompiler(),
-      linkResolver: LinkResolver(),
-      dependencies: ViewerDependencies(
-        themeURL: nil,
-        readDocument: { _ in throw StubFailure.unavailable },
-        loadTheme: { LoadedTheme(theme: .default, sourceURL: nil) },
-        watchFile: { _ in AsyncStream { $0.finish() } },
-        renderMermaid: {
-          await recorder.record($0)
-          return .ready(oversized)
-        },
-        loadImage: { _, _ in throw StubFailure.unavailable },
-        openExternal: { _ in true },
-        sleep: { _ in }
-      )
-    )
-    await model.start()
-    guard
-      let id = firstResourceID(
-        in: model,
-        matching: {
-          if case .mermaid = $0 { return true }
-          return false
-        })
-    else {
-      Issue.record("Expected a Mermaid block")
-      await model.shutdown()
-      return
-    }
-    model.resourceBecameVisible(id)
-    await waitUntil(attempts: 5_000) {
-      if case .unavailable? = model.mermaid[id] { return true }
-      return false
-    }
-    model.resourceBecameHidden(id)
-    model.resourceBecameVisible(id)
-    await Task.yield()
-    #expect(await recorder.requests.count == 1)
-    #expect(model.retainedPresentationOccupancy.mermaidEntries == 0)
-    await model.shutdown()
-  }
-
-  @Test("next Mermaid reveal follows flattened authored order and stops when complete")
-  func revealNextMermaidSource() async {
-    let model = makeModel(
-      """
-      ```mermaid
-      flowchart LR
-      FIRST --> A
-      ```
-
-      > ```mermaid
-      > flowchart LR
-      > SECOND --> B
-      > ```
-      """
-    )
-    await model.start()
-    let ids = MarkdownBlockLayout.flattened(
-      model.state.document?.blocks ?? [],
-      offeredWidth: model.state.viewport.documentWidth
-    ).compactMap { descriptor -> BlockID? in
-      if case .mermaid(let id, _, _) = descriptor.block { return id }
-      return nil
-    }
-    #expect(ids.count == 2)
-
-    model.send(.revealNextMermaidSource)
-    #expect(model.state.revealedMermaidSources == Set(ids.prefix(1)))
-    model.send(.revealNextMermaidSource)
-    #expect(model.state.revealedMermaidSources == Set(ids))
-    model.send(.revealNextMermaidSource)
-    #expect(model.state.revealedMermaidSources == Set(ids))
-    await model.shutdown()
-  }
-
-  @Test("100 Mermaid and image results stay inside aggregate state budgets")
-  func aggregatePresentationBudgets() async {
-    let mermaidRequests = MermaidRequestRecorder()
-    let imageRequests = ImageRequestRecorder()
-    let mermaidSources = (0..<100).map {
-      "```mermaid\nflowchart LR\nA\($0) --> B\($0)\n```"
-    }
-    let imageSources = (0..<100).map {
-      "![image \($0)](image-\($0).png \"title \($0)\")"
-    }
-    let rendered = RenderedMermaid(
-      width: 64,
-      height: 64,
-      cells: Array(
-        repeating: Array(
-          repeating: MermaidPaintCell(character: "A", role: .text),
-          count: 64
-        ),
-        count: 64
-      )
-    )
-    let imageData = Data(repeating: 0xA5, count: 1_024 * 1_024)
-    let model = ViewerModel(
-      snapshot: DocumentSnapshot(
-        source: (mermaidSources + imageSources).joined(separator: "\n\n"),
-        url: URL(fileURLWithPath: "/docs/budgets.md"),
-        displayName: "budgets.md"
-      ),
-      theme: .default,
-      watchesDocument: false,
-      compiler: MarkdownCompiler(),
-      linkResolver: LinkResolver(),
-      dependencies: ViewerDependencies(
-        themeURL: nil,
-        readDocument: { _ in throw StubFailure.unavailable },
-        loadTheme: { LoadedTheme(theme: .default, sourceURL: nil) },
-        watchFile: { _ in AsyncStream { $0.finish() } },
-        renderMermaid: { request in
-          await mermaidRequests.record(request)
-          return .ready(rendered)
-        },
-        loadImage: { source, _ in
-          await imageRequests.record(source)
-          return LoadedImage(
-            data: imageData,
-            url: URL(fileURLWithPath: "/docs/\(source)"),
-            image: InspectedImage(
-              format: .png,
-              dimensions: ImageDimensions(width: 32, height: 32)
-            )
-          )
-        },
-        openExternal: { _ in true },
-        sleep: { _ in }
-      )
-    )
-
-    await model.start()
-    let descriptors = MarkdownBlockLayout.flattened(
-      model.state.document?.blocks ?? [],
-      offeredWidth: model.state.viewport.documentWidth
-    )
-    let mermaidIDs = descriptors.compactMap { descriptor -> BlockID? in
-      if case .mermaid(let id, _, _) = descriptor.block { return id }
-      return nil
-    }
-    let imageIDs = descriptors.compactMap { descriptor -> BlockID? in
-      if case .image(let id, _, _) = descriptor.block { return id }
-      return nil
-    }
-    for id in mermaidIDs + imageIDs {
-      model.resourceBecameVisible(id)
-    }
-    await waitUntil(attempts: 5_000) {
-      model.ownedEffectCount == 0
-        && model.retainedPresentationOccupancy.mermaidEntries > 0
-        && model.retainedPresentationOccupancy.imageEntries > 0
-    }
-    #expect(await mermaidRequests.requests.count == 100)
-    #expect(await imageRequests.sources.count == 28)
-    for id in mermaidIDs {
-      model.resourceBecameHidden(id)
-    }
-    for id in imageIDs {
-      model.resourceBecameVisible(id)
-    }
-    await waitUntil(attempts: 5_000) {
-      model.ownedEffectCount == 0
-        && model.retainedPresentationOccupancy.imageEntries > 0
-    }
-    let occupancy = model.retainedPresentationOccupancy
-    #expect(occupancy.mermaidEntries <= ViewerModel.maximumRetainedMermaidPresentations)
-    #expect(occupancy.mermaidBytes <= ViewerModel.maximumRetainedMermaidBytes)
-    #expect(occupancy.imageEntries <= ViewerModel.maximumRetainedImagePresentations)
-    #expect(occupancy.imageBytes <= ViewerModel.maximumRetainedImageBytes)
-    #expect(
-      model.mermaid.values.filter {
-        if case .ready = $0 { return true }
-        return false
-      }.count == occupancy.mermaidEntries
-    )
-    #expect(
-      model.images.values.filter {
-        if case .ready = $0 { return true }
-        return false
-      }.count == occupancy.imageEntries
-    )
-
-    #expect(await mermaidRequests.requests.count == 100)
-    #expect(await imageRequests.sources.count == 100)
-    // A resource released from the bounded cache either loses its state entry
-    // outright or, while it is still visible, degrades to the nonblank
-    // released placeholder asserted by the visible-overflow suites. Both are
-    // evictions; only a retained `.ready` presentation is not.
-    let releasedMermaid = mermaidIDs.first {
-      switch model.mermaid[$0] {
-      case nil, .unavailable?: true
-      default: false
-      }
-    }
-    if let evictedMermaid = releasedMermaid {
-      model.resourceBecameHidden(evictedMermaid)
-      model.resourceBecameVisible(evictedMermaid)
-      await waitUntil(attempts: 5_000) {
-        if case .ready? = model.mermaid[evictedMermaid] { return true }
-        return false
-      }
-      #expect(await mermaidRequests.requests.count == 101)
-    } else {
-      Issue.record("Expected at least one Mermaid presentation eviction")
-    }
-    let releasedImage = imageIDs.first {
-      switch model.images[$0] {
-      case nil, .terminalFallback?: true
-      default: false
-      }
-    }
-    if let evictedImage = releasedImage {
-      model.resourceBecameHidden(evictedImage)
-      model.resourceBecameVisible(evictedImage)
-      await waitUntil(attempts: 5_000) {
-        if case .ready? = model.images[evictedImage] { return true }
-        return false
-      }
-      #expect(await imageRequests.sources.count == 101)
-    } else {
-      Issue.record("Expected at least one image presentation eviction")
-    }
-    await model.shutdown()
-  }
-
-  @Test("visible Mermaid overflow retains bounded nonblank presentation states")
-  func visibleMermaidPresentationOverflow() async {
-    let recorder = MermaidRequestRecorder()
-    let count = ViewerModel.maximumRetainedMermaidPresentations + 1
-    let sources = (0..<count).map {
-      "```mermaid\nflowchart LR\nA\($0) --> B\($0)\n```"
-    }
-    let rendered = RenderedMermaid(
-      width: 1,
-      height: 1,
-      cells: [[MermaidPaintCell(character: "A", role: .text)]]
-    )
-    let model = ViewerModel(
-      snapshot: DocumentSnapshot(
-        source: sources.joined(separator: "\n\n"),
-        url: URL(fileURLWithPath: "/docs/visible-mermaid-overflow.md"),
-        displayName: "visible-mermaid-overflow.md"
-      ),
-      theme: .default,
-      watchesDocument: false,
-      compiler: MarkdownCompiler(),
-      linkResolver: LinkResolver(),
-      dependencies: ViewerDependencies(
-        themeURL: nil,
-        readDocument: { _ in throw StubFailure.unavailable },
-        loadTheme: { LoadedTheme(theme: .default, sourceURL: nil) },
-        watchFile: { _ in AsyncStream { $0.finish() } },
-        renderMermaid: { request in
-          await recorder.record(request)
-          return .ready(rendered)
-        },
-        loadImage: { _, _ in throw StubFailure.unavailable },
-        openExternal: { _ in true },
-        sleep: { _ in }
-      )
-    )
-
-    await model.start()
-    let ids = MarkdownBlockLayout.flattened(
-      model.state.document?.blocks ?? [],
-      offeredWidth: model.state.viewport.documentWidth
-    ).compactMap { descriptor -> BlockID? in
-      if case .mermaid(let id, _, _) = descriptor.block { return id }
-      return nil
-    }
-    #expect(ids.count == count)
-    for id in ids {
-      model.resourceBecameVisible(id)
-    }
-    await waitUntil(attempts: 5_000) {
-      model.ownedEffectCount == 0
-    }
-
-    #expect(await recorder.requests.count == count)
-    #expect(
-      model.retainedPresentationOccupancy.mermaidEntries
-        <= ViewerModel.maximumRetainedMermaidPresentations
-    )
-    #expect(model.mermaid.count <= ViewerModel.maximumRetainedResourceStates)
-    #expect(
-      ids.allSatisfy { id in
-        switch model.mermaid[id] {
-        case .ready?, .unavailable?:
-          true
-        case .pending?, .reflowing?, nil:
-          false
-        }
-      }
-    )
-    #expect(
-      ids.contains { id in
-        if case .unavailable? = model.mermaid[id] { return true }
-        return false
-      }
-    )
-    let settledRequestCount = await recorder.requests.count
-    for _ in 0..<20 {
-      await Task.yield()
-    }
-    #expect(await recorder.requests.count == settledRequestCount)
-    await model.shutdown()
-  }
-
   @Test("visible image overflow retains bounded nonblank presentation states")
   func visibleImagePresentationOverflow() async {
     let recorder = ImageRequestRecorder()
@@ -1524,7 +1015,6 @@ struct ViewerModelAndRenderTests {
         readDocument: { _ in throw StubFailure.unavailable },
         loadTheme: { LoadedTheme(theme: .default, sourceURL: nil) },
         watchFile: { _ in AsyncStream { $0.finish() } },
-        renderMermaid: { _ in .unavailable(diagnostic: "stub") },
         loadImage: { source, _ in
           await recorder.record(source)
           return LoadedImage(
@@ -1590,15 +1080,12 @@ struct ViewerModelAndRenderTests {
   @Test("resource admission, active work, and non-ready states stay bounded")
   func boundedResourceLifecycle() async {
     let probe = ResourceLifecycleProbe()
-    let mermaidSources = (0..<300).map {
-      "```mermaid\nflowchart LR\nA\($0) --> B\($0)\n```"
-    }
     let imageSources = (0..<300).map {
       "![image \($0)](failure-\($0).png)"
     }
     let model = ViewerModel(
       snapshot: DocumentSnapshot(
-        source: (mermaidSources + imageSources).joined(separator: "\n\n"),
+        source: imageSources.joined(separator: "\n\n"),
         url: URL(fileURLWithPath: "/docs/bounded-lifecycle.md"),
         displayName: "bounded-lifecycle.md"
       ),
@@ -1611,7 +1098,6 @@ struct ViewerModelAndRenderTests {
         readDocument: { _ in throw StubFailure.unavailable },
         loadTheme: { LoadedTheme(theme: .default, sourceURL: nil) },
         watchFile: { _ in AsyncStream { $0.finish() } },
-        renderMermaid: { _ in await probe.unavailableMermaid() },
         loadImage: { _, _ in try await probe.failingImage() },
         openExternal: { _ in true },
         sleep: { _ in }
@@ -1623,7 +1109,7 @@ struct ViewerModelAndRenderTests {
       offeredWidth: model.state.viewport.documentWidth
     ).compactMap { descriptor -> BlockID? in
       switch descriptor.block {
-      case .mermaid(let id, _, _), .image(let id, _, _):
+      case .image(let id, _, _):
         id
       default:
         nil
@@ -1645,24 +1131,17 @@ struct ViewerModelAndRenderTests {
       }
       let admitted = model.resourceLifecycleOccupancy
       #expect(admitted.visible <= ViewerModel.maximumVisibleResourceIDs)
-      #expect(admitted.activeMermaid <= ViewerModel.maximumConcurrentMermaidRequests)
       #expect(admitted.activeImages <= ViewerModel.maximumConcurrentImageRequests)
       await waitUntil { model.ownedEffectCount == 0 }
       let settled = model.resourceLifecycleOccupancy
-      #expect(settled.mermaidStates <= ViewerModel.maximumRetainedResourceStates)
       #expect(settled.imageStates <= ViewerModel.maximumRetainedResourceStates)
       for id in batch {
         model.resourceBecameHidden(id)
       }
     }
 
-    #expect(await probe.maximumMermaid <= ViewerModel.maximumConcurrentMermaidRequests)
     #expect(await probe.maximumImages <= ViewerModel.maximumConcurrentImageRequests)
     #expect(model.resourceLifecycleOccupancy.visible == 0)
-    #expect(
-      model.resourceLifecycleOccupancy.mermaidStates
-        <= ViewerModel.maximumRetainedResourceStates
-    )
     #expect(
       model.resourceLifecycleOccupancy.imageStates
         <= ViewerModel.maximumRetainedResourceStates
@@ -1676,11 +1155,6 @@ struct ViewerModelAndRenderTests {
     let model = ViewerModel(
       snapshot: DocumentSnapshot(
         source: """
-          ```mermaid
-          flowchart LR
-          A --> B
-          ```
-
           ![late](late.png)
           """,
         url: URL(fileURLWithPath: "/docs/hidden.md"),
@@ -1695,9 +1169,6 @@ struct ViewerModelAndRenderTests {
         readDocument: { _ in throw StubFailure.unavailable },
         loadTheme: { LoadedTheme(theme: .default, sourceURL: nil) },
         watchFile: { _ in AsyncStream { $0.finish() } },
-        renderMermaid: { _ in
-          await probe.unavailableMermaid(delay: .seconds(30))
-        },
         loadImage: { _, _ in
           try await probe.failingImage(delay: .seconds(30))
         },
@@ -1711,7 +1182,7 @@ struct ViewerModelAndRenderTests {
       offeredWidth: model.state.viewport.documentWidth
     ).compactMap { descriptor -> BlockID? in
       switch descriptor.block {
-      case .mermaid(let id, _, _), .image(let id, _, _):
+      case .image(let id, _, _):
         id
       default:
         nil
@@ -1721,22 +1192,18 @@ struct ViewerModelAndRenderTests {
       model.resourceBecameVisible(id)
     }
     await waitUntilAsync {
-      let active = await probe.activeCounts()
-      return active.mermaid == 1 && active.images == 1
+      await probe.activeCount() == 1
     }
     for id in resourceIDs {
       model.resourceBecameHidden(id)
     }
     await waitUntil {
       model.ownedEffectCount == 0
-        && model.resourceLifecycleOccupancy.activeMermaid == 0
         && model.resourceLifecycleOccupancy.activeImages == 0
     }
 
-    #expect(await probe.cancelledMermaid == 1)
     #expect(await probe.cancelledImages == 1)
     #expect(model.resourceLifecycleOccupancy.visible == 0)
-    #expect(model.resourceLifecycleOccupancy.mermaidStates == 0)
     #expect(model.resourceLifecycleOccupancy.imageStates == 0)
     await model.shutdown()
   }
@@ -1746,11 +1213,6 @@ struct ViewerModelAndRenderTests {
     let model = ViewerModel(
       snapshot: DocumentSnapshot(
         source: """
-          ```mermaid
-          flowchart LR
-          A --> B
-          ```
-
           ![late](late.png)
           """,
         url: URL(fileURLWithPath: "/docs/late.md"),
@@ -1765,16 +1227,6 @@ struct ViewerModelAndRenderTests {
         readDocument: { _ in throw StubFailure.unavailable },
         loadTheme: { LoadedTheme(theme: .default, sourceURL: nil) },
         watchFile: { _ in AsyncStream { $0.finish() } },
-        renderMermaid: { _ in
-          try? await Task.sleep(for: .seconds(30))
-          return .ready(
-            RenderedMermaid(
-              width: 1,
-              height: 1,
-              cells: [[MermaidPaintCell(character: "L", role: .text)]]
-            )
-          )
-        },
         loadImage: { _, _ in
           try? await Task.sleep(for: .seconds(30))
           return LoadedImage(
@@ -1801,9 +1253,7 @@ struct ViewerModelAndRenderTests {
     await model.shutdown()
 
     #expect(model.ownedEffectCount == 0)
-    #expect(model.retainedPresentationOccupancy.mermaidEntries == 0)
     #expect(model.retainedPresentationOccupancy.imageEntries == 0)
-    #expect(!model.mermaid.values.contains { if case .ready = $0 { true } else { false } })
     #expect(!model.images.values.contains { if case .ready = $0 { true } else { false } })
 
     model.send(.reload)
@@ -1835,7 +1285,6 @@ struct ViewerModelAndRenderTests {
         },
         loadTheme: { LoadedTheme(theme: .default, sourceURL: nil) },
         watchFile: { watcher.stream(for: $0) },
-        renderMermaid: { _ in .unavailable(diagnostic: "stub") },
         loadImage: { _, _ in throw StubFailure.unavailable },
         openExternal: { _ in true },
         sleep: { _ in }
@@ -1868,7 +1317,6 @@ struct ViewerModelAndRenderTests {
         readDocument: { await script.read($0) },
         loadTheme: { LoadedTheme(theme: .default, sourceURL: nil) },
         watchFile: { watcher.stream(for: $0) },
-        renderMermaid: { _ in .unavailable(diagnostic: "stub") },
         loadImage: { _, _ in throw StubFailure.unavailable },
         openExternal: { _ in true },
         sleep: { _ in }
@@ -1909,7 +1357,6 @@ struct ViewerModelAndRenderTests {
         readDocument: { _ in throw StubFailure.unavailable },
         loadTheme: { try await script.load() },
         watchFile: { watcher.stream(for: $0) },
-        renderMermaid: { _ in .unavailable(diagnostic: "stub") },
         loadImage: { _, _ in throw StubFailure.unavailable },
         openExternal: { _ in true },
         sleep: { _ in }
@@ -1952,7 +1399,6 @@ struct ViewerModelAndRenderTests {
         readDocument: { _ in next },
         loadTheme: { throw StubFailure.unavailable },
         watchFile: { watcher.stream(for: $0) },
-        renderMermaid: { _ in .unavailable(diagnostic: "stub") },
         loadImage: { _, _ in throw StubFailure.unavailable },
         openExternal: { _ in true },
         sleep: { _ in }
@@ -1970,53 +1416,6 @@ struct ViewerModelAndRenderTests {
     #expect(model.state.document?.outline.first?.anchor == "updated-document")
     #expect(model.state.theme == .default)
     #expect(model.state.diagnostic?.severity == .error)
-    await model.shutdown()
-  }
-
-  @Test("launch Mermaid policy survives every model request key")
-  func mermaidLaunchConfiguration() async {
-    let recorder = MermaidRequestRecorder()
-    let configuration = ViewerMermaidConfiguration(
-      glyphMode: .ascii,
-      ambiguousWidth: .wide
-    )
-    let model = ViewerModel(
-      snapshot: DocumentSnapshot(
-        source: "```mermaid\nflowchart LR\nA --> B\n```",
-        url: nil,
-        displayName: "policy.md"
-      ),
-      theme: .default,
-      watchesDocument: false,
-      mermaidConfiguration: configuration,
-      compiler: MarkdownCompiler(),
-      linkResolver: LinkResolver(),
-      dependencies: ViewerDependencies(
-        themeURL: nil,
-        readDocument: { _ in throw StubFailure.unavailable },
-        loadTheme: { LoadedTheme(theme: .default, sourceURL: nil) },
-        watchFile: { _ in AsyncStream { $0.finish() } },
-        renderMermaid: {
-          await recorder.record($0)
-          return .unavailable(diagnostic: "stub")
-        },
-        loadImage: { _, _ in throw StubFailure.unavailable },
-        openExternal: { _ in true },
-        sleep: { _ in }
-      )
-    )
-    await model.start()
-    if let id = firstResourceID(
-      in: model,
-      matching: {
-        if case .mermaid = $0 { return true }
-        return false
-      })
-    {
-      model.resourceBecameVisible(id)
-    }
-    await waitUntilAsync { await recorder.requests.count == 1 }
-    #expect(await recorder.requests.first?.configuration == configuration)
     await model.shutdown()
   }
 
@@ -2086,9 +1485,6 @@ struct ViewerModelAndRenderTests {
         readDocument: { _ in throw StubFailure.unavailable },
         loadTheme: { LoadedTheme(theme: .default, sourceURL: nil) },
         watchFile: { _ in AsyncStream { $0.finish() } },
-        renderMermaid: { request in
-          .unavailable(diagnostic: "stub")
-        },
         loadImage: { _, _ in throw StubFailure.unavailable },
         openExternal: { _ in true },
         sleep: { _ in }

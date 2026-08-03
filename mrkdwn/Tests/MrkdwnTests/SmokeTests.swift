@@ -1,11 +1,10 @@
 import Foundation
 import Mrkdwn
-import MrkdwnMermaid
 import Testing
 
 @Suite("mrkdwn smoke")
 struct SmokeTests {
-  @Test("full surface compiles and Mermaid renders")
+  @Test("full surface compiles")
   func fullSurface() throws {
     let url = try #require(
       Bundle.module.url(
@@ -18,16 +17,6 @@ struct SmokeTests {
     let compiled = MarkdownCompiler().compile(source: source, sourceURL: url)
 
     #expect(compiled.outline.map(\.anchor) == ["full-surface"])
-    #expect(
-      compiled.blocks.contains { block in
-        if case .mermaid = block { return true }
-        return false
-      })
-
-    let report = MermaidRenderer().renderSurface(
-      "flowchart LR\nA[Start] --> B[Finish]",
-      forWidth: 60
-    )
-    #expect(report.output != nil)
+    #expect(compiled.blocks.contains { if case .code = $0 { true } else { false } })
   }
 }

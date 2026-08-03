@@ -1,7 +1,0 @@
-fidelity=complete
-diagnostics=
-minimumWidth=24
-idealSize=56x10
-renderWidth=48
-renderSize=48x10
-roles=background=240,border=96,edge=71,edgeLabel=21,text=36,title=16

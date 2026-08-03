@@ -4,12 +4,8 @@
 [SwiftTUI](https://github.com/SwiftTUI/swift-tui) example. It compiles
 CommonMark and GitHub-flavored Markdown with
 [`swift-markdown`](https://github.com/swiftlang/swift-markdown). It renders
-Mermaid fences with the vendored `MrkdwnMermaid` renderer. This portable
-renderer has no dependencies. See
-[`Sources/MrkdwnMermaid/NOTICE`](Sources/MrkdwnMermaid/NOTICE) for its Apache-2.0
-provenance. [`SYNTAX.md`](Sources/MrkdwnMermaid/SYNTAX.md) lists the supported
-diagram families. One observable model owns navigation, search, reload, and
-resource state.
+Markdown into app-owned values. One observable model owns navigation, search,
+reload, and resource state.
 
 ## Run it
 
@@ -67,14 +63,11 @@ the scan discards more matches, the toolbar shows a `+`.
 | `/` | Search. `n` / `N` moves between matches |
 | `b` / `f` | Back / forward local Markdown history |
 | `r` | Reload document and theme |
-| `m` / `Alt-M` | Toggle the focused or first Mermaid source. Reveal the next hidden Mermaid source |
 | `?` | Help |
 | `q`, Control-C | Quit |
 
 Tab and Shift-Tab use the standard SwiftTUI focus traversal for links and
-controls. Enter activates the focused item. If nested views hide a Mermaid
-diagram from this traversal, `Alt-M` reveals the next hidden diagram. It uses
-the authored order.
+controls. Enter activates the focused item.
 
 ## Theme
 
@@ -94,23 +87,16 @@ theme. A missing explicit file is an error.
 
 The decoder supports only the profile printed by
 `--print-default-theme`: TOML `version = 1`, comments, basic quoted strings,
-and the `[theme]` / `[theme.mermaid]` tables. Unknown or duplicate keys,
-unsupported TOML constructs, and colors other than `#RRGGBB` fail with a
-line-and-column diagnostic. [`default-theme.toml`](default-theme.toml) is the
-complete schema.
+and the `[theme]` table. Unknown or duplicate keys, unsupported TOML
+constructs, and colors other than `#RRGGBB` fail with a line-and-column
+diagnostic. [`default-theme.toml`](default-theme.toml) is the complete schema.
 
-## Markdown and Mermaid
+## Markdown
 
 The viewer supports headings, paragraphs, breaks, inline styles, code, links,
 autolinks, images, and quotes. It also supports ordered and unordered lists,
 tasks, fenced and indented code, rules, GFM tables, and literal raw HTML.
 Unknown nodes produce a visible source fallback and compiler diagnostic.
-
-The app renders a normalized `mermaid` code fence asynchronously.
-MrkdwnMermaid provides semantic cells and intrinsic and minimum sizes. The app
-preserves wide grapheme leaders and continuation columns in a SwiftTUI
-`ForeignSurface`. Unsupported or malformed diagrams show their source and a
-local diagnostic. They do not clear the document.
 
 ## Test it
 
@@ -123,13 +109,11 @@ swiftly run swift build -c release --package-path mrkdwn
 
 The focused suite covers the Markdown matrix, TOML and XDG contracts, links,
 image bounds, cache eviction, and model actions. It also covers responsive
-60/80/120/180-column rendering, Mermaid sizes, and Unicode continuation cells.
-The environment gate owns real PTYs. It runs the rebuilt executable through
-history, search, and nested Mermaid keyboard traversal. It also covers source
-reveal, atomic reload, invalid-theme recovery, resize, link failures, invalid
-preflight, and clean exit. The gate makes sure that standard-input descriptor
-handoff and restoration succeed. The examples gate enables this lane on macOS
-and Linux.
+60/80/120/180-column rendering. The environment gate owns real PTYs. It runs
+the rebuilt executable through history, search, atomic reload, invalid-theme
+recovery, resize, link failures, invalid preflight, and clean exit. The gate
+makes sure that standard-input descriptor handoff and restoration succeed. The
+examples gate enables this lane on macOS and Linux.
 
 ## Capture it
 
@@ -142,7 +126,6 @@ swiftly run swift run --package-path mrkdwn mrkdwn \
   --no-config --no-watch
 ```
 
-Before you capture, wait for the Mermaid surface to replace its pending state.
 Keep remote images disabled. Include the terminal name and `swift --version`
 with published captures. If the dimensions are not 120×40, state the actual
 dimensions. For the compact layout, use the same command at 60×16.
@@ -172,10 +155,9 @@ The root-shaped 80×24 table fixture compiled 500×20 cells in approximately
 first frame in 0.62 seconds. A combined vertical and horizontal scroll caused
 a repaint in 0.85 seconds. The respective budgets are 0.130, 0.300, 1.230, and
 1.700 seconds. Each environment limits a table frame to fewer than 1,250 render
-nodes. Separate fixtures submit 100 Mermaid jobs and permit two active jobs.
-They also insert 100 image payloads. These fixtures make sure that the encoded
-cache stays within 64 entries and 64 MiB. Viewer admission and retained resource
-states have a limit of 128.
+nodes. Separate fixtures insert image payloads and make sure that the encoded
+cache stays within 64 entries and 64 MiB. Viewer admission and retained
+resource states have a limit of 128.
 Image execution permits four active loads and 64 queued loads. The app cancels
 hidden work. These are regression budgets, not user-facing speed claims.
 
@@ -186,8 +168,6 @@ are:
 
 - Compile third-party syntax once into app-owned `Sendable` values.
 - Isolate effects and generation checks in one observable model.
-- Negotiate the foreign-renderer width before you construct an exact-size
-  `ForeignSurface`.
 - Make sure that the configuration and resource limits are valid before you
   give data to views.
 
@@ -196,10 +176,6 @@ are:
 - Markdown is read-only. Task checkboxes are presentation only.
 - Raw HTML is displayed literally and never executed.
 - Code has a language label but no syntax highlighting.
-- Mermaid support is MrkdwnMermaid's documented six-family subset, not
-  Mermaid.js compatibility.
-- Bidirectional controls are rejected by MrkdwnMermaid. Strong RTL text is
-  retained in logical source order with a fidelity warning.
 - Terminal image display depends on host attachment support. Alt text remains
   visible for blocked or failed images.
 - Remote image loading intentionally does not operate through HTTP proxies or

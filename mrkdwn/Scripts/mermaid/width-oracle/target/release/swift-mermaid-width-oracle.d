@@ -1,1 +1,0 @@
-/Users/adamz/Developer/swift-tui-org/swift-tui-examples/mrkdwn/Scripts/mermaid/width-oracle/target/release/swift-mermaid-width-oracle: /Users/adamz/Developer/swift-tui-org/swift-tui-examples/mrkdwn/Scripts/mermaid/width-oracle/src/main.rs

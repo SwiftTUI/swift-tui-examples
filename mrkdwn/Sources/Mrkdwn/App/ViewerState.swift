@@ -60,64 +60,6 @@ public struct ViewerDiagnostic: Equatable, Sendable {
   }
 }
 
-public enum MermaidPaintRole: Equatable, Hashable, Sendable {
-  case background
-  case border
-  case text
-  case edge
-  case edgeLabel
-  case title
-  case unknown
-}
-
-public struct MermaidPaintCell: Equatable, Sendable {
-  public var character: Character
-  public var spanWidth: Int
-  public var continuationLeadX: Int?
-  public var role: MermaidPaintRole
-
-  public init(
-    character: Character = " ",
-    spanWidth: Int = 1,
-    continuationLeadX: Int? = nil,
-    role: MermaidPaintRole = .background
-  ) {
-    self.character = character
-    self.spanWidth = spanWidth
-    self.continuationLeadX = continuationLeadX
-    self.role = role
-  }
-}
-
-public struct RenderedMermaid: Equatable, Sendable {
-  public var width: Int
-  public var height: Int
-  public var cells: [[MermaidPaintCell]]
-  public var diagnostics: [String]
-  public var isPartial: Bool
-
-  public init(
-    width: Int,
-    height: Int,
-    cells: [[MermaidPaintCell]],
-    diagnostics: [String] = [],
-    isPartial: Bool = false
-  ) {
-    self.width = width
-    self.height = height
-    self.cells = cells
-    self.diagnostics = diagnostics
-    self.isPartial = isPartial
-  }
-}
-
-public enum MermaidPresentation: Equatable, Sendable {
-  case pending
-  case ready(RenderedMermaid)
-  case reflowing(RenderedMermaid)
-  case unavailable(diagnostic: String)
-}
-
 public enum ImagePresentation: Equatable, Sendable {
   case loading(resolvedURL: URL?)
   case ready(LoadedImage)
@@ -139,7 +81,6 @@ public struct ViewerState: Equatable, Sendable {
   public var searchResultsTruncated: Bool
   public var isSearching: Bool
   public var selectedSearchMatch: Int?
-  public var revealedMermaidSources: Set<BlockID>
   public var canGoBack: Bool
   public var canGoForward: Bool
   public var diagnostic: ViewerDiagnostic?
@@ -175,7 +116,6 @@ public struct ViewerState: Equatable, Sendable {
     searchResultsTruncated = false
     isSearching = false
     selectedSearchMatch = nil
-    revealedMermaidSources = []
     canGoBack = false
     canGoForward = false
     diagnostic = nil

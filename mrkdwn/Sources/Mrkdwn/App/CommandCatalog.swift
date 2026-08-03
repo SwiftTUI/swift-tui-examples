@@ -16,7 +16,6 @@ public enum CommandCatalog {
     .init(keys: "n / N", title: "Next or previous match"),
     .init(keys: "b / f", title: "Back or forward document"),
     .init(keys: "r", title: "Reload document and theme"),
-    .init(keys: "m / Alt-M", title: "Toggle focused / reveal next Mermaid source"),
     .init(keys: "?", title: "Toggle this help"),
     .init(keys: "q / Control-C", title: "Quit"),
   ]

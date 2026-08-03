@@ -1,61 +1,17 @@
 import Foundation
 
-public enum ViewerMermaidGlyphMode: String, Equatable, Hashable, Sendable {
-  case unicode
-  case ascii
-}
-
-public enum ViewerMermaidAmbiguousWidth: String, Equatable, Hashable, Sendable {
-  case narrow
-  case wide
-}
-
-public struct ViewerMermaidConfiguration: Equatable, Hashable, Sendable {
-  public var glyphMode: ViewerMermaidGlyphMode
-  public var ambiguousWidth: ViewerMermaidAmbiguousWidth
-
-  public init(
-    glyphMode: ViewerMermaidGlyphMode = .unicode,
-    ambiguousWidth: ViewerMermaidAmbiguousWidth = .narrow
-  ) {
-    self.glyphMode = glyphMode
-    self.ambiguousWidth = ambiguousWidth
-  }
-}
-
-public struct MermaidRenderRequest: Equatable, Hashable, Sendable {
-  public var blockID: BlockID
-  public var source: String
-  public var width: Int
-  public var configuration: ViewerMermaidConfiguration
-
-  public init(
-    blockID: BlockID,
-    source: String,
-    width: Int,
-    configuration: ViewerMermaidConfiguration = .init()
-  ) {
-    self.blockID = blockID
-    self.source = source
-    self.width = width
-    self.configuration = configuration
-  }
-}
-
 struct ViewerDependencies: Sendable {
   var themeURL: URL?
   var readDocument: @Sendable (URL) async throws -> DocumentSnapshot
   var loadTheme: @Sendable () async throws -> LoadedTheme
   var watchFile: @Sendable (URL) -> AsyncStream<Void>
-  var renderMermaid: @Sendable (MermaidRenderRequest) async -> MermaidPresentation
   var loadImage: @Sendable (String, URL?) async throws -> LoadedImage
   var openExternal: @Sendable (URL) async -> Bool
   var sleep: @Sendable (Duration) async -> Void
 
   static func live(
     themeSelection: ThemeSelection,
-    allowsRemoteImages: Bool,
-    mermaidConfiguration: ViewerMermaidConfiguration = .init()
+    allowsRemoteImages: Bool
   ) -> ViewerDependencies {
     let documentSource = DocumentSource()
     let themeRepository = ThemeRepository()
@@ -82,13 +38,6 @@ struct ViewerDependencies: Sendable {
         }
       },
       watchFile: { watcher.changes(to: $0) },
-      renderMermaid: { request in
-        precondition(
-          request.configuration == mermaidConfiguration,
-          "ViewerModel must preserve the launch Mermaid configuration"
-        )
-        return await MrkdwnMermaidAdapter.render(request)
-      },
       loadImage: { source, documentURL in
         try await imageCoordinator.load(source: source, relativeTo: documentURL)
       },

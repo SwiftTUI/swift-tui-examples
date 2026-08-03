@@ -15,11 +15,6 @@ Paragraph with *emphasis*, **strong**, ~~strike~~, `code`, a
 print("literal")
 ```
 
-```mermaid
-flowchart LR
-  A[Start] --> B[Finish]
-```
-
 | Left | Center | Right |
 | :--- | :----: | ----: |
 | a | b | c |

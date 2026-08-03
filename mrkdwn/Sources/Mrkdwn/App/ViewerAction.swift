@@ -11,8 +11,6 @@ public enum ViewerAction: Equatable, Sendable {
   case reload
   case toggleOutline
   case toggleHelp
-  case toggleMermaidSource(BlockID)
-  case revealNextMermaidSource
   case goBack
   case goForward
   case dismissError

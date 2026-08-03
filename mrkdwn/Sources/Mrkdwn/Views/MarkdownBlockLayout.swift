@@ -2,16 +2,6 @@ import Foundation
 import SwiftTUI
 
 enum MarkdownBlockLayout {
-  static let mermaidPendingText = "◇ Rendering Mermaid…"
-
-  static func mermaidDiagnosticText(_ diagnostic: String) -> String {
-    "Mermaid: \(diagnostic)"
-  }
-
-  static func mermaidUnavailableText(_ diagnostic: String) -> String {
-    "Mermaid unavailable: \(diagnostic)"
-  }
-
   static func imageStatusText(_ presentation: ImagePresentation?) -> String? {
     switch presentation {
     case .ready?, nil:
@@ -143,9 +133,7 @@ enum MarkdownBlockLayout {
   /// properties (not in `ViewerState`), so geometry cannot read them from the
   /// state value.
   struct GeometryInputs {
-    var mermaid: [BlockID: MermaidPresentation] = [:]
     var images: [BlockID: ImagePresentation] = [:]
-    var revealedMermaidSources: Set<BlockID> = []
     var documentURL: URL?
     // Model-owned identity-keyed metrics; nil computes directly (tests).
     var tableMetrics: ((BlockID, MarkdownTable) -> MarkdownTableLayoutMetrics)? = nil
@@ -243,28 +231,6 @@ enum MarkdownBlockLayout {
     case .code(_, let language, let source, _):
       headingAnchor = nil
       height = (language == nil ? 0 : 1) + literalHeight(source)
-    case .mermaid(let id, let value, _):
-      headingAnchor = nil
-      let sourceHeight = literalHeight(value.source)
-      switch inputs.mermaid[id] {
-      case .ready(let rendered)?, .reflowing(let rendered)?:
-        height =
-          max(1, rendered.height)
-          + (rendered.isPartial
-            ? rendered.diagnostics.first.map {
-              textHeight(mermaidDiagnosticText($0), width: width)
-            } ?? 0
-            : 0)
-          + (inputs.revealedMermaidSources.contains(id) ? sourceHeight : 0)
-      case .unavailable(let diagnostic)?:
-        height =
-          textHeight(mermaidUnavailableText(diagnostic), width: width)
-          + sourceHeight
-      case .pending?, nil:
-        height =
-          textHeight(mermaidPendingText, width: width)
-          + (inputs.revealedMermaidSources.contains(id) ? sourceHeight : 0)
-      }
     case .table(let id, let table, _):
       headingAnchor = nil
       let metrics =
@@ -339,7 +305,6 @@ enum MarkdownBlockLayout {
     case .quote: kind = "quote"
     case .list: kind = "list"
     case .code: kind = "code"
-    case .mermaid: kind = "mermaid"
     case .table: kind = "table"
     case .rule: kind = "rule"
     case .image: kind = "image"

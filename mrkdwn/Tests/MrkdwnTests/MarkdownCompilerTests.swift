@@ -30,9 +30,8 @@ struct MarkdownCompilerTests {
       - [x] done
       - [ ] open
 
-      ``` Mermaid extra
-      flowchart LR
-        A --> B
+      ``` Swift extra
+      print("hello")
       ```
 
       | Left | Center | Right |
@@ -64,8 +63,8 @@ struct MarkdownCompilerTests {
       })
     #expect(
       compiled.blocks.contains { block in
-        guard case .mermaid(_, let mermaid, _) = block else { return false }
-        return mermaid.language == "mermaid" && mermaid.source.contains("A --> B")
+        guard case .code(_, let language, let source, _) = block else { return false }
+        return language == "swift" && source.contains("print")
       })
     #expect(
       compiled.blocks.contains { block in
