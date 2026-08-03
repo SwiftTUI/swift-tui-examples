@@ -667,6 +667,78 @@ struct ViewerModelAndRenderTests {
     await model.shutdown()
   }
 
+  @Test("every Down frame keeps README content moving toward the top")
+  func downArrowFramesKeepREADMEContentMovingForward() async throws {
+    let document = try #require(
+      Bundle.module.url(
+        forResource: "readme-scroll-regression",
+        withExtension: "md",
+        subdirectory: "Fixtures"
+      )
+    )
+    let source = try String(contentsOf: document, encoding: .utf8)
+    let model = makeModel(source)
+    await model.start()
+    let size = ViewerSize(width: 153, height: 52)
+    model.updateViewport(size)
+
+    let surface = HostedRasterSurface(
+      surfaceSize: .init(width: size.width, height: size.height),
+      appearance: .fallback
+    ) { _ in }
+    READMERegressionPresentationTestApp.model = model
+    defer { READMERegressionPresentationTestApp.model = nil }
+    let session = try HostedSceneSession(
+      for: READMERegressionPresentationTestApp(),
+      sceneID: READMERegressionPresentationTestApp.sceneID,
+      surface: surface
+    )
+    let sessionTask = Task { try await session.start() }
+
+    do {
+      var frames = await surface.waitForFrames {
+        $0.last?.raster.lines.contains(where: { $0.contains("j / k, arrows") })
+          == true
+      }
+      let initialFrame = try #require(frames.last)
+      var tableRows: [Int?] = [
+        initialFrame.raster.lines.firstIndex { $0.contains("j / k, arrows") }
+      ]
+      for expectedOffset in 1...14 {
+        let previousCount = frames.count
+        session.send(.key(.init(.arrowDown)))
+        await waitUntil { model.documentScrollOffset == expectedOffset }
+        frames = await surface.waitForFrames { $0.count > previousCount }
+        let committedFrame = try #require(frames.last)
+        tableRows.append(
+          committedFrame.raster.lines.firstIndex { $0.contains("j / k, arrows") }
+        )
+      }
+
+      let movedBackward = tableRows.indices.dropFirst().contains { index in
+        guard let previousRow = tableRows[index - 1],
+          let currentRow = tableRows[index]
+        else {
+          return false
+        }
+        return currentRow > previousRow
+      }
+      #expect(
+        !movedBackward,
+        "Down committed a frame that moved the README table toward the bottom: \(tableRows)"
+      )
+
+      session.send(.key(.init(.character("d"), modifiers: .ctrl)))
+      _ = try await sessionTask.value
+    } catch {
+      session.stop()
+      _ = try? await sessionTask.value
+      await model.shutdown()
+      throw error
+    }
+    await model.shutdown()
+  }
+
   @Test("outline and links expose pointer hit regions and accessibility metadata")
   func pointerAndAccessibilitySurface() async throws {
     let model = makeModel(
@@ -1616,6 +1688,19 @@ private struct SpacingRegressionPresentationTestApp: SwiftTUI.App {
 
   var body: some Scene {
     WindowGroup("mrkdwn spacing regression", id: Self.sceneID) {
+      MrkdwnRootView(model: Self.model!)
+    }
+  }
+}
+
+private struct READMERegressionPresentationTestApp: SwiftTUI.App {
+  static let sceneID = WindowIdentifier("mrkdwn-readme-regression")
+  @MainActor static var model: ViewerModel?
+
+  nonisolated init() {}
+
+  var body: some Scene {
+    WindowGroup("mrkdwn README regression", id: Self.sceneID) {
       MrkdwnRootView(model: Self.model!)
     }
   }
