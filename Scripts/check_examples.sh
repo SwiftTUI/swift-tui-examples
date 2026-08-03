@@ -248,8 +248,26 @@ run_csvui_manifest_contract() {
 
 run_csvui_tests() {
   run_csvui_manifest_contract || return 1
-  export CSVUI_REAL_PTY_TESTS=1
-  run_swift test --package-path "$csvui_package_path"
+  # The serialized PTY journeys must not share the test process with the
+  # CPU-bound unit suites: a synchronous test body holds its cooperative
+  # executor worker for its whole run, and on narrow CI runners (2 vCPUs,
+  # pool width 2) the unit suites occupy every worker for tens of seconds,
+  # so the journeys' PTY reader never gets scheduled and waits time out as
+  # "wrote 0 bytes to the PTY" while the csvui process is healthy. Run the
+  # unit suites first (the journeys self-skip while CSVUI_REAL_PTY_TESTS is
+  # unset), then run the journeys in an invocation of their own.
+  run_swift test --package-path "$csvui_package_path" || return 1
+  (
+    CSVUI_REAL_PTY_TESTS=1
+    export CSVUI_REAL_PTY_TESTS
+    # `swift test --filter` matches nothing silently; prove the journey
+    # suite is still selectable before trusting a green run.
+    run_swift test list --package-path "$csvui_package_path" \
+      --filter CSVUIRealTerminalJourneyTests \
+      | grep -q CSVUIRealTerminalJourneyTests || exit 1
+    run_swift test --package-path "$csvui_package_path" \
+      --filter CSVUIRealTerminalJourneyTests
+  )
 }
 
 should_use_swiftpm_scratch() {
