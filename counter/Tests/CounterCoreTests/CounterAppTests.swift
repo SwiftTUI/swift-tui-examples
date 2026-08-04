@@ -1,5 +1,5 @@
 import Testing
-@testable import ThreeHostsDemoCore
+@testable import CounterCore
 
 @Suite("CounterApp wiring")
 struct CounterAppTests {

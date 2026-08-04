@@ -1,11 +1,11 @@
-# Three Hosts Demo
+# Counter
 
 > One `CounterApp` source, three hosts: the same scene runs unchanged as a terminal executable, a native SwiftUI window, and a static WASI bundle in the browser — proving a SwiftTUI App targets every host without per-target source forks (terminal + native SwiftUI surface + static WASI bundle, one source, three hosts).
 
 ## Run
 
 ```bash
-swiftly run swift run --package-path three-hosts-demo three-hosts-demo
+swiftly run swift run --package-path counter counter
 ```
 
 Increment the counter with `Space` or `Return`. Quit with `Ctrl-C`.
@@ -16,7 +16,7 @@ flight. Overlapping rings brighten through screen blending.
 Run the same scene on a **native SwiftUI surface** (macOS-only SwiftPM target):
 
 ```bash
-swiftly run swift run --package-path three-hosts-demo ThreeHostsSwiftUI
+swiftly run swift run --package-path counter CounterSwiftUI
 ```
 
 Build the **static WASI bundle** for the browser host. It is a separate product.
@@ -24,12 +24,12 @@ The [Build](#build) section explains the required flags.
 
 ```bash
 swiftly run swift build \
-  --package-path three-hosts-demo \
+  --package-path counter \
   --swift-sdk swift-6.3.3-RELEASE_wasm \
   -c release \
   -Xswiftc -Osize \
   -Xswiftc -Xfrontend -Xswiftc -disable-llvm-merge-functions-pass \
-  --product ThreeHostsWASI
+  --product CounterWASI
 ```
 
 ## Demonstrates
@@ -52,15 +52,15 @@ swiftly run swift build \
 
 | Path | Role |
 | --- | --- |
-| [`Sources/ThreeHostsDemoCore/CounterApp.swift`](Sources/ThreeHostsDemoCore/CounterApp.swift) | The shared `CounterView` + `CounterApp` consumed by every host. Imports `SwiftTUIRuntime` (not the `SwiftTUI` umbrella) so it stays host-neutral and WASI-safe. |
-| [`Sources/three-hosts-demo/CounterAppTerminalHost.swift`](Sources/three-hosts-demo/CounterAppTerminalHost.swift) | Terminal entry point. A thin `@main` wrapper uses the `SwiftTUI.App` runner over the shared scene (native only). |
-| [`Sources/ThreeHostsSwiftUI/SwiftUIHostApp.swift`](Sources/ThreeHostsSwiftUI/SwiftUIHostApp.swift) | Native SwiftUI entry point — `@main SwiftUI.App` hosting the shared scene via `SwiftUIHostAppView` (macOS-only SwiftPM target). |
-| [`Sources/ThreeHostsWASI/main.swift`](Sources/ThreeHostsWASI/main.swift) | Browser entry point with top-level `WASIRunner.run(CounterApp.self)`. It depends only on `SwiftTUIWASI`, so no server or Dispatch stack enters the wasm. |
-| [`Tests/ThreeHostsDemoCoreTests/`](Tests/ThreeHostsDemoCoreTests/) | Smoke tests asserting trivial instantiability from any host target. |
+| [`Sources/CounterCore/CounterApp.swift`](Sources/CounterCore/CounterApp.swift) | The shared `CounterView` + `CounterApp` consumed by every host. Imports `SwiftTUIRuntime` (not the `SwiftTUI` umbrella) so it stays host-neutral and WASI-safe. |
+| [`Sources/counter/CounterAppTerminalHost.swift`](Sources/counter/CounterAppTerminalHost.swift) | Terminal entry point. A thin `@main` wrapper uses the `SwiftTUI.App` runner over the shared scene (native only). |
+| [`Sources/CounterSwiftUI/SwiftUIHostApp.swift`](Sources/CounterSwiftUI/SwiftUIHostApp.swift) | Native SwiftUI entry point — `@main SwiftUI.App` hosting the shared scene via `SwiftUIHostAppView` (macOS-only SwiftPM target). |
+| [`Sources/CounterWASI/main.swift`](Sources/CounterWASI/main.swift) | Browser entry point with top-level `WASIRunner.run(CounterApp.self)`. It depends only on `SwiftTUIWASI`, so no server or Dispatch stack enters the wasm. |
+| [`Tests/CounterCoreTests/`](Tests/CounterCoreTests/) | Smoke tests asserting trivial instantiability from any host target. |
 
 ## Build
 
-The browser host is a **separate product** named `ThreeHostsWASI`. The terminal
+The browser host is a **separate product** named `CounterWASI`. The terminal
 executable imports the `SwiftTUI` umbrella. Its runner serves HTTP through
 FlyingFox and Dispatch, which do not build for WASI. Therefore, build the WASI
 product with the `swift build` command above.
@@ -70,7 +70,7 @@ used by [`../WebExample/`](../WebExample/). The required `-Osize` plus
 `-disable-llvm-merge-functions-pass` flags are documented in
 `../WebExample/AGENTS.md`.
 
-The native SwiftUI host, `ThreeHostsSwiftUI`, is a macOS-only target.
+The native SwiftUI host, `CounterSwiftUI`, is a macOS-only target.
 `Package.swift` guards it with `#if os(macOS)`. Other platforms do not build
 this target.
 
@@ -84,10 +84,10 @@ this target.
 ## Test
 
 ```bash
-swiftly run swift test --package-path three-hosts-demo
+swiftly run swift test --package-path counter
 ```
 
-The command runs the `ThreeHostsDemoCoreTests` target. These smoke tests create
+The command runs the `CounterCoreTests` target. These smoke tests create
 the shared `CounterApp` and `CounterView` from each host.
 
 ## See also

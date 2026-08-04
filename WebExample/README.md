@@ -25,8 +25,8 @@ frontend edits.
 - `@swifttui/build` uses `SwiftTUIWASI` and `WASIRunner` in manifest mode. It
   packages the same `App` declaration as a static manifest and wasm file. The
   WebHost can deploy these files as a static bundle.
-- The WASI target reuses `ThreeHostsDemoCore.CounterApp`. Thus, the terminal,
-  native SwiftUI, and browser hosts use the same app.
+- The WASI target reuses `CounterCore.CounterApp`. Thus, the terminal, native
+  SwiftUI, and browser hosts use the same app.
 
 ## What to copy when adopting this pattern
 
@@ -42,9 +42,9 @@ The other code in `src/frontend.ts` draws page controls and reports state around
 a viewport-sized mount. A host page can provide different controls. Only the
 `.terminal-host` mount and WebHost bootstrap are required.
 
-## App relationship to three-hosts-demo
+## App relationship to counter
 
-`WebExample` imports `ThreeHostsDemoCore`. It exposes `CounterApp` through the
+`WebExample` imports `CounterCore`. It exposes `CounterApp` through the
 stable `WebExampleApp` name. Thus, the terminal, native SwiftUI, and browser
 hosts compile the same `CounterView` and `CounterApp` source. The `gallery`
 package contains larger component and stress examples. The public browser
@@ -88,6 +88,6 @@ Run the Playwright browser-integration specifications separately with
 ## See also
 
 - [`SwiftUIExample`](../SwiftUIExample/README.md) — the larger native `SwiftUIHost` gallery example
-- [`three-hosts-demo`](../three-hosts-demo/README.md) — the shared counter app used by this browser build
+- [`counter`](../counter/README.md) — the shared counter app used by this browser build
 - [`@swifttui/web`](https://github.com/SwiftTUI/swift-tui-web/tree/main/packages/web) — the browser runtime package
 - [DocC reference](https://swifttui.sh/docs/documentation/) — the SwiftTUI API reference

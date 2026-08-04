@@ -10,7 +10,7 @@ var targets: [Target] = [
   // Keeping the core at `SwiftTUIRuntime` lets every host consume it, including
   // the browser/WASI host below.
   .target(
-    name: "ThreeHostsDemoCore",
+    name: "CounterCore",
     dependencies: [
       .product(name: "SwiftTUIRuntime", package: "swift-tui")
     ]
@@ -20,61 +20,61 @@ var targets: [Target] = [
   // host imports the umbrella directly. It can no longer reach `SwiftTUI`
   // transitively through the core, so the dependency is declared here.
   .executableTarget(
-    name: "three-hosts-demo",
+    name: "counter",
     dependencies: [
-      "ThreeHostsDemoCore",
+      "CounterCore",
       .product(name: "SwiftTUI", package: "swift-tui"),
     ]
   ),
   // Browser host: runs inside the browser via `WASIRunner.run`. Its dependency
   // closure stops at `SwiftTUIWASI`, which never reaches FlyingFox.
   .executableTarget(
-    name: "ThreeHostsWASI",
+    name: "CounterWASI",
     dependencies: [
-      "ThreeHostsDemoCore",
+      "CounterCore",
       .product(name: "SwiftTUIWASI", package: "swift-tui"),
     ]
   ),
   // Host-neutral core tests. The test bundle lives under
-  // Tests/ThreeHostsDemoCoreTests; declaring the target here lets
+  // Tests/CounterCoreTests; declaring the target here lets
   // `swift test` discover it (the examples gate runs it explicitly).
   .testTarget(
-    name: "ThreeHostsDemoCoreTests",
-    dependencies: ["ThreeHostsDemoCore"]
+    name: "CounterCoreTests",
+    dependencies: ["CounterCore"]
   ),
 ]
 var products: [Product] = [
   .library(
-    name: "ThreeHostsDemoCore",
-    targets: ["ThreeHostsDemoCore"]
+    name: "CounterCore",
+    targets: ["CounterCore"]
   ),
   .executable(
-    name: "three-hosts-demo",
-    targets: ["three-hosts-demo"]
+    name: "counter",
+    targets: ["counter"]
   ),
   .executable(
-    name: "ThreeHostsWASI",
-    targets: ["ThreeHostsWASI"]
+    name: "CounterWASI",
+    targets: ["CounterWASI"]
   ),
 ]
 #if os(macOS)
   platforms = [.macOS(.v15)]
   targets += [
     .executableTarget(
-      name: "ThreeHostsSwiftUI",
+      name: "CounterSwiftUI",
       dependencies: [
-        "ThreeHostsDemoCore",
+        "CounterCore",
         .product(name: "SwiftUIHost", package: "swift-tui-swiftui"),
       ]
     )
   ]
   products += [
-    .executable(name: "ThreeHostsSwiftUI", targets: ["ThreeHostsSwiftUI"])
+    .executable(name: "CounterSwiftUI", targets: ["CounterSwiftUI"])
   ]
 #endif
 
 let package = Package(
-  name: "three-hosts-demo",
+  name: "counter",
   platforms: platforms,
   products: products,
   dependencies: [

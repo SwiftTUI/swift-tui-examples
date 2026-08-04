@@ -13,7 +13,7 @@ Pick by what you want to see, then run one command:
 
 - **The most in one window** — run `gallery`: tabs, controls, charts, images,
   animated GIFs, popovers, and physics in a single terminal app.
-- **One source on every host** — run `three-hosts-demo`: the same app value as a
+- **One source on every host** — run `counter`: the same app value as a
   terminal executable, an embedded native window, and a static browser bundle.
 - **The smallest possible start** — read `minimal`: one render call, no app
   runtime, and no argument parser.

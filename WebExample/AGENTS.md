@@ -14,7 +14,7 @@ Keep the package small and focused on the embedding contract.
 Two cooperating parts:
 
 - **`TerminalApp/`** — A Swift package with a stable `WebExampleApp` alias for
-  the shared `ThreeHostsDemoCore.CounterApp`. A small executable calls
+  the shared `CounterCore.CounterApp`. A small executable calls
   `WASIRunner.run(...)`.
 - **`src/`** — A Bun host that runs the Swift WASI build, serves the artifacts
   with COOP/COEP headers, and mounts `WebHost`. The load-bearing bootstrap is

@@ -43,11 +43,11 @@ target. Every other SwiftTUI product resolves from `swift-tui`.
 | [gifeditor](../gifeditor) | Advanced app and stress/regression sample | `SwiftTUI`, `SwiftTUIWebHostCLI`, `GIFEditorCore`, `GIFEditorUI` | Half-cell canvas, palette, tools, layers, timeline, pointer input, undo/redo, GIF import/export | Terminal app plus optional localhost WebHost | Linux native gate builds debug and release. Focused SwiftPM tests run in `check:focused`. |
 | [SwiftUIExample](../SwiftUIExample) | Host/build configuration sample | `SwiftUIHost`, `SwiftTUI`, `GalleryDemoViews` | Native SwiftUI app embedding reusable SwiftTUI scenes | Xcode macOS app plus terminal package | Linux native gate builds the terminal package. The macOS native gate builds the terminal package and Xcode app. |
 | [WebHostExample](../WebHostExample) | Copyable tutorial and host/build configuration sample | `SwiftTUI` convenience host | Smallest app that runs in the terminal by default and localhost browser host with `--web` | Terminal app plus localhost WebHost | Linux native gate builds the package and runs smoke tests. Focused SwiftPM tests run in `check:focused`. |
-| [WebExample](../WebExample) | Host/build configuration sample | `SwiftTUIWASI`, `SwiftTUIRuntime`, `ThreeHostsDemoCore`, `@swifttui/web`, `@swifttui/build` | Static browser deployment of the shared multi-host counter through WASI and a Bun-hosted shell | Single-scene browser/WASI app plus reusable terminal scene package | Linux native gate builds the terminal package. The web gate builds the browser app and web host. Focused Bun tests run in `check:focused`. |
+| [WebExample](../WebExample) | Host/build configuration sample | `SwiftTUIWASI`, `SwiftTUIRuntime`, `CounterCore`, `@swifttui/web`, `@swifttui/build` | Static browser deployment of the shared multi-host counter through WASI and a Bun-hosted shell | Single-scene browser/WASI app plus reusable terminal scene package | Linux native gate builds the terminal package. The web gate builds the browser app and web host. Focused Bun tests run in `check:focused`. |
 
 `SharedHostScenes` is a support package, not a runnable example. It contains the
 host-details scene UI that `SwiftUIExample` uses. `WebExample` imports the
-shared counter from `three-hosts-demo`.
+shared `CounterApp` from [counter](../counter).
 
 ## Gate Contract
 

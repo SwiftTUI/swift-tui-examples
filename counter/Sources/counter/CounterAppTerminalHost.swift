@@ -1,5 +1,5 @@
 import SwiftTUI
-import ThreeHostsDemoCore
+import CounterCore
 
 @main
 struct CounterAppTerminalHost: App {

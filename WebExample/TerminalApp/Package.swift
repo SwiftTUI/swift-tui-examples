@@ -20,13 +20,13 @@ let package = Package(
   ],
   dependencies: [
     .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.6.3"),
-    .package(path: "../../three-hosts-demo"),
+    .package(path: "../../counter"),
   ],
   targets: [
     .target(
       name: "WebExampleScenes",
       dependencies: [
-        .product(name: "ThreeHostsDemoCore", package: "three-hosts-demo"),
+        .product(name: "CounterCore", package: "counter"),
       ],
       path: "Sources/WebExampleScenes"
     ),

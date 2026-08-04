@@ -13,8 +13,8 @@ Pick by what you want to see, then run one command:
 
 - **The most in one window** — run [`gallery`](gallery): tabs, controls, charts,
   images, animated GIFs, popovers, and physics in a single terminal app.
-- **One source on every host** — run [`three-hosts-demo`](three-hosts-demo): the
-  *same* `CounterApp` value as a terminal executable, an embedded native SwiftUI
+- **One source on every host** — run [`counter`](counter): the *same*
+  `CounterApp` value as a terminal executable, an embedded native SwiftUI
   window, and a static WASI browser bundle.
 - **The smallest possible start** — read [`minimal`](minimal): one
   `RenderOnce.print(...)`, no app runtime, no argument parser.
@@ -80,7 +80,7 @@ is necessary.
 | [gifcat](gifcat) | Terminal | `SwiftTUIAnimatedImage` playback, source GIF delays, regular-size image attachments, and row-major tiling of multiple GIFs | `swiftly run swift run --package-path gifcat gifcat nyan.gif` |
 | [gifeditor](gifeditor) | Terminal+Web | Full GIF editor: half-cell canvas, palette, tools, layers, timeline, pointer input, undo/redo, and GIF import/export | `swiftly run swift run --package-path gifeditor gifeditor` |
 | [SwiftUIExample](SwiftUIExample) | Native SwiftUI | SwiftUI host app embedding reusable SwiftTUI scenes through `SwiftUIHost` | `open SwiftUIExample/SwiftUIExample.xcodeproj` |
-| [three-hosts-demo](three-hosts-demo) | Multi-host | The same `CounterApp` value runs as a terminal executable, embeds in a native SwiftUI window via `SwiftUIHost`, and ships as a static WASI bundle in the browser | `swiftly run swift run --package-path three-hosts-demo three-hosts-demo` |
+| [counter](counter) | Multi-host | The same `CounterApp` value runs as a terminal executable, embeds in a native SwiftUI window via `SwiftUIHost`, and ships as a static WASI bundle in the browser | `swiftly run swift run --package-path counter counter` |
 | [WebHostExample](WebHostExample) | Terminal+Web | Smallest `SwiftTUI` convenience app: terminal by default, localhost browser host with `--web` | `swiftly run swift run --package-path WebHostExample WebHostExample --web` |
 | [WebExample](WebExample) | Web-WASI | Static browser deployment using `SwiftTUIWASI`, `@swifttui/web`, `@swifttui/build`, and a Bun-served host shell | `bun --cwd WebExample dev` |
 
@@ -91,14 +91,14 @@ Already know the package you need? Jump straight to an example that uses it.
 | Product or package | Examples |
 | --- | --- |
 | `SwiftTUI` convenience surface | [argparse](argparse), [gallery](gallery), [layouts](layouts), [sextant](sextant), [terminal-workspace](terminal-workspace), [mrkdwn](mrkdwn), [csvui](csvui), [gifcat](gifcat), [gifeditor](gifeditor), [WebHostExample](WebHostExample) |
-| `SwiftTUIRuntime` / host-managed scenes | [gallery](gallery), [three-hosts-demo](three-hosts-demo), [WebExample](WebExample) |
+| `SwiftTUIRuntime` / host-managed scenes | [gallery](gallery), [counter](counter), [WebExample](WebExample) |
 | `SwiftTUICLI` / one-shot rendering and terminal launch | [minimal](minimal), [terminal-runner](terminal-runner), [git-viz](git-viz) |
 | `SwiftTUIArguments` / `SwiftTUICommand` | [argparse](argparse), [gallery](gallery), [gifeditor](gifeditor), [git-viz](git-viz) |
 | `SwiftTUICharts` (separate [`swift-tui-charts`](https://github.com/SwiftTUI/swift-tui-charts) package) | [git-viz](git-viz), [gallery](gallery), [layouts](layouts) |
 | `SwiftTUIAnimatedImage` | Included by `SwiftTUI`. Used directly by [gifcat](gifcat) and [gallery](gallery) |
 | `SwiftTUITerminal` | [sextant](sextant) |
 | `SwiftTUITerminalWorkspace` | [terminal-workspace](terminal-workspace) |
-| `SwiftUIHost` | [SwiftUIExample](SwiftUIExample), [three-hosts-demo](three-hosts-demo) |
+| `SwiftUIHost` | [SwiftUIExample](SwiftUIExample), [counter](counter) |
 | `SwiftTUIAndroidHost` | [AndroidGallery](AndroidGallery) |
 | `SwiftTUIWebHostCLI` | Included by `SwiftTUI`. Used directly by [gifeditor](gifeditor) |
 | `SwiftTUIWASI`, `@swifttui/web`, `@swifttui/build` | [WebExample](WebExample) |

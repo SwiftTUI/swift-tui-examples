@@ -382,7 +382,7 @@ run_linux_examples() {
       "gifeditor" \
       "git-viz" \
       "terminal-workspace" \
-      "three-hosts-demo" \
+      "counter" \
       "layouts" \
       "SwiftUIExample/TerminalApp" \
       "WebExample/TerminalApp" \
@@ -416,7 +416,7 @@ run_linux_examples() {
     "gifeditor" \
     "git-viz" \
     "terminal-workspace" \
-    "three-hosts-demo"; do
+    "counter"; do
     run_step \
       "Build $package_path" \
       "$repo_root" \
@@ -505,9 +505,9 @@ run_linux_examples() {
     run_swift test --package-path WebHostExample
 
   run_step \
-    "Test three-hosts-demo" \
+    "Test counter" \
     "$repo_root" \
-    run_swift test --package-path three-hosts-demo
+    run_swift test --package-path counter
 
   run_step \
     "Test mrkdwn" \

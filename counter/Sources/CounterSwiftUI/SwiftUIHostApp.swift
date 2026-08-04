@@ -1,6 +1,6 @@
 import SwiftUI
 import SwiftUIHost
-import ThreeHostsDemoCore
+import CounterCore
 
 @main
 struct CounterHostApp: SwiftUI::App {

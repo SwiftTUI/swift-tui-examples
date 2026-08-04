@@ -58,13 +58,11 @@ struct GalleryWebHostCompositionTests {
     )
 
     #expect(galleryManifest.contains(".product(name: \"SwiftTUIRuntime\", package: \"swift-tui\")"))
-    #expect(
-      webExampleManifest.contains(
-        ".product(name: \"ThreeHostsDemoCore\", package: \"three-hosts-demo\")"))
+    #expect(webExampleManifest.contains(".product(name: \"CounterCore\", package: \"counter\")"))
     #expect(webExampleManifest.contains(".product(name: \"SwiftTUIWASI\", package: \"swift-tui\")"))
     #expect(
       !webExampleManifest.contains(".product(name: \"SwiftTUIRuntime\", package: \"swift-tui\")"))
-    #expect(webExampleApp.contains("public import ThreeHostsDemoCore"))
+    #expect(webExampleApp.contains("public import CounterCore"))
     #expect(webExampleApp.contains("public typealias WebExampleApp = CounterApp"))
     #expect(!webExampleApp.contains("import SwiftTUI\n"))
 
