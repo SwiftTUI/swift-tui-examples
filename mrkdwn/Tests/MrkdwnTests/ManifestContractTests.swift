@@ -37,14 +37,24 @@ struct ManifestContractTests {
     #expect(root["version"] as? Int == 3)
     let pins = try #require(root["pins"] as? [[String: Any]])
 
+    // Versions are derived from the authored `.upToNextMinor(from:)` lower
+    // bounds in Package.swift rather than spelled out again here: a second
+    // copy of the version drifts the moment a release bumps only one of them,
+    // and the org bump tool deliberately never rewrites files under `Tests/`.
+    // The locations stay authored — a silently moved dependency URL must fail.
+    let manifestLowerBounds = try authoredLowerBounds(at: packageRoot)
     let expected: [String: (location: String, version: String)] = [
       "swift-markdown": (
         "https://github.com/swiftlang/swift-markdown.git",
-        "0.8.0"
+        try #require(
+          manifestLowerBounds["https://github.com/swiftlang/swift-markdown.git"]
+        )
       ),
       "swift-tui": (
         "https://github.com/SwiftTUI/swift-tui.git",
-        "0.5.0"
+        try #require(
+          manifestLowerBounds["https://github.com/SwiftTUI/swift-tui.git"]
+        )
       ),
     ]
     let identities = Set(pins.compactMap { $0["identity"] as? String })
@@ -61,5 +71,18 @@ struct ManifestContractTests {
         #expect(state["version"] as? String == contract.version)
       }
     }
+  }
+
+  /// The authored `.upToNextMinor(from:)` lower bounds in `Package.swift`,
+  /// keyed by dependency URL.
+  private func authoredLowerBounds(at packageRoot: URL) throws -> [String: String] {
+    let manifestURL = packageRoot.appendingPathComponent("Package.swift")
+    let manifest = try String(contentsOf: manifestURL, encoding: .utf8)
+    let declaration =
+      /\.package\(\s*url:\s*"([^"]+)"\s*,\s*\.upToNextMinor\(from:\s*"([^"]+)"\)\s*\)/
+    return Dictionary(
+      manifest.matches(of: declaration).map { (String($0.1), String($0.2)) },
+      uniquingKeysWith: { first, _ in first }
+    )
   }
 }
