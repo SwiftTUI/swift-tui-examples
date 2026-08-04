@@ -5,7 +5,7 @@ shipped to every host. This repo holds runnable examples for
 [`SwiftTUI`](https://github.com/SwiftTUI/swift-tui): one directory per demo, each
 proving a specific capability, each with the exact command to run it.
 
-![Status](https://img.shields.io/badge/status-0.3.x%20pre--release-DAA520)
+![Status](https://img.shields.io/badge/status-0.6.x%20pre--release-DAA520)
 
 ## Start here
 
@@ -54,9 +54,9 @@ bun --cwd WebExample run build
 ```
 
 Each example builds from a fresh clone with tagged HTTPS dependencies. Each
-example declares a compatible `0.4.x` release graph. Gallery uses matching
+example pins the current `0.6.3` release graph. Gallery uses matching
 `swift-tui` and `swift-tui-charts` versions. WebExample uses `swift-tui-web`
-`0.4.0` release tarballs for `@swifttui/web` and `@swifttui/build`. `mrkdwn`
+`0.6.3` release tarballs for `@swifttui/web` and `@swifttui/build`. `mrkdwn`
 uses the independent `swift-markdown` release range. No sibling source checkout
 is necessary.
 
@@ -77,7 +77,7 @@ is necessary.
 | [mrkdwn](mrkdwn) | Terminal | Responsive CommonMark/GFM reader with outline, search, local-document history, XDG TOML themes, and bounded images | `swiftly run swift run --package-path mrkdwn mrkdwn README.md` |
 | [csvui](csvui) | Terminal | Viewer-first CSV/TSV workbench with lazy row decoding, sparse edits, search/filter/sort projections, XDG theming, live reload, and safe atomic saves | `swiftly run swift run --package-path csvui csvui data.csv` |
 | [git-viz](git-viz) | CLI | `SwiftTUICharts` over real git data, with a command for every chart primitive | `swiftly run swift run --package-path git-viz git-viz dashboard --path .` |
-| [gifcat](gifcat) | Terminal | `SwiftTUIAnimatedImage` playback, source GIF delays, regular-size image attachments, and row-major tiling of multiple GIFs | `swiftly run swift run --package-path gifcat gifcat nyan.gif` |
+| [gifcat](gifcat) | Terminal | `SwiftTUIAnimatedImage` playback, source GIF delays, regular-size image attachments, and row-major tiling of multiple GIFs | `swiftly run swift run --package-path gifcat gifcat gifeditor/nyan.gif` |
 | [gifeditor](gifeditor) | Terminal+Web | Full GIF editor: half-cell canvas, palette, tools, layers, timeline, pointer input, undo/redo, and GIF import/export | `swiftly run swift run --package-path gifeditor gifeditor` |
 | [SwiftUIExample](SwiftUIExample) | Native SwiftUI | SwiftUI host app embedding reusable SwiftTUI scenes through `SwiftUIHost` | `open SwiftUIExample/SwiftUIExample.xcodeproj` |
 | [counter](counter) | Multi-host | The same `CounterApp` value runs as a terminal executable, embeds in a native SwiftUI window via `SwiftUIHost`, and ships as a static WASI bundle in the browser | `swiftly run swift run --package-path counter counter` |
@@ -106,15 +106,24 @@ Already know the package you need? Jump straight to an example that uses it.
 The [coverage document](docs/EXAMPLE-COVERAGE.md) contains the full matrix,
 category definitions, gate contract, and new-example checklist. For the APIs
 behind these demos, read the
-[DocC reference](https://swifttui.sh/docs/documentation/).
+[DocC reference](https://swifttui.sh/docs/documentation/), and see the
+[showcase](https://swifttui.sh/showcase/) for these examples running on every
+host. The host halves live in the sibling repositories
+[`swift-tui-swiftui`](https://github.com/SwiftTUI/swift-tui-swiftui) (native
+SwiftUI host), [`swift-tui-web`](https://github.com/SwiftTUI/swift-tui-web)
+(browser packages), and
+[`swift-tui-android`](https://github.com/SwiftTUI/swift-tui-android) (Android
+host).
 
 ## Tests
 
 Run `bun run check:focused` for all focused behavior tests. To test one example,
 run `swiftly run swift test --package-path <example>`. The repository gates also
-build examples that have no focused test suite. See [`AGENTS.md`](AGENTS.md) for
-the `check:linux`, `check:macos`, `check:web`, and `check` build gates. That file
-also describes their scratch-directory environment variables.
+build examples that have no focused test suite. See the
+[coverage document](docs/EXAMPLE-COVERAGE.md) for the `check:linux`,
+`check:macos`, `check:web`, and `check` build gates and their
+scratch-directory environment variables, and [`AGENTS.md`](AGENTS.md) for the
+toolchain policy.
 
 ## License
 

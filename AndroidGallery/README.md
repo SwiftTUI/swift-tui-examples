@@ -71,11 +71,9 @@ SwiftPM. This path contains only the configured
 SwiftPM SDK directory, set
 `SWIFT_ANDROID_SDK_BUNDLE` to the `.artifactbundle` path.
 
-The Swift package manifest uses a public HTTPS SwiftTUI dependency. During
-organization-root development, Gradle mirrors that URL to `SWIFTTUI_CHECKOUT`.
-Without this variable, Gradle uses the default sibling checkout at
-`../../../swift-tui`. Thus, pre-release Android host changes use the pinned
-local checkout.
+The Swift package manifest uses a public HTTPS SwiftTUI dependency.
+Pre-release integration against a local framework checkout happens in the
+SwiftTUI coordination root, not here.
 
 If the SDK and NDK are not on the default paths, use this command:
 

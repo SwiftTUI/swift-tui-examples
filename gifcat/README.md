@@ -5,8 +5,11 @@
 ## Run
 
 ```bash
-swiftly run swift run --package-path gifcat gifcat nyan.gif
+swiftly run swift run --package-path gifcat gifcat gifeditor/nyan.gif
 ```
+
+Any GIF path works; `gifeditor/nyan.gif` is the checked-in sample (run from
+the repository root).
 
 Pass several paths to tile them side by side in argument order:
 

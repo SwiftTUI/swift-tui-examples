@@ -37,6 +37,7 @@ target. Every other SwiftTUI product resolves from `swift-tui`.
 | [sextant](../sextant) | Focused product sample | `SwiftTUI`, `SwiftTUITerminal` | Miller-column browser and embedded terminal process previews | Terminal app plus child processes | Linux native gate builds debug and release. Focused SwiftPM tests run in `check:focused`. |
 | [terminal-workspace](../terminal-workspace) | Focused product sample | `SwiftTUI`, `SwiftTUITerminalWorkspace` | Tabs, splits, retained sessions, command palette actions, persisted workspace metadata | Terminal workspace app | Linux native gate builds debug and release. Focused SwiftPM tests run in `check:focused`. |
 | [mrkdwn](../mrkdwn) | Advanced app and focused product sample | `SwiftTUI`, `Markdown`, vendored `MrkdwnMermaid` | Complete CommonMark/GFM compilation, responsive outline/search/navigation, XDG TOML theming, bounded images, and Unicode semantic-cell Mermaid rendering | Terminal app on macOS and Linux | Linux and macOS gates clean and build debug and release. They also run the focused SwiftPM suite in `check:focused`. |
+| [counter](../counter) | Host/build configuration sample | `SwiftTUI`, `SwiftTUIRuntime`, `SwiftUIHost`, `SwiftTUIWASI`, `CounterCore` | One shared `CounterApp` scene package consumed by the terminal executable, the native SwiftUI host, and the WASI browser bundle | Terminal app plus SwiftUI-host and WASI scene packages | Linux and macOS gates build the package and run `CounterCoreTests`. `WebExample` consumes `CounterCore` for the browser build. |
 | [csvui](../csvui) | Advanced app, focused product sample, and stress/regression sample | `SwiftTUI` | Lazy byte-indexed CSV/TSV viewing, sparse edits and bounded history, search/filter/sort projections, XDG TOML theming, live reload, conflict detection, and atomic saves | Terminal app on macOS and Linux | Linux and macOS gates clean and build debug and release. They also run the focused SwiftPM and rebuilt real-PTY suites in `check:focused`. |
 | [git-viz](../git-viz) | Copyable tutorial and focused product sample | `SwiftTUI`, `SwiftTUICLI`, `SwiftTUICharts` | Non-interactive git reporting and chart primitives | Terminal CLI report generator | Linux native gate builds debug and release. Focused SwiftPM tests run in `check:focused`. |
 | [gifcat](../gifcat) | Copyable tutorial and focused product sample | `SwiftTUI`, `SwiftTUIAnimatedImage` | GIF playback, source delays, image attachments, row-major tiling | Terminal app | Linux native gate builds debug and release. Focused SwiftPM tests run in `check:focused`. |
@@ -66,6 +67,10 @@ shared `CounterApp` from [counter](../counter).
   targets: `gallery`, `layouts`, `gifeditor`, `git-viz`, `sextant`,
   `terminal-runner`, `gifcat`, `terminal-workspace`, `mrkdwn`, `csvui`,
   `WebHostExample`, and `WebExample`.
+- The gates share sequential SwiftPM scratch state through
+  `SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH`, and the macOS lane isolates Xcode
+  derived data through `SWIFTTUI_EXAMPLES_XCODE_DERIVED_DATA`. Both default to
+  in-repo scratch paths; override them only to relocate scratch storage.
 
 ## New Example Checklist
 

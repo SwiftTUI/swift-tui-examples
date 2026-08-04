@@ -58,3 +58,16 @@ preview.
 search with visited-directory identities and bounded batches/results.
 `LiveDirectoryWatcher` coalesces visible-directory events and closes every file
 descriptor during shutdown.
+
+## Vocabulary
+
+- **Dispatch** — `CommandCatalog.dispatch(_:context:)` connects a key press to
+  its effect. It determines key eligibility, effect availability, and effect
+  ownership. It returns `.perform(BrowserAction)`, `.unavailable(reason)`,
+  `.runtimeOwned`, or `nil`. Callers previously made some of these decisions.
+  For example, a view contained a `focus` guard. This duplication made catalog
+  availability closures unreachable and silently disabled bindings.
+- **Command context** — This value contains all data that a binding can use.
+  The data covers selection, preview, focus, overlays, hidden files, and
+  root-relative selection. Tests can determine dispatch without a live
+  `BrowserModel`. A command reads browser state only through this value.

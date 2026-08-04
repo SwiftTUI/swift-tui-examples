@@ -103,10 +103,8 @@ swiftly run swift run --package-path csvui csvui --print-default-theme \
 ## Development and tests
 
 The committed manifest keeps the public tagged-HTTPS dependency contract.
-Until csvui's new termination and scroll-wheel framework APIs are released,
-build this source through the organization root's disposable examples overlay.
-The overlay rewrites only its copied manifest to the exact local SwiftTUI
-checkout; the public manifest never acquires a path dependency.
+Pre-tag integration against unreleased framework changes happens in the
+SwiftTUI coordination root, not here.
 
 ```bash
 swiftly run swift test --package-path csvui
@@ -117,3 +115,9 @@ The focused suite covers parsing, malformed input, delimiter detection,
 bounded caching/history, projections, theming, atomic saves and conflicts,
 watcher replacement/coalescing, model lifecycle, view geometry, and a rebuilt
 real-PTY edit/quit journey.
+
+## See also
+
+- [API reference](https://swifttui.sh/docs/documentation/) — the SwiftTUI DocC docs.
+- [Showcase](https://swifttui.sh/showcase/) — csvui and the other examples on the website.
+- [swift-tui](https://github.com/SwiftTUI/swift-tui) — the framework repository.
