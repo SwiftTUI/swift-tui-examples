@@ -3,8 +3,9 @@
 import PackageDescription
 
 // SwiftUI port of `layouts`. The intent is to render the same
-// 56 layout-shape examples in real SwiftUI so the BEHAVIOUR_FINDINGS
-// observations can be compared side-by-side with the embedded SwiftTUI
+// 56 layout-shape examples in real SwiftUI so the divergence-register
+// observations (`Divergences-And-Gaps.md` in swift-tui's SwiftTUIViews
+// DocC catalog) can be compared side-by-side with the embedded SwiftTUI
 // implementation. This package deliberately drops the test target
 // from the original — the original tests rasterise via SwiftTUI's
 // `DefaultRenderer` / `RasterSurface`, which has no SwiftUI public

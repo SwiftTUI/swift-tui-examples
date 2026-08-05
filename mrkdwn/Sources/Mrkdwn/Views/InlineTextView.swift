@@ -65,7 +65,7 @@ struct InlineTextView: View {
       text =
         text
         .foregroundStyle(theme.codeForeground.swiftTUIColor)
-        .backgroundStyle(theme.codeBackground.swiftTUIColor)
+        .cellBackground(theme.codeBackground.swiftTUIColor)
     }
     if run.traits.contains(.html) {
       text = text.foregroundStyle(theme.muted.swiftTUIColor)

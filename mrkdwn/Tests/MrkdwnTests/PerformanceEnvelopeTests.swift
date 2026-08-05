@@ -96,12 +96,12 @@ struct PerformanceEnvelopeTests {
     let metrics = MarkdownTableLayout.metrics(for: table)
     let measurementElapsed = measurementStart.duration(to: clock.now)
 
-    let documentScrollPosition = Mutex(ScrollPosition.zero)
+    let documentScrollPosition = Mutex(ScrollCellOffset.zero)
     let documentScrollBinding = Binding(
       get: { documentScrollPosition.withLock { $0 } },
       set: { next in documentScrollPosition.withLock { $0 = next } }
     )
-    let tableScrollPosition = Mutex(ScrollPosition.zero)
+    let tableScrollPosition = Mutex(ScrollCellOffset.zero)
     let tableScrollBinding = Binding(
       get: { tableScrollPosition.withLock { $0 } },
       set: { next in tableScrollPosition.withLock { $0 = next } }
@@ -114,7 +114,6 @@ struct PerformanceEnvelopeTests {
         Divider()
         ScrollView(
           .vertical,
-          showsIndicators: true,
           position: documentScrollBinding
         ) {
           MarkdownTableView(
@@ -148,7 +147,6 @@ struct PerformanceEnvelopeTests {
         Divider()
         ScrollView(
           .vertical,
-          showsIndicators: true,
           position: documentScrollBinding
         ) {
           MarkdownTableView(

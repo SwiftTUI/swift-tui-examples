@@ -115,7 +115,7 @@ struct MarkdownBlockView: View {
             Text(language)
               .foregroundStyle(state.theme.muted.swiftTUIColor)
           }
-          ScrollView(.horizontal, showsIndicators: true) {
+          ScrollView(.horizontal) {
             Text(source)
               .foregroundStyle(state.theme.codeForeground.swiftTUIColor)
               .padding(.init(horizontal: 1, vertical: 0))

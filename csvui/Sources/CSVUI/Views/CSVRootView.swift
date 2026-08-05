@@ -475,7 +475,7 @@ private struct CSVOverlaySurface: View {
   }
 
   private func helpContent(_ definitions: [CSVCommandDefinition]) -> some View {
-    ScrollView(.vertical, showsIndicators: true) {
+    ScrollView(.vertical) {
       VStack(alignment: .leading, spacing: 0) {
         ForEach(definitions, id: \.id) { definition in
           HStack(spacing: 1) {
@@ -522,7 +522,7 @@ private struct CSVOverlaySurface: View {
     readOnly: Bool
   ) -> some View {
     VStack(alignment: .leading, spacing: 1) {
-      ScrollView(.vertical, showsIndicators: true) {
+      ScrollView(.vertical) {
         VStack(alignment: .leading, spacing: 1) {
           ForEach(fields, id: \.column) { field in
             VStack(alignment: .leading, spacing: 0) {
@@ -542,7 +542,7 @@ private struct CSVOverlaySurface: View {
   }
 
   private func columnsContent(_ columns: [CSVColumnPresentation]) -> some View {
-    ScrollView(.vertical, showsIndicators: true) {
+    ScrollView(.vertical) {
       VStack(alignment: .leading, spacing: 0) {
         ForEach(columns, id: \.column) { column in
           Button("\(column.isHidden ? "○" : "●") \(column.label)") {
@@ -853,7 +853,7 @@ struct CSVGridTextLayout {
   ) {
     var fragment = Text(value).foregroundStyle(foreground.swiftTUIColor)
     if let background {
-      fragment = fragment.backgroundStyle(background.swiftTUIColor)
+      fragment = fragment.cellBackground(background.swiftTUIColor)
     }
     interpolation.appendInterpolation(fragment)
   }

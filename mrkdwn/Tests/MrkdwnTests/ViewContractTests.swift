@@ -587,17 +587,17 @@ struct ViewContractTests {
 }
 
 private final class TableScrollRoutingPositions: Sendable {
-  let document = Mutex(ScrollPosition.zero)
-  let table = Mutex(ScrollPosition.zero)
+  let document = Mutex(ScrollCellOffset.zero)
+  let table = Mutex(ScrollCellOffset.zero)
 
-  var documentBinding: Binding<ScrollPosition> {
+  var documentBinding: Binding<ScrollCellOffset> {
     Binding(
       get: { self.document.withLock { $0 } },
       set: { next in self.document.withLock { $0 = next } }
     )
   }
 
-  var tableBinding: Binding<ScrollPosition> {
+  var tableBinding: Binding<ScrollCellOffset> {
     Binding(
       get: { self.table.withLock { $0 } },
       set: { next in self.table.withLock { $0 = next } }
@@ -613,7 +613,6 @@ private struct TableScrollRoutingApp: App {
     WindowGroup("Table scroll routing", id: Self.sceneID) {
       ScrollView(
         .vertical,
-        showsIndicators: true,
         position: Self.positions.documentBinding
       ) {
         MarkdownTableView(

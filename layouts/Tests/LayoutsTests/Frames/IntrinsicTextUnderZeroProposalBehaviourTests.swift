@@ -25,7 +25,8 @@ struct IntrinsicTextUnderZeroProposalBehaviourTests {
   /// effectively removes the text from the visible surface, leaving
   /// the layout slot empty.
   ///
-  /// See `BEHAVIOUR_FINDINGS.md` finding #5. This test pins the
+  /// See the SwiftUI divergence register (`Divergences-And-Gaps.md`
+  /// in swift-tui's SwiftTUIViews DocC catalog). This test pins the
   /// observed behaviour: exactly ONE row contains "intrinsic
   /// content".
   @Test(".frame(width: 0, height: 0) clips the text out of the raster")

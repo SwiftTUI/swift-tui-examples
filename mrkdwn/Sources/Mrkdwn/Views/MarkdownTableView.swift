@@ -9,11 +9,11 @@ struct MarkdownTableView: View {
   var tableTop: Int?
   var documentScrollOffset: Int
   var viewportHeight: Int
-  var horizontalScrollPosition: Binding<ScrollPosition>?
+  var horizontalScrollPosition: Binding<ScrollCellOffset>?
   // Supplied by the document tree so metrics come from the model-owned
   // identity-keyed cache; standalone constructions compute directly.
   var metricsProvider: ((MarkdownTable) -> MarkdownTableLayoutMetrics)? = nil
-  @State private var internalHorizontalScrollPosition = ScrollPosition.zero
+  @State private var internalHorizontalScrollPosition = ScrollCellOffset.zero
 
   var body: some View {
     let metrics = metricsProvider?(table) ?? MarkdownTableLayout.metrics(for: table)
@@ -31,7 +31,6 @@ struct MarkdownTableView: View {
     )
     ScrollView(
       .horizontal,
-      showsIndicators: true,
       position: position
     ) {
       VStack(alignment: .leading, spacing: 0) {

@@ -56,7 +56,7 @@ struct KeyBindingHelpView: View {
   /// The offset at which the last row sits on the last line.
   private static var maximumScroll: Int { max(0, contentRows - visibleRows) }
 
-  @State private var scroll = ScrollPosition.zero
+  @State private var scroll = ScrollCellOffset.zero
   /// Focus starts on the list rather than on the sheet's close button.
   ///
   /// This is the whole fix, and it is not cosmetic. Key presses bubble
@@ -121,20 +121,20 @@ struct KeyBindingHelpView: View {
   /// `PgDn` twice shows every row exactly once, with no skipped band and
   /// no re-read.
   private static func scrolled(
-    from position: ScrollPosition,
+    from position: ScrollCellOffset,
     by key: KeyEvent
-  ) -> ScrollPosition? {
+  ) -> ScrollCellOffset? {
     let delta: Int
     switch key {
     case .arrowUp: delta = -1
     case .arrowDown: delta = 1
     case .pageUp: delta = -visibleRows
     case .pageDown: delta = visibleRows
-    case .home: return ScrollPosition(x: position.x, y: 0)
-    case .end: return ScrollPosition(x: position.x, y: maximumScroll)
+    case .home: return ScrollCellOffset(x: position.x, y: 0)
+    case .end: return ScrollCellOffset(x: position.x, y: maximumScroll)
     default: return nil
     }
-    return ScrollPosition(
+    return ScrollCellOffset(
       x: position.x,
       y: min(max(0, position.y + delta), maximumScroll)
     )

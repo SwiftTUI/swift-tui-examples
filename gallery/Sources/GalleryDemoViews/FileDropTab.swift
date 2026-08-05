@@ -17,7 +17,7 @@ struct FileDropTab: View {
           ForEach(Array(droppedPaths.enumerated()), id: \.offset) { _, path in
             let ext = path.components(separatedBy: ".").last
             if let ext, ext.lowercased() == "png" {
-              Image(fileURL: ext)
+              Image(path: path)
             }
             Text(path)
           }

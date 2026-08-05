@@ -1,7 +1,7 @@
 import SwiftTUIRuntime
 
 struct ScrollControlTab: View {
-  @State private var position = ScrollPosition.zero
+  @State private var position = ScrollCellOffset.zero
   @State private var lastCommand = "ready"
 
   var body: some View {
@@ -72,7 +72,6 @@ struct ScrollControlTab: View {
   private var scrollPane: some View {
     ScrollView(
       .vertical,
-      showsIndicators: true,
       position: $position
     ) {
       VStack(alignment: .leading, spacing: 0) {

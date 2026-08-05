@@ -288,10 +288,9 @@ private struct MarkdownDocumentView: View {
   var body: some View {
     ScrollView(
       .vertical,
-      showsIndicators: true,
       position: Binding(
         get: {
-          ScrollPosition(y: model.documentScrollOffset)
+          ScrollCellOffset(y: model.documentScrollOffset)
         },
         set: {
           model.updateDocumentScrollOffset($0.y)
@@ -338,7 +337,7 @@ private struct OutlineView: View {
   let model: ViewerModel
 
   var body: some View {
-    ScrollView(.vertical, showsIndicators: true) {
+    ScrollView(.vertical) {
       VStack(alignment: .leading, spacing: 0) {
         Text("Contents").bold()
           .foregroundStyle(model.state.theme.accent.swiftTUIColor)

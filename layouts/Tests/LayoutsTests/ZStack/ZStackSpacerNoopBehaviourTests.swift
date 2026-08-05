@@ -40,7 +40,9 @@ struct ZStackSpacerNoopBehaviourTests {
   /// If this test fails with "border spans the full width", the
   /// library allocates the full proposal to Spacer inside ZStack
   /// (vs SwiftUI's layout-neutral Spacer in an overlay context) —
-  /// file as a finding in BEHAVIOUR_FINDINGS.md.
+  /// file it in the SwiftUI divergence register
+  /// (`Divergences-And-Gaps.md` in swift-tui's SwiftTUIViews DocC
+  /// catalog).
   @Test("Spacer inside ZStack is layout-neutral: border hugs [X], not the full width")
   func spacerDoesNotClaimSpaceInZStack() {
     let width = 80
@@ -115,7 +117,8 @@ struct ZStackSpacerNoopBehaviourTests {
       border width (\(borderWidth)) is far larger than [X]'s natural size \
       (expected ~5). Spacer appears to have claimed space inside the ZStack, \
       contradicting SwiftUI's layout-neutral Spacer semantics in overlay \
-      contexts. File finding in BEHAVIOUR_FINDINGS.md.
+      contexts. File it in the SwiftUI divergence register \
+      (Divergences-And-Gaps.md in swift-tui's SwiftTUIViews DocC catalog).
       \(joined)
       """
     )

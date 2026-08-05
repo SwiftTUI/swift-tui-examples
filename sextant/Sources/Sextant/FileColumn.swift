@@ -56,7 +56,7 @@ struct FileColumn: View {
   var contentWidth: Int = 0
   var onSelect: (BrowserItemID) -> Void = { _ in }
 
-  @State private var scrollPosition = ScrollPosition.zero
+  @State private var scrollPosition = ScrollCellOffset.zero
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
@@ -77,7 +77,6 @@ struct FileColumn: View {
           )
           ScrollView(
             .vertical,
-            showsIndicators: true,
             position: $scrollPosition
           ) {
             LazyVStack(alignment: .leading, spacing: 0) {
@@ -98,7 +97,7 @@ struct FileColumn: View {
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .onChange(of: selectedEntryIndex, initial: true) { _, index in
-      scrollPosition = ScrollPosition(y: max(0, (index ?? 0) - 1))
+      scrollPosition = ScrollCellOffset(y: max(0, (index ?? 0) - 1))
     }
   }
 
