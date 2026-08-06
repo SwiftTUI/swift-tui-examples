@@ -13,9 +13,11 @@ Pick by what you want to see, then run one command:
 
 - **The most in one window** — run [`gallery`](gallery): tabs, controls, charts,
   images, animated GIFs, popovers, and physics in a single terminal app.
-- **One source on every host** — run [`counter`](counter): the *same*
-  `CounterApp` value as a terminal executable, an embedded native SwiftUI
-  window, and a static WASI browser bundle.
+- **One source on every host** — clone
+  [`swift-tui-counter-demo`](https://github.com/SwiftTUI/swift-tui-counter-demo):
+  the *same* `CounterApp` value as a terminal executable, an embedded native
+  SwiftUI window, and a static WASI browser bundle (it also powers the live
+  demo on [swifttui.sh](https://swifttui.sh)).
 - **The smallest possible start** — read [`minimal`](minimal): one
   `RenderOnce.print(...)`, no app runtime, no argument parser.
 - **A polished document reader** — run [`mrkdwn`](mrkdwn): complete GFM
@@ -46,19 +48,10 @@ swiftly run swift run --package-path gallery gallery-demo   # the full workbench
 swiftly run swift run --package-path minimal minimal        # the smallest path
 ```
 
-For the browser/WASI example:
-
-```bash
-bun install
-bun --cwd WebExample run build
-```
-
 Each example builds from a fresh clone with tagged HTTPS dependencies. Each
 example pins the current `0.6.3` release graph. Gallery uses matching
-`swift-tui` and `swift-tui-charts` versions. WebExample uses `swift-tui-web`
-`0.6.3` release tarballs for `@swifttui/web` and `@swifttui/build`. `mrkdwn`
-uses the independent `swift-markdown` release range. No sibling source checkout
-is necessary.
+`swift-tui` and `swift-tui-charts` versions. `mrkdwn` uses the independent
+`swift-markdown` release range. No sibling source checkout is necessary.
 
 ## Roster
 
@@ -80,9 +73,8 @@ is necessary.
 | [gifcat](gifcat) | Terminal | `SwiftTUIAnimatedImage` playback, source GIF delays, regular-size image attachments, and row-major tiling of multiple GIFs | `swiftly run swift run --package-path gifcat gifcat gifeditor/nyan.gif` |
 | [gifeditor](gifeditor) | Terminal+Web | Full GIF editor: half-cell canvas, palette, tools, layers, timeline, pointer input, undo/redo, and GIF import/export | `swiftly run swift run --package-path gifeditor gifeditor` |
 | [SwiftUIExample](SwiftUIExample) | Native SwiftUI | SwiftUI host app embedding reusable SwiftTUI scenes through `SwiftUIHost` | `open SwiftUIExample/SwiftUIExample.xcodeproj` |
-| [counter](counter) | Multi-host | The same `CounterApp` value runs as a terminal executable, embeds in a native SwiftUI window via `SwiftUIHost`, and ships as a static WASI bundle in the browser | `swiftly run swift run --package-path counter counter` |
+| [swift-tui-counter-demo](https://github.com/SwiftTUI/swift-tui-counter-demo) | Multi-host | Own repo: the same `CounterApp` value runs as a terminal executable, embeds in a native SwiftUI window via `SwiftUIHost`, and ships as a static WASI bundle in the browser (the swifttui.sh live demo) | `git clone https://github.com/SwiftTUI/swift-tui-counter-demo.git` |
 | [WebHostExample](WebHostExample) | Terminal+Web | Smallest `SwiftTUI` convenience app: terminal by default, localhost browser host with `--web` | `swiftly run swift run --package-path WebHostExample WebHostExample --web` |
-| [WebExample](WebExample) | Web-WASI | Static browser deployment using `SwiftTUIWASI`, `@swifttui/web`, `@swifttui/build`, and a Bun-served host shell | `bun --cwd WebExample dev` |
 
 ## By product
 
@@ -91,17 +83,17 @@ Already know the package you need? Jump straight to an example that uses it.
 | Product or package | Examples |
 | --- | --- |
 | `SwiftTUI` convenience surface | [argparse](argparse), [gallery](gallery), [layouts](layouts), [sextant](sextant), [terminal-workspace](terminal-workspace), [mrkdwn](mrkdwn), [csvui](csvui), [gifcat](gifcat), [gifeditor](gifeditor), [WebHostExample](WebHostExample) |
-| `SwiftTUIRuntime` / host-managed scenes | [gallery](gallery), [counter](counter), [WebExample](WebExample) |
+| `SwiftTUIRuntime` / host-managed scenes | [gallery](gallery), [swift-tui-counter-demo](https://github.com/SwiftTUI/swift-tui-counter-demo) |
 | `SwiftTUICLI` / one-shot rendering and terminal launch | [minimal](minimal), [terminal-runner](terminal-runner), [git-viz](git-viz) |
 | `SwiftTUIArguments` / `SwiftTUICommand` | [argparse](argparse), [gallery](gallery), [gifeditor](gifeditor), [git-viz](git-viz) |
 | `SwiftTUICharts` (separate [`swift-tui-charts`](https://github.com/SwiftTUI/swift-tui-charts) package) | [git-viz](git-viz), [gallery](gallery), [layouts](layouts) |
 | `SwiftTUIAnimatedImage` | Included by `SwiftTUI`. Used directly by [gifcat](gifcat) and [gallery](gallery) |
 | `SwiftTUITerminal` | [sextant](sextant) |
 | `SwiftTUITerminalWorkspace` | [terminal-workspace](terminal-workspace) |
-| `SwiftUIHost` | [SwiftUIExample](SwiftUIExample), [counter](counter) |
+| `SwiftUIHost` | [SwiftUIExample](SwiftUIExample), [swift-tui-counter-demo](https://github.com/SwiftTUI/swift-tui-counter-demo) |
 | `SwiftTUIAndroidHost` | [AndroidGallery](AndroidGallery) |
 | `SwiftTUIWebHostCLI` | Included by `SwiftTUI`. Used directly by [gifeditor](gifeditor) |
-| `SwiftTUIWASI`, `@swifttui/web`, `@swifttui/build` | [WebExample](WebExample) |
+| `SwiftTUIWASI`, `@swifttui/web`, `@swifttui/build` | [swift-tui-counter-demo](https://github.com/SwiftTUI/swift-tui-counter-demo) (own repo, the swifttui.sh live demo) |
 
 The [coverage document](docs/EXAMPLE-COVERAGE.md) contains the full matrix,
 category definitions, gate contract, and new-example checklist. For the APIs

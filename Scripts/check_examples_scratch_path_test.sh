@@ -381,12 +381,6 @@ if grep -Fq -- "build --target SwiftUIHost" "$swiftly_log"; then
   exit 1
 fi
 
-if ! grep -Fq -- "build --package-path WebExample/TerminalApp" "$swiftly_log"; then
-  echo "Expected the Linux examples lane to build WebExample/TerminalApp" >&2
-  cat "$swiftly_log" >&2
-  exit 1
-fi
-
 if ! grep -Fq -- "build --package-path minimal" "$swiftly_log"; then
   echo "Expected the Linux examples lane to build minimal" >&2
   cat "$swiftly_log" >&2
@@ -533,32 +527,6 @@ PATH="$fake_bin:$PATH" \
   SWIFTTUI_EXAMPLES_PYTHON_LOG="$python_log" \
   SWIFTTUI_EXAMPLES_XCODE_LOG="$xcode_log" \
   SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH="$scratch_path" \
-  "$repo_root/Scripts/check_examples_web.sh" --skip-bun-install >/dev/null
-
-if [ -s "$xcode_log" ]; then
-  echo "Did not expect the web examples lane to invoke xcodebuild" >&2
-  cat "$xcode_log" >&2
-  exit 1
-fi
-
-if ! grep -Fq -- "run build" "$bun_log"; then
-  echo "Expected the web examples lane to run Bun builds" >&2
-  cat "$bun_log" >&2
-  exit 1
-fi
-
-: >"$swiftly_log"
-: >"$bun_log"
-: >"$python_log"
-: >"$xcode_log"
-PATH="$fake_bin:$PATH" \
-  SWIFTTUI_CHECKOUT="$framework_root" \
-  SWIFTTUI_WEB_CHECKOUT="$web_root" \
-  SWIFTTUI_EXAMPLES_SWIFTLY_LOG="$swiftly_log" \
-  SWIFTTUI_EXAMPLES_BUN_LOG="$bun_log" \
-  SWIFTTUI_EXAMPLES_PYTHON_LOG="$python_log" \
-  SWIFTTUI_EXAMPLES_XCODE_LOG="$xcode_log" \
-  SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH="$scratch_path" \
   "$repo_root/Scripts/check_examples_focused_tests.sh" --skip-bun-install >/dev/null
 
 if [ -s "$xcode_log" ]; then
@@ -594,12 +562,6 @@ if ! grep -Eq -- \
   "$swiftly_log"; then
   echo "Expected the focused examples lane to test mrkdwn through the shared scratch path" >&2
   cat "$swiftly_log" >&2
-  exit 1
-fi
-
-if ! grep -Fq -- "test --cwd WebExample" "$bun_log"; then
-  echo "Expected the focused examples lane to run WebExample Bun tests" >&2
-  cat "$bun_log" >&2
   exit 1
 fi
 

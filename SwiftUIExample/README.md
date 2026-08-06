@@ -44,5 +44,5 @@ views. The
 
 ## See also
 
-- [WebExample](../WebExample/README.md) — the same scenes deployed to a browser/WASI surface.
+- [swift-tui-counter-demo](https://github.com/SwiftTUI/swift-tui-counter-demo) — the shared counter scene deployed to a browser/WASI surface (own repo).
 - [DocC reference](https://swifttui.sh/docs/documentation/) — the full `SwiftUIHost` and `SwiftTUIRuntime` API surface.

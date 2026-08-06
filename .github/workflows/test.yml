@@ -13,7 +13,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  BUN_VERSION: "1.3.13"
   SWIFTLY_VERSION: "1.1.1"
 
 jobs:
@@ -67,69 +66,6 @@ jobs:
         shell: bash
         working-directory: swift-tui-examples
         run: Scripts/check_examples_linux.sh --skip-clean
-
-  web-examples:
-    name: Web examples
-    runs-on: macos-26
-    timeout-minutes: 60
-    steps:
-      - name: Checkout examples
-        uses: actions/checkout@v6
-        with:
-          path: swift-tui-examples
-      - name: Cache Swiftly toolchain
-        uses: actions/cache@v5
-        with:
-          # Deliberately no restore-keys. macOS installs toolchains into
-          # ~/Library/Developer/Toolchains, which is not cached here, so a
-          # prefix-matched cache from a different .swift-version restores a
-          # swiftly registry with no toolchain behind it — swiftly then reports
-          # the toolchain as installed and fails to select it. Only an exact
-          # key is safe; a miss just reinstalls swiftly, which is cheap.
-          path: ~/.swiftly
-          key: ${{ runner.os }}-swiftly-${{ env.SWIFTLY_VERSION }}-${{ hashFiles('swift-tui-examples/.swift-version') }}
-      - name: Install swiftly and Swift toolchain
-        shell: bash
-        run: swift-tui-examples/Scripts/install_swift_toolchain_ci.sh swift-tui-examples/.swift-version
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: ${{ env.BUN_VERSION }}
-      - name: Install WebExample build dependencies
-        shell: bash
-        run: brew install binaryen
-      - name: Cache web build products
-        uses: actions/cache@v5
-        with:
-          path: |
-            swift-tui-examples/WebExample/TerminalApp/.build
-            ~/.swiftpm
-            ~/Library/Caches/org.swift.swiftpm
-          key: ${{ runner.os }}-examples-web-swiftpm-${{ hashFiles('swift-tui-examples/WebExample/TerminalApp/Package.swift', 'swift-tui-examples/WebExample/TerminalApp/Package.resolved') }}
-          restore-keys: |
-            ${{ runner.os }}-examples-web-swiftpm-
-            ${{ runner.os }}-swiftpm-
-      - name: Cache Bun deps
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.bun/install/cache
-            swift-tui-examples/node_modules
-          key: ${{ runner.os }}-examples-bun-${{ hashFiles('swift-tui-examples/bun.lock', 'swift-tui-examples/package.json', 'swift-tui-examples/WebExample/package.json') }}
-          restore-keys: |
-            ${{ runner.os }}-examples-bun-
-      - name: Install wasm Swift SDK
-        shell: bash
-        run: |
-          set -euo pipefail
-          if ! swiftly run swift sdk list | grep -q "swift-6.3.3-RELEASE_wasm"; then
-            swiftly run swift sdk install \
-              https://download.swift.org/swift-6.3.3-release/wasm-sdk/swift-6.3.3-RELEASE/swift-6.3.3-RELEASE_wasm.artifactbundle.tar.gz \
-              --checksum cabfa08b73bb8ac783927ecd15fa386e99d0c139c5f232445067bcf58379cae7
-          fi
-      - name: Run web examples
-        shell: bash
-        working-directory: swift-tui-examples
-        run: Scripts/check_examples_web.sh --skip-clean
 
   macos-examples:
     name: macOS examples

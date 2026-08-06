@@ -133,7 +133,6 @@ prepare_csvui_package() {
 }
 
 require_command swiftly
-require_command bun
 require_command python3
 ensure_runtime_tmpdir
 if [ -n "$framework_root" ]; then
@@ -251,21 +250,6 @@ run_step \
   "Test csvui" \
   "$repo_root" \
   run_csvui_tests
-
-echo ""
-echo "### Focused browser behavior tests"
-
-if [ -f "$repo_root/package.json" ] && [ -f "$repo_root/bun.lock" ] && [ "$skip_bun_install" -eq 0 ]; then
-  run_step \
-    "Install Bun workspace dependencies" \
-    "$repo_root" \
-    bun install --frozen-lockfile
-fi
-
-run_step \
-  "Test WebExample" \
-  "$repo_root" \
-  bun test --cwd WebExample
 
 echo ""
 if [ -z "$failures" ]; then

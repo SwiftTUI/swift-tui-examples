@@ -37,36 +37,33 @@ target. Every other SwiftTUI product resolves from `swift-tui`.
 | [sextant](../sextant) | Focused product sample | `SwiftTUI`, `SwiftTUITerminal` | Miller-column browser and embedded terminal process previews | Terminal app plus child processes | Linux native gate builds debug and release. Focused SwiftPM tests run in `check:focused`. |
 | [terminal-workspace](../terminal-workspace) | Focused product sample | `SwiftTUI`, `SwiftTUITerminalWorkspace` | Tabs, splits, retained sessions, command palette actions, persisted workspace metadata | Terminal workspace app | Linux native gate builds debug and release. Focused SwiftPM tests run in `check:focused`. |
 | [mrkdwn](../mrkdwn) | Advanced app and focused product sample | `SwiftTUI`, `Markdown`, vendored `MrkdwnMermaid` | Complete CommonMark/GFM compilation, responsive outline/search/navigation, XDG TOML theming, bounded images, and Unicode semantic-cell Mermaid rendering | Terminal app on macOS and Linux | Linux and macOS gates clean and build debug and release. They also run the focused SwiftPM suite in `check:focused`. |
-| [counter](../counter) | Host/build configuration sample | `SwiftTUI`, `SwiftTUIRuntime`, `SwiftUIHost`, `SwiftTUIWASI`, `CounterCore` | One shared `CounterApp` scene package consumed by the terminal executable, the native SwiftUI host, and the WASI browser bundle | Terminal app plus SwiftUI-host and WASI scene packages | Linux and macOS gates build the package and run `CounterCoreTests`. `WebExample` consumes `CounterCore` for the browser build. |
 | [csvui](../csvui) | Advanced app, focused product sample, and stress/regression sample | `SwiftTUI` | Lazy byte-indexed CSV/TSV viewing, sparse edits and bounded history, search/filter/sort projections, XDG TOML theming, live reload, conflict detection, and atomic saves | Terminal app on macOS and Linux | Linux and macOS gates clean and build debug and release. They also run the focused SwiftPM and rebuilt real-PTY suites in `check:focused`. |
 | [git-viz](../git-viz) | Copyable tutorial and focused product sample | `SwiftTUI`, `SwiftTUICLI`, `SwiftTUICharts` | Non-interactive git reporting and chart primitives | Terminal CLI report generator | Linux native gate builds debug and release. Focused SwiftPM tests run in `check:focused`. |
 | [gifcat](../gifcat) | Copyable tutorial and focused product sample | `SwiftTUI`, `SwiftTUIAnimatedImage` | GIF playback, source delays, image attachments, row-major tiling | Terminal app | Linux native gate builds debug and release. Focused SwiftPM tests run in `check:focused`. |
 | [gifeditor](../gifeditor) | Advanced app and stress/regression sample | `SwiftTUI`, `SwiftTUIWebHostCLI`, `GIFEditorCore`, `GIFEditorUI` | Half-cell canvas, palette, tools, layers, timeline, pointer input, undo/redo, GIF import/export | Terminal app plus optional localhost WebHost | Linux native gate builds debug and release. Focused SwiftPM tests run in `check:focused`. |
 | [SwiftUIExample](../SwiftUIExample) | Host/build configuration sample | `SwiftUIHost`, `SwiftTUI`, `GalleryDemoViews` | Native SwiftUI app embedding reusable SwiftTUI scenes | Xcode macOS app plus terminal package | Linux native gate builds the terminal package. The macOS native gate builds the terminal package and Xcode app. |
 | [WebHostExample](../WebHostExample) | Copyable tutorial and host/build configuration sample | `SwiftTUI` convenience host | Smallest app that runs in the terminal by default and localhost browser host with `--web` | Terminal app plus localhost WebHost | Linux native gate builds the package and runs smoke tests. Focused SwiftPM tests run in `check:focused`. |
-| [WebExample](../WebExample) | Host/build configuration sample | `SwiftTUIWASI`, `SwiftTUIRuntime`, `CounterCore`, `@swifttui/web`, `@swifttui/build` | Static browser deployment of the shared multi-host counter through WASI and a Bun-hosted shell | Single-scene browser/WASI app plus reusable terminal scene package | Linux native gate builds the terminal package. The web gate builds the browser app and web host. Focused Bun tests run in `check:focused`. |
 
 `SharedHostScenes` is a support package, not a runnable example. It contains the
-host-details scene UI that `SwiftUIExample` uses. `WebExample` imports the
-shared `CounterApp` from [counter](../counter).
+host-details scene UI that `SwiftUIExample` uses. The multi-host counter demo
+(terminal + native SwiftUI + browser/WASI) lives in its own repo:
+[`swift-tui-counter-demo`](https://github.com/SwiftTUI/swift-tui-counter-demo).
 
 ## Gate Contract
 
 - `bun run check` is the build-first gate for the full example matrix from a
-  local macOS checkout. It delegates to the Linux-compatible SwiftPM lane, the
-  macOS native lane, and the browser/WASI lane.
+  local macOS checkout. It delegates to the Linux-compatible SwiftPM lane and
+  the macOS native lane.
 - `bun run check:linux` is the Linux-compatible SwiftPM build gate. It builds CLI,
   terminal, shared-scene, and localhost WebHost packages that do not require
   native Apple app tooling.
 - `bun run check:macos` is the native Apple host gate. It builds the SwiftUI terminal
   package, the `LayoutsSwiftUI` comparison package, and the Xcode macOS app with
   code signing disabled for CI.
-- `bun run check:web` is the browser/WASI build gate for `WebExample` and the
-  `swift-tui-web` host package.
 - `bun run check:focused` is the slower behavior-test gate for examples with test
   targets: `gallery`, `layouts`, `gifeditor`, `git-viz`, `sextant`,
   `terminal-runner`, `gifcat`, `terminal-workspace`, `mrkdwn`, `csvui`,
-  `WebHostExample`, and `WebExample`.
+  and `WebHostExample`.
 - The gates share sequential SwiftPM scratch state through
   `SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH`, and the macOS lane isolates Xcode
   derived data through `SWIFTTUI_EXAMPLES_XCODE_DERIVED_DATA`. Both default to

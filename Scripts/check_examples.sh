@@ -4,7 +4,6 @@ set -eu
 
 repo_root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 framework_root=${SWIFTTUI_CHECKOUT:-}
-web_root=${SWIFTTUI_WEB_CHECKOUT:-}
 swiftpm_scratch=${SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH:-}
 xcode_derived_data=${SWIFTTUI_EXAMPLES_XCODE_DERIVED_DATA:-}
 runtime_tmpdir=
@@ -18,18 +17,16 @@ failures=""
 
 usage() {
   cat <<'EOF'
-Usage: Scripts/check_examples.sh [--linux-only|--macos-only|--web-only] [--skip-clean] [--skip-bun-install]
+Usage: Scripts/check_examples.sh [--linux-only|--macos-only] [--skip-clean] [--skip-bun-install]
 
 Builds and tests the SwiftTUI example packages from this repository. By default
-the examples resolve public SwiftTUI release tags and web package release
-tarballs; no sibling checkouts are required.
+the examples resolve public SwiftTUI release tags; no sibling checkouts are
+required.
 
 Set SWIFTTUI_CHECKOUT only when deliberately testing mrkdwn and csvui against a
 local SwiftTUI checkout. Each package is copied to a disposable package root
 whose SwiftTUI dependency points at that exact checkout; public manifests are
 not modified.
-Set SWIFTTUI_WEB_CHECKOUT to exercise the local web host. The default public
-gate does not use sibling checkouts.
 Set SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH to reuse one sequential SwiftPM scratch
 directory across the example package builds. Do not share that directory across
 parallel check runs.
@@ -62,9 +59,6 @@ for argument in "$@"; do
     --macos-only|--mac-only)
       suite=macos
       ;;
-    --web-only)
-      suite=web
-      ;;
     -h|--help)
       usage
       exit 0
@@ -86,9 +80,6 @@ run_macos_suite() {
   [ "$suite" = "all" ] || [ "$suite" = "macos" ]
 }
 
-run_web_suite() {
-  [ "$suite" = "all" ] || [ "$suite" = "web" ]
-}
 
 require_command() {
   name=$1
@@ -170,17 +161,11 @@ require_command swiftly
 if run_linux_suite || run_macos_suite; then
   require_command python3
 fi
-if run_web_suite; then
-  require_command bun
-fi
 if run_macos_suite; then
   require_command xcodebuild
 fi
 if [ -n "$framework_root" ]; then
   require_checkout "$framework_root" "swift-tui"
-fi
-if run_web_suite && [ -n "$web_root" ]; then
-  require_checkout "$web_root" "swift-tui-web"
 fi
 if run_linux_suite || run_macos_suite; then
   ensure_runtime_tmpdir
@@ -382,10 +367,8 @@ run_linux_examples() {
       "gifeditor" \
       "git-viz" \
       "terminal-workspace" \
-      "counter" \
       "layouts" \
       "SwiftUIExample/TerminalApp" \
-      "WebExample/TerminalApp" \
       "WebHostExample"; do
       run_step \
         "Clean $package_path" \
@@ -415,8 +398,7 @@ run_linux_examples() {
     "gifcat" \
     "gifeditor" \
     "git-viz" \
-    "terminal-workspace" \
-    "counter"; do
+    "terminal-workspace"; do
     run_step \
       "Build $package_path" \
       "$repo_root" \
@@ -488,11 +470,6 @@ run_linux_examples() {
     run_swift build --package-path SwiftUIExample/TerminalApp
 
   run_step \
-    "Build WebExample/TerminalApp" \
-    "$repo_root" \
-    run_swift build --package-path WebExample/TerminalApp
-
-  run_step \
     "Build WebHostExample" \
     "$repo_root" \
     run_swift build --package-path WebHostExample
@@ -503,11 +480,6 @@ run_linux_examples() {
     "Test WebHostExample" \
     "$repo_root" \
     run_swift test --package-path WebHostExample
-
-  run_step \
-    "Test counter" \
-    "$repo_root" \
-    run_swift test --package-path counter
 
   run_step \
     "Test mrkdwn" \
@@ -622,29 +594,6 @@ run_macos_examples() {
   fi
 }
 
-run_web_examples() {
-  print_section "Web build-only coverage"
-
-  if [ -f "$repo_root/package.json" ] && [ -f "$repo_root/bun.lock" ] && [ "$skip_bun_install" -eq 0 ]; then
-    run_step \
-      "Install Bun workspace dependencies" \
-      "$repo_root" \
-      bun install --frozen-lockfile
-  fi
-
-  run_step \
-    "Build WebExample web demo" \
-    "$repo_root/WebExample" \
-    bun run build
-
-  if [ -n "$web_root" ]; then
-    run_step \
-      "Build local swift-tui-web host with WebExampleApp" \
-      "$web_root/packages/web" \
-      bun run build -- --package-path "$repo_root/WebExample/TerminalApp" --app WebExampleApp
-  fi
-}
-
 run_step \
   "Check CI Swift toolchain setup" \
   "$repo_root" \
@@ -663,9 +612,6 @@ if run_macos_suite; then
   run_macos_examples
 fi
 
-if run_web_suite; then
-  run_web_examples
-fi
 
 echo ""
 if [ -z "$failures" ]; then

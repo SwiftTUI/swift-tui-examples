@@ -37,5 +37,5 @@ The test makes sure that the package boundary stays intact. The example imports
 
 ## See also
 
-- [WebExample](../WebExample/README.md) — the browser/WASI deployment example.
+- [swift-tui-counter-demo](https://github.com/SwiftTUI/swift-tui-counter-demo) — the browser/WASI deployment demo (own repo).
 - [SwiftTUI DocC reference](https://swifttui.sh/docs/documentation/)

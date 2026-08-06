@@ -153,5 +153,5 @@ The suite covers these contracts:
 
 ## See also
 
-- [`webexample`](../WebExample/README.md) — the dedicated browser/WASI deployment example.
+- [`swift-tui-counter-demo`](https://github.com/SwiftTUI/swift-tui-counter-demo/tree/main/WebExample) — the dedicated browser/WASI deployment demo (own repo).
 - DocC reference: <https://swifttui.sh/docs/documentation/>

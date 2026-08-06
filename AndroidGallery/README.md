@@ -103,5 +103,5 @@ The package has no test target. The host `SwiftPackage` declares only the
 
 ## See also
 
-- [`../WebExample`](../WebExample) — the browser/WASI surface of the SwiftTUI gallery.
+- [`swift-tui-counter-demo`](https://github.com/SwiftTUI/swift-tui-counter-demo) — the browser/WASI counter demo (own repo).
 - DocC reference: https://swifttui.sh/docs/documentation/
