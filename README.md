@@ -49,7 +49,7 @@ swiftly run swift run --package-path minimal minimal        # the smallest path
 ```
 
 Each example builds from a fresh clone with tagged HTTPS dependencies. Each
-example pins the current `0.6.3` release graph. Gallery uses matching
+example pins the current `0.7.0` release graph. Gallery uses matching
 `swift-tui` and `swift-tui-charts` versions. `mrkdwn` uses the independent
 `swift-markdown` release range. No sibling source checkout is necessary.
 
