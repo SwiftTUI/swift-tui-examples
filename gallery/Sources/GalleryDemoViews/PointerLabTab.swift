@@ -19,7 +19,7 @@ struct PointerLabTab: View {
             size: .init(width: 44, height: 6)
           )
         )
-        .coordinateSpace(name: "pointer-lab-target")
+        .coordinateSpace(.named("pointer-lab-target"))
         .gesture(
           SpatialTapGesture(coordinateSpace: .named("pointer-lab-target"))
             .onEnded { value in
