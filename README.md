@@ -5,7 +5,7 @@ shipped to every host. This repo holds runnable examples for
 [`SwiftTUI`](https://github.com/SwiftTUI/swift-tui): one directory per demo, each
 proving a specific capability, each with the exact command to run it.
 
-![Status](https://img.shields.io/badge/status-0.6.x%20pre--release-DAA520)
+![Status](https://img.shields.io/badge/status-0.7.2%20pre--release-DAA520)
 
 ## Start here
 
