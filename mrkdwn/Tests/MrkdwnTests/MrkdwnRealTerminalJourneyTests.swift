@@ -687,6 +687,11 @@ private func launchMrkdwn(
   process.currentDirectoryURL = workingDirectory
   var environment = ProcessInfo.processInfo.environment
   environment["TERM"] = "xterm-256color"
+  // Bazel intentionally provides a minimal test environment. Pin the child
+  // terminal profile so assertions exercise the same Unicode presentation as
+  // an ordinary interactive launch instead of framework ASCII fallbacks.
+  environment["LANG"] = "en_US.UTF-8"
+  environment["LC_ALL"] = "en_US.UTF-8"
   process.environment = environment
   let terminalHandle = FileHandle(
     fileDescriptor: terminal.slave,
