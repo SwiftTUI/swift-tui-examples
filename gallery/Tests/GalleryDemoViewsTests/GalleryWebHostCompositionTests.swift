@@ -33,38 +33,22 @@ struct GalleryWebHostCompositionTests {
     #expect(!manifest.contains("SwiftTUICLI"))
   }
 
-  @Test("gallery stays runtime-only and WebExample reuses the shared three-host scene")
-  func galleryAndWebExampleKeepTheirIntendedRuntimeBoundaries() throws {
+  // The WebExample half of this contract moved to swift-tui-counter-demo along
+  // with the demo itself; asserting it from here reached across a repository
+  // boundary that no longer exists.
+  @Test("gallery stays runtime-only")
+  func galleryKeepsItsIntendedRuntimeBoundary() throws {
     let packageRoot = URL(fileURLWithPath: #filePath)
       .deletingLastPathComponent()
       .deletingLastPathComponent()
       .deletingLastPathComponent()
-    let examplesRoot = packageRoot.deletingLastPathComponent()
-    let webExampleRoot = examplesRoot.appendingPathComponent("WebExample/TerminalApp")
 
     let galleryManifest = try String(
       contentsOf: packageRoot.appendingPathComponent("Package.swift"),
       encoding: .utf8
     )
-    let webExampleManifest = try String(
-      contentsOf: webExampleRoot.appendingPathComponent("Package.swift"),
-      encoding: .utf8
-    )
-    let webExampleApp = try String(
-      contentsOf: webExampleRoot.appendingPathComponent(
-        "Sources/WebExampleScenes/WebExampleApp.swift"
-      ),
-      encoding: .utf8
-    )
 
     #expect(galleryManifest.contains(".product(name: \"SwiftTUIRuntime\", package: \"swift-tui\")"))
-    #expect(webExampleManifest.contains(".product(name: \"CounterCore\", package: \"counter\")"))
-    #expect(webExampleManifest.contains(".product(name: \"SwiftTUIWASI\", package: \"swift-tui\")"))
-    #expect(
-      !webExampleManifest.contains(".product(name: \"SwiftTUIRuntime\", package: \"swift-tui\")"))
-    #expect(webExampleApp.contains("public import CounterCore"))
-    #expect(webExampleApp.contains("public typealias WebExampleApp = CounterApp"))
-    #expect(!webExampleApp.contains("import SwiftTUI\n"))
 
     for source in try swiftSources(
       under: packageRoot.appendingPathComponent("Sources/GalleryDemoViews")
