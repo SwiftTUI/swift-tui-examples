@@ -8,12 +8,35 @@
 open SwiftUIExample/SwiftUIExample.xcodeproj
 ```
 
-Run the app scheme from Xcode. To build the reusable scene package without
-Xcode, run:
+Run the `SwiftUIExample` scheme from Xcode. To build the reusable scene package
+without Xcode, run:
 
 ```bash
 swiftly run swift build --package-path SwiftUIExample/TerminalApp
 ```
+
+## Project generation
+
+[`project.yml`](project.yml) is the source of truth for the Xcode project.
+[XcodeGen](https://github.com/yonaskolb/XcodeGen) generates
+`SwiftUIExample.xcodeproj` from it. The generated project stays checked in, so
+building and running this example needs Xcode only. XcodeGen is required to
+change the project, not to use it.
+
+Regenerate after you edit `project.yml`, or after you add, remove, or rename a
+file under `SwiftUIExample/`. The spec lists sources at generation time, so a
+new file reaches the target only after a regenerate:
+
+```bash
+cd SwiftUIExample && xcodegen generate
+```
+
+The spec declares a minimum XcodeGen version of 2.45.0. Different versions can
+emit a different project from the same spec, so keep the regenerated project in
+the same commit as the spec change and review the diff.
+
+Commit the regenerated project with your change. Do not hand-edit
+`project.pbxproj`. The next regenerate discards the edit.
 
 ## Demonstrates
 
