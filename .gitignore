@@ -11,5 +11,4 @@ coverage/
 *.lcov
 .cache/
 *.tsbuildinfo
-bazel-*
 SwiftUIExample/SwiftUIExample.xcodeproj/xcuserdata/
