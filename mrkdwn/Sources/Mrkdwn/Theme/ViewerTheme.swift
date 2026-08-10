@@ -57,23 +57,23 @@ public struct ViewerTheme: Equatable, Sendable {
       try! ThemeColor(value)
     }
     return ViewerTheme(
-      background: color("#0D1117"),
-      foreground: color("#C9D1D9"),
-      muted: color("#8B949E"),
-      accent: color("#58A6FF"),
-      selectionBackground: color("#1F6FEB"),
+      background: color("#272822"),
+      foreground: color("#F8F8F2"),
+      muted: color("#75715E"),
+      accent: color("#A6E22E"),
+      selectionBackground: color("#49483E"),
       headings: [
-        color("#79C0FF"), color("#A5D6FF"), color("#D2A8FF"),
-        color("#FFA657"), color("#7EE787"), color("#FF7B72"),
+        color("#F92672"), color("#FD971F"), color("#E6DB74"),
+        color("#A6E22E"), color("#66D9EF"), color("#AE81FF"),
       ],
-      link: color("#58A6FF"),
-      quote: color("#8B949E"),
-      codeForeground: color("#E6EDF3"),
-      codeBackground: color("#161B22"),
-      tableBorder: color("#30363D"),
-      rule: color("#30363D"),
-      searchMatch: color("#E3B341"),
-      error: color("#FF7B72")
+      link: color("#66D9EF"),
+      quote: color("#75715E"),
+      codeForeground: color("#F8F8F2"),
+      codeBackground: color("#3E3D32"),
+      tableBorder: color("#75715E"),
+      rule: color("#75715E"),
+      searchMatch: color("#E6DB74"),
+      error: color("#F92672")
     )
   }()
 
@@ -81,24 +81,24 @@ public struct ViewerTheme: Equatable, Sendable {
     version = 1
 
     [theme]
-    background = "#0D1117"
-    foreground = "#C9D1D9"
-    muted = "#8B949E"
-    accent = "#58A6FF"
-    selection_background = "#1F6FEB"
-    heading_1 = "#79C0FF"
-    heading_2 = "#A5D6FF"
-    heading_3 = "#D2A8FF"
-    heading_4 = "#FFA657"
-    heading_5 = "#7EE787"
-    heading_6 = "#FF7B72"
-    link = "#58A6FF"
-    quote = "#8B949E"
-    code_foreground = "#E6EDF3"
-    code_background = "#161B22"
-    table_border = "#30363D"
-    rule = "#30363D"
-    search_match = "#E3B341"
-    error = "#FF7B72"
+    background = "#272822"
+    foreground = "#F8F8F2"
+    muted = "#75715E"
+    accent = "#A6E22E"
+    selection_background = "#49483E"
+    heading_1 = "#F92672"
+    heading_2 = "#FD971F"
+    heading_3 = "#E6DB74"
+    heading_4 = "#A6E22E"
+    heading_5 = "#66D9EF"
+    heading_6 = "#AE81FF"
+    link = "#66D9EF"
+    quote = "#75715E"
+    code_foreground = "#F8F8F2"
+    code_background = "#3E3D32"
+    table_border = "#75715E"
+    rule = "#75715E"
+    search_match = "#E6DB74"
+    error = "#F92672"
     """
 }

@@ -13,6 +13,7 @@ struct InlineTextView: View {
   var theme: ViewerTheme
   var baseColor: Color?
   var bold = false
+  var italic = false
   var searchQuery: String?
 
   var body: some View {
@@ -59,7 +60,7 @@ struct InlineTextView: View {
             : theme.link.swiftTUIColor
       )
       .bold(bold || run.traits.contains(.strong))
-      .italic(run.traits.contains(.emphasis))
+      .italic(italic || run.traits.contains(.emphasis))
       .strikethrough(run.traits.contains(.strikethrough))
     if run.traits.contains(.code) {
       text =

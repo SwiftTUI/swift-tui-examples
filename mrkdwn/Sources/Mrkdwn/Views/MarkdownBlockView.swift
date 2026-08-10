@@ -49,11 +49,15 @@ struct MarkdownBlockView: View {
   private var rendered: AnyView {
     switch block {
     case .heading(_, let level, _, let content, _):
+      // Levels separate on three axes: hue (one distinct theme color per
+      // level), rule (H1 double, H2 single, both in the heading's own color),
+      // and weight (H1–H4 bold, H5 regular, H6 regular italic).
       let title = InlineTextView(
         runs: content,
         theme: state.theme,
         baseColor: state.theme.headingColor(level: level),
-        bold: true,
+        bold: level <= 4,
+        italic: level == 6,
         searchQuery: state.searchQuery
       )
       return AnyView(
@@ -67,7 +71,7 @@ struct MarkdownBlockView: View {
           } else {
             title
             Divider(strokeStyle: level == 1 ? .double : .single)
-              .foregroundStyle(state.theme.rule.swiftTUIColor)
+              .foregroundStyle(state.theme.headingColor(level: level))
           }
         }
         .accessibilityRole(.heading(level: level))
@@ -118,19 +122,25 @@ struct MarkdownBlockView: View {
         )
       )
     case .code(_, let language, let source, _):
+      // One shaded box spanning the pane; the language tag sits inside it on
+      // the first row, right-aligned. The tag keeps its single geometry row
+      // (`renderedGeometry` counts `language == nil ? 0 : 1`).
       return AnyView(
         VStack(alignment: .leading, spacing: 0) {
           if let language {
             Text(language)
               .foregroundStyle(state.theme.muted.swiftTUIColor)
+              .padding(.init(horizontal: 1, vertical: 0))
+              .frame(maxWidth: .infinity, alignment: .trailing)
           }
           ScrollView(.horizontal) {
             Text(source)
               .foregroundStyle(state.theme.codeForeground.swiftTUIColor)
               .padding(.init(horizontal: 1, vertical: 0))
           }
-          .background(state.theme.codeBackground.swiftTUIColor)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(state.theme.codeBackground.swiftTUIColor)
       )
     case .table(let id, let table, _):
       return AnyView(
