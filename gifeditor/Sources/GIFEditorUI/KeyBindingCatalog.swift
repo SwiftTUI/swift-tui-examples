@@ -256,7 +256,7 @@ enum KeyBindingSection: String, CaseIterable, Sendable {
         looking like an adjacent frame.
         """,
         """
-        Onion skin changes only the display. It does not affect the eyedropper, \
+        Onion skin is display only. It does not affect the eyedropper, \
         exported GIF, or saved project. Toggling it does not mark the document \
         as changed. A change to the ghost count or side turns onion skin on.
         """,
