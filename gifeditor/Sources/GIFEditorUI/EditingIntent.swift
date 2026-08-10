@@ -90,6 +90,7 @@ public struct EditingSessionState: Hashable, Sendable {
   public let currentFrameIndex: Int
   public let currentLayerIndex: Int
   public let cursor: PixelPoint
+  public let isCursorMarkVisible: Bool
   public let selection: Selection?
   public let clipboard: PixelBuffer?
 
@@ -134,6 +135,7 @@ extension EditingSession {
       currentFrameIndex: currentFrameIndex,
       currentLayerIndex: currentLayerIndex,
       cursor: cursor,
+      isCursorMarkVisible: isCursorMarkVisible,
       selection: selection,
       clipboard: clipboard,
       tool: tool,

@@ -28,6 +28,31 @@ struct EditingSessionTests {
     #expect(model.isDirty)
   }
 
+  @Test("Cursor mark shows on keyboard moves and hides on pointer input")
+  func cursorMarkVisibilityFollowsInputSource() {
+    let model = EditingSession(
+      document: GIFDocument.blank(size: GIFEditorCore.PixelSize(width: 5, height: 5))
+    )
+    // Nothing has moved the cursor yet, so there is nothing to mark.
+    #expect(!model.isCursorMarkVisible)
+
+    model.dispatch(.moveCursor(dx: 1, dy: 0))
+    #expect(model.isCursorMarkVisible)
+
+    // A click is a complete begin/end pair; the pointer was the position
+    // indicator, so no mark is left behind at the clicked pixel.
+    let point = GIFEditorCore.PixelPoint(x: 3, y: 3)
+    model.dispatch(.beginCanvasDrag(point))
+    #expect(!model.isCursorMarkVisible)
+    model.dispatch(.endCanvasDrag(anchor: point, previous: nil, point: point))
+    #expect(!model.isCursorMarkVisible)
+
+    // The keyboard reclaims the mark from wherever the click left the cursor.
+    model.dispatch(.moveCursor(dx: 0, dy: 1))
+    #expect(model.isCursorMarkVisible)
+    #expect(model.cursor == GIFEditorCore.PixelPoint(x: 3, y: 4))
+  }
+
   @Test("Pen drag undo and redo treats a stroke as one history entry")
   func penDragUndoRedoIsOneHistoryEntry() {
     let model = EditingSession(

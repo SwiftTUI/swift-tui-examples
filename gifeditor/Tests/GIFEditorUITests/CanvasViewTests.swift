@@ -268,6 +268,35 @@ struct CanvasViewTests {
     #expect(canvasRegion.rect.maxY <= 24)
   }
 
+  @Test("Interactive canvas shows the cursor mark only after a keyboard move")
+  func interactiveCanvasShowsCursorMarkOnlyAfterKeyboardMove() {
+    let size = GIFEditorCore.PixelSize(width: 4, height: 4)
+    let model = EditingSession(document: GIFDocument.blank(size: size))
+    let harness = InteractiveCanvasHarnessView(model: model, size: size, mode: .fullCell)
+
+    func cursorMarkCount() -> Int {
+      let raster = render(harness, width: 8, height: 8).rasterSurface
+      return raster.cells.reduce(0) { total, row in
+        total + row.count { $0.character == "◆" }
+      }
+    }
+
+    // Freshly opened: the cursor sits at (0,0) but nothing has moved it,
+    // so the canvas draws no mark.
+    #expect(cursorMarkCount() == 0)
+
+    // An arrow-key move is the one thing that shows the mark.
+    model.dispatch(.moveCursor(dx: 1, dy: 1))
+    #expect(cursorMarkCount() == 1)
+
+    // A pointer click paints and re-hides the mark — the pointer itself
+    // was the position indicator.
+    let point = GIFEditorCore.PixelPoint(x: 2, y: 2)
+    model.dispatch(.beginCanvasDrag(point))
+    model.dispatch(.endCanvasDrag(anchor: point, previous: nil, point: point))
+    #expect(cursorMarkCount() == 0)
+  }
+
   @Test("At 2x the cursor brackets its block instead of covering it")
   func zoomedCursorDrawsAnOutline() {
     let red = EditorColor(rgbHex: 0xE05757)
@@ -342,6 +371,7 @@ struct CanvasViewTests {
 private struct InteractiveCanvasHarnessView: View {
   let model: EditingSession
   let size: GIFEditorCore.PixelSize
+  var mode: CanvasPixelGridMode = .verticalHalfBlock
 
   @State private var revision = 0
 
@@ -356,7 +386,7 @@ private struct InteractiveCanvasHarnessView: View {
         cells: model.document.flattenedColors(frameIndex: model.currentFrameIndex),
         model: model,
         refresh: refresh,
-        mode: .verticalHalfBlock
+        mode: mode
       )
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

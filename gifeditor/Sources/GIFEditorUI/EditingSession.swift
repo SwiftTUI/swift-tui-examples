@@ -261,6 +261,15 @@ public final class EditingSession {
       cursor.y = cursor.y.clamped(to: 0...max(0, document.size.height - 1))
     }
   }
+  /// Whether the canvas draws the cursor mark over the artwork.
+  ///
+  /// The mark answers "where will the next keyboard edit land?", which only
+  /// matters while the keyboard is doing the moving — so ``moveCursor(dx:dy:)``
+  /// shows it and the pointer's canvas-drag entry points hide it. A pointer
+  /// gesture needs no mark: the pointer itself is at the target, and a click
+  /// should paint without leaving a marker behind. Hidden at start because
+  /// no keyboard move has happened yet.
+  public private(set) var isCursorMarkVisible: Bool = false
   public var selection: Selection? = nil
   public var clipboard: PixelBuffer? = nil
   public private(set) var isPlaybackActive: Bool = false
@@ -339,7 +348,7 @@ public final class EditingSession {
   /// per-frame mutation stamps.
   ///
   /// The editor re-evaluates its whole body on every refresh — cursor moves,
-  /// hovers, tool/selection changes, and, during a stroke, once per rendered
+  /// tool/selection changes, and, during a stroke, once per rendered
   /// frame — and the timeline needs a thumbnail for every frame. Recompositing
   /// all frames each time is `O(frames × layers × area)`; here only the frames
   /// whose content changed since the last call recompute, so a stroke pays to
@@ -565,11 +574,17 @@ public final class EditingSession {
 
   public func moveCursor(dx: Int, dy: Int) {
     cursor = GIFEditorCore.PixelPoint(x: cursor.x + dx, y: cursor.y + dy)
+    isCursorMarkVisible = true
   }
 
   // MARK: - Canvas drag
 
+  // All three drag entries hide the cursor mark rather than only `begin`:
+  // tests and adapters may enter at any of them, and a pointer gesture is a
+  // pointer gesture whichever phase reports first.
+
   public func beginCanvasDrag(at point: GIFEditorCore.PixelPoint) {
+    isCursorMarkVisible = false
     dragController.begin(at: point, context: self)
   }
 
@@ -578,6 +593,7 @@ public final class EditingSession {
     from previous: GIFEditorCore.PixelPoint?,
     to point: GIFEditorCore.PixelPoint
   ) {
+    isCursorMarkVisible = false
     dragController.update(startingAt: anchor, from: previous, to: point, context: self)
   }
 
@@ -586,6 +602,7 @@ public final class EditingSession {
     from previous: GIFEditorCore.PixelPoint?,
     to point: GIFEditorCore.PixelPoint
   ) {
+    isCursorMarkVisible = false
     dragController.end(startingAt: anchor, from: previous, to: point, context: self)
   }
 

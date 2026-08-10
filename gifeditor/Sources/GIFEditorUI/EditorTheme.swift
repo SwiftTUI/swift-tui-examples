@@ -115,14 +115,6 @@ struct EditorTheme: Equatable, Sendable {
     }
   }
 
-  /// The pointer-hover mark.
-  var hoverColor: Color {
-    switch appearance {
-    case .dark: .magenta
-    case .light: Color(red: 0.420, green: 0.184, blue: 0.749)
-    }
-  }
-
   /// The marquee selection outline.
   var selectionColor: Color {
     switch appearance {
@@ -183,7 +175,6 @@ struct EditorTheme: Equatable, Sendable {
   var overlayMarks: [(name: String, color: Color)] {
     [
       ("cursor", cursorColor),
-      ("hover", hoverColor),
       ("selection", selectionColor),
       ("marquee anchor", marqueeAnchorColor),
       ("gradient anchor", gradientAnchorColor),

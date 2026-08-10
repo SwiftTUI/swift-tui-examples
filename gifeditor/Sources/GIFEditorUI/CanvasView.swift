@@ -21,11 +21,13 @@ import SwiftTUI
 struct CanvasView: View {
   let size: GIFEditorCore.PixelSize
   let cells: [EditorColor?]
-  let cursor: GIFEditorCore.PixelPoint
+  /// Where the cursor mark is drawn, or `nil` to draw no mark. The mark is
+  /// keyboard currency — see `EditingSession.isCursorMarkVisible` — so a
+  /// caller whose cursor was last placed by the pointer passes `nil`.
+  let cursor: GIFEditorCore.PixelPoint?
   let selection: Selection?
   let pendingMarqueeAnchor: GIFEditorCore.PixelPoint?
   let pendingGradientAnchor: GIFEditorCore.PixelPoint?
-  var hover: GIFEditorCore.PixelPoint? = nil
   var mode: CanvasPixelGridMode = .verticalHalfBlock
   var viewport: CanvasViewport? = nil
   var ghosts: [CanvasGhostLayer] = []
@@ -44,7 +46,6 @@ struct CanvasView: View {
       selection: selection,
       pendingMarqueeAnchor: pendingMarqueeAnchor,
       pendingGradientAnchor: pendingGradientAnchor,
-      hover: hover,
       mode: mode,
       viewport: viewport ?? .wholeCanvas(size),
       ghosts: ghosts,
@@ -57,11 +58,11 @@ struct CanvasView: View {
 struct CanvasSurfaceView: View {
   let size: GIFEditorCore.PixelSize
   let cells: [EditorColor?]
-  let cursor: GIFEditorCore.PixelPoint
+  /// Where the cursor mark is drawn, or `nil` to draw no mark.
+  let cursor: GIFEditorCore.PixelPoint?
   let selection: Selection?
   let pendingMarqueeAnchor: GIFEditorCore.PixelPoint?
   let pendingGradientAnchor: GIFEditorCore.PixelPoint?
-  var hover: GIFEditorCore.PixelPoint? = nil
   var mode: CanvasPixelGridMode = .verticalHalfBlock
   var viewport: CanvasViewport
   /// Onion-skin layers, farthest ghost first. Empty when onion skin is off,
@@ -74,7 +75,7 @@ struct CanvasSurfaceView: View {
     // the overlay. `resolvedPixels` is a pure function of `cells`/`viewport`, so
     // a single evaluation is byte-identical to the two reads it replaces — and
     // it halves the per-render color-resolution cost (paid on every drag
-    // refresh and every hover that crosses a pixel boundary).
+    // refresh).
     let resolved = resolvedPixels
     let logical = viewport.logicalSize
     return ZStack(alignment: .topLeading) {
@@ -94,7 +95,6 @@ struct CanvasSurfaceView: View {
           selection: selection,
           pendingMarqueeAnchor: pendingMarqueeAnchor,
           pendingGradientAnchor: pendingGradientAnchor,
-          hover: hover,
           mode: mode,
           theme: theme
         )
@@ -183,18 +183,14 @@ private struct CanvasOverlayDrawing: CanvasDrawing, Equatable {
   /// Extent of `pixels`, which is in *logical* (post-zoom) row-major order.
   var logicalSize: GIFEditorCore.PixelSize
   var pixels: [Color?]
-  var cursor: GIFEditorCore.PixelPoint
+  var cursor: GIFEditorCore.PixelPoint?
   var selection: Selection?
   var pendingMarqueeAnchor: GIFEditorCore.PixelPoint?
   var pendingGradientAnchor: GIFEditorCore.PixelPoint?
-  var hover: GIFEditorCore.PixelPoint?
   var mode: CanvasPixelGridMode
   var theme: EditorTheme = .fallback
 
   func draw(into context: inout CanvasContext) {
-    if let hover, hover != cursor {
-      mark(hover, kind: .hover, into: &context)
-    }
     if let selection {
       drawSelection(selection.rect, into: &context)
     }
@@ -204,7 +200,9 @@ private struct CanvasOverlayDrawing: CanvasDrawing, Equatable {
     if let anchor = pendingGradientAnchor {
       mark(anchor, kind: .anchor(color: theme.gradientAnchorColor), into: &context)
     }
-    mark(cursor, kind: .cursor, into: &context)
+    if let cursor {
+      mark(cursor, kind: .cursor, into: &context)
+    }
   }
 
   // MARK: - Point marks
@@ -221,8 +219,8 @@ private struct CanvasOverlayDrawing: CanvasDrawing, Equatable {
   /// That is the "zooming in must never hide the pixel under the cursor" rule;
   /// a filled box would have failed it exactly where zoom is most useful.
   ///
-  /// Hover and the pending marquee/gradient anchors are single-pixel marks too,
-  /// so they take the same treatment — one rule instead of three special cases.
+  /// The pending marquee/gradient anchors are single-pixel marks too, so they
+  /// take the same treatment — one rule instead of two special cases.
   private func mark(
     _ point: GIFEditorCore.PixelPoint,
     kind: OverlayMark,
@@ -398,17 +396,15 @@ private enum SelectionEdge: Equatable {
 
 private enum OverlayMark: Equatable {
   case cursor
-  case hover
   case selection
   case anchor(color: Color)
 
   /// The mark's color in `theme`. The two anchors carry theirs already — the
   /// drawing resolved them from the same theme before it built the case — so
-  /// only the three fixed marks look it up here.
+  /// only the two fixed marks look it up here.
   func color(in theme: EditorTheme) -> Color {
     switch self {
     case .cursor: theme.cursorColor
-    case .hover: theme.hoverColor
     case .selection: theme.selectionColor
     case .anchor(let color): color
     }
@@ -421,7 +417,6 @@ private enum OverlayMark: Equatable {
     case .fullCell:
       switch self {
       case .cursor: "◆"
-      case .hover: "·"
       case .selection: "□"
       case .anchor: "◇"
       }
@@ -446,45 +441,38 @@ struct InteractiveCanvasView: View {
 
   @State private var dragAnchor: GIFEditorCore.PixelPoint?
   @State private var lastDragPoint: GIFEditorCore.PixelPoint?
-  @State private var hover: GIFEditorCore.PixelPoint?
 
   var body: some View {
     let viewport = self.viewport ?? .wholeCanvas(size)
-    return EnvironmentReader(\.pointerInputCapabilities) { pointerInputCapabilities in
-      CanvasSurfaceView(
-        size: size,
-        cells: cells,
-        cursor: model.cursor,
-        selection: model.selection,
-        pendingMarqueeAnchor: model.pendingMarqueeAnchor,
-        pendingGradientAnchor: model.pendingGradientAnchor,
-        hover: hover,
-        mode: mode,
-        viewport: viewport,
-        ghosts: ghosts,
-        theme: theme
-      )
-      .contentShape(
-        canvasPointerTargetPath(viewport.cellSize(mode: mode))
-      )
-      .gesture(
-        DragGesture(minimumDistance: 0, coordinateSpace: .local)
-          .onChanged { value in
-            handleDragChange(value, viewport: viewport)
-          }
-          .onEnded { value in
-            handleDragEnd(value, viewport: viewport)
-          }
-      )
-      .onPointerHover { phase in
-        updateHover(
-          phase,
-          precision: pointerInputCapabilities.precision,
-          viewport: viewport
-        )
-      }
-      .focusable(true, interactions: .edit)
-    }
+    // The cursor mark is keyboard currency: it draws only while the last
+    // cursor move came from the keys. Pointer work — hovering, clicking,
+    // dragging — shows no mark at all, because the pointer itself is the
+    // position indicator and a click should just paint where it lands.
+    return CanvasSurfaceView(
+      size: size,
+      cells: cells,
+      cursor: model.isCursorMarkVisible ? model.cursor : nil,
+      selection: model.selection,
+      pendingMarqueeAnchor: model.pendingMarqueeAnchor,
+      pendingGradientAnchor: model.pendingGradientAnchor,
+      mode: mode,
+      viewport: viewport,
+      ghosts: ghosts,
+      theme: theme
+    )
+    .contentShape(
+      canvasPointerTargetPath(viewport.cellSize(mode: mode))
+    )
+    .gesture(
+      DragGesture(minimumDistance: 0, coordinateSpace: .local)
+        .onChanged { value in
+          handleDragChange(value, viewport: viewport)
+        }
+        .onEnded { value in
+          handleDragEnd(value, viewport: viewport)
+        }
+    )
+    .focusable(true, interactions: .edit)
   }
 
   private func handleDragChange(_ value: DragGesture.Value, viewport: CanvasViewport) {
@@ -507,7 +495,6 @@ struct InteractiveCanvasView: View {
     }
     model.dispatch(.updateCanvasDrag(anchor: anchor, previous: lastDragPoint, point: current))
     lastDragPoint = current
-    hover = current
     refresh()
   }
 
@@ -528,25 +515,7 @@ struct InteractiveCanvasView: View {
     model.dispatch(.endCanvasDrag(anchor: anchor, previous: lastDragPoint, point: current))
     dragAnchor = nil
     lastDragPoint = nil
-    hover = current
     refresh()
-  }
-
-  private func updateHover(
-    _ phase: HoverPhase,
-    precision: PointerPrecision,
-    viewport: CanvasViewport
-  ) {
-    switch phase {
-    case .entered(let location), .moved(let location):
-      hover = viewport.sourcePoint(
-        forLocalCell: location,
-        precision: precision,
-        mode: mode
-      )
-    case .exited:
-      hover = nil
-    }
   }
 }
 
