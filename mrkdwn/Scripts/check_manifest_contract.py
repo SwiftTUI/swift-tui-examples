@@ -21,8 +21,8 @@ PUBLIC_DEPENDENCIES = {
     },
     "swift-markdown": {
         "url": "https://github.com/swiftlang/swift-markdown.git",
-        "lower": "0.8.1",
-        "resolved": "0.8.1",
+        "lower": "0.8.0",
+        "resolved": "0.8.0",
         "revision": "3c6f9523da3a1ec2fd829673e472d95b8097a3b8",
     },
 }
