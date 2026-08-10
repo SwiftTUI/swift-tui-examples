@@ -427,7 +427,7 @@ struct ViewerModelAndRenderTests {
   }
 
   @Test(
-    "viewer presentation uses the full pane, compact paragraphs, inline search, and themed scrollbars"
+    "viewer presentation uses the full pane, spaced paragraphs, inline search, and themed scrollbars"
   )
   func viewerPresentationContract() async throws {
     let theme = try ThemeTOMLDecoder().decode(
@@ -477,7 +477,10 @@ struct ViewerModelAndRenderTests {
     let secondParagraphRow = try #require(
       initialLines.firstIndex { $0.contains("Second paragraph.") }
     )
-    #expect(secondParagraphRow == firstParagraphRow + 1)
+    #expect(
+      secondParagraphRow
+        == firstParagraphRow + 1 + MarkdownBlockLayout.interBlockSpacing
+    )
 
     let wideSize = ViewerSize(width: 180, height: size.height)
     model.updateViewport(wideSize)

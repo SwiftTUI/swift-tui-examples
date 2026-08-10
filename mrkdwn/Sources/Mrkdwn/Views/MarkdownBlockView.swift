@@ -49,17 +49,24 @@ struct MarkdownBlockView: View {
   private var rendered: AnyView {
     switch block {
     case .heading(_, let level, _, let content, _):
+      let title = InlineTextView(
+        runs: content,
+        theme: state.theme,
+        baseColor: state.theme.headingColor(level: level),
+        bold: true,
+        searchQuery: state.searchQuery
+      )
       return AnyView(
         VStack(alignment: .leading, spacing: 0) {
-          InlineTextView(
-            runs: content,
-            theme: state.theme,
-            baseColor: state.theme.headingColor(level: level),
-            bold: level <= 3,
-            searchQuery: state.searchQuery
-          )
-          if level <= 2 {
-            Divider()
+          if let prefix = MarkdownBlockLayout.headingPrefix(level: level) {
+            HStack(alignment: .top, spacing: 1) {
+              Text(prefix)
+                .foregroundStyle(state.theme.muted.swiftTUIColor)
+              title
+            }
+          } else {
+            title
+            Divider(strokeStyle: level == 1 ? .double : .single)
               .foregroundStyle(state.theme.rule.swiftTUIColor)
           }
         }
@@ -77,8 +84,10 @@ struct MarkdownBlockView: View {
     case .quote(_, let blocks, _):
       return AnyView(
         HStack(alignment: .top, spacing: 1) {
-          Text("│").foregroundStyle(state.theme.quote.swiftTUIColor)
-          LazyVStack(alignment: .leading, spacing: 0) {
+          // A Divider, not a one-cell Text: the rule stretches to the quote's
+          // full height, so multi-row quotes keep their bar on every row.
+          Divider().foregroundStyle(state.theme.quote.swiftTUIColor)
+          LazyVStack(alignment: .leading, spacing: MarkdownBlockLayout.interBlockSpacing) {
             ForEach(blocks, id: \.id) {
               MarkdownBlockView(
                 block: $0,

@@ -107,8 +107,13 @@ public struct MrkdwnRootView: View {
           // block on every frame instead of the visible window. The model
           // already knows the pane height (the viewport minus the 4 chrome
           // rows), so a fixed frame keeps every proposal the scroll view
-          // sees finite and the document windowed.
-          .frame(height: model.state.viewport.documentHeight)
+          // sees finite and the document windowed. Top-leading alignment keeps
+          // documents shorter than the pane anchored to the top instead of
+          // floating at the frame's default center.
+          .frame(
+            height: model.state.viewport.documentHeight,
+            alignment: .topLeading
+          )
           .task(id: model.pendingScrollTarget) { @MainActor in
             guard let target = model.pendingScrollTarget else { return }
             _ = proxy.scrollTo(target, anchor: .top)
@@ -297,7 +302,7 @@ private struct MarkdownDocumentView: View {
         }
       )
     ) {
-      LazyVStack(alignment: .leading, spacing: 0) {
+      LazyVStack(alignment: .leading, spacing: MarkdownBlockLayout.interBlockSpacing) {
         if let document = model.state.document {
           ForEach(document.blocks, id: \.id) {
             MarkdownBlockView(

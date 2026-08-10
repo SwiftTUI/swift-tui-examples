@@ -230,7 +230,7 @@ struct ViewContractTests {
     )
   }
 
-  @Test("loose-list geometry preserves zero spacing around nested and following tables")
+  @Test("loose-list geometry stays tight inside items and spaced between top-level blocks")
   func looseListGeometry() throws {
     let document = MarkdownCompiler().compile(
       source: """
@@ -282,10 +282,11 @@ struct ViewContractTests {
     let laterHeading = try #require(entriesByID[heading.id])
     let followingTable = try #require(entriesByID[tables[1].id])
 
+    let spacing = MarkdownBlockLayout.interBlockSpacing
     #expect(secondParagraph.top == firstParagraph.top + firstParagraph.height)
     #expect(nestedTable.top == secondParagraph.top + secondParagraph.height)
-    #expect(laterHeading.top == nestedTable.top + nestedTable.height)
-    #expect(followingTable.top == laterHeading.top + laterHeading.height)
+    #expect(laterHeading.top == nestedTable.top + nestedTable.height + spacing)
+    #expect(followingTable.top == laterHeading.top + laterHeading.height + spacing)
   }
 
   @Test(

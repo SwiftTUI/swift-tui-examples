@@ -90,11 +90,17 @@ private struct CompilerVisitor: MarkupVisitor {
   mutating func visitCodeBlock(_ codeBlock: CodeBlock) -> [MarkdownBlock] {
     let span = sourceSpan(codeBlock)
     let language = normalizedLanguage(codeBlock.language)
+    // swift-markdown keeps the fence's final newline in `code`; stored as-is
+    // it renders (and measures) as a phantom blank row under every block.
+    var sourceText = codeBlock.code
+    if sourceText.hasSuffix("\n") {
+      sourceText.removeLast()
+    }
     return [
       .code(
         id: blockID(kind: "code", span: span),
         language: language,
-        sourceText: codeBlock.code,
+        sourceText: sourceText,
         source: span
       )
     ]

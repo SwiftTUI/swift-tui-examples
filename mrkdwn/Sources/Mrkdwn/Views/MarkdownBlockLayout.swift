@@ -2,6 +2,12 @@ import Foundation
 import SwiftTUI
 
 enum MarkdownBlockLayout {
+  /// Blank rows between sibling blocks. The document and quote views and
+  /// `renderedGeometry` must agree on this value: geometry feeds scroll
+  /// anchors and the sticky table slice, so a view-only change desynchronizes
+  /// scrolling. List items stay tight (spacing 0) in both places.
+  static let interBlockSpacing = 1
+
   static func imageStatusText(_ presentation: ImagePresentation?) -> String? {
     switch presentation {
     case .ready?, nil:
@@ -44,6 +50,21 @@ enum MarkdownBlockLayout {
 
   static func unsupportedLabel(_ kind: String) -> String {
     "Unsupported Markdown: \(kind)"
+  }
+
+  /// Levels 1–2 read as titles from their underline rule; deeper levels carry
+  /// a muted `#` marker so the level stays readable without color support.
+  static func headingPrefix(level: Int) -> String? {
+    level >= 3 ? String(repeating: "#", count: level) : nil
+  }
+
+  /// The wrap width the heading title text is offered: the prefix and its
+  /// separating space reduce the offered width for prefixed levels.
+  static func headingContentWidth(level: Int, offeredWidth: Int) -> Int {
+    guard let prefix = headingPrefix(level: level) else {
+      return max(1, offeredWidth)
+    }
+    return max(1, offeredWidth - terminalDisplayWidth(of: prefix) - 1)
   }
 
   struct Descriptor {
@@ -166,7 +187,7 @@ enum MarkdownBlockLayout {
     inputs: GeometryInputs,
     offeredWidth: Int,
     originY: Int,
-    siblingSpacing: Int = 0
+    siblingSpacing: Int = interBlockSpacing
   ) -> (height: Int, entries: [GeometryEntry]) {
     var cursor = originY
     var entries: [GeometryEntry] = []
@@ -198,7 +219,11 @@ enum MarkdownBlockLayout {
     switch block {
     case .heading(_, let level, let anchor, let content, _):
       headingAnchor = anchor
-      height = textHeight(content.map(\.text).joined(), width: width) + (level <= 2 ? 1 : 0)
+      height =
+        textHeight(
+          content.map(\.text).joined(),
+          width: headingContentWidth(level: level, offeredWidth: width)
+        ) + (level <= 2 ? 1 : 0)
     case .paragraph(_, let content, _):
       headingAnchor = nil
       height = textHeight(content.map(\.text).joined(), width: width)
