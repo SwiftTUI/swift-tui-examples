@@ -183,6 +183,14 @@ printf '%s\n' "$*" >> "$SWIFTTUI_EXAMPLES_SWIFTLY_LOG"
 if [[ "$*" == *" dump-package" ]]; then
   cat "$SWIFTTUI_EXAMPLES_OVERLAY_DUMP"
 fi
+if [[ "$*" == *" test list "* ]]; then
+  while [ "$#" -gt 1 ]; do
+    if [ "$1" = "--filter" ]; then
+      printf '%s\n' "$2"
+    fi
+    shift
+  done
+fi
 EOF
 
 cat >"$fake_bin/bun" <<'EOF'
