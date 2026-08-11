@@ -30,4 +30,4 @@ nodes. Separate fixtures insert image payloads and make sure that the encoded
 cache stays within 64 entries and 64 MiB. Viewer admission and retained
 resource states have a limit of 128.
 Image execution permits four active loads and 64 queued loads. The app cancels
-hidden work. These are regression budgets, not user-facing speed claims.
+hidden work.

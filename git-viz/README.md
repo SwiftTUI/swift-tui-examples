@@ -1,6 +1,6 @@
 # GitViz
 
-> Renders a git repository as a deck of terminal charts — heatmaps, sparklines, line charts, gauges — so you can read a repo's history at a glance. A non-interactive CLI that prints to the terminal.
+> Renders a git repository as a deck of terminal charts (heatmaps, sparklines, line charts, gauges) so you can read a repo's history at a glance. A non-interactive CLI that prints to the terminal.
 
 ## Run
 
@@ -94,5 +94,5 @@ The provenance record is in
 
 ## See also
 
-- [`SwiftTUICharts` reference](https://swifttui.sh/docs/charts/documentation/swifttuicharts/) — the chart primitives this example exercises (from the separate [`swift-tui-charts`](https://github.com/SwiftTUI/swift-tui-charts) package).
+- [`SwiftTUICharts` reference](https://swifttui.sh/docs/charts/documentation/swifttuicharts/): the chart primitives this example exercises (from the separate [`swift-tui-charts`](https://github.com/SwiftTUI/swift-tui-charts) package).
 - A sibling example in this repo's [README roster](../README.md).

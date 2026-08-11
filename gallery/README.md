@@ -1,6 +1,6 @@
 # Gallery
 
-> The flagship component workbench for the public `SwiftTUI` surface — a tabbed terminal workspace that exercises chrome, editing, charts, animated images, and terminal-native presentation in one place, so you can see what the framework ships before you build with it. Its canonical host is the terminal (plus a localhost WebHost via `--web`).
+> The flagship component workbench for the public `SwiftTUI` surface: a tabbed terminal workspace that exercises chrome, editing, charts, animated images, and terminal-native presentation in one place, so you can see what the framework ships before you build with it. Its canonical host is the terminal (plus a localhost WebHost via `--web`).
 
 ## Run
 
@@ -76,5 +76,5 @@ of individual tabs.
 
 ## See also
 
-- [`terminal-workspace`](../terminal-workspace/README.md) — a focused command-palette terminal workspace, narrower than the full gallery.
-- [SwiftTUI DocC reference](https://swifttui.sh/docs/documentation/) — the public API surface the gallery exercises.
+- [`terminal-workspace`](../terminal-workspace/README.md): a focused command-palette terminal workspace, narrower than the full gallery.
+- [SwiftTUI DocC reference](https://swifttui.sh/docs/documentation/): the public API surface the gallery exercises.

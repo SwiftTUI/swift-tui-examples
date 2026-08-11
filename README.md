@@ -1,6 +1,6 @@
 # SwiftTUI Examples
 
-**SwiftUI semantics, drawn in terminal cells** — and the same authored `App`
+**SwiftUI semantics, drawn in terminal cells**, and the same authored `App`
 shipped to every host. This repo holds runnable examples for
 [`SwiftTUI`](https://github.com/SwiftTUI/swift-tui): one directory per demo, each
 proving a specific capability, each with the exact command to run it.
@@ -11,18 +11,18 @@ proving a specific capability, each with the exact command to run it.
 
 Pick by what you want to see, then run one command:
 
-- **The most in one window** — run [`gallery`](gallery): tabs, controls, charts,
-  images, animated GIFs, popovers, and physics in a single terminal app.
-- **One source on every host** — clone
-  [`swift-tui-counter-demo`](https://github.com/SwiftTUI/swift-tui-counter-demo):
-  the *same* `CounterApp` value as a terminal executable, an embedded native
-  SwiftUI window, and a static WASI browser bundle (it also powers the live
-  demo on [swifttui.sh](https://swifttui.sh)).
-- **The smallest possible start** — read [`minimal`](minimal): one
-  `RenderOnce.print(...)`, no app runtime, no argument parser.
-- **A polished document reader** — run [`mrkdwn`](mrkdwn): complete GFM
+- **The most in one window**: run [`gallery`](gallery) for tabs, controls,
+  charts, images, animated GIFs, popovers, and physics in a single terminal app.
+- **One source on every host**: clone
+  [`swift-tui-counter-demo`](https://github.com/SwiftTUI/swift-tui-counter-demo)
+  to get the *same* `CounterApp` value as a terminal executable, an embedded
+  native SwiftUI window, and a static WASI browser bundle (it also powers the
+  live demo on [swifttui.sh](https://swifttui.sh)).
+- **The smallest possible start**: read [`minimal`](minimal), one
+  `RenderOnce.print(...)` with no app runtime and no argument parser.
+- **A polished document reader**: run [`mrkdwn`](mrkdwn) for complete GFM
   compilation, responsive navigation, XDG theming, and bounded images.
-- **A terminal data workbench** — run [`csvui`](csvui): lazy CSV/TSV viewing,
+- **A terminal data workbench**: run [`csvui`](csvui) for lazy CSV/TSV viewing,
   sparse editing, projections, live reload, and conflict-aware atomic saves.
 
 Building something specific? Scan the [roster](#roster) by what each example
@@ -117,4 +117,4 @@ toolchain policy.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).

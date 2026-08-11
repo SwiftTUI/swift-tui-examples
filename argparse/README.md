@@ -34,5 +34,5 @@ README describes its source structure.
 
 ## See also
 
-- [Swift Argument Parser](https://github.com/apple/swift-argument-parser) — the command/flag engine `SwiftTUI.App` conforms to.
-- [SwiftTUI DocC reference](https://swifttui.sh/docs/documentation/) — `SwiftTUIOptions` and the rest of the public runtime surface.
+- [Swift Argument Parser](https://github.com/apple/swift-argument-parser): the command/flag engine `SwiftTUI.App` conforms to.
+- [SwiftTUI DocC reference](https://swifttui.sh/docs/documentation/): `SwiftTUIOptions` and the rest of the public runtime surface.

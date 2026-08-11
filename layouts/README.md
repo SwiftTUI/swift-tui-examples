@@ -1,6 +1,6 @@
 # Layouts
 
-> A browsable catalog of 56 focused layout demos that show exactly how SwiftTUI measures, places, and proposes — open one and read the rule it isolates. Runs in the terminal.
+> A browsable catalog of 56 focused layout demos that show exactly how SwiftTUI measures, places, and proposes. Open one and read the rule it isolates. Runs in the terminal.
 
 ## Run
 
@@ -55,5 +55,5 @@ update the test comment and open a discussion.
 
 ## See also
 
-- [`gallery`](../gallery/README.md) — component and workflow demonstrations that complement this layout-only catalog.
-- [SwiftTUI DocC reference](https://swifttui.sh/docs/documentation/) — the public API surface these layouts exercise.
+- [`gallery`](../gallery/README.md): component and workflow demonstrations that complement this layout-only catalog.
+- [SwiftTUI DocC reference](https://swifttui.sh/docs/documentation/): the public API surface these layouts exercise.

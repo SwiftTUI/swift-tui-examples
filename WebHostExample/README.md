@@ -1,6 +1,6 @@
 # WebHost Example
 
-> The smallest app that runs unchanged in two places — a normal terminal program, or a browser tab — proving one `SwiftTUI` import is all it takes to reach both. Its canonical host is the terminal by default, or a localhost WebHost when launched with `--web`.
+> The smallest app that runs unchanged in two places: a normal terminal program, or a browser tab. It proves that one `SwiftTUI` import is all it takes to reach both. Its canonical host is the terminal by default, or a localhost WebHost when launched with `--web`.
 
 ## Run
 
@@ -37,5 +37,5 @@ The test makes sure that the package boundary stays intact. The example imports
 
 ## See also
 
-- [swift-tui-counter-demo](https://github.com/SwiftTUI/swift-tui-counter-demo) — the browser/WASI deployment demo (own repo).
+- [swift-tui-counter-demo](https://github.com/SwiftTUI/swift-tui-counter-demo): the browser/WASI deployment demo (own repo).
 - [SwiftTUI DocC reference](https://swifttui.sh/docs/documentation/)

@@ -141,6 +141,6 @@ the SwiftTUI dependencies permit it but is not a distribution promise.
 
 ## See also
 
-- [API reference](https://swifttui.sh/docs/documentation/) — the SwiftTUI DocC docs.
-- [Showcase](https://swifttui.sh/showcase/) — Sextant and the other examples on the website.
-- [swift-tui](https://github.com/SwiftTUI/swift-tui) — the framework repository.
+- [API reference](https://swifttui.sh/docs/documentation/): the SwiftTUI DocC docs.
+- [Showcase](https://swifttui.sh/showcase/): Sextant and the other examples on the website.
+- [swift-tui](https://github.com/SwiftTUI/swift-tui): the framework repository.

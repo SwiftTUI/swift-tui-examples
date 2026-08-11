@@ -1,6 +1,6 @@
 # Minimal
 
-> The smallest checked-in example: it renders one view tree to stdout and exits, showing the one-shot snapshot path for report-like CLI output. Its canonical host is the terminal (one-shot CLI render).
+> The smallest checked-in example: it renders one view tree to stdout and exits. This is the one-shot snapshot path for report-like CLI output. Its canonical host is the terminal (one-shot CLI render).
 
 ## Run
 
@@ -29,4 +29,4 @@ The package has no test target.
 
 ## See also
 
-- [`RenderOnce` reference](https://swifttui.sh/docs/documentation/) — the one-shot output helper this example is built around.
+- [`RenderOnce` reference](https://swifttui.sh/docs/documentation/): the one-shot output helper this example is built around.

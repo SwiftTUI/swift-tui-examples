@@ -1,6 +1,6 @@
 # SwiftUI Example
 
-> Embed live SwiftTUI scenes inside an ordinary SwiftUI app so the same terminal-style UI runs unchanged on a desktop — proving the framework reaches beyond the terminal. Its canonical host is a native SwiftUI surface (macOS app via `SwiftUIHost`).
+> Embed live SwiftTUI scenes inside an ordinary SwiftUI app so the same terminal-style UI runs unchanged on a desktop, proof that the framework reaches beyond the terminal. Its canonical host is a native SwiftUI surface (macOS app via `SwiftUIHost`).
 
 ## Run
 
@@ -67,5 +67,5 @@ views. The
 
 ## See also
 
-- [swift-tui-counter-demo](https://github.com/SwiftTUI/swift-tui-counter-demo) — the shared counter scene deployed to a browser/WASI surface (own repo).
-- [DocC reference](https://swifttui.sh/docs/documentation/) — the full `SwiftUIHost` and `SwiftTUIRuntime` API surface.
+- [swift-tui-counter-demo](https://github.com/SwiftTUI/swift-tui-counter-demo): the shared counter scene deployed to a browser/WASI surface (own repo).
+- [DocC reference](https://swifttui.sh/docs/documentation/): the full `SwiftUIHost` and `SwiftTUIRuntime` API surface.

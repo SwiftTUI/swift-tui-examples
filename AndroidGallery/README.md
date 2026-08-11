@@ -17,12 +17,12 @@ Run the command from this directory. From the repository root, run
 - `SwiftTUIAndroidHost` renders the same SwiftTUI `App` on a native Android
   surface. The gallery contains no platform-specific view code.
 - A Compose `SwiftTUIHostView` measures the available pixels and converts them
-  to a terminal-cell grid. It sends resize information to SwiftTUI. Thus, the
+  to a terminal-cell grid. It sends resize information to SwiftTUI, so the
   layout follows the device viewport.
 - The Compose renderer paints styled cells, backgrounds, text decorations, and
   embedded images on an Android Canvas. A transparent semantics overlay adds
   Android accessibility. The host versioned JSON snapshot supplies all data.
-- Hardware keyboard input and basic touch activation connect to SwiftTUI. Thus,
+- Hardware keyboard input and basic touch activation connect to SwiftTUI, so
   the gallery is interactive on the device.
 
 ## How it works
@@ -103,5 +103,5 @@ The package has no test target. The host `SwiftPackage` declares only the
 
 ## See also
 
-- [`swift-tui-counter-demo`](https://github.com/SwiftTUI/swift-tui-counter-demo) — the browser/WASI counter demo (own repo).
+- [`swift-tui-counter-demo`](https://github.com/SwiftTUI/swift-tui-counter-demo): the browser/WASI counter demo (own repo).
 - DocC reference: https://swifttui.sh/docs/documentation/

@@ -57,7 +57,7 @@ command catalog.
 | `Ctrl-C` | Request runtime termination |
 
 Escape cancels the current prompt, editor, menu, or confirmation. Text entered
-in a focused editor is ordinary content—even `q`, which is a quit command only
+in a focused editor is ordinary content, even `q`, which is a quit command only
 in browse mode.
 
 ## File and edit safety
@@ -118,6 +118,6 @@ real-PTY edit/quit journey.
 
 ## See also
 
-- [API reference](https://swifttui.sh/docs/documentation/) — the SwiftTUI DocC docs.
-- [Showcase](https://swifttui.sh/showcase/) — csvui and the other examples on the website.
-- [swift-tui](https://github.com/SwiftTUI/swift-tui) — the framework repository.
+- [API reference](https://swifttui.sh/docs/documentation/): the SwiftTUI DocC docs.
+- [Showcase](https://swifttui.sh/showcase/): csvui and the other examples on the website.
+- [swift-tui](https://github.com/SwiftTUI/swift-tui): the framework repository.

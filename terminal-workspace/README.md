@@ -1,6 +1,6 @@
 # Terminal Workspace
 
-> A first-class terminal multiplexer surface — tabbed, split-pane shell sessions with active-pane chrome, a command palette, and persisted layout — showing how a full workspace UI is composed and survives restarts. Runs in the terminal.
+> A first-class terminal multiplexer surface: tabbed, split-pane shell sessions with active-pane chrome, a command palette, and persisted layout. It shows how a full workspace UI is composed and how it survives restarts. Runs in the terminal.
 
 ## Run
 
@@ -49,4 +49,4 @@ workspace has the expected structure. It also covers the pane identifiers.
 
 ## See also
 
-- [DocC reference](https://swifttui.sh/docs/documentation/) — the `SwiftTUITerminal` embedding surface the workspace layer builds on.
+- [DocC reference](https://swifttui.sh/docs/documentation/): the `SwiftTUITerminal` embedding surface the workspace layer builds on.

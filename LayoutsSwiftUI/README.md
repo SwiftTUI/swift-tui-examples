@@ -48,5 +48,5 @@ APIs. This SwiftUI port cannot use those APIs.
 
 ## See also
 
-- [`layouts`](../layouts) — the SwiftTUI-native catalog this port mirrors.
-- [SwiftTUI DocC reference](https://swifttui.sh/docs/documentation/) — `SwiftUIHost` and the public layout surface.
+- [`layouts`](../layouts): the SwiftTUI-native catalog this port mirrors.
+- [SwiftTUI DocC reference](https://swifttui.sh/docs/documentation/): `SwiftUIHost` and the public layout surface.

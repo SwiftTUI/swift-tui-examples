@@ -43,4 +43,4 @@ The package has no test target.
 
 ## See also
 
-- [`SwiftTUI` DocC reference](https://swifttui.sh/docs/documentation/) — the public API surface, including `View.equatable()`.
+- [`SwiftTUI` DocC reference](https://swifttui.sh/docs/documentation/): the public API surface, including `View.equatable()`.
