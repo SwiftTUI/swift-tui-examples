@@ -19,6 +19,12 @@ public struct TerminalWorkspaceExampleView: View {
         guard let persisted = await TerminalWorkspacePersistence.load() else {
           return
         }
+        // An empty workspace persists when the user exits every shell;
+        // restoring it would relaunch into a blank surface, so keep the
+        // seeded tabs instead.
+        guard !persisted.tabs.isEmpty else {
+          return
+        }
         guard !workspaceChangedSinceLaunch else {
           return
         }
