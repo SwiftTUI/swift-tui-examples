@@ -50,7 +50,7 @@ cat >"$public_dump" <<'EOF'
       "sourceControl": [{
         "identity": "swift-markdown",
         "location": {"remote": [{"urlString": "https://github.com/swiftlang/swift-markdown.git"}]},
-        "requirement": {"range": [{"lowerBound": "0.8.4", "upperBound": "0.9.0"}]}
+        "requirement": {"range": [{"lowerBound": "0.8.0", "upperBound": "0.9.0"}]}
       }]
     }
   ]
@@ -71,7 +71,7 @@ cat >"$overlay_dump" <<EOF
       "sourceControl": [{
         "identity": "swift-markdown",
         "location": {"remote": [{"urlString": "https://github.com/swiftlang/swift-markdown.git"}]},
-        "requirement": {"range": [{"lowerBound": "0.8.4", "upperBound": "0.9.0"}]}
+        "requirement": {"range": [{"lowerBound": "0.8.0", "upperBound": "0.9.0"}]}
       }]
     }
   ]
