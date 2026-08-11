@@ -59,7 +59,6 @@ example pins the current `0.8.4` release graph. Gallery uses matching
 | --- | --- | --- | --- |
 | [minimal](minimal) | CLI | Smallest `RenderOnce.print(...)` path for report-like CLI output, with no app runtime or argument parser | `swiftly run swift run --package-path minimal minimal` |
 | [equatable-demo](equatable-demo) | Terminal | Smallest `View.equatable()` usage: a stable panel is memoized (reused across frames) while a counter updates | `swiftly run swift run --package-path equatable-demo EquatableDemo` |
-| [terminal-runner](terminal-runner) | Terminal | Explicit `TerminalRunner` launch with a custom preflight policy that rejects `--web` | `swiftly run swift run --package-path terminal-runner terminal-runner` |
 | [argparse](argparse) | Terminal | `SwiftTUI.App` command conformance, consumer flags, standard SwiftTUI flags, and completions in one app type | `swiftly run swift run --package-path argparse argparse-demo --help` |
 | [gallery](gallery) | Terminal+Web | Primary component workbench: tabs, controls, palette, text input, scroll commands, charts, images, animated GIFs, file drop, popovers, and logo-breaker physics | `swiftly run swift run --package-path gallery gallery-demo` |
 | [layouts](layouts) | Terminal | SwiftTUI layout catalog with behavior tests for stacks, frames, geometry, scrolling, overlays, shapes, matched geometry, and custom layouts | `swiftly run swift run --package-path layouts layouts-demo` |
@@ -84,7 +83,7 @@ Already know the package you need? Jump straight to an example that uses it.
 | --- | --- |
 | `SwiftTUI` convenience surface | [argparse](argparse), [gallery](gallery), [layouts](layouts), [sextant](sextant), [terminal-workspace](terminal-workspace), [mrkdwn](mrkdwn), [csvui](csvui), [gifcat](gifcat), [gifeditor](gifeditor), [WebHostExample](WebHostExample) |
 | `SwiftTUIRuntime` / host-managed scenes | [gallery](gallery), [swift-tui-counter-demo](https://github.com/SwiftTUI/swift-tui-counter-demo) |
-| `SwiftTUICLI` / one-shot rendering and terminal launch | [minimal](minimal), [terminal-runner](terminal-runner), [git-viz](git-viz) |
+| `SwiftTUICLI` / one-shot rendering and terminal launch | [minimal](minimal), [git-viz](git-viz) |
 | `SwiftTUIArguments` / `SwiftTUICommand` | [argparse](argparse), [gallery](gallery), [gifeditor](gifeditor), [git-viz](git-viz) |
 | `SwiftTUICharts` (separate [`swift-tui-charts`](https://github.com/SwiftTUI/swift-tui-charts) package) | [git-viz](git-viz), [gallery](gallery), [layouts](layouts) |
 | `SwiftTUIAnimatedImage` | Included by `SwiftTUI`. Used directly by [gifcat](gifcat) and [gallery](gallery) |

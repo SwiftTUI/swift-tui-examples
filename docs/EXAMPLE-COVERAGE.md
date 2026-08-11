@@ -28,7 +28,6 @@ target. Every other SwiftTUI product resolves from `swift-tui`.
 | --- | --- | --- | --- | --- | --- |
 | [minimal](../minimal) | Copyable tutorial | `SwiftTUICLI` | One-shot `RenderOnce.print(...)` rendering | Terminal CLI, no app runtime | Linux native gate builds debug and release |
 | [equatable-demo](../equatable-demo) | Copyable tutorial | `SwiftTUICLI` | `View.equatable()` memoized-body reuse: a stable panel reused across frames while a `@State` counter updates | Terminal app | Linux native gate builds debug and release |
-| [terminal-runner](../terminal-runner) | Copyable tutorial and host/build configuration sample | `SwiftTUICLI` | Explicit `TerminalRunner` launch, environment-derived runtime configuration, and terminal-only `--web` rejection | Terminal app, no WebHost fallback | Linux native gate builds debug and release. Focused SwiftPM tests run in `check:focused`. |
 | [argparse](../argparse) | Copyable tutorial | `SwiftTUI` | `SwiftTUI.App` command conformance, app flags, standard SwiftTUI flags, completions | Terminal CLI app | Linux native gate builds debug and release |
 | [gallery](../gallery) | Focused product sample and stress/regression sample | `SwiftTUI`, `SwiftTUIRuntime`, `SwiftTUIAnimatedImage`, `SwiftTUICharts` | Batteries-included terminal/WebHost launch and component workbench for tabs, controls, containers, presentation, navigation, collections, palette, input, focus context, pointer gestures, accessibility metadata, scrolling, charts, images, GIFs, file drop, popovers, and logo-breaker physics | Terminal app plus optional localhost WebHost | Linux native gate builds debug and release and runs stack-safety smoke checks. Focused SwiftPM tests run in `check:focused`. |
 | [layouts](../layouts) | Focused product sample and stress/regression sample | `SwiftTUI`, `SwiftTUIRuntime`, `SwiftTUICharts` | Layout catalog for stacks, frames, geometry, scrolling, overlays, shapes, matched geometry, and custom layouts | Terminal app | Linux native gate builds debug and release. Focused SwiftPM tests run in `check:focused`. |
@@ -62,7 +61,7 @@ host-details scene UI that `SwiftUIExample` uses. The multi-host counter demo
   code signing disabled for CI.
 - `bun run check:focused` is the slower behavior-test gate for examples with test
   targets: `gallery`, `layouts`, `gifeditor`, `git-viz`, `sextant`,
-  `terminal-runner`, `gifcat`, `terminal-workspace`, `mrkdwn`, `csvui`,
+  `gifcat`, `terminal-workspace`, `mrkdwn`, `csvui`,
   and `WebHostExample`.
 - The gates share sequential SwiftPM scratch state through
   `SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH`, and the macOS lane isolates Xcode

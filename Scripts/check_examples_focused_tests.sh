@@ -227,7 +227,6 @@ echo "### Focused SwiftPM behavior tests"
 
 for package_path in \
   "sextant" \
-  "terminal-runner" \
   "gallery" \
   "gifcat" \
   "gifeditor" \

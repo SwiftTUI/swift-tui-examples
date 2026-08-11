@@ -359,7 +359,6 @@ run_linux_examples() {
     for package_path in \
       "minimal" \
       "equatable-demo" \
-      "terminal-runner" \
       "argparse" \
       "sextant" \
       "gallery" \
@@ -392,7 +391,6 @@ run_linux_examples() {
   for package_path in \
     "minimal" \
     "equatable-demo" \
-    "terminal-runner" \
     "argparse" \
     "sextant" \
     "gifcat" \

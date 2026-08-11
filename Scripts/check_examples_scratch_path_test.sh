@@ -387,8 +387,8 @@ if ! grep -Fq -- "build --package-path minimal" "$swiftly_log"; then
   exit 1
 fi
 
-if ! grep -Fq -- "build --package-path terminal-runner" "$swiftly_log"; then
-  echo "Expected the Linux examples lane to build terminal-runner" >&2
+if ! grep -Fq -- "build --package-path sextant" "$swiftly_log"; then
+  echo "Expected the Linux examples lane to build sextant" >&2
   cat "$swiftly_log" >&2
   exit 1
 fi
@@ -551,8 +551,8 @@ if ! grep -Fq -- "run swift test --package-path gallery --scratch-path $scratch_
   exit 1
 fi
 
-if ! grep -Fq -- "run swift test --package-path terminal-runner --scratch-path $scratch_path" "$swiftly_log"; then
-  echo "Expected the focused examples lane to test terminal-runner through the shared scratch path" >&2
+if ! grep -Fq -- "run swift test --package-path sextant --scratch-path $scratch_path" "$swiftly_log"; then
+  echo "Expected the focused examples lane to test sextant through the shared scratch path" >&2
   cat "$swiftly_log" >&2
   exit 1
 fi
