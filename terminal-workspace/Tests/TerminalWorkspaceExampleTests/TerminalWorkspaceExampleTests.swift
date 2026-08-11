@@ -1,4 +1,4 @@
-import SwiftTUITerminalWorkspace
+import TerminalWorkspace
 import TerminalWorkspaceExample
 import Testing
 

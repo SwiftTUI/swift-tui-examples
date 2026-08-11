@@ -1,6 +1,6 @@
 import Foundation
 import SwiftTUI
-import SwiftTUITerminalWorkspace
+import TerminalWorkspace
 
 public struct TerminalWorkspaceExampleView: View {
   @State private var workspace: TerminalWorkspaceState

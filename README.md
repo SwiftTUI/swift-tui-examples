@@ -65,7 +65,7 @@ example pins the current `0.8.4` release graph. Gallery uses matching
 | [LayoutsSwiftUI](LayoutsSwiftUI) | Native SwiftUI | Native SwiftUI layout catalog beside the embedded SwiftTUI catalog through `SwiftUIHost` | `swiftly run swift run --package-path LayoutsSwiftUI layouts-swiftui-demo` |
 | [AndroidGallery](AndroidGallery) | Android | Compose host app embedding the SwiftTUI gallery through `SwiftTUIAndroidHost` and the Swift Android SDK | `(cd AndroidGallery && ./gradlew :app:assembleDebug)` |
 | [sextant](sextant) | Terminal | Miller-column browser and file previews through `SwiftTUITerminal` / `TerminalProcessSession` | `swiftly run swift run --package-path sextant sextant` |
-| [terminal-workspace](terminal-workspace) | Terminal | First-party `SwiftTUITerminalWorkspace` surface: tabs, splits, retained sessions, command-palette actions, and persisted layout metadata | `swiftly run swift run --package-path terminal-workspace terminal-workspace` |
+| [terminal-workspace](terminal-workspace) | Terminal | Terminal multiplexer built on `SwiftTUITerminal`, with an example-owned workspace layer: tabs, splits, retained sessions, command-palette actions, and persisted layout metadata | `swiftly run swift run --package-path terminal-workspace terminal-workspace` |
 | [mrkdwn](mrkdwn) | Terminal | Responsive CommonMark/GFM reader with outline, search, local-document history, XDG TOML themes, and bounded images | `swiftly run swift run --package-path mrkdwn mrkdwn README.md` |
 | [csvui](csvui) | Terminal | Viewer-first CSV/TSV workbench with lazy row decoding, sparse edits, search/filter/sort projections, XDG theming, live reload, and safe atomic saves | `swiftly run swift run --package-path csvui csvui data.csv` |
 | [git-viz](git-viz) | CLI | `SwiftTUICharts` over real git data, with a command for every chart primitive | `swiftly run swift run --package-path git-viz git-viz dashboard --path .` |
@@ -87,8 +87,7 @@ Already know the package you need? Jump straight to an example that uses it.
 | `SwiftTUIArguments` / `SwiftTUICommand` | [argparse](argparse), [gallery](gallery), [gifeditor](gifeditor), [git-viz](git-viz) |
 | `SwiftTUICharts` (separate [`swift-tui-charts`](https://github.com/SwiftTUI/swift-tui-charts) package) | [git-viz](git-viz), [gallery](gallery), [layouts](layouts) |
 | `SwiftTUIAnimatedImage` | Included by `SwiftTUI`. Used directly by [gifcat](gifcat) and [gallery](gallery) |
-| `SwiftTUITerminal` | [sextant](sextant) |
-| `SwiftTUITerminalWorkspace` | [terminal-workspace](terminal-workspace) |
+| `SwiftTUITerminal` | [sextant](sextant), [terminal-workspace](terminal-workspace) |
 | `SwiftUIHost` | [SwiftUIExample](SwiftUIExample), [swift-tui-counter-demo](https://github.com/SwiftTUI/swift-tui-counter-demo) |
 | `SwiftTUIAndroidHost` | [AndroidGallery](AndroidGallery) |
 | `SwiftTUIWebHostCLI` | Included by `SwiftTUI`. Used directly by [gifeditor](gifeditor) |
