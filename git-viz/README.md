@@ -15,8 +15,8 @@ swiftly run swift run --package-path git-viz git-viz deltas    # insertions / de
 ```
 
 Every subcommand inherits the framework's `--no-color`, `--ascii`,
-`--reduce-motion`, and `--plain` flags from `SwiftTUIOptions`. Each subcommand
-also accepts `--width`.
+`--reduce-motion`, and `--accessible` flags from `SwiftTUIOptions`. Each
+subcommand also accepts `--width`.
 
 Each subcommand declares only the options that it uses. Thus, `--help` lists
 only effective options. An unsupported option produces an error.
