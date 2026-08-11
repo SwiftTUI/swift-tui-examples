@@ -41,97 +41,22 @@ public enum TerminalWorkspaceExampleModel {
         TerminalWorkspaceTab(
           id: "dev",
           title: "dev",
-          root: .split(
-            TerminalSplit(
-              axis: .horizontal,
-              fraction: 0.62,
-              first: .terminal(
-                .shell(
-                  id: "dev-shell",
-                  title: "shell",
-                  workingDirectory: workingDirectory
-                )
-              ),
-              second: .split(
-                TerminalSplit(
-                  axis: .vertical,
-                  fraction: 0.5,
-                  first: .terminal(
-                    TerminalPaneSpec(
-                      id: "git-status",
-                      title: "git",
-                      command: "/bin/sh",
-                      arguments: [
-                        "-lc",
-                        """
-                        while true; do \
-                        printf '\\033[2J\\033[H'; \
-                        printf 'git status\\n\\n'; \
-                        git status --short 2>/dev/null || echo 'not a git repository'; \
-                        sleep 2; \
-                        done
-                        """,
-                      ],
-                      workingDirectory: workingDirectory
-                    )
-                  ),
-                  second: .terminal(
-                    TerminalPaneSpec(
-                      id: "clock",
-                      title: "activity",
-                      command: "/bin/sh",
-                      arguments: [
-                        "-lc",
-                        """
-                        while true; do \
-                        printf '\\033[2J\\033[H'; \
-                        date; \
-                        printf '\\nSwiftTUI terminal workspace\\n'; \
-                        printf 'Alt+V split right, Alt+S split down, Ctrl+K commands\\n'; \
-                        sleep 1; \
-                        done
-                        """,
-                      ],
-                      workingDirectory: workingDirectory
-                    )
-                  )
-                )
-              )
+          root: .terminal(
+            .shell(
+              id: "dev-shell",
+              title: "shell",
+              workingDirectory: workingDirectory
             )
           )
         ),
         TerminalWorkspaceTab(
           id: "ops",
           title: "ops",
-          root: .split(
-            TerminalSplit(
-              axis: .vertical,
-              fraction: 0.55,
-              first: .terminal(
-                TerminalPaneSpec(
-                  id: "processes",
-                  title: "processes",
-                  command: "/bin/sh",
-                  arguments: [
-                    "-lc",
-                    """
-                    while true; do \
-                    printf '\\033[2J\\033[H'; \
-                    ps -axo pid,comm | head -24; \
-                    sleep 3; \
-                    done
-                    """,
-                  ],
-                  workingDirectory: workingDirectory
-                )
-              ),
-              second: .terminal(
-                .shell(
-                  id: "ops-shell",
-                  title: "ops shell",
-                  workingDirectory: workingDirectory
-                )
-              )
+          root: .terminal(
+            .shell(
+              id: "ops-shell",
+              title: "ops shell",
+              workingDirectory: workingDirectory
             )
           )
         ),
