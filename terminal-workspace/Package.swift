@@ -22,7 +22,7 @@ let package = Package(
     ),
   ],
   dependencies: [
-    .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.8.4")
+    .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.8.5")
   ],
   targets: [
     // The tabbed/split-pane workspace layer, owned by this example and built
