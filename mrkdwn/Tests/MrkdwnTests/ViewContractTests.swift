@@ -590,20 +590,6 @@ struct ViewContractTests {
 private final class TableScrollRoutingPositions: Sendable {
   let document = Mutex(ScrollCellOffset.zero)
   let table = Mutex(ScrollCellOffset.zero)
-
-  var documentBinding: Binding<ScrollCellOffset> {
-    Binding(
-      get: { self.document.withLock { $0 } },
-      set: { next in self.document.withLock { $0 = next } }
-    )
-  }
-
-  var tableBinding: Binding<ScrollCellOffset> {
-    Binding(
-      get: { self.table.withLock { $0 } },
-      set: { next in self.table.withLock { $0 = next } }
-    )
-  }
 }
 
 private struct TableScrollRoutingApp: App {
@@ -612,26 +598,11 @@ private struct TableScrollRoutingApp: App {
 
   var body: some Scene {
     WindowGroup("Table scroll routing", id: Self.sceneID) {
-      ScrollView(
-        .vertical,
-        position: Self.positions.documentBinding
-      ) {
-        MarkdownTableView(
-          table: Self.table,
-          theme: .default,
-          searchQuery: nil,
-          offeredWidth: 80,
-          tableTop: 0,
-          documentScrollOffset: Self.positions.document.withLock { $0.y },
-          viewportHeight: 20,
-          horizontalScrollPosition: Self.positions.tableBinding
-        )
-      }
-      .frame(width: 80, height: 20, alignment: .topLeading)
+      TableScrollRoutingHost()
     }
   }
 
-  private static let table = MarkdownTable(
+  fileprivate static let table = MarkdownTable(
     header: (0..<20).map { column in
       [
         InlineRun(
@@ -656,6 +627,55 @@ private struct TableScrollRoutingApp: App {
     },
     alignments: Array(repeating: .leading, count: 20)
   )
+}
+
+/// Hosts the routing fixture's scroll positions in `@State`, matching the
+/// real viewer's wiring (`MarkdownTableView` falls back to its own `@State`
+/// when no external binding is passed). A framework write must invalidate the
+/// owning view so the table re-windows its columns — a bare Mutex-backed
+/// closure binding invalidates nothing, freezing the column window at its
+/// last evaluation and rendering blank once the viewport scrolls past the
+/// realized slice. Writes mirror into `TableScrollRoutingPositions` so the
+/// test can assert routing from outside the scene.
+private struct TableScrollRoutingHost: View {
+  @State private var document = ScrollCellOffset.zero
+  @State private var table = ScrollCellOffset.zero
+
+  var body: some View {
+    ScrollView(
+      .vertical,
+      position: mirrored($document) { next in
+        TableScrollRoutingApp.positions.document.withLock { $0 = next }
+      }
+    ) {
+      MarkdownTableView(
+        table: TableScrollRoutingApp.table,
+        theme: .default,
+        searchQuery: nil,
+        offeredWidth: 80,
+        tableTop: 0,
+        documentScrollOffset: document.y,
+        viewportHeight: 20,
+        horizontalScrollPosition: mirrored($table) { next in
+          TableScrollRoutingApp.positions.table.withLock { $0 = next }
+        }
+      )
+    }
+    .frame(width: 80, height: 20, alignment: .topLeading)
+  }
+
+  private func mirrored(
+    _ state: Binding<ScrollCellOffset>,
+    into record: @escaping @MainActor @Sendable (ScrollCellOffset) -> Void
+  ) -> Binding<ScrollCellOffset> {
+    Binding(
+      get: { state.wrappedValue },
+      set: { next in
+        state.wrappedValue = next
+        record(next)
+      }
+    )
+  }
 }
 
 private func isVerticalScrollRoute(_ route: ScrollRoute) -> Bool {
