@@ -90,8 +90,9 @@ public struct TaskProgressState: Sendable, Hashable {
 /// the spinner glyph rotation and the title shimmer — are driven by
 /// platform primitives:
 ///
-/// - `Spinner(.asteriskCycle, interval: …)` owns the glyph cycle and
-///   automatically pauses under reduce-motion.
+/// - `Spinner()` under `.spinnerStyle(.asteriskCycle)` owns the glyph
+///   cycle (240 ms is the built-in's own cadence) and automatically
+///   pauses under reduce-motion.
 /// - `TimelineView(.animation)` re-evaluates the title's
 ///   `foregroundStyle(LinearGradient(…))` at the platform's animation
 ///   cadence, producing a moving highlight across the text without
@@ -123,12 +124,9 @@ public struct TaskProgressPanel: View {
 
   private var headerLine: some View {
     HStack(spacing: 1) {
-      Spinner(
-        .asteriskCycle,
-        stage: .active,
-        interval: Self.spinnerInterval
-      )
-      .foregroundStyle(Self.spinnerColor)
+      Spinner(stage: .active)
+        .spinnerStyle(.asteriskCycle)
+        .foregroundStyle(Self.spinnerColor)
       shimmeringTitle
       metadataText
       if let tail = state.statusTail {
@@ -253,10 +251,6 @@ public struct TaskProgressPanel: View {
   }
 
   // MARK: - Animation tuning
-
-  // 240 ms per glyph mirrors the cadence in the spec frames — slow
-  // enough that each glyph is legible, fast enough to feel alive.
-  private static let spinnerInterval: Duration = .milliseconds(240)
 
   // One full shimmer pass (off-screen → across → off-screen) per
   // 2.5 s.  Combined with the `TimelineView(.animation)` cadence
