@@ -123,83 +123,21 @@ public struct TerminalWorkspaceView: View {
       isEnabled: workspace.canCloseFocusedPane,
       action: closeFocusedPane
     )
-    .paletteCommand(
-      name: "Focus pane left",
-      description: "Alt+H / Alt+←",
-      action: { workspace.focus(.left, within: contentSize(for: size)) }
-    )
-    .paletteCommand(
-      name: "Focus pane down",
-      description: "Alt+J / Alt+↓",
-      action: { workspace.focus(.down, within: contentSize(for: size)) }
-    )
-    .paletteCommand(
-      name: "Focus pane up",
-      description: "Alt+K / Alt+↑",
-      action: { workspace.focus(.up, within: contentSize(for: size)) }
-    )
-    .paletteCommand(
-      name: "Focus pane right",
-      description: "Alt+L / Alt+→",
-      action: { workspace.focus(.right, within: contentSize(for: size)) }
-    )
-    .paletteCommand(
-      name: "Split pane right",
-      description: "Alt+V",
-      action: { splitFocusedPane(axis: .horizontal) }
-    )
-    .paletteCommand(
-      name: "Split pane down",
-      description: "Alt+S",
-      action: { splitFocusedPane(axis: .vertical) }
-    )
-    .paletteCommand(
-      name: "New shell pane",
-      description: "Alt+N",
-      action: { splitFocusedPane(axis: .horizontal) }
-    )
-    .paletteCommand(
-      name: "New shell tab",
-      description: "Alt+T",
-      action: appendShellTab
-    )
-    .paletteCommand(
-      name: "Focus next pane",
-      isEnabled: workspace.activePaneIDs.count > 1,
-      action: { workspace.focusNextPane() }
-    )
-    .paletteCommand(
-      name: "Focus previous pane",
-      isEnabled: workspace.activePaneIDs.count > 1,
-      action: { workspace.focusPreviousPane() }
-    )
-    .paletteCommand(
-      name: "Next tab",
-      isEnabled: workspace.tabs.count > 1,
-      action: { selectAdjacentTab(by: 1) }
-    )
-    .paletteCommand(
-      name: "Previous tab",
-      isEnabled: workspace.tabs.count > 1,
-      action: { selectAdjacentTab(by: -1) }
-    )
-    .paletteCommand(
-      name: workspace.zoomedPaneID == nil ? "Zoom focused pane" : "Unzoom focused pane",
-      description: "Alt+Z",
-      action: { workspace.toggleZoom() }
-    )
-    .paletteCommand(
-      name: "Close focused pane",
-      description: "Alt+X",
-      isEnabled: workspace.canCloseFocusedPane,
-      action: closeFocusedPane
-    )
-    .paletteSheet("Workspace commands", isPresented: $showsCommandPalette) { commands in
+    // Control-style A5 made `paletteSheet` contentless: the framework renders
+    // palettes itself and `ActivePaletteCommand` is no longer public, so this
+    // app cannot supply its own palette body through that declaration. Until
+    // Phase B ships the public `PaletteStyle` protocol (B7), the workspace
+    // hosts its command UI in an app-owned dropdown sheet and owns the command
+    // list as data. INTERIM, recorded in plan 2026-08-12-002: the rows,
+    // filtering, and dismissal behavior are unchanged; the commands simply no
+    // longer travel through `paletteCommand` absorption.
+    .sheet(isPresented: $showsCommandPalette) {
       TerminalWorkspaceCommandPalette(
-        commands: commands,
+        commands: workspaceCommands(size: size),
         dismiss: { showsCommandPalette = false }
       )
     }
+    .sheetStyle(.dropdown)
     .onAppear {
       workspace.normalizeFocus()
       focusedPane = workspace.focusedPaneID
@@ -288,6 +226,85 @@ public struct TerminalWorkspaceView: View {
         .foregroundStyle(.separator)
     }
     .frame(maxWidth: .infinity, alignment: .leading)
+  }
+
+  /// The workspace's command list, owned by the app for the A5→B7 interim.
+  /// These are the same commands the `paletteCommand` declarations carried
+  /// before control-style A5 made `paletteSheet` contentless.
+  private func workspaceCommands(size: CellSize) -> [WorkspaceCommand] {
+    [
+      WorkspaceCommand(
+        name: "Focus pane left",
+        description: "Alt+H / Alt+←",
+        action: { workspace.focus(.left, within: contentSize(for: size)) }
+      ),
+      WorkspaceCommand(
+        name: "Focus pane down",
+        description: "Alt+J / Alt+↓",
+        action: { workspace.focus(.down, within: contentSize(for: size)) }
+      ),
+      WorkspaceCommand(
+        name: "Focus pane up",
+        description: "Alt+K / Alt+↑",
+        action: { workspace.focus(.up, within: contentSize(for: size)) }
+      ),
+      WorkspaceCommand(
+        name: "Focus pane right",
+        description: "Alt+L / Alt+→",
+        action: { workspace.focus(.right, within: contentSize(for: size)) }
+      ),
+      WorkspaceCommand(
+        name: "Split pane right",
+        description: "Alt+V",
+        action: { splitFocusedPane(axis: .horizontal) }
+      ),
+      WorkspaceCommand(
+        name: "Split pane down",
+        description: "Alt+S",
+        action: { splitFocusedPane(axis: .vertical) }
+      ),
+      WorkspaceCommand(
+        name: "New shell pane",
+        description: "Alt+N",
+        action: { splitFocusedPane(axis: .horizontal) }
+      ),
+      WorkspaceCommand(
+        name: "New shell tab",
+        description: "Alt+T",
+        action: appendShellTab
+      ),
+      WorkspaceCommand(
+        name: "Focus next pane",
+        isEnabled: workspace.activePaneIDs.count > 1,
+        action: { workspace.focusNextPane() }
+      ),
+      WorkspaceCommand(
+        name: "Focus previous pane",
+        isEnabled: workspace.activePaneIDs.count > 1,
+        action: { workspace.focusPreviousPane() }
+      ),
+      WorkspaceCommand(
+        name: "Next tab",
+        isEnabled: workspace.tabs.count > 1,
+        action: { selectAdjacentTab(by: 1) }
+      ),
+      WorkspaceCommand(
+        name: "Previous tab",
+        isEnabled: workspace.tabs.count > 1,
+        action: { selectAdjacentTab(by: -1) }
+      ),
+      WorkspaceCommand(
+        name: workspace.zoomedPaneID == nil ? "Zoom focused pane" : "Unzoom focused pane",
+        description: "Alt+Z",
+        action: { workspace.toggleZoom() }
+      ),
+      WorkspaceCommand(
+        name: "Close focused pane",
+        description: "Alt+X",
+        isEnabled: workspace.canCloseFocusedPane,
+        action: closeFocusedPane
+      ),
+    ]
   }
 
   private func contentSize(for outerSize: CellSize) -> CellSize {
@@ -418,14 +435,27 @@ private struct TerminalWorkspacePaneView: View {
 // `TerminalWorkspaceSplitLayout` — the two-pane split layout — lives in
 // `TerminalWorkspaceSplitLayout.swift`.
 
+/// One row of the workspace's app-owned command UI. Interim stand-in for the
+/// framework's `ActivePaletteCommand`, which control-style A5 demoted to
+/// `package`; Phase B's `PaletteStyle` returns this app to the framework
+/// palette (B7).
+struct WorkspaceCommand: Identifiable {
+  let name: String
+  var description: String?
+  var isEnabled: Bool = true
+  let action: @MainActor @Sendable () -> Void
+
+  var id: String { name }
+}
+
 private struct TerminalWorkspaceCommandPalette: View {
-  let commands: [ActivePaletteCommand]
+  let commands: [WorkspaceCommand]
   let dismiss: @MainActor @Sendable () -> Void
 
   @State private var query = ""
   @FocusState private var isQueryFocused: Bool
 
-  private var matches: [ActivePaletteCommand] {
+  private var matches: [WorkspaceCommand] {
     guard !query.isEmpty else {
       return commands
     }

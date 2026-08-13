@@ -2126,12 +2126,7 @@ private struct GallerySelectionRuntimeBridge: View {
       action: { selection = .logo }
     )
     .toolbar().toolbarStyle(DefaultBottomToolbarStyle())
-    .paletteSheet("Command palette", isPresented: $isPaletteOpen) { commands in
-      CommandPaletteList(
-        commands: commands,
-        dismiss: { isPaletteOpen = false }
-      )
-    }
+    .paletteSheet("Command palette", isPresented: $isPaletteOpen)
   }
 
   private func openPalette() {

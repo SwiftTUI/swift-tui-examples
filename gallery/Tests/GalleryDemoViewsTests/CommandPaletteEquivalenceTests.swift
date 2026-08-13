@@ -46,9 +46,7 @@ struct CommandPaletteEquivalenceTests {
   private struct EmptyScope: View {
     var body: some View {
       Panel(id: "palette-host") { Text("base") }
-        .paletteSheet("Commands", isPresented: .constant(true)) { active in
-          CommandPaletteList(commands: active, dismiss: {})
-        }
+        .paletteSheet("Commands", isPresented: .constant(true))
     }
   }
 
@@ -63,9 +61,7 @@ struct CommandPaletteEquivalenceTests {
         )
         .paletteCommand(name: "Open Todo", action: {})
         .paletteCommand(name: "Disabled Command", isEnabled: false, action: {})
-        .paletteSheet("Commands", isPresented: .constant(true)) { active in
-          CommandPaletteList(commands: active, dismiss: {})
-        }
+        .paletteSheet("Commands", isPresented: .constant(true))
     }
   }
 
@@ -75,9 +71,7 @@ struct CommandPaletteEquivalenceTests {
       Panel(id: "palette-host") { Text("base") }
         .paletteCommand(name: "Open", description: "first", action: {})
         .paletteCommand(name: "Open", description: "second", action: {})
-        .paletteSheet("Commands", isPresented: .constant(true)) { active in
-          CommandPaletteList(commands: active, dismiss: {})
-        }
+        .paletteSheet("Commands", isPresented: .constant(true))
     }
   }
 

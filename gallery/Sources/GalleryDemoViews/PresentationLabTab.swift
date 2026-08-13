@@ -74,12 +74,7 @@ struct PresentationLabTab: View {
         lastEvent = "Palette command fired"
       }
     )
-    .paletteSheet("Presentation commands", isPresented: $showPalette) { commands in
-      CommandPaletteList(
-        commands: commands,
-        dismiss: { showPalette = false }
-      )
-    }
+    .paletteSheet("Presentation commands", isPresented: $showPalette)
     .alert(
       "Build gate updated",
       isPresented: $showAlert,
