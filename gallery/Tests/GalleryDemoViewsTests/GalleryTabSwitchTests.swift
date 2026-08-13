@@ -2125,7 +2125,7 @@ private struct GallerySelectionRuntimeBridge: View {
       name: "Switch to Logo Breaker",
       action: { selection = .logo }
     )
-    .toolbar(style: DefaultBottomToolbarStyle())
+    .toolbar().toolbarStyle(DefaultBottomToolbarStyle())
     .paletteSheet("Command palette", isPresented: $isPaletteOpen) { commands in
       CommandPaletteList(
         commands: commands,

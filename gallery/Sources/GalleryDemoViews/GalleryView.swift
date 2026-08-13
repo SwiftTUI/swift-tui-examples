@@ -95,7 +95,7 @@ public struct GalleryView: View {
     .galleryTabPaletteCommand(.pointerLab, selection: $selection)
     .galleryTabPaletteCommand(.focusContext, selection: $selection)
     .galleryTabPaletteCommand(.taskProgress, selection: $selection)
-    .toolbar(style: .defaultBottom)
+    .toolbar().toolbarStyle(.defaultBottom)
     .paletteSheet("Command palette", isPresented: $showPalette) { commands in
       CommandPaletteList(
         commands: commands,

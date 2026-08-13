@@ -738,7 +738,7 @@ struct LogoBreakerGestureTests {
       LogoTab()
         .toolbarItem(.init(title: "⌃K Palette", action: {}))
         .panel(id: "gallery")
-        .toolbar(style: DefaultBottomToolbarStyle()),
+        .toolbar().toolbarStyle(DefaultBottomToolbarStyle()),
       context: .init(
         identity: Identity(components: [.named("FullScreenToolbarVisibility")]),
         environmentValues: env
@@ -777,7 +777,7 @@ struct LogoBreakerGestureTests {
         LogoTab()
           .toolbarItem(.init(title: "⌃K Palette", action: {}))
           .panel(id: "gallery")
-          .toolbar(style: DefaultBottomToolbarStyle())
+          .toolbar().toolbarStyle(DefaultBottomToolbarStyle())
       },
       terminalInputReader: inputReader
     )

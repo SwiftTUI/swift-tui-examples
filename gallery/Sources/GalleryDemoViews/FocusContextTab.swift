@@ -42,7 +42,7 @@ struct FocusContextTab: View {
     }
     .padding(2)
     // The item hoists into the gallery's single bottom toolbar; declaring a
-    // second `.toolbar(style:)` here would stack another strip above it.
+    // second `.toolbar()` here would stack another strip above it.
     .toolbarItem(
       .init(
         title: "Mark Focused",

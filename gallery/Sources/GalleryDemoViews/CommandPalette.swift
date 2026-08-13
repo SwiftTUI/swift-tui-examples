@@ -11,7 +11,7 @@ import SwiftTUIRuntime
 /// Commands are passed in by the framework — `.paletteSheet`'s content
 /// closure receives the snapshot of `paletteCommand` contributions
 /// absorbed from the host scope's subtree (mirroring how
-/// `.toolbar(style:)` absorbs toolbar items).
+/// `.toolbar()` absorbs toolbar items).
 struct CommandPaletteList: View {
   let commands: [ActivePaletteCommand]
   let dismiss: @MainActor @Sendable () -> Void
