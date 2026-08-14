@@ -98,8 +98,29 @@ synchronization, content URI imports, and retained bitmap damage caches.
 
 ## Test
 
-The package has no test target. The host `SwiftPackage` declares only the
-`GalleryAndroidHost` dynamic library. Gradle runs the build check.
+The Swift package declares the `GalleryAndroidHost` dynamic library, and the
+Android app adds a connected `androidTest` journey around that public host. The
+journey launches the real gallery, verifies its first frame and semantic
+presentation, dispatches touch and hardware-keyboard input, observes a
+state-changing repaint, switches tabs and verifies retained counter state, and
+checks the embedded PNG's transparent pixels against the rendered surface.
+
+With an arm64 emulator or device online, run:
+
+```bash
+ANDROID_HOME="$HOME/Library/Android/sdk" \
+./gradlew :app:connectedDebugAndroidTest
+```
+
+The automated semantics assertions verify the Android accessibility tree that
+Compose presents. They do not originate from TalkBack or another assistive
+technology. Manual TalkBack observation remains a separate device check.
+
+Hardware character events reach the focused command-palette filter, but the
+current Compose text-input sink treats hardware Enter as a multiline newline
+instead of forwarding it as palette submission. The connected journey records
+that preview limitation explicitly: it proves hardware filtering and repaint,
+then activates the exact filtered semantic command with a physical touch.
 
 ## See also
 

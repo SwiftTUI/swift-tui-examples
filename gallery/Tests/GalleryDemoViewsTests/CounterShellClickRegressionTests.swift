@@ -44,6 +44,12 @@ struct CounterShellClickRegressionTests {
     )
     focusTracker.invalidator = scheduler
 
+    // Mirror the continuous runtime after its initial full-root publication:
+    // subsequent action frames take the selective graph route. The historical
+    // failure only appeared on this path, where late toolbar reconciliation
+    // wrote an interpolated presentation tree back into the canonical graph.
+    runLoop.renderer.enableSelectiveEvaluation()
+
     func settle(maxFrames: Int = 8) throws -> RasterSurface {
       var last: RasterSurface?
       for _ in 0..<maxFrames {
@@ -84,6 +90,7 @@ struct CounterShellClickRegressionTests {
     }
 
     let settledSurface = try #require(host.lastPresentedSurface)
+    try Self.expectCompleteToolbarSemantics(in: host)
     let plusCenter = try #require(
       Self.centerOfText(" + ", in: settledSurface)
         ?? Self.centerOfText("+", in: settledSurface),
@@ -102,6 +109,7 @@ struct CounterShellClickRegressionTests {
         runLoop.handle(.input(.mouse(.init(kind: .up(.primary), location: plusCenter)))) == nil
       )
       let surface = try settle()
+      try Self.expectCompleteToolbarSemantics(in: host)
       signatures.append(Self.lineSignature(surface))
       #expect(
         signatures[clickIndex] != signatures[clickIndex - 1],
@@ -131,6 +139,15 @@ struct CounterShellClickRegressionTests {
     }
     return nil
   }
+
+  private static func expectCompleteToolbarSemantics(
+    in host: CounterShellRecordingHost
+  ) throws {
+    let frame = try #require(host.lastSemanticFrame)
+    let labels = frame.semantics.accessibilityNodes.compactMap(\.label)
+    #expect(labels.contains("Reset counter"), "Counter toolbar semantics missing from \(labels)")
+    #expect(labels.contains("⌃K Palette"), "Gallery toolbar semantics missing from \(labels)")
+  }
 }
 
 private final class CounterShellScriptedInput: TerminalInputReading {
@@ -145,11 +162,15 @@ private final class CounterShellEmptySignals: SignalReading {
   }
 }
 
-private final class CounterShellRecordingHost: PresentationSurface {
+private final class CounterShellRecordingHost:
+  PresentationSurface, SemanticHostFramePresentationSurface
+{
   let surfaceSize: CellSize
   let capabilityProfile: TerminalCapabilityProfile = .previewUnicode
   let appearance: TerminalAppearance = .fallback
+  let semanticHostFrameCapabilities: SemanticHostFrameCapabilities = .standard
   private(set) var lastPresentedSurface: RasterSurface?
+  private(set) var lastSemanticFrame: SemanticHostFrame?
 
   init(size: CellSize) { self.surfaceSize = size }
 
@@ -163,5 +184,15 @@ private final class CounterShellRecordingHost: PresentationSurface {
   func present(_ surface: RasterSurface) throws -> TerminalPresentationMetrics {
     lastPresentedSurface = surface
     return .init(bytesWritten: 0, linesTouched: 0, cellsChanged: 0, strategy: .fullRepaint)
+  }
+
+  @discardableResult
+  func present(_ frame: SemanticHostFrame) throws -> PresentationMetrics {
+    lastSemanticFrame = frame
+    lastPresentedSurface = frame.raster
+    return TerminalPresentationMetrics.rasterHostMetrics(
+      for: frame.raster,
+      damage: frame.rasterDamage
+    )
   }
 }

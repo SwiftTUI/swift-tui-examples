@@ -455,13 +455,15 @@ private struct CSVOverlaySurface: View {
     case .rowDetail(_, let fields, let readOnly):
       overlayCard { rowDetail(fields: fields, readOnly: readOnly) }
     case .editing(let address, let rowLabel, let columnLabel, let text):
-      overlayCard {
+      let usesCompactEditorLayout = presentation.viewport.height < 18
+      overlayCard(compact: usesCompactEditorLayout) {
         CSVEditorContent(
           address: address,
           rowLabel: rowLabel,
           columnLabel: columnLabel,
           initialText: text,
           presentation: presentation,
+          isCompact: usesCompactEditorLayout,
           dispatch: dispatchAction
         )
       }
@@ -587,15 +589,18 @@ private struct CSVOverlaySurface: View {
   }
 
   private func overlayCard<Content: View>(
+    compact: Bool = false,
     @ViewBuilder content: () -> Content
   ) -> some View {
-    VStack(alignment: .leading, spacing: 1) {
+    VStack(alignment: .leading, spacing: compact ? 0 : 1) {
       HStack(spacing: 1) {
         Text(presentation.title).bold()
         Spacer(minLength: 0)
         Text("Esc").foregroundStyle(presentation.theme.muted.swiftTUIColor)
       }
-      Divider()
+      if !compact {
+        Divider()
+      }
       content()
     }
     .padding(1)
@@ -626,6 +631,7 @@ private struct CSVEditorContent: View {
   let rowLabel: String
   let columnLabel: String
   let presentation: CSVOverlayPresentation
+  let isCompact: Bool
   let dispatch: @MainActor (CSVAction) -> Void
   @State private var text: String
   @FocusState private var focused: Bool
@@ -636,12 +642,14 @@ private struct CSVEditorContent: View {
     columnLabel: String,
     initialText: String,
     presentation: CSVOverlayPresentation,
+    isCompact: Bool,
     dispatch: @escaping @MainActor (CSVAction) -> Void
   ) {
     self.address = address
     self.rowLabel = rowLabel
     self.columnLabel = columnLabel
     self.presentation = presentation
+    self.isCompact = isCompact
     self.dispatch = dispatch
     _text = State(wrappedValue: initialText)
     _focused = FocusState()
@@ -649,14 +657,23 @@ private struct CSVEditorContent: View {
   }
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 1) {
-      Text("\(rowLabel) · \(columnLabel)")
-        .foregroundStyle(presentation.theme.muted.swiftTUIColor)
+    VStack(alignment: .leading, spacing: isCompact ? 0 : 1) {
+      if !isCompact {
+        Text("\(rowLabel) · \(columnLabel)")
+          .foregroundStyle(presentation.theme.muted.swiftTUIColor)
+      }
       TextEditor(text: $text)
         .focused($focused)
         .frame(
           width: max(20, min(68, presentation.viewport.width - 8)),
-          height: max(4, min(12, presentation.viewport.height - 10))
+          // The overlay card's title, divider, and padding leave fourteen
+          // rows for the editor title, text area, and action row at the
+          // standard 24-row terminal size. Keep the action row inside that
+          // bounded content area instead of letting a tall editor clip the
+          // Save and Cancel focus stops below the card.
+          height: isCompact
+            ? max(1, min(4, presentation.viewport.height - 7))
+            : max(4, min(10, presentation.viewport.height - 14))
         )
         .onChange(of: text) { _, newValue in
           dispatch(.updateEditor(newValue))

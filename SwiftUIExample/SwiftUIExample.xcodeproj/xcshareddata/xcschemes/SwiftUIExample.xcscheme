@@ -39,6 +39,17 @@
          </BuildableReference>
       </MacroExpansion>
       <Testables>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "E14F78A67821248C64E0BEEC"
+               BuildableName = "SwiftUIExampleUITests.xctest"
+               BlueprintName = "SwiftUIExampleUITests"
+               ReferencedContainer = "container:SwiftUIExample.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
       <CommandLineArguments>
       </CommandLineArguments>

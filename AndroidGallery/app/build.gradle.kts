@@ -34,6 +34,7 @@ android {
     targetSdk = 36
     versionCode = 1
     versionName = "0.8.9"
+    testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
     ndk {
       // arm64-v8a only — keep in sync with the host library's Application.mk.
@@ -87,4 +88,14 @@ dependencies {
   implementation("androidx.compose.ui:ui-tooling-preview")
 
   debugImplementation("androidx.compose.ui:ui-tooling")
+  debugImplementation("androidx.compose.ui:ui-test-manifest")
+
+  androidTestImplementation(platform("androidx.compose:compose-bom:2026.05.01"))
+  androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+  // ui-test-junit4 still declares Espresso 3.5.0. API 36 removed the hidden
+  // InputManager.getInstance() method that version reflects; 3.7 uses the
+  // supported injection path and is required by the advertised emulator lane.
+  androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
+  androidTestImplementation("androidx.test.ext:junit:1.3.0")
+  androidTestImplementation("androidx.test:runner:1.7.0")
 }

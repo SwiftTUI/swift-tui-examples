@@ -61,9 +61,26 @@ code that it cannot use.
 
 ## Test
 
-The package has no test target. The `gallery` package tests the shared gallery
-views. The
-`SwiftUIHost` suite in `swift-tui-swiftui` tests the host product.
+The `gallery` package tests the shared gallery views, and the `SwiftUIHost`
+suite in `swift-tui-swiftui` tests the host product. The generated Xcode project
+also contains a `SwiftUIExampleUITests` target. Its preview-readiness journey
+launches the public native host on a selected macOS destination or iOS
+simulator, drives real keyboard and pointer/touch input, checks clipboard writes
+and geometry by rotating iOS or resizing the actual macOS window, switches an
+ordinary stateful tab, samples a half-opacity native image, and reads the
+one-way semantic overlay. The recorded results must name the destination
+actually executed. The test does not claim assistive-origin activation,
+adjustment, editing, or focus.
+
+The same shared scene has a real executable/PTY journey:
+
+```bash
+Scripts/preview_readiness_terminal_journey.sh
+```
+
+When testing unreleased framework work, first place the TerminalApp package's
+`swift-tui` dependency in editable mode at the intended worktree or run this
+journey from the coordination repository's pre-tag overlay.
 
 ## See also
 

@@ -12,7 +12,11 @@ let package = Package(
     .library(
       name: "ExampleScenes",
       targets: ["ExampleScenes"]
-    )
+    ),
+    .executable(
+      name: "preview-readiness-terminal",
+      targets: ["PreviewReadinessTerminal"]
+    ),
   ],
   dependencies: [
     .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.8.9"),
@@ -32,7 +36,23 @@ let package = Package(
         .product(name: "SwiftTUIRuntime", package: "swift-tui"),
       ],
       path: "Sources/ExampleScenes"
-    )
+    ),
+    .executableTarget(
+      name: "PreviewReadinessTerminal",
+      dependencies: [
+        "ExampleScenes",
+        .product(name: "SwiftTUICLI", package: "swift-tui"),
+      ],
+      path: "Sources/PreviewReadinessTerminal"
+    ),
+    .testTarget(
+      name: "PreviewReadinessJourneyTests",
+      dependencies: [
+        "ExampleScenes",
+        .product(name: "SwiftTUITestSupport", package: "swift-tui"),
+      ],
+      path: "Tests/PreviewReadinessJourneyTests"
+    ),
   ],
   swiftLanguageModes: [.v6]
 )

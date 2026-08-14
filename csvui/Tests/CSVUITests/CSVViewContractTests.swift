@@ -512,15 +512,18 @@ struct CSVViewContractTests {
     #expect(slice.counters.inspectedColumns < 20)
   }
 
-  @Test("editor exposes its text area and Save and Cancel as focus stops")
-  func editorFocusStops() throws {
+  @Test(
+    "editor exposes its text area and Save and Cancel as focus stops",
+    arguments: [10, 16, 18, 24]
+  )
+  func editorFocusStops(height: Int) throws {
     let model = CSVModel(document: try wideDocument(rows: 1, columns: 1))
-    model.send(.updateViewport(CSVViewport(width: 80, height: 24)))
+    model.send(.updateViewport(CSVViewport(width: 80, height: height)))
     model.send(.beginEditCell)
     let artifacts = DefaultRenderer().render(
       CSVRootView(model: model),
       context: .init(identity: Identity(components: [.named("CSVEditorFocusStops")])),
-      proposal: ProposedSize(width: 80, height: 24)
+      proposal: ProposedSize(width: 80, height: height)
     )
 
     #expect(artifacts.semanticSnapshot.focusRegions.count == 3)
