@@ -34,7 +34,7 @@ if [[ -z "$swift_version" ]]; then
   fail "empty Swift version file: $version_file"
 fi
 
-swiftly_version="${SWIFTLY_VERSION:-1.1.1}"
+swiftly_version="${SWIFTLY_VERSION:-1.1.3}"
 host_os="${SWIFTTUI_EXAMPLES_CI_HOST_OS:-$(uname -s)}"
 host_arch="${SWIFTTUI_EXAMPLES_CI_HOST_ARCH:-$(uname -m)}"
 

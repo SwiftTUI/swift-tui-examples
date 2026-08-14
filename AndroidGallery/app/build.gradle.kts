@@ -19,7 +19,7 @@ android {
   namespace = "org.swifttui.gallery.android"
 
   compileSdk {
-    version = release(36) {
+    version = release(37) {
       minorApiLevel = 1
     }
   }
@@ -80,7 +80,7 @@ swiftTuiAndroidHost {
 dependencies {
   implementation("sh.swifttui:android-host:0.8.9")
 
-  implementation(platform("androidx.compose:compose-bom:2026.05.01"))
+  implementation(platform("androidx.compose:compose-bom:2026.08.00"))
   implementation("androidx.activity:activity-compose:1.13.0")
   implementation("androidx.compose.foundation:foundation")
   implementation("androidx.compose.ui:ui")

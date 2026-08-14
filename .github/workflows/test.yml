@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  SWIFTLY_VERSION: "1.1.1"
+  SWIFTLY_VERSION: "1.1.3"
 
 jobs:
   linux-examples:
@@ -24,7 +24,7 @@ jobs:
       SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH: ${{ github.workspace }}/swift-tui-examples/.build/shared-swiftpm-linux
     steps:
       - name: Checkout examples
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           path: swift-tui-examples
       - name: Install Linux example dependencies
@@ -40,7 +40,7 @@ jobs:
             python3 \
             unzip
       - name: Cache Swiftly toolchain
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             ~/.local/share/swiftly
@@ -52,7 +52,7 @@ jobs:
         shell: bash
         run: swift-tui-examples/Scripts/install_swift_toolchain_ci.sh swift-tui-examples/.swift-version
       - name: Cache SwiftPM
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             swift-tui-examples/.build/shared-swiftpm-linux
@@ -78,11 +78,11 @@ jobs:
       SWIFTTUI_EXAMPLES_XCODE_DERIVED_DATA: ${{ github.workspace }}/swift-tui-examples/.build/xcode-derived-data
     steps:
       - name: Checkout examples
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           path: swift-tui-examples
       - name: Cache Swiftly toolchain
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           # Deliberately no restore-keys. macOS installs toolchains into
           # ~/Library/Developer/Toolchains, which is not cached here, so a
@@ -96,7 +96,7 @@ jobs:
         shell: bash
         run: swift-tui-examples/Scripts/install_swift_toolchain_ci.sh swift-tui-examples/.swift-version
       - name: Cache macOS build products
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             swift-tui-examples/.build/shared-swiftpm-macos

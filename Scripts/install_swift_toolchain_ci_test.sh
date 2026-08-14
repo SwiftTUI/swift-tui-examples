@@ -48,7 +48,7 @@ chmod +x "$fake_bin/curl" "$fake_bin/tar"
   env -u SWIFTLY_HOME_DIR -u SWIFTLY_BIN_DIR \
     PATH="$fake_bin:$PATH" \
     HOME="$tmpdir/home-linux" \
-    SWIFTLY_VERSION=1.1.1 \
+    SWIFTLY_VERSION=1.1.3 \
     SWIFTTUI_EXAMPLES_CI_HOST_OS=Linux \
     SWIFTTUI_EXAMPLES_CI_HOST_ARCH=x86_64 \
     SWIFTTUI_EXAMPLES_TOOLCHAIN_LOG="$swiftly_log" \
@@ -87,7 +87,7 @@ chmod +x "$mac_swiftly_bin/swiftly"
 env -u SWIFTLY_HOME_DIR -u SWIFTLY_BIN_DIR \
   PATH="$mac_swiftly_bin:$PATH" \
   HOME="$mac_home" \
-  SWIFTLY_VERSION=1.1.1 \
+  SWIFTLY_VERSION=1.1.3 \
   SWIFTTUI_EXAMPLES_CI_HOST_OS=Darwin \
   SWIFTTUI_EXAMPLES_TOOLCHAIN_LOG="$swiftly_log" \
   "$repo_root/Scripts/install_swift_toolchain_ci.sh" "$version_root/.swift-version" >/dev/null
@@ -167,7 +167,7 @@ write_stale_swiftly "$tmpdir/healthy-swiftly"
 env -u SWIFTLY_HOME_DIR -u SWIFTLY_BIN_DIR \
   PATH="$fake_bin:$stale_swiftly_bin:$PATH" \
   HOME="$stale_home" \
-  SWIFTLY_VERSION=1.1.1 \
+  SWIFTLY_VERSION=1.1.3 \
   SWIFTTUI_EXAMPLES_CI_HOST_OS=Darwin \
   SWIFTTUI_EXAMPLES_TOOLCHAIN_LOG="$swiftly_log" \
   "$repo_root/Scripts/install_swift_toolchain_ci.sh" "$version_root/.swift-version" >/dev/null

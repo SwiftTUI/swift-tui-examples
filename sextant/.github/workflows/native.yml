@@ -9,7 +9,7 @@ jobs:
   macos:
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Install pinned Swift
         run: Scripts/install_swift_toolchain_ci.sh
       - name: Test and release build
