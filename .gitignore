@@ -12,3 +12,4 @@ coverage/
 .cache/
 *.tsbuildinfo
 SwiftUIExample/SwiftUIExample.xcodeproj/xcuserdata/
+*.d.ts 
