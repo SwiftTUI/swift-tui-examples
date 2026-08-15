@@ -5,7 +5,7 @@ shipped to every host. This repo holds runnable examples for
 [`SwiftTUI`](https://github.com/SwiftTUI/swift-tui): one directory per demo, each
 proving a specific capability, each with the exact command to run it.
 
-![Status](https://img.shields.io/badge/status-0.8.9%20pre--release-DAA520)
+![Status](https://img.shields.io/badge/status-0.8.10%20pre--release-DAA520)
 
 ## Start here
 
@@ -49,7 +49,7 @@ swiftly run swift run --package-path minimal minimal        # the smallest path
 ```
 
 Each example builds from a fresh clone with tagged HTTPS dependencies. Each
-example pins the current `0.8.9` release graph. Gallery uses matching
+example pins the current `0.8.10` release graph. Gallery uses matching
 `swift-tui` and `swift-tui-charts` versions. `mrkdwn` uses the independent
 `swift-markdown` release range. No sibling source checkout is necessary.
 
