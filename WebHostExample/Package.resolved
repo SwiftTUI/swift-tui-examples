@@ -1,5 +1,5 @@
 {
-  "originHash" : "9e7032f57f5e2800e8875cc287e0f581289b139cc488d0ccb04046255e109559",
+  "originHash" : "4c3214fbdf4ab4cb0d1fd62433d67ae213f9c3bfbfd0a58bd4a4365505abcbe7",
   "pins" : [
     {
       "identity" : "swift-argument-parser",
@@ -33,8 +33,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/SwiftTUI/swift-tui.git",
       "state" : {
-        "revision" : "ed087122207a9d00b5d449a94e697e0e357fe930",
-        "version" : "0.9.0"
+        "revision" : "5495b151dc5603a24d6e56723096f12a6de92705",
+        "version" : "0.9.1"
       }
     },
     {
