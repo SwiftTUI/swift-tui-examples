@@ -52,7 +52,7 @@ not a framework limitation. To add an `x86_64` lane:
 
 Prerequisites:
 
-- Install Android Studio and Android SDK Platform 36.1.
+- Install Android Studio and Android SDK Platform 37.1.
 - Install Swift 6.3.3 through `swiftly`.
 - Install the Swift Android SDK bundle `swift-6.3.3-RELEASE_android`.
 - Set `ANDROID_NDK_HOME` to an Android NDK r27d or newer. The local
