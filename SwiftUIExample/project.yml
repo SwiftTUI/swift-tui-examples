@@ -50,10 +50,10 @@ packages:
   # fails with "missing local swift-tui package reference" without it.
   swift-tui:
     url: https://github.com/SwiftTUI/swift-tui.git
-    exactVersion: 0.9.2
+    exactVersion: 0.9.3
   swift-tui-swiftui:
     url: https://github.com/SwiftTUI/swift-tui-swiftui.git
-    exactVersion: 0.9.2
+    exactVersion: 0.9.3
   # Local package holding the reusable SwiftTUI scenes shared with other hosts.
   TerminalApp:
     path: TerminalApp
