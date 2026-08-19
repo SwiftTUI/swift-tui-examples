@@ -4,6 +4,11 @@ All notable Sextant changes are recorded here.
 
 ## Unreleased
 
+- Fixed the preview panel rendering at half height for external previews. A
+  trailing `Spacer` in the pane and the embedded terminal are both flexible, so
+  a `VStack` split the available rows evenly between them and a previewer such
+  as `bat` painted only half the pane. A built-in preview hid this: `Text` takes
+  its full ideal height and is clamped, leaving the `Spacer` nothing.
 - Fixed `?`, `G`, `R`, and `Y`, which never dispatched: they were declared with
   a `shift` modifier that terminals do not report for printable keys.
 - Fixed the browser occupying a fraction of the terminal. A `Spacer` makes its

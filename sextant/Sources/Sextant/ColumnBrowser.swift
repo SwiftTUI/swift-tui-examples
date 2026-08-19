@@ -521,8 +521,14 @@ struct ColumnBrowser: View {
         .truncationMode(.middle)
       Divider()
       previewBody
-      Spacer()
     }
+    // No trailing `Spacer`. The frame below already top-aligns a preview
+    // shorter than the pane, and a `Spacer` here is not free: a `VStack`
+    // splits leftover height evenly between its *flexible* children, and an
+    // external preview's `TerminalView` is one. The two claimants then halve
+    // the pane — an embedded `bat` got 12 of 25 available rows and the
+    // `Spacer` ate the other 13. A `Text` body hides this, because it takes
+    // its full ideal height and gets clamped, leaving the `Spacer` nothing.
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   }
 
