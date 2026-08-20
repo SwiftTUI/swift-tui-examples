@@ -1,7 +1,7 @@
 import Foundation
+@_spi(Testing) import SwiftTUI
 @_spi(Runners) import SwiftTUIProfiling
 @_spi(Runners) import SwiftTUIRuntime
-@_spi(Testing) import SwiftTUI
 @_spi(Testing) import SwiftTUITestSupport
 import Testing
 
@@ -28,38 +28,45 @@ struct AnimationRegressionTests {
     var framesBeforeToggle = 0
     var markerColumnsAfterToggle: [Int] = []
 
+    let inputReader = AnimationRegressionAwaitedInputReader(
+      frameSignal: host.frameSignal,
+      steps: [
+        .awaitCondition {
+          let markerColumns = Self.slideMarkerColumns(in: host.surfaces)
+          guard let latestColumn = markerColumns.last else {
+            return false
+          }
+          initialColumn = latestColumn
+          framesBeforeToggle = host.surfaces.count
+          return true
+        },
+        .event(.mouse(.init(kind: .down(.primary), location: buttonLocation))),
+        .event(.mouse(.init(kind: .up(.primary), location: buttonLocation))),
+        .awaitCondition {
+          guard let initialColumn else {
+            return false
+          }
+          markerColumnsAfterToggle = Array(
+            Self.slideMarkerColumns(in: host.surfaces)
+              .dropFirst(framesBeforeToggle)
+          )
+          return markerColumnsAfterToggle.contains(initialColumn + 30)
+        },
+        .event(.key(KeyPress(.character("d"), modifiers: .ctrl))),
+      ])
+
     let result = try await Self.runHarness(
       host: host,
       terminalSize: terminalSize,
       rootIdentity: rootIdentity,
-      inputReader: AnimationRegressionAwaitedInputReader(
-        frameSignal: host.frameSignal,
-        steps: [
-          .awaitCondition {
-            let markerColumns = Self.slideMarkerColumns(in: host.surfaces)
-            guard let latestColumn = markerColumns.last else {
-              return false
-            }
-            initialColumn = latestColumn
-            framesBeforeToggle = host.surfaces.count
-            return true
-          },
-          .event(.mouse(.init(kind: .down(.primary), location: buttonLocation))),
-          .event(.mouse(.init(kind: .up(.primary), location: buttonLocation))),
-          .awaitCondition {
-            guard let initialColumn else {
-              return false
-            }
-            markerColumnsAfterToggle = Array(
-              Self.slideMarkerColumns(in: host.surfaces)
-                .dropFirst(framesBeforeToggle)
-            )
-            return markerColumnsAfterToggle.contains(initialColumn + 30)
-          },
-          .event(.key(KeyPress(.character("d"), modifiers: .ctrl))),
-        ]),
+      inputReader: inputReader,
       viewBuilder: { AnimationsTab() }
     )
+
+    // Fails with the named budget diagnostic if the animation stopped
+    // presenting frames, instead of leaving the assertions below to report a
+    // confusing mismatch against a truncated capture.
+    try await inputReader.requireNoWaitFailure()
 
     let startingColumn = try #require(initialColumn)
     let finalColumn = startingColumn + 30
@@ -100,39 +107,43 @@ struct AnimationRegressionTests {
     var framesBeforeToggle = 0
     var markerColumnsAfterToggle: [Int] = []
 
+    let inputReader = AnimationRegressionAwaitedInputReader(
+      frameSignal: host.frameSignal,
+      steps: [
+        .awaitCondition {
+          let markerColumns = Self.slideMarkerColumns(in: host.surfaces)
+          guard let latestColumn = markerColumns.last else {
+            return false
+          }
+          initialColumn = latestColumn
+          framesBeforeToggle = host.surfaces.count
+          return true
+        },
+        .event(.mouse(.init(kind: .down(.primary), location: buttonLocation))),
+        .event(.mouse(.init(kind: .up(.primary), location: buttonLocation))),
+        .awaitCondition {
+          guard let initialColumn else {
+            return false
+          }
+          markerColumnsAfterToggle = Array(
+            Self.slideMarkerColumns(in: host.surfaces)
+              .dropFirst(framesBeforeToggle)
+          )
+          return markerColumnsAfterToggle.contains(initialColumn + 30)
+        },
+        .event(.key(KeyPress(.character("d"), modifiers: .ctrl))),
+      ])
+
     let result = try await Self.runDiagnosticsSceneHarness(
       host: host,
       terminalSize: terminalSize,
       sceneID: sceneID,
-      inputReader: AnimationRegressionAwaitedInputReader(
-        frameSignal: host.frameSignal,
-        steps: [
-          .awaitCondition {
-            let markerColumns = Self.slideMarkerColumns(in: host.surfaces)
-            guard let latestColumn = markerColumns.last else {
-              return false
-            }
-            initialColumn = latestColumn
-            framesBeforeToggle = host.surfaces.count
-            return true
-          },
-          .event(.mouse(.init(kind: .down(.primary), location: buttonLocation))),
-          .event(.mouse(.init(kind: .up(.primary), location: buttonLocation))),
-          .awaitCondition {
-            guard let initialColumn else {
-              return false
-            }
-            markerColumnsAfterToggle = Array(
-              Self.slideMarkerColumns(in: host.surfaces)
-                .dropFirst(framesBeforeToggle)
-            )
-            return markerColumnsAfterToggle.contains(initialColumn + 30)
-          },
-          .event(.key(KeyPress(.character("d"), modifiers: .ctrl))),
-        ]),
+      inputReader: inputReader,
       diagnosticsPath: diagnosticsURL.path,
       viewBuilder: { AnimationsTab() }
     )
+
+    try await inputReader.requireNoWaitFailure()
 
     let startingColumn = try #require(initialColumn)
     let finalColumn = startingColumn + 30
@@ -340,33 +351,66 @@ private enum AnimationRegressionAwaitedInputStep {
   case event(InputEvent)
   /// Suspends the input script until `predicate` holds, re-evaluated only when
   /// the host presents a new frame (`frameSignal.notify()`) rather than on a
-  /// clock — a starved run loop slows the test instead of timing it out.
+  /// clock — so a merely *starved* run loop slows the test rather than failing
+  /// it.
+  ///
+  /// The wait carries a last-resort wall-clock ceiling (see
+  /// ``withGalleryWaitCeiling``): if the animation stops presenting entirely,
+  /// no further `notify()` ever arrives and the predicate can never be
+  /// re-checked. Before that ceiling existed this step could park forever — on
+  /// 2026-08-19 it hung the org examples gate for its full 1h15m cap three
+  /// runs running, silent for 47 minutes.
   case awaitCondition(predicate: @MainActor () -> Bool)
 }
 
 private final class AnimationRegressionAwaitedInputReader: TerminalInputReading {
   private let steps: [AnimationRegressionAwaitedInputStep]
   private let frameSignal: MainActorConditionSignal
+  private let waitCeilingNanoseconds: UInt64
+  private let waitFailure = GalleryWaitFailureRecorder()
 
   init(
     frameSignal: MainActorConditionSignal,
+    waitCeilingNanoseconds: UInt64 = galleryWaitCeilingNanoseconds,
     steps: [AnimationRegressionAwaitedInputStep]
   ) {
     self.frameSignal = frameSignal
+    self.waitCeilingNanoseconds = waitCeilingNanoseconds
     self.steps = steps
+  }
+
+  @MainActor
+  func requireNoWaitFailure() async throws {
+    try await waitFailure.requireNoFailure()
   }
 
   func inputEvents() -> AsyncStream<InputEvent> {
     AsyncStream { continuation in
       let steps = self.steps
       let frameSignal = self.frameSignal
+      let waitCeilingNanoseconds = self.waitCeilingNanoseconds
+      let waitFailure = self.waitFailure
       let task = Task { @MainActor in
-        for step in steps {
+        for (index, step) in steps.enumerated() {
           switch step {
           case .event(let event):
             continuation.yield(event)
           case .awaitCondition(let predicate):
-            await frameSignal.wait(until: predicate)
+            do {
+              try await withGalleryWaitCeiling(
+                "animation regression awaited input step \(index)",
+                nanoseconds: waitCeilingNanoseconds
+              ) {
+                await frameSignal.wait(until: predicate)
+              }
+            } catch let failure as GalleryWaitCeilingExceeded {
+              await waitFailure.record(failure)
+              continuation.finish()
+              return
+            } catch {
+              continuation.finish()
+              return
+            }
           }
         }
         continuation.finish()

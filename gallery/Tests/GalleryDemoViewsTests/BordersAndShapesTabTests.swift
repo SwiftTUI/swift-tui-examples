@@ -1,4 +1,5 @@
 import SwiftTUI
+@_spi(Testing) import SwiftTUITestSupport
 import Testing
 
 @testable import GalleryDemoViews
@@ -46,26 +47,26 @@ struct BordersAndShapesTabTests {
   func chasingLightSchedulesVisibleRuntimeFrames() async throws {
     let terminalSize = CellSize(width: 80, height: 28)
     let rootIdentity = Identity(components: [.named("BordersAndShapesRunLoop")])
-    let quitGate = GalleryAsyncEventGate()
+    let quitGate = AsyncEvent()
     let host = GalleryCountingTerminalHost(
       surfaceSize: terminalSize,
       presentObserver: { presentCount in
         guard presentCount >= 3 else {
           return
         }
-        Task {
-          await quitGate.open()
-        }
+        quitGate.fire()
       }
     )
-    // No wall-clock fallback: the gate opens only once the chasing-light
-    // animation has actually presented three frames. A broken animation
-    // hangs (surfaced by the CI job timeout) rather than racing a 1s timer
-    // that could open the gate early under a loaded runner and fail the test.
+    // The gate still opens only once the chasing-light animation has actually
+    // presented three frames — no wall-clock timer races it open early under a
+    // loaded runner. But the wait itself is now bounded: a broken animation
+    // fails with a named `GalleryWaitCeilingExceeded` instead of hanging until
+    // the CI job cap, which is what it did for 47 minutes on 2026-08-19.
+    let inputReader = GalleryGateInputReader(gate: quitGate)
     let runLoop = RunLoop(
       rootIdentity: rootIdentity,
       presentationSurface: host,
-      terminalInputReader: GalleryGateInputReader(gate: quitGate),
+      terminalInputReader: inputReader,
       signalReader: nil,
       scheduler: FrameScheduler(),
       stateContainer: StateContainer(
@@ -88,6 +89,11 @@ struct BordersAndShapesTabTests {
     )
 
     let result = try await runLoop.run()
+
+    // Fails with the named budget diagnostic if the animation stopped
+    // presenting, rather than letting the frame-count assertions below report
+    // a confusing shortfall.
+    try await inputReader.requireNoWaitFailure()
 
     #expect(result.exitReason == .userExit(KeyPress(.character("d"), modifiers: .ctrl)))
     #expect(
@@ -136,50 +142,45 @@ private final class GalleryCountingTerminalHost: PresentationSurface {
   func write(_: String) throws {}
 }
 
-private actor GalleryAsyncEventGate {
-  private var isOpen = false
-  private var waiters: [CheckedContinuation<Void, Never>] = []
-
-  func wait() async {
-    if isOpen {
-      return
-    }
-
-    await withCheckedContinuation { continuation in
-      if isOpen {
-        continuation.resume()
-        return
-      }
-      waiters.append(continuation)
-    }
-  }
-
-  func open() {
-    guard !isOpen else {
-      return
-    }
-    isOpen = true
-    let continuations = waiters
-    waiters.removeAll(keepingCapacity: false)
-
-    for continuation in continuations {
-      continuation.resume()
-    }
-  }
-}
-
 private final class GalleryGateInputReader: TerminalInputReading {
-  let gate: GalleryAsyncEventGate
+  let gate: AsyncEvent
+  private let waitCeilingNanoseconds: UInt64
+  private let waitFailure = GalleryWaitFailureRecorder()
 
-  init(gate: GalleryAsyncEventGate) {
+  init(
+    gate: AsyncEvent,
+    waitCeilingNanoseconds: UInt64 = galleryWaitCeilingNanoseconds
+  ) {
     self.gate = gate
+    self.waitCeilingNanoseconds = waitCeilingNanoseconds
+  }
+
+  @MainActor
+  func requireNoWaitFailure() async throws {
+    try await waitFailure.requireNoFailure()
   }
 
   func inputEvents() -> AsyncStream<InputEvent> {
     AsyncStream { continuation in
       let gate = gate
+      let waitCeilingNanoseconds = self.waitCeilingNanoseconds
+      let waitFailure = self.waitFailure
       let task = Task {
-        await gate.wait()
+        do {
+          try await withGalleryWaitCeiling(
+            "the chasing-light animation to present three frames",
+            nanoseconds: waitCeilingNanoseconds
+          ) {
+            await gate.wait()
+          }
+        } catch let failure as GalleryWaitCeilingExceeded {
+          await waitFailure.record(failure)
+          continuation.finish()
+          return
+        } catch {
+          continuation.finish()
+          return
+        }
         continuation.yield(.key(KeyPress(.character("d"), modifiers: .ctrl)))
         continuation.finish()
       }
