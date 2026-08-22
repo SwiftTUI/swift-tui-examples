@@ -8,7 +8,7 @@ let package = Package(
     .macOS(.v15)
   ],
   dependencies: [
-    .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.9.5")
+    .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.9.6")
   ],
   targets: [
     .executableTarget(
