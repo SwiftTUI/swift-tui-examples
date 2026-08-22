@@ -3,6 +3,10 @@ import SwiftTUIRuntime
 public struct GalleryView: View {
   @State private var selection: GalleryTab
   @State private var showPalette: Bool = false
+  // Owned here, above the TabView: the Life model is a class, which the
+  // dormant-tab archive cannot carry, so the game would reset on every return
+  // to its tab if the tab owned it. See `LifeTab`.
+  @State private var lifeModel = LifeModel()
 
   public init(initialTab: GalleryTab? = nil) {
     _selection = State(initialValue: initialTab ?? .logo)
@@ -17,7 +21,7 @@ public struct GalleryView: View {
         CounterTab()
       }
       Tab(Self.descriptor(for: .life).title, value: GalleryTab.life) {
-        LifeTab()
+        LifeTab(model: lifeModel)
       }
       Tab(Self.descriptor(for: .todo).title, value: GalleryTab.todo) {
         TodoTab()
@@ -155,7 +159,9 @@ extension GalleryView {
       case .counter:
         CounterTab()
       case .life:
-        LifeTab()
+        // Descriptor content is a standalone snapshot of the tab (no owning
+        // gallery above it), so it brings its own model.
+        LifeTab(model: LifeModel())
       case .todo:
         TodoTab()
       case .formsAndContainers:

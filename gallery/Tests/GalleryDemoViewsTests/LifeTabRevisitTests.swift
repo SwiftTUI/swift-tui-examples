@@ -122,6 +122,103 @@ struct LifeTabRevisitTests {
     )
   }
 
+  @Test("game state survives leaving and returning to the Life tab")
+  func gameStateSurvivesTabRoundTrip() throws {
+    // The Life model is a class. A tab-owned `@State` model cannot ride the
+    // dormant-tab archive (the runtime reported
+    // `tab.dormantStateUnsupportedValue` on every departure) and restarted
+    // the game on every return. The gallery owns the model above the TabView
+    // instead, so stepped generations must still be there after a round trip.
+    let terminalSize = CellSize(width: 120, height: 40)
+    let rootIdentity = Identity(components: [.named("GalleryLifeTabStateRoundTrip")])
+    let host = LifeRevisitRecordingHost(size: terminalSize)
+    var environment = EnvironmentValues()
+    environment.terminalSize = terminalSize
+    environment.terminalAppearance = host.appearance
+    let scheduler = FrameScheduler()
+    let focusTracker = FocusTracker(invalidationIdentities: [rootIdentity])
+    var issues: [RuntimeIssue] = []
+    let runLoop = RunLoop(
+      rootIdentity: rootIdentity,
+      presentationSurface: host,
+      terminalInputReader: LifeRevisitScriptedInput(),
+      signalReader: LifeRevisitEmptySignals(),
+      scheduler: scheduler,
+      stateContainer: StateContainer(
+        initialState: 0,
+        invalidationIdentities: [rootIdentity]
+      ),
+      focusTracker: focusTracker,
+      environmentValues: environment,
+      proposal: .init(width: terminalSize.width, height: terminalSize.height),
+      viewBuilder: { _, _ in GalleryView(initialTab: .life) }
+    )
+    focusTracker.invalidator = scheduler
+    runLoop.runtimeIssueSink = RuntimeIssueSink { issue in
+      issues.append(issue)
+    }
+
+    func render() throws {
+      var rendered = 0
+      try runLoop.renderPendingFrames(renderedFrames: &rendered)
+    }
+    func surfaceText() throws -> String {
+      try #require(host.lastPresentedSurface).lines.joined(separator: "\n")
+    }
+    func click(_ target: String) throws {
+      let surface = try #require(host.lastPresentedSurface)
+      let center = try #require(
+        Self.centerOfText(target, in: surface),
+        "could not locate \"\(target)\" to click. Surface:\n\(surface.lines.joined(separator: "\n"))"
+      )
+      #expect(
+        runLoop.handle(.input(.mouse(.init(kind: .down(.primary), location: center)))) == nil
+      )
+      #expect(
+        runLoop.handle(.input(.mouse(.init(kind: .up(.primary), location: center)))) == nil
+      )
+      try render()
+    }
+
+    scheduler.requestInvalidation(of: [rootIdentity])
+    try render()
+    let initial = try surfaceText()
+    #expect(initial.contains("gen 0"), "surface:\n\(initial)")
+
+    // Stepping is disabled while the auto-tick runs: pause first, then step.
+    try click("Pause")
+    try click("Step")
+    try click("Step")
+    let stepped = try surfaceText()
+    #expect(stepped.contains("gen 2"), "expected two manual steps; surface:\n\(stepped)")
+    #expect(stepped.contains("Play"), "expected the game to be paused; surface:\n\(stepped)")
+
+    try click("Counter")
+    for _ in 0..<2 {
+      scheduler.requestInvalidation(of: [rootIdentity])
+      try render()
+    }
+    let departed = try surfaceText()
+    #expect(!departed.contains("Conway's Life"), "surface:\n\(departed)")
+
+    try click("Life")
+    for _ in 0..<2 {
+      scheduler.requestInvalidation(of: [rootIdentity])
+      try render()
+    }
+    let returned = try surfaceText()
+    #expect(returned.contains("Conway's Life"), "surface:\n\(returned)")
+    #expect(
+      returned.contains("gen 2") && returned.contains("Play"),
+      "the Life game restarted from its seed after a tab round trip; surface:\n\(returned)"
+    )
+    let unsupported = issues.filter { $0.code == "tab.dormantStateUnsupportedValue" }
+    #expect(
+      unsupported.isEmpty,
+      "the Life tab still owns non-archivable state: \(unsupported.map(\.message))"
+    )
+  }
+
   private static func centerOfText(_ target: String, in surface: RasterSurface) -> Point? {
     for (row, line) in surface.lines.enumerated() {
       guard let range = line.range(of: target) else { continue }

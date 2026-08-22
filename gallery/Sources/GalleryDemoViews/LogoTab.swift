@@ -115,6 +115,13 @@ struct LogoTab: View {
 
     while !Task.isCancelled {
       try? await Task.sleep(nanoseconds: LogoBreakerGame.tickNanoseconds)
+      // Teardown (leaving the tab) cancels this task mid-sleep. Bail before
+      // touching any `@State`: the owning node is gone by then, so a read
+      // would fall back to the authored seed and the runtime reports it
+      // (`state.imperativeSeedFallback`) — the loop has nothing left to do.
+      guard !Task.isCancelled else {
+        return
+      }
       guard !isDragging else {
         continue
       }

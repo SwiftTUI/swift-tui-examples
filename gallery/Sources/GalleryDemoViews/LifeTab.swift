@@ -27,10 +27,20 @@ import SwiftTUIRuntime
 /// `@State` on `LifeTab` itself would invalidate the tab's own identity
 /// every generation, pulling the whole scene — controls included — into
 /// every tick's recompute cone and defeating subtree reuse.
+///
+/// The model is *owned above* the tab (``GalleryView`` holds it in `@State`)
+/// and passed in: `TabView` archives a dormant tab's value-only state and
+/// tears the rest down, and a class instance is not archivable — a tab-owned
+/// model would restart the game on every return to the tab and the runtime
+/// would report `tab.dormantStateUnsupportedValue` on every departure.
 public struct LifeTab: View {
-  public init() {}
+  private let model: LifeModel
 
-  @State private var model = LifeModel()
+  /// The gallery composes the tab from inside this module (the model type is
+  /// internal); the owning view passes the model it holds in `@State`.
+  init(model: LifeModel) {
+    self.model = model
+  }
 
   public var body: some View {
     VStack(alignment: .leading, spacing: 0) {
