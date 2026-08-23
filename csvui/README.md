@@ -13,7 +13,7 @@ swiftly run swift run --package-path csvui csvui data.tsv --read-only
 cat data.csv | swiftly run swift run --package-path csvui csvui -
 ```
 
-`csvui` requires SwiftTUI `0.9.6` or newer.
+`csvui` requires SwiftTUI `0.9.7` or newer.
 
 The executable requires a TTY for output. Standard-input documents remain
 editable in memory; their first save uses Save As because they have no writable
