@@ -10,7 +10,8 @@ terminal screen changes.
 swiftly run swift run --package-path equatable-demo EquatableDemo
 ```
 
-Press `tick` or the spacebar. The counter changes, but the panel below does not.
+Activate the `tick` button (click it, or press Space while it is focused). The
+counter changes, but the panel below does not.
 The runtime reuses the panel on each tick.
 
 ## Demonstrates

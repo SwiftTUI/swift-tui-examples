@@ -15,9 +15,10 @@ Pick by what you want to see, then run one command:
   charts, images, animated GIFs, popovers, and physics in a single terminal app.
 - **One source on every host**: clone
   [`swift-tui-counter-demo`](https://github.com/SwiftTUI/swift-tui-counter-demo)
-  to get the *same* `CounterApp` value as a terminal executable, an embedded
-  native SwiftUI window, and a static WASI browser bundle (it also powers the
-  live demo on [swifttui.sh](https://swifttui.sh)).
+  to run the same shared `CounterView` in a terminal, an embedded native
+  SwiftUI window, the browser as a static WASI bundle, and an Android app —
+  each host declares its own `App` over that one view (the browser build also
+  powers the live demo on [swifttui.sh](https://swifttui.sh)).
 - **The smallest possible start**: read [`minimal`](minimal), one
   `RenderOnce.print(...)` with no app runtime and no argument parser.
 - **A polished document reader**: run [`mrkdwn`](mrkdwn) for complete GFM
@@ -30,9 +31,8 @@ proves, or jump straight to a package in [By product](#by-product).
 
 ## Prerequisites
 
-- **Swift 6.3.x** (`.swift-version` pins 6.3.3), plus **[Bun](https://bun.sh)**
-  for the browser/WASI example.
-- Commands below use **[`swiftly`](https://swiftly.dev)** so every example builds
+- **Swift 6.3.x** (`.swift-version` pins 6.3.3).
+- Commands below use **[`swiftly`](https://www.swift.org/swiftly/)** so every example builds
   against the repository pinned toolchain. If Swift 6.3.x is active through
   Xcode 26 or `PATH`, remove the `swiftly run` prefix. Then run the bare
   `swift ...` command.
@@ -72,7 +72,7 @@ example pins the current `0.9.7` release graph. Gallery uses matching
 | [gifcat](gifcat) | Terminal | `SwiftTUIAnimatedImage` playback, source GIF delays, regular-size image attachments, and row-major tiling of multiple GIFs | `swiftly run swift run --package-path gifcat gifcat gifeditor/nyan.gif` |
 | [gifeditor](gifeditor) | Terminal+Web | Full GIF editor: half-cell canvas, palette, tools, layers, timeline, pointer input, undo/redo, and GIF import/export | `swiftly run swift run --package-path gifeditor gifeditor` |
 | [SwiftUIExample](SwiftUIExample) | Native SwiftUI | SwiftUI host app embedding reusable SwiftTUI scenes through `SwiftUIHost` | `open SwiftUIExample/SwiftUIExample.xcodeproj` |
-| [swift-tui-counter-demo](https://github.com/SwiftTUI/swift-tui-counter-demo) | Multi-host | Own repo: the same `CounterApp` value runs as a terminal executable, embeds in a native SwiftUI window via `SwiftUIHost`, and ships as a static WASI bundle in the browser (the swifttui.sh live demo) | `git clone https://github.com/SwiftTUI/swift-tui-counter-demo.git` |
+| [swift-tui-counter-demo](https://github.com/SwiftTUI/swift-tui-counter-demo) | Multi-host | Own repo: one shared `CounterView` runs in the terminal, embeds in a native SwiftUI window via `SwiftUIHost`, ships as a static WASI browser bundle (the swifttui.sh live demo), and runs on Android | `git clone https://github.com/SwiftTUI/swift-tui-counter-demo.git` |
 | [WebHostExample](WebHostExample) | Terminal+Web | Smallest `SwiftTUI` convenience app: terminal by default, localhost browser host with `--web` | `swiftly run swift run --package-path WebHostExample WebHostExample --web` |
 
 ## By product
