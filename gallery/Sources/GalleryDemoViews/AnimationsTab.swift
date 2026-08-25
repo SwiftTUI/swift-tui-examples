@@ -1,3 +1,4 @@
+import Foundation
 import SwiftTUIRuntime
 
 /// The pages of the Animations tab. The raw value is the command-line key
@@ -33,12 +34,13 @@ public enum AnimationsPage: String, CaseIterable, Hashable, Sendable {
 /// ```
 ///
 /// Section numbers stay sequential across pages so a bug report can cite
-/// "section 4" without naming the page. Numbers 10 to 19 are reserved for
-/// later stages.
+/// "section 4" without naming the page. Section 13 (co-present matched
+/// geometry adoption) is skipped: that stage was deferred.
 ///
 /// All durations are long (1000 to 2000 ms) so the interpolation is
 /// unmistakable on a 30fps terminal. Only the Keyframes page hosts an
-/// always-on loop (section 7); every other section animates on demand.
+/// always-on loop (section 7); every other section animates on demand, and
+/// the continuous demos (section 11) default to stopped.
 ///
 /// Section state lives on the tab, not on the pages, so a page's readouts
 /// survive switching away and back. The sections themselves are split into
@@ -80,8 +82,16 @@ public struct AnimationsTab: View {
 
   // MARK: - Matched page state
 
-  // Matched geometry demo: which column the "hero" lives in.
+  // Matched geometry demo: which slot the badge lives in, what interpolates,
+  // and around which anchor, plus move and settled counters for the readout.
+  // The interpolated box is a placed-level overlay, so a GeometryReader
+  // inside the badge only ever sees the destination size; the counters are
+  // what the state line can report each frame.
   @State var heroOnRight: Bool = false
+  @State var heroProperties: MatchedPropertiesChoice = .frame
+  @State var heroAnchor: MatchedAnchorChoice = .center
+  @State var heroMoves: Int = 0
+  @State var heroSettled: Int = 0
   // Namespace scoping the matched geometry key so the same "hero" string ID
   // would not collide with any other section's usage.
   @Namespace var heroNamespace
@@ -93,10 +103,58 @@ public struct AnimationsTab: View {
   // is the trigger value.
   @State var bounceTrigger: Int = 0
 
+  // Trigger-mode KeyframeAnimator demo (section 10): the run counter is the
+  // trigger. The double-run request/served pair drives a task that bumps the
+  // trigger twice 250 ms apart; served guards against a dormant-page replay.
+  @State var keyframeRunTrigger: Int = 0
+  @State var doubleRunRequest: Int = 0
+  @State var doubleRunServed: Int = 0
+
+  // Repeating-mode KeyframeAnimator demo (section 11): the animator is only
+  // mounted while running, so the page idles at one loop (section 7).
+  @State var breathingRunning: Bool = false
+
+  // KeyframeTimeline curve strip (section 12): which timeline is charted.
+  @State var curveStripKind: CurveStripKind = .linear
+
   // MARK: - Transactions page state
 
-  // Binding.animation demo: the bar width written through an animated
-  // binding rather than an explicit withAnimation block.
+  // withTransaction key-path demo (section 14): one bar, two write paths.
+  @State var keyPathAccent: Bool = false
+  @State var keyPathLastWrite: String = "none"
+
+  // .transaction(value:) demo (section 15): animates on the tens digit only.
+  @State var tensCount: Int = 0
+
+  // Scoped body forms (section 16): one flag per row so each button drives
+  // exactly one row.
+  @State var scopedShift: Bool = false
+  @State var heldShift: Bool = false
+
+  // addAnimationCompletion demo (section 17): two closures on one
+  // transaction, plus a .removed-criteria closure on a transition.
+  @State var pairAccent: Bool = false
+  @State var pairCompletions: Int = 0
+  @State var removableShown: Bool = true
+  @State var removedCompletions: Int = 0
+
+  // tracksVelocity fling (section 18): the marker's column on its track, the
+  // last drag's readout, and the retarget request/served pair (see section
+  // 10 for the pattern).
+  @State var flingX: Int = AnimationsTab.flingHome
+  @State var flingLastDelta: Int = 0
+  @State var flingLastElapsedMilliseconds: Int = 0
+  @State var flingDragStart: MonotonicInstant? = nil
+  @State var retargetRequest: Int = 0
+  @State var retargetServed: Int = 0
+
+  // logicallyComplete(after:) demo (section 19): two barriers, two counters.
+  @State var logicalWide: Bool = false
+  @State var logicalCompletions: Int = 0
+  @State var removedBarrierCompletions: Int = 0
+
+  // Binding.animation demo (section 20): the bar width written through an
+  // animated binding rather than an explicit withAnimation block.
   @State var transactionWide: Bool = false
 
   public var body: some View {
@@ -164,6 +222,21 @@ public struct AnimationsTab: View {
   func stateLine(_ text: String) -> some View {
     Text("state: \(text)")
       .foregroundStyle(.separator)
+  }
+
+  /// Fixed-point text for a readout. Negative zero is normalized so a
+  /// settled value reads `0.0`, never `-0.0`.
+  static func readout(_ value: Double, places: Int = 1) -> String {
+    let text = String(format: "%.\(places)f", value)
+    let negativeZero = "-0." + String(repeating: "0", count: places)
+    return text == negativeZero ? String(text.dropFirst()) : text
+  }
+
+  /// A color's stored components as `r/g/b`, two places each.
+  static func readout(_ color: Color) -> String {
+    [color.red, color.green, color.blue]
+      .map { readout($0, places: 2) }
+      .joined(separator: "/")
   }
 
   /// One page: a scroll view over its sections, separated by dividers.
