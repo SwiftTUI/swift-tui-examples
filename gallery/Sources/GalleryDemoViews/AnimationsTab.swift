@@ -1,459 +1,179 @@
 import SwiftTUIRuntime
 
-/// Showcases the public animation surface. Each section exercises a distinct
-/// capability — spring/bezier curves, transitions with different edges, frame
-/// animation, and withAnimation completion callbacks — so the gallery doubles
-/// as a visual smoke test.
+/// The pages of the Animations tab. The raw value is the command-line key
+/// accepted by `gallery-demo --animations-page <key>`.
+public enum AnimationsPage: String, CaseIterable, Hashable, Sendable {
+  case basics
+  case transitions
+  case matched
+  case keyframes
+  case transactions
+
+  /// Segment title shown in the page picker.
+  public var title: String {
+    switch self {
+    case .basics: "Basics"
+    case .transitions: "Transitions"
+    case .matched: "Matched"
+    case .keyframes: "Keyframes"
+    case .transactions: "Transactions"
+    }
+  }
+}
+
+/// A paged workbench for the public animation surface. Every section follows
+/// one template so a reader can verify it without the source:
 ///
-/// All durations are long (1000–2000 ms) so the interpolation is
-/// unmistakable on a 30fps terminal.  Elements are intentionally
-/// large (full-block text, big ASCII figures) so the visual change
-/// cannot be missed.
+/// ```
+/// N. <title>                                     muted
+///    expect: <what you should see and roughly how long>
+///    [buttons]                                   .focusSection()
+///    <the animated subject, large, high-contrast>
+///    state: <live readout of the driving value(s)>
+/// ```
+///
+/// Section numbers stay sequential across pages so a bug report can cite
+/// "section 4" without naming the page. Numbers 10 to 19 are reserved for
+/// later stages.
+///
+/// All durations are long (1000 to 2000 ms) so the interpolation is
+/// unmistakable on a 30fps terminal. Only the Keyframes page hosts an
+/// always-on loop (section 7); every other section animates on demand.
+///
+/// Section state lives on the tab, not on the pages, so a page's readouts
+/// survive switching away and back. The sections themselves are split into
+/// sibling files, one per page (`AnimationsTab+Basics.swift` and so on).
 public struct AnimationsTab: View {
-  public init() {}
-  // Color demo: high-contrast red↔blue toggle.  Direct field
-  // mutation inside the withAnimation closure — no mutating method
-  // indirection.
-  @State private var colorBlue: Bool = false
-  @State private var curveLabel: String = "(tap a curve)"
+  @State private var page: AnimationsPage
 
-  // Transition demo: two independent toggles.
-  @State private var showOpacityFigure: Bool = true
-  @State private var showSlideFigure: Bool = true
+  /// Creates the tab open on `initialPage` (Basics by default).
+  public init(initialPage: AnimationsPage = .basics) {
+    _page = State(initialValue: initialPage)
+  }
 
-  // Frame demo: narrow↔wide width.
-  @State private var wide: Bool = false
+  // MARK: - Basics page state
+
+  // Color demo: high-contrast red/blue toggle. Direct field mutation inside
+  // the withAnimation closure, no mutating method indirection.
+  @State var colorBlue: Bool = false
+  @State var curveLabel: String = "none"
+
+  // Frame demo: narrow/wide width.
+  @State var wide: Bool = false
 
   // Offset demo: target offset the text slides to.
-  @State private var offsetX: Int = 0
+  @State var offsetX: Int = 0
 
   // Position demo: absolute target position the marker jumps to.
-  @State private var positionX: Int = 10
-  @State private var positionY: Int = 2
-
-  // Matched geometry demo: which column the "hero" lives in.
-  @State private var heroOnRight: Bool = false
-  // Namespace scoping the matched geometry key so the same "hero"
-  // string ID wouldn't collide with any other section's usage.
-  @Namespace private var heroNamespace
-
-  // Trigger-mode PhaseAnimator demo: each tap bumps the counter,
-  // which drives one full pass through the phase sequence back to
-  // rest.  The counter itself is the trigger value.
-  @State private var bounceTrigger: Int = 0
+  @State var positionX: Int = 10
+  @State var positionY: Int = 2
 
   // Completion demo: a counter ticked by the callback closure.
-  @State private var completionRuns: Int = 0
-  @State private var completionAccent: Bool = false
+  @State var completionRuns: Int = 0
+  @State var completionAccent: Bool = false
+
+  // MARK: - Transitions page state
+
+  // Transition demo: two independent toggles.
+  @State var showOpacityFigure: Bool = true
+  @State var showSlideFigure: Bool = true
+
+  // MARK: - Matched page state
+
+  // Matched geometry demo: which column the "hero" lives in.
+  @State var heroOnRight: Bool = false
+  // Namespace scoping the matched geometry key so the same "hero" string ID
+  // would not collide with any other section's usage.
+  @Namespace var heroNamespace
+
+  // MARK: - Keyframes page state
+
+  // Trigger-mode PhaseAnimator demo: each tap bumps the counter, which drives
+  // one full pass through the phase sequence back to rest. The counter itself
+  // is the trigger value.
+  @State var bounceTrigger: Int = 0
+
+  // MARK: - Transactions page state
+
+  // Binding.animation demo: the bar width written through an animated
+  // binding rather than an explicit withAnimation block.
+  @State var transactionWide: Bool = false
 
   public var body: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 1) {
-        header
-        Divider()
-        colorSection
-        Divider()
-        transitionSection
-        Divider()
-        frameSection
-        Divider()
-        offsetSection
-        Divider()
-        positionSection
-        Divider()
-        matchedGeometrySection
-        Divider()
-        phaseAnimatorSection
-        Divider()
-        triggerPhaseAnimatorSection
-        Divider()
-        completionSection
-        Spacer(minLength: 0)
-      }
-      .padding(1)
+    VStack(alignment: .leading, spacing: 1) {
+      header
+      pagePicker
+      Divider()
+      pageContent
     }
+    .padding(1)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   }
 
   private var header: some View {
     VStack(alignment: .leading, spacing: 0) {
       Text("Animations").foregroundStyle(.foreground)
-      Text("Every button triggers a multi-second animation via withAnimation.")
+      Text("Pick a page. Each section says what to expect and prints the value it animates.")
         .foregroundStyle(.separator)
     }
   }
 
-  // MARK: - Color animation with spring / bezier / bouncy curves
-
-  private var colorSection: some View {
-    VStack(alignment: .leading, spacing: 0) {
-      Text("1. withAnimation foreground color — curve: \(curveLabel)")
-        .foregroundStyle(.muted)
-      Text("████████████████████████████")
-        .foregroundStyle(colorBlue ? Color.blue : Color.red)
-        .padding(1)
-        .border(set: .single)
-      HStack(spacing: 1) {
-        Button("linear") {
-          withAnimation(.linear(duration: .milliseconds(1500))) {
-            colorBlue.toggle()
-            curveLabel = "linear"
-          }
-        }
-        Button("easeInOut") {
-          withAnimation(.easeInOut(duration: .milliseconds(1500))) {
-            colorBlue.toggle()
-            curveLabel = "easeInOut"
-          }
-        }
-        Button("spring") {
-          withAnimation(.spring(duration: .milliseconds(1500), bounce: 0.3)) {
-            colorBlue.toggle()
-            curveLabel = "spring"
-          }
-        }
-        Button("bouncy") {
-          withAnimation(.bouncy) {
-            colorBlue.toggle()
-            curveLabel = "bouncy"
-          }
-        }
+  private var pagePicker: some View {
+    Picker("Page", selection: $page) {
+      ForEach(AnimationsPage.allCases, id: \.self) { page in
+        Text(page.title).tag(page)
       }
-      .focusSection()
     }
+    .pickerStyle(.segmented)
+    // The segmented body is height-greedy (its inter-segment dividers
+    // stretch), so pin it to its natural rows: label plus a three-row box.
+    .frame(height: 4)
   }
-
-  // MARK: - Opacity + move transitions
 
   @ViewBuilder
-  private var transitionSection: some View {
-    VStack(alignment: .leading, spacing: 0) {
-      Text("2. .transition(...) insertion & removal")
-        .foregroundStyle(.muted)
-      HStack(spacing: 2) {
-        VStack {
-          Button(showOpacityFigure ? "fade out" : "fade in") {
-            withAnimation(.easeInOut(duration: .milliseconds(1200))) {
-              showOpacityFigure.toggle()
-            }
-          }
-          // Opacity transition — a large TextFigure fades in/out via the
-          // pre-composited cell-background blend.
-          TextFigure("FADE", font: .smBlock)
-            .opacity(0)
-            .overlay {
-              if showOpacityFigure {
-                TextFigure("FADE", font: .smBlock)
-                  .foregroundStyle(Color.cyan)
-                  .transition(.opacity)
-              }
-            }
-            .padding(1)
-            .clipped()
-            .border(set: .double)
-        }
-        VStack {
-          Button(showSlideFigure ? "slide out" : "slide in") {
-            withAnimation(.easeInOut(duration: .milliseconds(1200))) {
-              showSlideFigure.toggle()
-            }
-          }
-          // Slide transition — uses .transition(.slide), which is an
-          // asymmetric move(edge: .leading) → move(edge: .trailing) that
-          // exercises the placed-level overlay injection path.
-          TextFigure("SLIDE", font: .smBlock)
-            .opacity(0)
-            .overlay {
-              if showSlideFigure {
-                TextFigure("SLIDE", font: .smBlock)
-                  .foregroundStyle(Color.yellow)
-                  .transition(.slide)
-              }
-            }
-            .padding(1)
-            .clipped()
-            .border(set: .double)
-        }
-      }
-      .focusSection()
+  private var pageContent: some View {
+    switch page {
+    case .basics:
+      basicsPage
+    case .transitions:
+      transitionsPage
+    case .matched:
+      matchedPage
+    case .keyframes:
+      keyframesPage
+    case .transactions:
+      transactionsPage
     }
   }
 
-  // MARK: - Frame size animation
+  // MARK: - Section template helpers
 
-  private var frameSection: some View {
-    VStack(alignment: .leading, spacing: 0) {
-      Text("3. frame animation via .frame(maxWidth:) under .smooth")
-        .foregroundStyle(.muted)
-      HStack(spacing: 2) {
-        Button("narrow") {
-          withAnimation(.smooth(duration: .milliseconds(1500))) {
-            wide = false
-          }
-        }
-        Button("wide") {
-          withAnimation(.smooth(duration: .milliseconds(1500))) {
-            wide = true
-          }
-        }
-      }
-      .focusSection()
-      Text(wide ? "◆ wide ◆" : "narrow")
-        .foregroundStyle(.foreground)
-        .frame(
-          maxWidth: .finite(wide ? 40 : 12),
-          alignment: .center
-        )
-    }
-  }
-
-  // MARK: - .offset animation via direct state mutation
-
-  private var offsetSection: some View {
-    VStack(alignment: .leading, spacing: 0) {
-      Text("4. .offset(x:y:) animation via withAnimation state change")
-        .foregroundStyle(.muted)
-      HStack(spacing: 2) {
-        Button("left") {
-          withAnimation(.easeInOut(duration: .milliseconds(1200))) {
-            offsetX = 0
-          }
-        }
-        Button("center") {
-          withAnimation(.easeInOut(duration: .milliseconds(1200))) {
-            offsetX = 15
-          }
-        }
-        Button("right") {
-          withAnimation(.easeInOut(duration: .milliseconds(1200))) {
-            offsetX = 30
-          }
-        }
-        Button("spring") {
-          withAnimation(.spring(duration: .milliseconds(1500), bounce: 0.4)) {
-            offsetX = offsetX == 0 ? 30 : 0
-          }
-        }
-      }
-      .focusSection()
-      Text("▶ slide me")
-        .foregroundStyle(Color.magenta)
-        .offset(x: offsetX, y: 0)
-    }
-  }
-
-  // MARK: - .position animation via absolute placement
-
-  private var positionSection: some View {
-    VStack(alignment: .leading, spacing: 0) {
-      Text("5. .position(x:y:) absolute placement animated via withAnimation")
-        .foregroundStyle(.muted)
-      HStack(spacing: 2) {
-        Button("NW") {
-          withAnimation(.easeInOut(duration: .milliseconds(1200))) {
-            positionX = 10
-            positionY = 1
-          }
-        }
-        Button("NE") {
-          withAnimation(.easeInOut(duration: .milliseconds(1200))) {
-            positionX = 50
-            positionY = 1
-          }
-        }
-        Button("SW") {
-          withAnimation(.easeInOut(duration: .milliseconds(1200))) {
-            positionX = 10
-            positionY = 5
-          }
-        }
-        Button("SE") {
-          withAnimation(.easeInOut(duration: .milliseconds(1200))) {
-            positionX = 50
-            positionY = 5
-          }
-        }
-      }
-      .focusSection()
-      // The marker gets absolutely positioned inside a fixed-height
-      // slot.  Without .frame(height:), .position would expand to
-      // fill the full proposed space of the outer VStack, shoving
-      // subsequent sections off the screen.
-      Text("◎")
-        .foregroundStyle(Color.cyan)
-        .position(x: positionX, y: positionY)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-    .frame(height: 7)
-  }
-
-  // MARK: - matchedGeometryEffect
-
-  private var matchedGeometrySection: some View {
-    VStack(alignment: .leading, spacing: 0) {
-      Text("6. matchedGeometryEffect — hero slides between two slots")
-        .foregroundStyle(.muted)
-      HStack(spacing: 2) {
-        Button(heroOnRight ? "move left" : "move right") {
-          withAnimation(.easeInOut(duration: .milliseconds(1500))) {
-            heroOnRight.toggle()
-          }
-        }
-      }
-      .focusSection()
-      // Two HStack orderings swapped based on state.  The
-      // Text("★ hero") is tagged with matchedGeometryEffect(id:in:)
-      // scoped to the heroNamespace, so the controller recognizes
-      // it as the same view across the swap and animates the
-      // translation between the two slots.
-      HStack(spacing: 3) {
-        if !heroOnRight {
-          Text("★ hero")
-            .foregroundStyle(Color.yellow)
-            .matchedGeometryEffect(id: "hero", in: heroNamespace)
-          Text("(empty)")
-            .foregroundStyle(.muted)
-        } else {
-          Text("(empty)")
-            .foregroundStyle(.muted)
-          Text("★ hero")
-            .foregroundStyle(Color.yellow)
-            .matchedGeometryEffect(id: "hero", in: heroNamespace)
-        }
-      }
-    }
-  }
-
-  // MARK: - PhaseAnimator auto-cycling demo
-
-  private var phaseAnimatorSection: some View {
-    VStack(alignment: .leading, spacing: 0) {
-      Text("7. PhaseAnimator — auto-cycles through phases on its own")
-        .foregroundStyle(.muted)
-      PhaseAnimator([PhaseDemoPhase.red, .yellow, .green, .cyan]) { phase in
-        Text("●●●●●●●●●●●●●●●●")
-          .foregroundStyle(phase.color)
-          .offset(x: phase.offsetX, y: 0)
-      } animation: { phase in
-        switch phase {
-        case .red: .linear(duration: .milliseconds(600))
-        case .yellow: .easeInOut(duration: .milliseconds(600))
-        case .green: .spring(duration: .milliseconds(800), bounce: 0.3)
-        case .cyan: .easeInOut(duration: .milliseconds(600))
-        }
-      }
-    }
-  }
-
-  // MARK: - PhaseAnimator trigger-driven demo
-
-  private var triggerPhaseAnimatorSection: some View {
-    VStack(alignment: .leading, spacing: 0) {
-      Text(
-        "8. PhaseAnimator(trigger:) — one bounce per tap, then returns to rest"
-      )
+  /// The muted section title. `number` is stable across pages.
+  func sectionTitle(_ number: Int, _ title: String) -> some View {
+    Text("\(number). \(title)")
       .foregroundStyle(.muted)
-      HStack(spacing: 2) {
-        Button("bounce") {
-          bounceTrigger += 1
-        }
-        Text("taps: \(bounceTrigger)")
-          .foregroundStyle(.separator)
+  }
+
+  /// One sentence: what the reader should see and roughly how long it takes.
+  func expectLine(_ text: String) -> some View {
+    Text("expect: \(text)")
+      .foregroundStyle(.separator)
+  }
+
+  /// Live readout of the value(s) the section animates.
+  func stateLine(_ text: String) -> some View {
+    Text("state: \(text)")
+      .foregroundStyle(.separator)
+  }
+
+  /// One page: a scroll view over its sections, separated by dividers.
+  func pageScroll<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+    ScrollView {
+      VStack(alignment: .leading, spacing: 1) {
+        content()
+        Spacer(minLength: 0)
       }
-      .focusSection()
-      PhaseAnimator(
-        [BouncePhase.rest, .up, .down, .rest],
-        trigger: bounceTrigger
-      ) { phase in
-        Text("★ bounce ★")
-          .foregroundStyle(phase.color)
-          .offset(x: 0, y: phase.offsetY)
-      } animation: { phase in
-        switch phase {
-        case .rest: .easeInOut(duration: .milliseconds(400))
-        case .up: .spring(duration: .milliseconds(500), bounce: 0.4)
-        case .down: .easeInOut(duration: .milliseconds(400))
-        }
-      }
     }
-  }
-
-  // MARK: - withAnimation completion callback
-
-  private var completionSection: some View {
-    VStack(alignment: .leading, spacing: 0) {
-      Text("9. withAnimation completion callback — fires once per batch drain")
-        .foregroundStyle(.muted)
-      HStack(spacing: 2) {
-        Button("run") {
-          withAnimation(.easeInOut(duration: .milliseconds(1200))) {
-            completionAccent.toggle()
-          } completion: {
-            completionRuns += 1
-          }
-        }
-      }
-      .focusSection()
-      Text("completed runs: \(completionRuns)")
-        .foregroundStyle(.separator)
-      Text("accent bar:")
-        .foregroundStyle(.muted)
-      Text("██████████████████████")
-        .foregroundStyle(completionAccent ? Color.magenta : Color.green)
-    }
-  }
-}
-
-/// Phase values used by the PhaseAnimator demo section.  Each
-/// phase pairs a color with an x-offset so the marker visibly
-/// cycles color and position together.
-enum PhaseDemoPhase: Equatable, Sendable {
-  case red
-  case yellow
-  case green
-  case cyan
-
-  var color: Color {
-    switch self {
-    case .red: .red
-    case .yellow: .yellow
-    case .green: .green
-    case .cyan: .cyan
-    }
-  }
-
-  var offsetX: Int {
-    switch self {
-    case .red: 0
-    case .yellow: 10
-    case .green: 20
-    case .cyan: 10
-    }
-  }
-}
-
-/// Phase values for the trigger-driven PhaseAnimator demo.  The
-/// sequence `[rest, up, down, rest]` models a bounce that returns
-/// to a stable rest state so each tap produces a complete round
-/// trip before the next tap.
-enum BouncePhase: Equatable, Sendable {
-  case rest
-  case up
-  case down
-
-  var offsetY: Int {
-    switch self {
-    case .rest: 0
-    case .up: -1
-    case .down: 1
-    }
-  }
-
-  var color: Color {
-    switch self {
-    case .rest: .cyan
-    case .up: .yellow
-    case .down: .magenta
-    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   }
 }

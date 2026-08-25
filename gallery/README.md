@@ -49,7 +49,7 @@ terminal workspace with a command palette.
 | Presentation Lab | alert, confirmationDialog, sheet, toast, boolean and item popovers, popoverTip, and paletteSheet |
 | Navigation & Collections | NavigationStack, navigationDestination, OutlineGroup, lazy stacks, list selection, and table selection |
 | Images | Image attachments, rendered image placement, and `SwiftTUIAnimatedImage` playback |
-| Animations | Runtime invalidation and animated presentation |
+| Animations | Five pages (Basics, Transitions, Matched, Keyframes, Transactions) of numbered sections; each section states what to expect and prints the value it animates. `--animations-page <key>` opens a page directly |
 | File Drop | File-drop authoring surface |
 | Pointer Lab | SpatialTapGesture, DragGesture, long press, contentShape, and named coordinate spaces |
 | Focus Context | FocusedValue, FocusedBinding, and toolbar/status consumers of focused child state |
@@ -61,8 +61,27 @@ terminal workspace with a command palette.
 | --- | --- |
 | `Ctrl+K` | Open the command palette |
 | `--tab <key>` | Launch directly on a named tab (CLI flag) |
+| `--animations-page <key>` | Launch the Animations tab on a page: `basics`, `transitions`, `matched`, `keyframes`, or `transactions` (CLI flag) |
 
 The gallery exercises the same command and presentation surfaces that apps use.
+
+### Animations
+
+Open a page directly, for example the PhaseAnimator loop on Keyframes:
+
+```bash
+swiftly run swift run --package-path gallery gallery-demo --tab animations --animations-page keyframes
+```
+
+Every section prints an `expect:` line (what you should see and roughly how
+long it takes) and a `state:` line (the value the animation drives), so
+"did it animate?" and "did it end where it should?" are answerable from the
+screen. Section numbers are stable across pages; cite them in bug reports.
+
+Set `SWIFTTUI_REDUCE_MOTION=1` to see the static end states without the
+interpolation. For a still image, build the gallery first, then run
+`Scripts/screenshot_gallery.sh out.png animations` from the repository root
+(macOS with kitty; see the script header for permissions).
 
 ## Test
 

@@ -14,9 +14,15 @@ struct GalleryDemoApp: App {
   @Option(help: "Open the gallery on a specific tab.")
   var tab: GalleryView.GalleryTab?
 
+  @Option(help: "Open the Animations tab on a specific page (implies --tab animations).")
+  var animationsPage: AnimationsPage?
+
   var body: some Scene {
     WindowGroup {
-      GalleryView(initialTab: tab)
+      GalleryView(
+        initialTab: tab ?? (animationsPage == nil ? nil : .animations),
+        initialAnimationsPage: animationsPage
+      )
     }
   }
 }
@@ -30,3 +36,7 @@ extension GalleryView.GalleryTab: ExpressibleByArgument {
     allCases.map(\.key)
   }
 }
+
+// String-backed and CaseIterable, so ArgumentParser derives the parser and
+// the help listing from the raw values.
+extension AnimationsPage: ExpressibleByArgument {}

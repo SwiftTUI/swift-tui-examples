@@ -8,8 +8,13 @@ public struct GalleryView: View {
   // to its tab if the tab owned it. See `LifeTab`.
   @State private var lifeModel = LifeModel()
 
-  public init(initialTab: GalleryTab? = nil) {
+  // The page the Animations tab opens on. Held as a plain value: the tab
+  // owns the live selection as its own @State.
+  private let initialAnimationsPage: AnimationsPage
+
+  public init(initialTab: GalleryTab? = nil, initialAnimationsPage: AnimationsPage? = nil) {
     _selection = State(initialValue: initialTab ?? .logo)
+    self.initialAnimationsPage = initialAnimationsPage ?? .basics
   }
 
   public var body: some View {
@@ -53,7 +58,7 @@ public struct GalleryView: View {
         ImagesTab()
       }
       Tab(Self.descriptor(for: .animations).title, value: GalleryTab.animations) {
-        AnimationsTab()
+        AnimationsTab(initialPage: initialAnimationsPage)
       }
       Tab(Self.descriptor(for: .fileDrop).title, value: GalleryTab.fileDrop) {
         FileDropTab()
@@ -282,7 +287,10 @@ extension GalleryView {
       value: .animations,
       title: "Animations",
       key: "animations",
-      coverageTags: ["with-animation", "transitions", "phase-animator"]
+      coverageTags: [
+        "with-animation", "transitions", "phase-animator", "matched-geometry",
+        "keyframe-animator", "transactions",
+      ]
     ),
     .init(
       value: .fileDrop,

@@ -11,7 +11,7 @@ import Testing
 @Suite(.serialized)
 struct AnimationRegressionTests {
   @Test(
-    "AnimationsTab offset button commits animated offset while PhaseAnimator is visible")
+    "AnimationsTab offset button commits animated offset on the Basics page")
   func animationsTabOffsetButtonCommitsAnimatedOffsetWhilePhaseAnimatorIsVisible()
     async throws
   {
@@ -19,7 +19,7 @@ struct AnimationRegressionTests {
     let rootIdentity = Identity(components: [.named("AnimationsTabOffsetRegression")])
     let buttonLocation = try Self.centerOfText(
       "right",
-      in: AnimationsTab(),
+      in: AnimationsTab(initialPage: .basics),
       terminalSize: terminalSize,
       rootIdentity: rootIdentity
     )
@@ -52,7 +52,8 @@ struct AnimationRegressionTests {
           )
           return markerColumnsAfterToggle.contains(initialColumn + 30)
         },
-        .event(.key(KeyPress(.character("d"), modifiers: .ctrl))),
+        // Ctrl+C is the framework's default exit binding (swift-tui 11a77aa0).
+        .event(.key(KeyPress(.character("c"), modifiers: .ctrl))),
       ])
 
     let result = try await Self.runHarness(
@@ -60,7 +61,7 @@ struct AnimationRegressionTests {
       terminalSize: terminalSize,
       rootIdentity: rootIdentity,
       inputReader: inputReader,
-      viewBuilder: { AnimationsTab() }
+      viewBuilder: { AnimationsTab(initialPage: .basics) }
     )
 
     // Fails with the named budget diagnostic if the animation stopped
@@ -72,7 +73,7 @@ struct AnimationRegressionTests {
     let finalColumn = startingColumn + 30
     let renderedFinalFrame = markerColumnsAfterToggle.contains(finalColumn)
 
-    #expect(result.exitReason == .userExit(KeyPress(.character("d"), modifiers: .ctrl)))
+    #expect(result.exitReason == .userExit(KeyPress(.character("c"), modifiers: .ctrl)))
     #expect(
       renderedFinalFrame,
       """
@@ -93,7 +94,7 @@ struct AnimationRegressionTests {
     let rootIdentity = Self.sceneRootIdentity(sceneID)
     let buttonLocation = try Self.centerOfText(
       "right",
-      in: AnimationsTab(),
+      in: AnimationsTab(initialPage: .basics),
       terminalSize: terminalSize,
       rootIdentity: rootIdentity
     )
@@ -131,7 +132,7 @@ struct AnimationRegressionTests {
           )
           return markerColumnsAfterToggle.contains(initialColumn + 30)
         },
-        .event(.key(KeyPress(.character("d"), modifiers: .ctrl))),
+        .event(.key(KeyPress(.character("c"), modifiers: .ctrl))),
       ])
 
     let result = try await Self.runDiagnosticsSceneHarness(
@@ -140,14 +141,14 @@ struct AnimationRegressionTests {
       sceneID: sceneID,
       inputReader: inputReader,
       diagnosticsPath: diagnosticsURL.path,
-      viewBuilder: { AnimationsTab() }
+      viewBuilder: { AnimationsTab(initialPage: .basics) }
     )
 
     try await inputReader.requireNoWaitFailure()
 
     let startingColumn = try #require(initialColumn)
     let finalColumn = startingColumn + 30
-    #expect(result.exitReason == .userExit(KeyPress(.character("d"), modifiers: .ctrl)))
+    #expect(result.exitReason == .userExit(KeyPress(.character("c"), modifiers: .ctrl)))
     #expect(
       markerColumnsAfterToggle.contains(finalColumn),
       "expected the diagnostic probe to click the real gallery offset button"
