@@ -25,7 +25,6 @@ let package = Package(
   dependencies: [
     .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.9.9"),
     .package(url: "https://github.com/SwiftTUI/swift-tui-charts.git", exact: "0.9.9"),
-    .package(url: "https://github.com/swiftlang/swift-syntax.git", exact: "603.0.2"),
   ],
   targets: [
     .executableTarget(
@@ -60,12 +59,11 @@ let package = Package(
       ],
       path: "Plugins/LayoutSourceSnippetPlugin"
     ),
+    // Plain-Swift source scanner, deliberately dependency-free: swift-syntax
+    // cost every build of this package (and LayoutsSwiftUI) ~7 minutes of
+    // release compile. See the header of Plugins/LayoutSnippetGenerator/main.swift.
     .executableTarget(
       name: "LayoutSnippetGenerator",
-      dependencies: [
-        .product(name: "SwiftParser", package: "swift-syntax"),
-        .product(name: "SwiftSyntax", package: "swift-syntax"),
-      ],
       path: "Plugins/LayoutSnippetGenerator"
     ),
   ]

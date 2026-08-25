@@ -1,6 +1,19 @@
 import Foundation
-import SwiftParser
-import SwiftSyntax
+
+// Build-tool executable behind `LayoutSourceSnippetPlugin`. Given every Swift
+// source of the `Layouts` target it emits `LayoutSourceSnippets.byID`, mapping
+// each catalog entry id to the whole source file of the layout it displays.
+//
+// This used to parse the sources with SwiftSyntax/SwiftParser. That pulled
+// swift-syntax 603 into every build of this package (and, transitively, of
+// LayoutsSwiftUI): ~7 minutes of release compile on the Linux examples lane
+// for a tool that only needs two facts per file — which structs it declares,
+// and which `LayoutEntry(id:…, makeView: { AnyView(<Type>()) })` calls it
+// contains. The scanner below recovers exactly those two facts with plain
+// string processing (comment- and string-literal-aware, brace-depth tracked,
+// so a `struct` mentioned in a doc comment or nested inside another struct is
+// treated the way the syntax visitor treated it) and renders byte-identical
+// output; the swap was proven by diffing the generated file before and after.
 
 @main
 struct LayoutSnippetGenerator {
@@ -34,15 +47,13 @@ private struct GeneratedSnippets {
 
     for sourceURL in sourceURLs.sorted(by: { $0.path < $1.path }) {
       let source = try String(contentsOf: sourceURL, encoding: .utf8)
-      let tree = Parser.parse(source: source)
-      let collector = LayoutSourceCollector(viewMode: .sourceAccurate)
-      collector.walk(tree)
+      let scan = LayoutSourceScan(source: source)
 
       let snippet = displaySnippet(from: source)
-      for structName in collector.structNames {
+      for structName in scan.structNames {
         snippetsByTypeName[structName] = snippet
       }
-      entriesByID.merge(collector.entriesByID) { current, _ in current }
+      entriesByID.merge(scan.entriesByID) { current, _ in current }
     }
 
     var snippetsByID: [String: String] = [:]
@@ -105,81 +116,550 @@ private struct GeneratedSnippets {
   }
 }
 
-private final class LayoutSourceCollector: SyntaxVisitor {
-  var entriesByID: [String: String] = [:]
-  var structNames: Set<String> = []
+/// The two facts the generator needs from one source file.
+///
+/// `structNames` mirrors a syntax visitor that records every `StructDecl` and
+/// skips its children: structs nested inside another struct are not recorded,
+/// structs nested inside enums, classes, extensions, or functions are.
+/// `entriesByID` mirrors a visitor over `LayoutEntry(...)` calls whose callee
+/// is spelled exactly `LayoutEntry`: it records the `id:` string literal's raw
+/// contents and the type name (last dotted component) of the first
+/// `AnyView(<Type>(...))` inside the `makeView:` argument.
+private struct LayoutSourceScan {
+  private(set) var structNames: Set<String> = []
+  private(set) var entriesByID: [String: String] = [:]
 
-  override func visit(_ node: StructDeclSyntax) -> SyntaxVisitorContinueKind {
-    structNames.insert(node.name.text)
-    return .skipChildren
+  init(source: String) {
+    let characters = Array(source)
+    // Two length-preserving views over the same character array, so an
+    // offset found in one is valid in the other:
+    //   code     — comments blanked, string literals intact (for reading
+    //              the `id:` literal text);
+    //   skeleton — comments AND string-literal contents blanked (for
+    //              structural scanning: keywords, braces, parentheses).
+    let code = SourceMask.blankingComments(characters)
+    let skeleton = SourceMask.blankingStringContents(code)
+
+    structNames = Self.collectStructNames(skeleton: skeleton)
+    entriesByID = Self.collectEntries(skeleton: skeleton, code: code)
   }
 
-  override func visit(_ node: FunctionCallExprSyntax) -> SyntaxVisitorContinueKind {
-    guard node.calledExpression.trimmedDescription == "LayoutEntry" else {
-      return .visitChildren
+  private static func collectStructNames(skeleton: [Character]) -> Set<String> {
+    var names: Set<String> = []
+    var depth = 0
+    var enclosingStructDepths: [Int] = []
+    var awaitingStructBody = false
+    var index = 0
+
+    while index < skeleton.count {
+      let character = skeleton[index]
+
+      if character == "{" {
+        if awaitingStructBody {
+          enclosingStructDepths.append(depth)
+          awaitingStructBody = false
+        }
+        depth += 1
+        index += 1
+        continue
+      }
+
+      if character == "}" {
+        depth -= 1
+        if let innermost = enclosingStructDepths.last, innermost == depth {
+          enclosingStructDepths.removeLast()
+        }
+        index += 1
+        continue
+      }
+
+      guard character.isIdentifierStart, index == 0 || !skeleton[index - 1].isIdentifierPart else {
+        index += 1
+        continue
+      }
+
+      let (word, wordEnd) = Self.identifier(in: skeleton, from: index)
+      index = wordEnd
+
+      guard word == "struct" else {
+        continue
+      }
+
+      var nameStart = wordEnd
+      while nameStart < skeleton.count, skeleton[nameStart].isWhitespace {
+        nameStart += 1
+      }
+      guard nameStart < skeleton.count, skeleton[nameStart].isIdentifierStart else {
+        continue
+      }
+
+      let (name, nameEnd) = Self.identifier(in: skeleton, from: nameStart)
+      index = nameEnd
+
+      // A struct nested inside another struct is not recorded, but its body
+      // still opens a struct scope so its own nested structs stay hidden too.
+      if enclosingStructDepths.isEmpty {
+        names.insert(name)
+      }
+      awaitingStructBody = true
     }
 
-    var id: String?
-    var makeViewExpression: ExprSyntax?
+    return names
+  }
 
-    for argument in node.arguments {
-      switch argument.label?.text {
-      case "id":
-        id = stringLiteralValue(argument.expression)
-      case "makeView":
-        makeViewExpression = argument.expression
+  private static func collectEntries(skeleton: [Character], code: [Character]) -> [String: String] {
+    var entries: [String: String] = [:]
+    var index = 0
+
+    while index < skeleton.count {
+      guard skeleton[index].isIdentifierStart else {
+        index += 1
+        continue
+      }
+      if index > 0 {
+        let previous = skeleton[index - 1]
+        if previous.isIdentifierPart || previous == "." {
+          index += 1
+          continue
+        }
+      }
+
+      let (word, wordEnd) = Self.identifier(in: skeleton, from: index)
+      index = wordEnd
+      guard word == "LayoutEntry" else {
+        continue
+      }
+
+      var openParen = wordEnd
+      while openParen < skeleton.count, skeleton[openParen].isWhitespace {
+        openParen += 1
+      }
+      guard openParen < skeleton.count, skeleton[openParen] == "(" else {
+        continue
+      }
+      guard let closeParen = Self.matchingCloseParenthesis(in: skeleton, openingAt: openParen) else {
+        break
+      }
+
+      var id: String?
+      var makeViewRange: Range<Int>?
+      for argument in Self.topLevelArguments(in: skeleton, range: (openParen + 1)..<closeParen) {
+        switch argument.label {
+        case "id":
+          id = Self.stringLiteralValue(code: code, range: argument.expression)
+        case "makeView":
+          makeViewRange = argument.expression
+        default:
+          break
+        }
+      }
+
+      if
+        let id,
+        let makeViewRange,
+        let typeName = Self.makeViewTypeName(skeleton: skeleton, code: code, range: makeViewRange)
+      {
+        entries[id] = typeName
+      }
+
+      index = closeParen + 1
+    }
+
+    return entries
+  }
+
+  private struct Argument {
+    let label: String?
+    let expression: Range<Int>
+  }
+
+  /// Splits an argument list into `label: expression` pieces at commas that
+  /// sit at nesting depth zero (parentheses, brackets, and braces).
+  private static func topLevelArguments(in skeleton: [Character], range: Range<Int>) -> [Argument] {
+    var arguments: [Argument] = []
+    var depth = 0
+    var pieceStart = range.lowerBound
+
+    func flush(_ end: Int) {
+      let trimmed = Self.trimmedRange(in: skeleton, range: pieceStart..<end)
+      guard !trimmed.isEmpty else {
+        return
+      }
+      arguments.append(Self.argument(in: skeleton, range: trimmed))
+    }
+
+    var index = range.lowerBound
+    while index < range.upperBound {
+      switch skeleton[index] {
+      case "(", "[", "{":
+        depth += 1
+      case ")", "]", "}":
+        depth -= 1
+      case ",":
+        if depth == 0 {
+          flush(index)
+          pieceStart = index + 1
+        }
       default:
         break
       }
+      index += 1
     }
+    flush(range.upperBound)
 
-    if
-      let id,
-      let makeViewExpression,
-      let typeName = makeViewTypeName(in: makeViewExpression)
-    {
-      entriesByID[id] = typeName
-    }
-
-    return .skipChildren
+    return arguments
   }
 
-  private func stringLiteralValue(_ expression: ExprSyntax) -> String? {
-    let text = expression.trimmedDescription
-    guard text.first == "\"", text.last == "\"" else {
+  private static func argument(in skeleton: [Character], range: Range<Int>) -> Argument {
+    guard range.lowerBound < range.upperBound, skeleton[range.lowerBound].isIdentifierStart else {
+      return Argument(label: nil, expression: range)
+    }
+
+    let (label, labelEnd) = Self.identifier(in: skeleton, from: range.lowerBound)
+    var colon = labelEnd
+    while colon < range.upperBound, skeleton[colon].isWhitespace {
+      colon += 1
+    }
+    guard colon < range.upperBound, skeleton[colon] == ":" else {
+      return Argument(label: nil, expression: range)
+    }
+
+    let expression = Self.trimmedRange(in: skeleton, range: (colon + 1)..<range.upperBound)
+    return Argument(label: label, expression: expression)
+  }
+
+  /// The raw contents of a plain `"..."` literal (no unescaping), matching
+  /// the previous visitor's `trimmedDescription.dropFirst().dropLast()`.
+  private static func stringLiteralValue(code: [Character], range: Range<Int>) -> String? {
+    guard
+      range.count >= 2,
+      code[range.lowerBound] == "\"",
+      code[range.upperBound - 1] == "\""
+    else {
       return nil
     }
 
-    return String(text.dropFirst().dropLast())
+    return String(code[(range.lowerBound + 1)..<(range.upperBound - 1)])
   }
 
-  private func makeViewTypeName(in expression: ExprSyntax) -> String? {
-    let visitor = AnyViewTypeCollector(viewMode: .sourceAccurate)
-    visitor.walk(Syntax(expression))
-    return visitor.typeName
+  /// The callee of the first `AnyView(<callee>(...))` inside the expression:
+  /// `AnyView` followed by a call whose callee is a (dotted, possibly generic)
+  /// type reference, reduced to its last dotted component.
+  private static func makeViewTypeName(skeleton: [Character], code: [Character], range: Range<Int>) -> String? {
+    var index = range.lowerBound
+
+    while index < range.upperBound {
+      guard skeleton[index].isIdentifierStart, index == 0 || !skeleton[index - 1].isIdentifierPart else {
+        index += 1
+        continue
+      }
+
+      let (word, wordEnd) = Self.identifier(in: skeleton, from: index)
+      index = wordEnd
+      guard word == "AnyView" else {
+        continue
+      }
+
+      var cursor = wordEnd
+      while cursor < range.upperBound, skeleton[cursor].isWhitespace {
+        cursor += 1
+      }
+      guard cursor < range.upperBound, skeleton[cursor] == "(" else {
+        continue
+      }
+      cursor += 1
+      while cursor < range.upperBound, skeleton[cursor].isWhitespace {
+        cursor += 1
+      }
+      guard cursor < range.upperBound, skeleton[cursor].isIdentifierStart else {
+        continue
+      }
+
+      let calleeStart = cursor
+      var calleeEnd = Self.identifier(in: skeleton, from: cursor).end
+      while calleeEnd < range.upperBound, skeleton[calleeEnd] == ".",
+        calleeEnd + 1 < range.upperBound, skeleton[calleeEnd + 1].isIdentifierStart
+      {
+        calleeEnd = Self.identifier(in: skeleton, from: calleeEnd + 1).end
+      }
+      if calleeEnd < range.upperBound, skeleton[calleeEnd] == "<",
+        let genericEnd = Self.matchingCloseAngle(in: skeleton, openingAt: calleeEnd, limit: range.upperBound)
+      {
+        calleeEnd = genericEnd + 1
+      }
+
+      var afterCallee = calleeEnd
+      while afterCallee < range.upperBound, skeleton[afterCallee].isWhitespace {
+        afterCallee += 1
+      }
+      guard afterCallee < range.upperBound, skeleton[afterCallee] == "(" else {
+        continue
+      }
+
+      let callee = String(code[calleeStart..<calleeEnd])
+      return callee
+        .split(separator: ".")
+        .last
+        .map(String.init)
+    }
+
+    return nil
+  }
+
+  private static func identifier(in characters: [Character], from start: Int) -> (name: String, end: Int) {
+    var end = start
+    while end < characters.count, characters[end].isIdentifierPart {
+      end += 1
+    }
+    return (String(characters[start..<end]), end)
+  }
+
+  private static func trimmedRange(in characters: [Character], range: Range<Int>) -> Range<Int> {
+    var lower = range.lowerBound
+    var upper = range.upperBound
+    while lower < upper, characters[lower].isWhitespace {
+      lower += 1
+    }
+    while upper > lower, characters[upper - 1].isWhitespace {
+      upper -= 1
+    }
+    return lower..<upper
+  }
+
+  private static func matchingCloseParenthesis(in characters: [Character], openingAt open: Int) -> Int? {
+    var depth = 0
+    var index = open
+    while index < characters.count {
+      switch characters[index] {
+      case "(":
+        depth += 1
+      case ")":
+        depth -= 1
+        if depth == 0 {
+          return index
+        }
+      default:
+        break
+      }
+      index += 1
+    }
+    return nil
+  }
+
+  private static func matchingCloseAngle(in characters: [Character], openingAt open: Int, limit: Int) -> Int? {
+    var depth = 0
+    var index = open
+    while index < limit {
+      switch characters[index] {
+      case "<":
+        depth += 1
+      case ">":
+        depth -= 1
+        if depth == 0 {
+          return index
+        }
+      case "(", ")", "{", "}":
+        return nil
+      default:
+        break
+      }
+      index += 1
+    }
+    return nil
   }
 }
 
-private final class AnyViewTypeCollector: SyntaxVisitor {
-  var typeName: String?
+/// Length-preserving masks over a character array: every blanked character
+/// becomes a space (newlines are kept so line structure survives), so offsets
+/// computed on a masked view address the same characters in the original.
+private enum SourceMask {
+  /// Blanks `//` line comments and (nested) `/* */` block comments. String
+  /// literals are recognised so a `//` inside one is not a comment.
+  static func blankingComments(_ source: [Character]) -> [Character] {
+    var result = source
+    var index = 0
 
-  override func visit(_ node: FunctionCallExprSyntax) -> SyntaxVisitorContinueKind {
-    guard typeName == nil else {
-      return .skipChildren
+    while index < source.count {
+      let character = source[index]
+
+      if character == "\"" || (character == "#" && Self.isRawStringOpener(source, at: index)) {
+        index = Self.skipStringLiteral(source, from: index)
+        continue
+      }
+
+      if character == "/", index + 1 < source.count {
+        let next = source[index + 1]
+        if next == "/" {
+          while index < source.count, source[index] != "\n" {
+            result[index] = " "
+            index += 1
+          }
+          continue
+        }
+        if next == "*" {
+          var depth = 0
+          while index < source.count {
+            if source[index] == "/", index + 1 < source.count, source[index + 1] == "*" {
+              depth += 1
+              result[index] = " "
+              result[index + 1] = " "
+              index += 2
+              continue
+            }
+            if source[index] == "*", index + 1 < source.count, source[index + 1] == "/" {
+              depth -= 1
+              result[index] = " "
+              result[index + 1] = " "
+              index += 2
+              if depth == 0 {
+                break
+              }
+              continue
+            }
+            if source[index] != "\n" {
+              result[index] = " "
+            }
+            index += 1
+          }
+          continue
+        }
+      }
+
+      index += 1
     }
 
-    guard
-      node.calledExpression.trimmedDescription == "AnyView",
-      let viewInitializer = node.arguments.first?.expression.as(FunctionCallExprSyntax.self)
-    else {
-      return .visitChildren
+    return result
+  }
+
+  /// Blanks the interior of every string literal on a view whose comments are
+  /// already blanked. The delimiters (`#`s and quotes) are kept, so a literal
+  /// still occupies its span for range trimming and still reads as a literal
+  /// to the argument parser; only its contents can no longer be mistaken for
+  /// code.
+  static func blankingStringContents(_ code: [Character]) -> [Character] {
+    var result = code
+    var index = 0
+
+    while index < code.count {
+      let character = code[index]
+      guard character == "\"" || (character == "#" && Self.isRawStringOpener(code, at: index)) else {
+        index += 1
+        continue
+      }
+
+      let literal = Self.stringLiteralSpan(code, from: index)
+      let interiorStart = index + literal.openingLength
+      let interiorEnd = max(interiorStart, literal.end - literal.closingLength)
+      for blank in interiorStart..<interiorEnd where code[blank] != "\n" {
+        result[blank] = " "
+      }
+      index = literal.end
     }
 
-    typeName = viewInitializer.calledExpression.trimmedDescription
-      .split(separator: ".")
-      .last
-      .map(String.init)
-    return .skipChildren
+    return result
+  }
+
+  private static func isRawStringOpener(_ characters: [Character], at index: Int) -> Bool {
+    var cursor = index
+    while cursor < characters.count, characters[cursor] == "#" {
+      cursor += 1
+    }
+    return cursor < characters.count && characters[cursor] == "\""
+  }
+
+  private struct StringLiteralSpan {
+    /// Index just past the literal.
+    let end: Int
+    /// Length of the opening delimiter (`#`s plus quotes).
+    let openingLength: Int
+    /// Length of the closing delimiter, or 0 when the literal is unterminated.
+    let closingLength: Int
+  }
+
+  private static func skipStringLiteral(_ characters: [Character], from start: Int) -> Int {
+    Self.stringLiteralSpan(characters, from: start).end
+  }
+
+  /// Measures the string literal that opens at `start` (plain, multi-line, or
+  /// raw with any number of `#`).
+  private static func stringLiteralSpan(_ characters: [Character], from start: Int) -> StringLiteralSpan {
+    var index = start
+    var hashes = 0
+    while index < characters.count, characters[index] == "#" {
+      hashes += 1
+      index += 1
+    }
+    guard index < characters.count, characters[index] == "\"" else {
+      return StringLiteralSpan(end: start + 1, openingLength: 1, closingLength: 0)
+    }
+
+    let isMultiline = index + 2 < characters.count
+      && characters[index + 1] == "\"" && characters[index + 2] == "\""
+    let quoteLength = isMultiline ? 3 : 1
+    let openingLength = hashes + quoteLength
+    let closingLength = quoteLength + hashes
+    index += quoteLength
+
+    while index < characters.count {
+      let character = characters[index]
+
+      if character == "\\" {
+        // An escape is `\` followed by exactly the raw literal's hashes; any
+        // other backslash in a raw literal is ordinary text.
+        var cursor = index + 1
+        var seen = 0
+        while cursor < characters.count, characters[cursor] == "#", seen < hashes {
+          cursor += 1
+          seen += 1
+        }
+        if seen == hashes {
+          index = cursor + 1
+        } else {
+          index += 1
+        }
+        continue
+      }
+
+      if character == "\"" {
+        var cursor = index
+        var quotes = 0
+        while cursor < characters.count, characters[cursor] == "\"", quotes < quoteLength {
+          cursor += 1
+          quotes += 1
+        }
+        if quotes == quoteLength {
+          var closingHashes = 0
+          while cursor < characters.count, characters[cursor] == "#", closingHashes < hashes {
+            cursor += 1
+            closingHashes += 1
+          }
+          if closingHashes == hashes {
+            return StringLiteralSpan(end: cursor, openingLength: openingLength, closingLength: closingLength)
+          }
+        }
+        index += max(quotes, 1)
+        continue
+      }
+
+      if !isMultiline, character == "\n" {
+        // An unterminated single-line literal ends at the line break.
+        return StringLiteralSpan(end: index, openingLength: openingLength, closingLength: 0)
+      }
+
+      index += 1
+    }
+
+    return StringLiteralSpan(end: characters.count, openingLength: openingLength, closingLength: 0)
+  }
+}
+
+extension Character {
+  fileprivate var isIdentifierStart: Bool {
+    self == "_" || isLetter
+  }
+
+  fileprivate var isIdentifierPart: Bool {
+    self == "_" || isLetter || isNumber
   }
 }
 
