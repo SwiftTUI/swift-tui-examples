@@ -521,7 +521,7 @@ struct LogoBreakerGestureTests {
         .awaitCondition {
           deduplicated(host.surfaces).count >= 2
         },
-        .event(.key(KeyPress(.character("d"), modifiers: .ctrl))),
+        .event(.key(KeyPress(.character("c"), modifiers: .ctrl))),
       ])
     let result = try await runHarness(
       host: host,
@@ -532,7 +532,7 @@ struct LogoBreakerGestureTests {
     )
     try await inputReader.requireNoWaitFailure()
 
-    #expect(result.exitReason == .userExit(KeyPress(.character("d"), modifiers: .ctrl)))
+    #expect(result.exitReason == .userExit(KeyPress(.character("c"), modifiers: .ctrl)))
     #expect(result.renderedFrames >= 2)
 
     let uniqueSurfaces = deduplicated(host.surfaces)
@@ -766,7 +766,7 @@ struct LogoBreakerGestureTests {
         .awaitCondition {
           deduplicated(host.surfaces).count >= 2
         },
-        .event(.key(KeyPress(.character("d"), modifiers: .ctrl))),
+        .event(.key(KeyPress(.character("c"), modifiers: .ctrl))),
       ])
 
     let result = try await runHarness(
@@ -783,7 +783,7 @@ struct LogoBreakerGestureTests {
     )
     try await inputReader.requireNoWaitFailure()
 
-    #expect(result.exitReason == .userExit(KeyPress(.character("d"), modifiers: .ctrl)))
+    #expect(result.exitReason == .userExit(KeyPress(.character("c"), modifiers: .ctrl)))
     #expect(!host.surfaces.isEmpty)
     let missingPalette = host.surfaces.enumerated().filter { _, surface in
       !surface.lines.contains { $0.contains("⌃K Palette") }

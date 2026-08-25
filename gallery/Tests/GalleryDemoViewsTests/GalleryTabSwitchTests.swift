@@ -272,7 +272,7 @@ struct GalleryTabSwitchTests {
             capture.postDismissSurface = surface
             return true
           },
-          .event(.key(KeyPress(.character("d"), modifiers: .ctrl))),
+          .event(.key(KeyPress(.character("c"), modifiers: .ctrl))),
         ]),
       terminalSize: terminalSize,
       rootIdentity: rootIdentity,
@@ -284,7 +284,7 @@ struct GalleryTabSwitchTests {
     let postDismissSurface = try #require(capture.postDismissSurface)
     let postDismissText = postDismissSurface.lines.joined(separator: "\n")
 
-    #expect(result.exitReason == .userExit(KeyPress(.character("d"), modifiers: .ctrl)))
+    #expect(result.exitReason == .userExit(KeyPress(.character("c"), modifiers: .ctrl)))
     #expect(
       prePaletteSurface != initialPhysicsSurface,
       "expected fullscreen animation to advance before opening the palette"
@@ -337,14 +337,14 @@ struct GalleryTabSwitchTests {
           .awaitCondition {
             deduplicated(host.surfaces).count >= capture.surfaceCountAtFirstPhysicsFrame + 2
           },
-          .event(.key(KeyPress(.character("d"), modifiers: .ctrl))),
+          .event(.key(KeyPress(.character("c"), modifiers: .ctrl))),
         ]),
       terminalSize: terminalSize,
       rootIdentity: rootIdentity,
       viewBuilder: { view }
     )
 
-    #expect(result.exitReason == .userExit(KeyPress(.character("d"), modifiers: .ctrl)))
+    #expect(result.exitReason == .userExit(KeyPress(.character("c"), modifiers: .ctrl)))
 
     let uniqueSurfaces = deduplicated(host.surfaces)
     #expect(
@@ -406,14 +406,14 @@ struct GalleryTabSwitchTests {
           .awaitCondition {
             deduplicated(host.surfaces).count >= capture.surfaceCountAtFirstPhysicsFrame + 2
           },
-          .event(.key(KeyPress(.character("d"), modifiers: .ctrl))),
+          .event(.key(KeyPress(.character("c"), modifiers: .ctrl))),
         ]),
       terminalSize: terminalSize,
       rootIdentity: rootIdentity,
       viewBuilder: { view }
     )
 
-    #expect(result.exitReason == .userExit(KeyPress(.character("d"), modifiers: .ctrl)))
+    #expect(result.exitReason == .userExit(KeyPress(.character("c"), modifiers: .ctrl)))
 
     let uniqueSurfaces = deduplicated(host.surfaces)
     #expect(
@@ -476,7 +476,7 @@ struct GalleryTabSwitchTests {
           .awaitCondition {
             deduplicated(host.surfaces).count >= expandedSurfaceCount + 3
           },
-          .event(.key(KeyPress(.character("d"), modifiers: .ctrl))),
+          .event(.key(KeyPress(.character("c"), modifiers: .ctrl))),
         ]),
       terminalSize: terminalSize,
       rootIdentity: rootIdentity,
@@ -484,7 +484,7 @@ struct GalleryTabSwitchTests {
       viewBuilder: { view }
     )
 
-    #expect(result.exitReason == .userExit(KeyPress(.character("d"), modifiers: .ctrl)))
+    #expect(result.exitReason == .userExit(KeyPress(.character("c"), modifiers: .ctrl)))
 
     let surfacesAfterTrigger = Array(deduplicated(host.surfaces).dropFirst(surfaceCountAtTrigger))
     let missingMenuSurfaces = surfacesAfterTrigger.filter { surface in
@@ -550,14 +550,14 @@ struct GalleryTabSwitchTests {
           .awaitCondition {
             deduplicated(host.surfaces).count >= capture.surfaceCountAtRelease + 3
           },
-          .event(.key(KeyPress(.character("d"), modifiers: .ctrl))),
+          .event(.key(KeyPress(.character("c"), modifiers: .ctrl))),
         ]),
       terminalSize: terminalSize,
       rootIdentity: rootIdentity,
       viewBuilder: { view }
     )
 
-    #expect(result.exitReason == .userExit(KeyPress(.character("d"), modifiers: .ctrl)))
+    #expect(result.exitReason == .userExit(KeyPress(.character("c"), modifiers: .ctrl)))
     #expect(
       capture.surfaceCountAtRelease >= 4,
       "expected gravity-driven frames before dragging the gallery Logo Breaker tab"
@@ -763,7 +763,7 @@ struct GalleryTabSwitchTests {
             capture.paletteSurface = surface
             return true
           },
-          .event(.key(KeyPress(.character("d"), modifiers: .ctrl))),
+          .event(.key(KeyPress(.character("c"), modifiers: .ctrl))),
         ]),
       terminalSize: terminalSize,
       rootIdentity: rootIdentity,
@@ -772,7 +772,7 @@ struct GalleryTabSwitchTests {
 
     let paletteSurface = try #require(capture.paletteSurface)
     let paletteText = paletteSurface.lines.joined(separator: "\n")
-    #expect(result.exitReason == .userExit(KeyPress(.character("d"), modifiers: .ctrl)))
+    #expect(result.exitReason == .userExit(KeyPress(.character("c"), modifiers: .ctrl)))
     #expect(
       !paletteText.contains("No commands in the current scope."),
       "expected gallery palette commands; surface was:\n\(paletteText)"
@@ -1195,14 +1195,14 @@ struct GalleryTabSwitchTests {
             return !text.contains("Reset presentation state?")
               && text.contains("Confirmation reset")
           },
-          .event(.key(KeyPress(.character("d"), modifiers: .ctrl))),
+          .event(.key(KeyPress(.character("c"), modifiers: .ctrl))),
         ]),
       terminalSize: terminalSize,
       rootIdentity: rootIdentity,
       viewBuilder: { PresentationLabTab() }
     )
 
-    #expect(result.exitReason == .userExit(KeyPress(.character("d"), modifiers: .ctrl)))
+    #expect(result.exitReason == .userExit(KeyPress(.character("c"), modifiers: .ctrl)))
     let finalText = try #require(host.lastPresentedSurface).lines.joined(separator: "\n")
     #expect(!finalText.contains("Sheet content"))
     #expect(!finalText.contains("Reset presentation state?"))
@@ -1241,7 +1241,7 @@ struct GalleryTabSwitchTests {
             }
             return !containsSeedHarnessPaletteSurface(text)
           },
-          .event(.key(KeyPress(.character("d"), modifiers: .ctrl))),
+          .event(.key(KeyPress(.character("c"), modifiers: .ctrl))),
         ]),
       terminalSize: terminalSize,
       rootIdentity: rootIdentity,
@@ -1249,7 +1249,7 @@ struct GalleryTabSwitchTests {
       viewBuilder: { view }
     )
 
-    #expect(result.exitReason == .userExit(KeyPress(.character("d"), modifiers: .ctrl)))
+    #expect(result.exitReason == .userExit(KeyPress(.character("c"), modifiers: .ctrl)))
     #expect(
       host.surfaces.contains {
         containsSeedHarnessPaletteSurface($0.lines.joined(separator: "\n"))

@@ -151,7 +151,7 @@ struct GifCatViewTests {
 
     #expect(
       result.exitReason
-        == RunLoopExitReason.userExit(KeyPress(.character("d"), modifiers: .ctrl))
+        == RunLoopExitReason.userExit(KeyPress(.character("c"), modifiers: .ctrl))
     )
     for expectedReference in expectedSecondFrameReferences {
       #expect(host.observedReferences.contains(expectedReference))
@@ -300,7 +300,7 @@ private final class GifCatConditionalInputReader: InputReading {
       let frameSignal = self.frameSignal
       let task = Task { @MainActor in
         await frameSignal.wait(until: shouldExit)
-        continuation.yield(KeyPress(.character("d"), modifiers: .ctrl))
+        continuation.yield(KeyPress(.character("c"), modifiers: .ctrl))
         continuation.finish()
       }
 

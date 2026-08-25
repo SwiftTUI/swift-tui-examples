@@ -95,7 +95,7 @@ struct BordersAndShapesTabTests {
     // a confusing shortfall.
     try await inputReader.requireNoWaitFailure()
 
-    #expect(result.exitReason == .userExit(KeyPress(.character("d"), modifiers: .ctrl)))
+    #expect(result.exitReason == .userExit(KeyPress(.character("c"), modifiers: .ctrl)))
     #expect(
       result.renderedFrames >= 3,
       "expected the real BordersAndShapesTab to keep scheduling animation ticks; renderedFrames=\(result.renderedFrames)"
@@ -181,7 +181,7 @@ private final class GalleryGateInputReader: TerminalInputReading {
           continuation.finish()
           return
         }
-        continuation.yield(.key(KeyPress(.character("d"), modifiers: .ctrl)))
+        continuation.yield(.key(KeyPress(.character("c"), modifiers: .ctrl)))
         continuation.finish()
       }
 
