@@ -14,9 +14,9 @@ from typing import Any
 PUBLIC_DEPENDENCIES = {
     "swift-tui": {
         "url": "https://github.com/SwiftTUI/swift-tui.git",
-        "lower": "0.9.8",
-        "resolved": "0.9.8",
-        "revision": "36a70d2d339eefff5d2e2de8224e971097526e97",
+        "lower": "0.9.9",
+        "resolved": "0.9.9",
+        "revision": "50aa131d33e8cdfab92b688239f12e9d1278e62d",
     }
 }
 SWIFT_TUI_CONTRACT = PUBLIC_DEPENDENCIES["swift-tui"]
