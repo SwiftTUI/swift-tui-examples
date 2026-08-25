@@ -47,7 +47,8 @@ let package = Package(
         .product(name: "SwiftTUIProfiling", package: "swift-tui"),
         .product(name: "SwiftTUIRuntime", package: "swift-tui"),
         .product(name: "SwiftTUITestSupport", package: "swift-tui"),
-      ]
+      ],
+      resources: [.copy("Fixtures")]
     ),
   ]
 )

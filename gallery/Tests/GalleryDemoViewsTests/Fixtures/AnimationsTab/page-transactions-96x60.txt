@@ -1,0 +1,60 @@
+
+ Animations
+ Pick a page. Each section says what to expect and prints the value it animates.
+
+ Page
+ ╭─────────────────────────────────────────────────────────╮
+ │Basics │ Transitions │ Matched │ Keyframes │ Transactions│
+ ╰─────────────────────────────────────────────────────────╯
+
+ ──────────────────────────────────────────────────────────────────────────────────────────────
+
+ 14. withTransaction(\.disablesAnimations, true) inside withAnimation                         ▐
+ expect: the left button cross-fades the bar green/magenta over 1.2 s; the right button flips ▐
+ it instantly                                                                                 ▐
+  animate    snap                                                                             ▐
+ ██████████████████████████████                                                               ▐
+ state: accent=false lastWrite=none                                                           ▐
+                                                                                              ▐
+ ─────────────────────────────────────────────────────────────────────────────────────────────▐
+                                                                                              ▐
+ 15. .transaction(value: count / 10) animates only when the tens digit changes                ▐
+ expect: single steps snap; crossing a ten slides the counter 4 cells and recolors it over 0.8▐
+ s                                                                                            ▐
+  +1    +10                                                                                   ▐
+ ▶ 0                                                                                          ▐
+ state: count=0 tens=0                                                                        ▐
+                                                                                              ▐
+ ─────────────────────────────────────────────────────────────────────────────────────────────▐
+                                                                                              ▐
+ 16. .animation(_:body:) and .transaction(_:body:) scope one modifier                         ▐
+ expect: top: slides 24 cells over 1.2 s while its color flips instantly; bottom: slides while▐
+ its opacity snaps                                                                            ▐
+  shift (plain write)    shift (withAnimation)                                                ▐
+ ▶ scoped offset                                                                              ▐
+ ▶ held opacity                                                                               ▐
+ state: scopedShift=false heldShift=false                                                     ▐
+                                                                                              ▐
+ ─────────────────────────────────────────────────────────────────────────────────────────────▐
+                                                                                              ▐
+ 17. Transaction.addAnimationCompletion: two closures on one transaction                      ▐
+ expect: pair: bar swaps green/magenta over 1.2 s, then completions rises by two; fade:       ▐
+ removed rises only once the fade ends                                                        ▐
+  run pair    fade out                                                                        ▐
+ ██████████████████████                                                                       ▐
+ ▒▒▒▒ removable ▒▒▒▒                                                                          ▐
+ state: completions=0 accent=false shown=true removed=0                                       ▐
+
+ ─────────────────────────────────────────────────────────────────────────────────────────────
+
+ 18. tracksVelocity: drag the ◆ and release; the spring keeps the drag's velocity
+ expect: a fast drag-release overshoots home (column 20) in the drag direction, then settles;
+ a slow release does not
+  retarget spring    send home
+                     ◆
+                     ▲ home
+ state: x=20 lastDelta=0 elapsedMs=0
+
+ ─────────────────────────────────────────────────────────────────────────────────────────────
+
+

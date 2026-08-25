@@ -1,0 +1,24 @@
+
+ Animations
+ Pick a page. Each section says what to expect and prints the value it
+ animates.
+
+ Page
+ ╭─────────────────────────────────────────────────────────╮
+ │Basics │ Transitions │ Matched │ Keyframes │ Transactions│
+ ╰─────────────────────────────────────────────────────────╯
+
+ ──────────────────────────────────────────────────────────────────────────────
+
+ 1. withAnimation foreground color                                            ▐
+ expect: the bar cross-fades red to blue (or back) over 1.5 s with the chosen ▐
+ curve                                                                        ▐
+  linear   easeInOut   spring   bouncy
+ ┌────────────────────────────┐
+ │████████████████████████████│
+ └────────────────────────────┘
+ state: colorBlue=false curve=none
+
+ ─────────────────────────────────────────────────────────────────────────────
+
+

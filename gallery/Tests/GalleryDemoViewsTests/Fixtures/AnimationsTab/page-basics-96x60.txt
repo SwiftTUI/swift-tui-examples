@@ -1,0 +1,60 @@
+
+ Animations
+ Pick a page. Each section says what to expect and prints the value it animates.
+
+ Page
+ ╭─────────────────────────────────────────────────────────╮
+ │Basics │ Transitions │ Matched │ Keyframes │ Transactions│
+ ╰─────────────────────────────────────────────────────────╯
+
+ ──────────────────────────────────────────────────────────────────────────────────────────────
+
+ 1. withAnimation foreground color
+ expect: the bar cross-fades red to blue (or back) over 1.5 s with the chosen curve
+  linear   easeInOut   spring   bouncy
+ ┌────────────────────────────┐
+ │████████████████████████████│
+ └────────────────────────────┘
+ state: colorBlue=false curve=none
+
+ ──────────────────────────────────────────────────────────────────────────────────────────────
+
+ 3. frame animation via .frame(maxWidth:) under .smooth
+ expect: the centered label's slot widens from 12 to 40 cells (or back) over 1.5 s
+  narrow    wide
+    narrow
+ state: wide=false
+
+ ──────────────────────────────────────────────────────────────────────────────────────────────
+
+ 4. .offset(x:y:) animation via withAnimation state change
+ expect: the magenta marker glides to column 0, 15, or 30 over 1.2 s; spring overshoots
+  left    center    right    spring
+ ▶ slide me
+ state: offsetX=0
+
+ ──────────────────────────────────────────────────────────────────────────────────────────────
+
+ 5. .position(x:y:) absolute placement animated via withAnimation
+ expect: the ◎ marker glides between the four corners of its slot over 1.2 s
+  NW    NE    SW    SE
+
+
+           ◎
+
+
+
+ state: positionX=10 positionY=2
+
+ ──────────────────────────────────────────────────────────────────────────────────────────────
+
+ 9. withAnimation completion callback
+ expect: the bar swaps green/magenta over 1.2 s, then completions goes up by one
+  run
+ ██████████████████████
+ state: completionAccent=false completions=0
+
+
+
+
+

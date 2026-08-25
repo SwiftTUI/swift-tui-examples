@@ -1,0 +1,24 @@
+
+ Animations
+ Pick a page. Each section says what to expect and prints the value it
+ animates.
+
+ Page
+ ╭─────────────────────────────────────────────────────────╮
+ │Basics │ Transitions │ Matched │ Keyframes │ Transactions│
+ ╰─────────────────────────────────────────────────────────╯
+
+ ──────────────────────────────────────────────────────────────────────────────
+
+ 2. .transition(...) insertion and removal                                    ▐
+ expect: FADE dissolves in place; SLIDE moves in from the left and out to the ▐
+ right; 1.2 s each                                                            ▐
+  fade out    slide out                                                       ▐
+ ╔════════════╗  ╔══════════════╗                                             ▐
+ ║▛▀▘▞▀▖▛▀▖▛▀▘║  ║▞▀▖▌  ▜▘▛▀▖▛▀▘║                                             ▐
+ ║▙▄ ▙▄▌▌ ▌▙▄ ║  ║▚▄ ▌  ▐ ▌ ▌▙▄ ║                                             ▐
+ ║▌  ▌ ▌▌ ▌▌  ║  ║▖ ▌▌  ▐ ▌ ▌▌  ║                                             ▐
+ ║▘  ▘ ▘▀▀ ▀▀▘║  ║▝▀ ▀▀▘▀▘▀▀ ▀▀▘║                                             ▐
+ ╚════════════╝  ╚══════════════╝                                             ▐
+ state: showFade=true showSlide=true                                          ▐
+

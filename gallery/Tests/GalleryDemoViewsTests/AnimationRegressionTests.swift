@@ -17,7 +17,7 @@ struct AnimationRegressionTests {
   {
     let terminalSize = CellSize(width: 96, height: 60)
     let rootIdentity = Identity(components: [.named("AnimationsTabOffsetRegression")])
-    let buttonLocation = try Self.centerOfText(
+    let buttonLocation = try AnimationRegressionHarness.centerOfText(
       "right",
       in: AnimationsTab(initialPage: .basics),
       terminalSize: terminalSize,
@@ -56,7 +56,7 @@ struct AnimationRegressionTests {
         .event(.key(KeyPress(.character("c"), modifiers: .ctrl))),
       ])
 
-    let result = try await Self.runHarness(
+    let result = try await AnimationRegressionHarness.run(
       host: host,
       terminalSize: terminalSize,
       rootIdentity: rootIdentity,
@@ -92,7 +92,7 @@ struct AnimationRegressionTests {
     let terminalSize = CellSize(width: 96, height: 60)
     let sceneID = "AnimationsTabOffsetDiagnostics"
     let rootIdentity = Self.sceneRootIdentity(sceneID)
-    let buttonLocation = try Self.centerOfText(
+    let buttonLocation = try AnimationRegressionHarness.centerOfText(
       "right",
       in: AnimationsTab(initialPage: .basics),
       terminalSize: terminalSize,
@@ -214,46 +214,6 @@ struct AnimationRegressionTests {
     }
   }
 
-  private static func centerOfText(
-    _ target: String,
-    in view: some View,
-    terminalSize: CellSize,
-    rootIdentity: Identity
-  ) throws -> Point {
-    var env = EnvironmentValues()
-    env.terminalSize = terminalSize
-    let artifacts = DefaultRenderer().render(
-      AnyView(view),
-      context: .init(identity: rootIdentity, environmentValues: env),
-      proposal: .init(width: terminalSize.width, height: terminalSize.height)
-    )
-    let bounds = try #require(Self.boundsOfText(target, in: artifacts.rasterSurface))
-    return Point(
-      CellPoint(
-        x: bounds.origin.x + bounds.size.width / 2,
-        y: bounds.origin.y + bounds.size.height / 2
-      )
-    )
-  }
-
-  private static func boundsOfText(
-    _ target: String,
-    in surface: RasterSurface
-  ) -> CellRect? {
-    for (row, line) in surface.lines.enumerated() {
-      guard let range = line.range(of: target) else {
-        continue
-      }
-
-      let column = line.distance(from: line.startIndex, to: range.lowerBound)
-      return CellRect(
-        origin: CellPoint(x: column, y: row),
-        size: CellSize(width: target.count, height: 1)
-      )
-    }
-    return nil
-  }
-
   private static func sceneRootIdentity(_ sceneID: String) -> Identity {
     Identity(components: ["App", WindowIdentifier(sceneID).rawValue])
   }
@@ -267,34 +227,6 @@ struct AnimationRegressionTests {
       }
       .first
     }
-  }
-
-  private static func runHarness<V: View>(
-    host: AnimationRegressionRecordingHost,
-    terminalSize: CellSize,
-    rootIdentity: Identity,
-    inputReader: any TerminalInputReading,
-    viewBuilder: @escaping () -> V
-  ) async throws -> RunLoopResult<Int> {
-    var env = EnvironmentValues()
-    env.terminalAppearance = host.appearance
-    env.terminalSize = terminalSize
-    let runLoop = RunLoop(
-      rootIdentity: rootIdentity,
-      presentationSurface: host,
-      terminalInputReader: inputReader,
-      signalReader: AnimationRegressionEmptySignals(),
-      scheduler: FrameScheduler(),
-      stateContainer: StateContainer(
-        initialState: 0,
-        invalidationIdentities: [rootIdentity]
-      ),
-      focusTracker: FocusTracker(invalidationIdentities: [rootIdentity]),
-      environmentValues: env,
-      proposal: .init(width: terminalSize.width, height: terminalSize.height),
-      viewBuilder: { _, _ in viewBuilder() }
-    )
-    return try await runLoop.run()
   }
 
   private static func runDiagnosticsSceneHarness<V: View>(
@@ -345,127 +277,5 @@ struct AnimationRegressionTests {
       }
       return row
     }
-  }
-}
-
-private enum AnimationRegressionAwaitedInputStep {
-  case event(InputEvent)
-  /// Suspends the input script until `predicate` holds, re-evaluated only when
-  /// the host presents a new frame (`frameSignal.notify()`) rather than on a
-  /// clock — so a merely *starved* run loop slows the test rather than failing
-  /// it.
-  ///
-  /// The wait carries a last-resort wall-clock ceiling (see
-  /// ``withGalleryWaitCeiling``): if the animation stops presenting entirely,
-  /// no further `notify()` ever arrives and the predicate can never be
-  /// re-checked. Before that ceiling existed this step could park forever — on
-  /// 2026-08-19 it hung the org examples gate for its full 1h15m cap three
-  /// runs running, silent for 47 minutes.
-  case awaitCondition(predicate: @MainActor () -> Bool)
-}
-
-private final class AnimationRegressionAwaitedInputReader: TerminalInputReading {
-  private let steps: [AnimationRegressionAwaitedInputStep]
-  private let frameSignal: MainActorConditionSignal
-  private let waitCeilingNanoseconds: UInt64
-  private let waitFailure = GalleryWaitFailureRecorder()
-
-  init(
-    frameSignal: MainActorConditionSignal,
-    waitCeilingNanoseconds: UInt64 = galleryWaitCeilingNanoseconds,
-    steps: [AnimationRegressionAwaitedInputStep]
-  ) {
-    self.frameSignal = frameSignal
-    self.waitCeilingNanoseconds = waitCeilingNanoseconds
-    self.steps = steps
-  }
-
-  @MainActor
-  func requireNoWaitFailure() async throws {
-    try await waitFailure.requireNoFailure()
-  }
-
-  func inputEvents() -> AsyncStream<InputEvent> {
-    AsyncStream { continuation in
-      let steps = self.steps
-      let frameSignal = self.frameSignal
-      let waitCeilingNanoseconds = self.waitCeilingNanoseconds
-      let waitFailure = self.waitFailure
-      let task = Task { @MainActor in
-        for (index, step) in steps.enumerated() {
-          switch step {
-          case .event(let event):
-            continuation.yield(event)
-          case .awaitCondition(let predicate):
-            do {
-              try await withGalleryWaitCeiling(
-                "animation regression awaited input step \(index)",
-                nanoseconds: waitCeilingNanoseconds
-              ) {
-                await frameSignal.wait(until: predicate)
-              }
-            } catch let failure as GalleryWaitCeilingExceeded {
-              await waitFailure.record(failure)
-              continuation.finish()
-              return
-            } catch {
-              continuation.finish()
-              return
-            }
-          }
-        }
-        continuation.finish()
-      }
-
-      continuation.onTermination = { _ in
-        task.cancel()
-      }
-    }
-  }
-}
-
-private final class AnimationRegressionEmptySignals: SignalReading {
-  func events() -> AsyncStream<String> {
-    AsyncStream { continuation in
-      continuation.finish()
-    }
-  }
-}
-
-private final class AnimationRegressionRecordingHost: PresentationSurface {
-  let surfaceSize: CellSize
-  let capabilityProfile: TerminalCapabilityProfile = .previewUnicode
-  let appearance: TerminalAppearance = .fallback
-  private(set) var surfaces: [RasterSurface] = []
-
-  /// Notified after every present, so an awaited input step can re-check its
-  /// predicate the instant a frame lands instead of polling under a timeout.
-  let frameSignal = MainActorConditionSignal()
-
-  init(size: CellSize) {
-    surfaceSize = size
-  }
-
-  func enableRawMode() throws {}
-  func disableRawMode() throws {}
-  func write(_: String) throws {}
-  func clearScreen() throws {}
-  func moveCursor(to _: CellPoint) throws {}
-
-  @discardableResult
-  func present(_ surface: RasterSurface) throws -> TerminalPresentationMetrics {
-    surfaces.append(surface)
-    // The run loop only ever presents on the MainActor; `assumeIsolated`
-    // bridges this nonisolated witness to the MainActor-isolated signal.
-    let frameSignal = self.frameSignal
-    MainActor.assumeIsolated {
-      frameSignal.notify()
-    }
-    return .init(
-      bytesWritten: 0,
-      linesTouched: surface.size.height,
-      cellsChanged: surface.size.width * surface.size.height,
-      strategy: .fullRepaint
-    )
   }
 }

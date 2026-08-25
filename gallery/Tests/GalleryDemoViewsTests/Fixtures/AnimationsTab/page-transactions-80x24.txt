@@ -1,0 +1,24 @@
+
+ Animations
+ Pick a page. Each section says what to expect and prints the value it
+ animates.
+
+ Page
+ ╭─────────────────────────────────────────────────────────╮
+ │Basics │ Transitions │ Matched │ Keyframes │ Transactions│
+ ╰─────────────────────────────────────────────────────────╯
+
+ ──────────────────────────────────────────────────────────────────────────────
+
+ 14. withTransaction(\.disablesAnimations, true) inside withAnimation         ▐
+ expect: the left button cross-fades the bar green/magenta over 1.2 s; the    ▐
+ right button flips it instantly
+  animate    snap
+ ██████████████████████████████
+ state: accent=false lastWrite=none
+
+ ─────────────────────────────────────────────────────────────────────────────
+
+ 15. .transaction(value: count / 10) animates only when the tens digit changes
+ expect: single steps snap; crossing a ten slides the counter 4 cells and
+

@@ -1,0 +1,24 @@
+
+ Animations
+ Pick a page. Each section says what to expect and prints the value it
+ animates.
+
+ Page
+ ╭─────────────────────────────────────────────────────────╮
+ │Basics │ Transitions │ Matched │ Keyframes │ Transactions│
+ ╰─────────────────────────────────────────────────────────╯
+
+ ──────────────────────────────────────────────────────────────────────────────
+
+ 6. matchedGeometryEffect: badge slides and resizes between two slots         ▐
+ expect: badge slides right AND its box grows over 1.5 s; position only slides▐
+ (box snaps), size grows in place                                             ▐
+  move right                                                                  ▐
+ properties                 anchor                                            ▐
+ ╭───────────────────────╮  ╭────────────────────────────────────╮            ▐
+ │frame │ position │ size│  │center │ topLeading │ bottomTrailing│            ▐
+ ╰───────────────────────╯  ╰────────────────────────────────────╯            ▐
+ ┌─────────┐   ┌──────────────────┐
+ │  ★9x1   │   │                  │
+ └─────────┘   │     (empty)      │
+

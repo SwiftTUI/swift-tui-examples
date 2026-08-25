@@ -78,10 +78,44 @@ long it takes) and a `state:` line (the value the animation drives), so
 "did it animate?" and "did it end where it should?" are answerable from the
 screen. Section numbers are stable across pages; cite them in bug reports.
 
+The pages and their sections:
+
+- **Basics**: 1 foreground color, 3 frame, 4 offset, 5 position, 9 completion
+  callback.
+- **Transitions**: 2 insertion and removal transitions.
+- **Matched**: 6 `matchedGeometryEffect` with `properties` and `anchor`
+  pickers (section 13, co-present adoption, is skipped; that stage was
+  deferred).
+- **Keyframes**: 7 `PhaseAnimator` loop (the tab's one always-on loop), 8
+  `PhaseAnimator(trigger:)`, 10 `KeyframeAnimator(trigger:)`, 11
+  `KeyframeAnimator(repeating:)` (stopped until you press start), 12 a static
+  `KeyframeTimeline` curve strip.
+- **Transactions**: 14 `withTransaction(\.disablesAnimations, true)`, 15
+  `.transaction(value:)`, 16 `.animation(_:body:)` and `.transaction(_:body:)`,
+  17 `Transaction.addAnimationCompletion`, 18 `tracksVelocity` fling (drag the
+  `◆` with the pointer), 19 `Animation.logicallyComplete(after:)`, 20
+  `Binding.animation`.
+
 Set `SWIFTTUI_REDUCE_MOTION=1` to see the static end states without the
 interpolation. For a still image, build the gallery first, then run
 `Scripts/screenshot_gallery.sh out.png animations` from the repository root
 (macOS with kitty; see the script header for permissions).
+
+For a reviewable recording with no terminal involved, run the gated runtime
+suite with a frame-strip directory. Each section's test then writes
+`<section>.txt`: one block per presented frame with its timestamp and the
+section's `state:` line, diffable in any editor:
+
+```bash
+GALLERY_RUNTIME_TESTS=1 GALLERY_FRAME_STRIP_DIR=/tmp/gallery-strips \
+  swiftly run swift test --package-path gallery --filter AnimationSectionRuntimeTests
+```
+
+The rest state of every page (at 96x60 and 80x24) and the section 12 curve
+strips are snapshot fixtures under `Tests/GalleryDemoViewsTests/Fixtures/AnimationsTab/`.
+After an intentional layout change, refresh them with
+`GALLERY_UPDATE_FIXTURES=1 swiftly run swift test --package-path gallery --filter AnimationsTabPagesTests`
+and review the diff.
 
 ## Test
 
