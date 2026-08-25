@@ -107,13 +107,31 @@ host).
 
 ## Tests
 
-Run `bun run check:focused` for all focused behavior tests. To test one example,
-run `swiftly run swift test --package-path <example>`. The repository gates also
-build examples that have no focused test suite. See the
+CI runs three lanes (`.github/workflows/`):
+
+- **Framework seam** (`bun run check:linux`, every push and pull request):
+  builds every package in debug and runs the suites that exercise SwiftTUI
+  behaviour — WebHostExample, mrkdwn's view/model/journey suites, csvui's
+  view-contract and journey suites, gallery, gifcat. Every step runs under a
+  silence watchdog (`Scripts/lib/step_watchdog.sh`), so a hang is killed with
+  a thread dump after minutes instead of running to the job cap.
+- **App logic** (`bun run check:focused`, or `--package <name>` for one):
+  gifeditor, sextant, git-viz, terminal-workspace, and the mrkdwn/csvui
+  domain suites. These test the apps rather than the framework, so they run
+  when their package changes, on dispatch, and on release tags.
+- **Framework HEAD seam** (`.github/workflows/framework-head.yml`, every six
+  hours, skipped when nothing landed): the framework-seam lane against the
+  `main` branches of swift-tui and swift-tui-charts.
+  `Scripts/localize_siblings.sh` clones the siblings, copies this repository
+  into a throwaway directory, rewrites the copy's manifests to local paths,
+  and runs the gate there; the committed manifests keep their tags.
+
+To test one example, run `swiftly run swift test --package-path <example>`.
+Release-configuration builds (`bun run check:release`) and the macOS lane run
+on release tags and on demand. See the
 [coverage document](docs/EXAMPLE-COVERAGE.md) for the `check:linux`,
-`check:macos`, `check:web`, and `check` build gates and their
-scratch-directory environment variables, and [`AGENTS.md`](AGENTS.md) for the
-toolchain policy.
+`check:macos`, and `check` build gates and their scratch-directory
+environment variables, and [`AGENTS.md`](AGENTS.md) for the toolchain policy.
 
 ## License
 

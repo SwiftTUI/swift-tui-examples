@@ -185,7 +185,7 @@ if [[ "$*" == *" dump-package" ]]; then
 fi
 if [[ "$*" == *" test list "* ]]; then
   while [ "$#" -gt 1 ]; do
-    if [ "$1" = "--filter" ]; then
+    if [ "$1" = "--filter" ] || [ "$1" = "--skip" ]; then
       printf '%s\n' "$2"
     fi
     shift
@@ -332,7 +332,7 @@ PATH="$fake_bin:$PATH" \
   SWIFTTUI_EXAMPLES_PYTHON_LOG="$python_log" \
   SWIFTTUI_EXAMPLES_XCODE_LOG="$xcode_log" \
   SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH="$scratch_path" \
-  "$repo_root/Scripts/check_examples.sh" --skip-bun-install >/dev/null
+  "$repo_root/Scripts/check_examples.sh" --skip-bun-install --release-builds >/dev/null
 
 missing_scratch="$tmpdir/missing-scratch.log"
 if ! awk -v scratch="$scratch_path" '
@@ -375,7 +375,7 @@ PATH="$fake_bin:$PATH" \
   SWIFTTUI_EXAMPLES_PYTHON_LOG="$python_log" \
   SWIFTTUI_EXAMPLES_XCODE_LOG="$xcode_log" \
   SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH="$scratch_path" \
-  "$repo_root/Scripts/check_examples_linux.sh" --skip-bun-install >/dev/null
+  "$repo_root/Scripts/check_examples_linux.sh" --skip-bun-install --release-builds >/dev/null
 
 if [ -s "$xcode_log" ]; then
   echo "Did not expect the Linux examples lane to invoke xcodebuild" >&2
@@ -418,7 +418,7 @@ if ! grep -Eq -- \
 fi
 
 if ! grep -Eq -- \
-  "test --package-path .*/mrkdwn --scratch-path $scratch_path" \
+  "test --package-path .*/mrkdwn --filter .* --scratch-path $scratch_path" \
   "$swiftly_log"; then
   echo "Expected the Linux lane to test mrkdwn through the shared scratch path" >&2
   cat "$swiftly_log" >&2
@@ -442,7 +442,7 @@ if ! grep -Eq -- \
 fi
 
 if ! grep -Eq -- \
-  "test --package-path .*/csvui --scratch-path $scratch_path" \
+  "test --package-path .*/csvui --filter CSVUITests.CSVViewContractTests --scratch-path $scratch_path" \
   "$swiftly_log"; then
   echo "Expected the Linux lane to test csvui through the shared scratch path" >&2
   cat "$swiftly_log" >&2
@@ -461,7 +461,7 @@ PATH="$fake_bin:$PATH" \
   SWIFTTUI_EXAMPLES_PYTHON_LOG="$python_log" \
   SWIFTTUI_EXAMPLES_XCODE_LOG="$xcode_log" \
   SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH="$scratch_path" \
-  "$repo_root/Scripts/check_examples_macos.sh" --skip-clean >/dev/null
+  "$repo_root/Scripts/check_examples_macos.sh" --skip-clean --release-builds >/dev/null
 
 if [ -s "$bun_log" ]; then
   echo "Did not expect the macOS examples lane to invoke bun" >&2
@@ -504,7 +504,7 @@ if ! grep -Eq -- \
 fi
 
 if ! grep -Eq -- \
-  "test --package-path .*/mrkdwn --scratch-path $scratch_path" \
+  "test --package-path .*/mrkdwn --filter .* --scratch-path $scratch_path" \
   "$swiftly_log"; then
   echo "Expected the macOS lane to test mrkdwn through the shared scratch path" >&2
   cat "$swiftly_log" >&2
@@ -553,22 +553,70 @@ if ! awk -v scratch="$scratch_path" '
   exit 1
 fi
 
-if ! grep -Fq -- "run swift test --package-path gallery --scratch-path $scratch_path" "$swiftly_log"; then
-  echo "Expected the focused examples lane to test gallery through the shared scratch path" >&2
+if ! grep -Fq -- "run swift test --package-path gifeditor --scratch-path $scratch_path" "$swiftly_log"; then
+  echo "Expected the app-logic lane to test gifeditor through the shared scratch path" >&2
   cat "$swiftly_log" >&2
   exit 1
 fi
 
 if ! grep -Fq -- "run swift test --package-path sextant --scratch-path $scratch_path" "$swiftly_log"; then
-  echo "Expected the focused examples lane to test sextant through the shared scratch path" >&2
+  echo "Expected the app-logic lane to test sextant through the shared scratch path" >&2
   cat "$swiftly_log" >&2
   exit 1
 fi
 
 if ! grep -Eq -- \
-  "run swift test --package-path .*/mrkdwn --scratch-path $scratch_path" \
+  "run swift test --package-path .*/mrkdwn --skip .* --scratch-path $scratch_path" \
   "$swiftly_log"; then
-  echo "Expected the focused examples lane to test mrkdwn through the shared scratch path" >&2
+  echo "Expected the app-logic lane to test mrkdwn's app-logic suites through the shared scratch path" >&2
+  cat "$swiftly_log" >&2
+  exit 1
+fi
+
+: >"$swiftly_log"
+: >"$python_log"
+: >"$xcode_log"
+PATH="$fake_bin:$PATH" \
+  SWIFTTUI_CHECKOUT="$framework_root" \
+  SWIFTTUI_WEB_CHECKOUT="$web_root" \
+  SWIFTTUI_EXAMPLES_SWIFTLY_LOG="$swiftly_log" \
+  SWIFTTUI_EXAMPLES_BUN_LOG="$bun_log" \
+  SWIFTTUI_EXAMPLES_PYTHON_LOG="$python_log" \
+  SWIFTTUI_EXAMPLES_XCODE_LOG="$xcode_log" \
+  SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH="$scratch_path" \
+  "$repo_root/Scripts/check_examples_linux.sh" --skip-bun-install >/dev/null
+
+if grep -Fq -- "build -c release" "$swiftly_log"; then
+  echo "Did not expect a release build on the push lane without --release-builds" >&2
+  cat "$swiftly_log" >&2
+  exit 1
+fi
+
+if grep -Fq -- "release/gallery-demo" "$python_log"; then
+  echo "Did not expect the release stack-safety harness without --release-builds" >&2
+  cat "$python_log" >&2
+  exit 1
+fi
+
+: >"$swiftly_log"
+: >"$python_log"
+PATH="$fake_bin:$PATH" \
+  SWIFTTUI_CHECKOUT="$framework_root" \
+  SWIFTTUI_EXAMPLES_SWIFTLY_LOG="$swiftly_log" \
+  SWIFTTUI_EXAMPLES_BUN_LOG="$bun_log" \
+  SWIFTTUI_EXAMPLES_PYTHON_LOG="$python_log" \
+  SWIFTTUI_EXAMPLES_XCODE_LOG="$xcode_log" \
+  SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH="$scratch_path" \
+  "$repo_root/Scripts/check_examples_focused_tests.sh" --package sextant >/dev/null
+
+if ! grep -Fq -- "run swift test --package-path sextant --scratch-path $scratch_path" "$swiftly_log"; then
+  echo "Expected --package sextant to run the sextant suite" >&2
+  cat "$swiftly_log" >&2
+  exit 1
+fi
+
+if grep -Eq -- "run swift test --package-path (gifeditor|git-viz|terminal-workspace|.*/mrkdwn|.*/csvui)" "$swiftly_log"; then
+  echo "Did not expect --package sextant to run any other package" >&2
   cat "$swiftly_log" >&2
   exit 1
 fi

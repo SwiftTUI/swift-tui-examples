@@ -1,9 +1,27 @@
 name: Test
 
+# Lane shape (swift-tui-org plan 2026-08-25-001 Stage 3):
+#
+#   linux-examples  framework seam — every push/PR. Builds every package
+#                   (debug) and runs the suites that exercise SwiftTUI
+#                   behaviour (Scripts/check_examples.sh --linux-only).
+#   app-logic       the examples' own domain-logic suites, one matrix job per
+#                   package, only when that package (or the lane itself)
+#                   changed; every package on dispatch and on tags
+#                   (Scripts/check_examples_focused_tests.sh --package X).
+#   macos-examples  dispatch (`run_macos`) and tags only.
+#
+# On a release tag (`*.*.*`) everything runs, the framework seam adds release
+# builds, and nothing is cancelled. Every step runs under a silence watchdog
+# (Scripts/lib/step_watchdog.sh) with gdb hang dumps enabled, so a wedged
+# test costs ~5 minutes and leaves thread backtraces instead of running to
+# the job cap.
+
 on:
   pull_request:
   push:
     branches: [main]
+    tags: ["*.*.*"]
   workflow_dispatch:
     inputs:
       run_macos:
@@ -16,21 +34,87 @@ permissions:
   contents: read
 
 # The event name keeps each trigger in its own group, so a push to main cannot
-# cancel an in-flight workflow_dispatch run (or the other way round).
+# cancel an in-flight workflow_dispatch run (or the other way round). Only the
+# short push/PR runs pre-empt each other; a tag run or a dispatch is never
+# cancelled by a later one.
 concurrency:
   group: examples-test-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')) }}
 
 env:
   SWIFTLY_VERSION: "1.1.3"
 
 jobs:
-  linux-examples:
-    name: Linux examples
+  changes:
+    name: Select app-logic packages
     runs-on: ubuntu-24.04
-    timeout-minutes: 75
+    timeout-minutes: 5
+    outputs:
+      packages: ${{ steps.select.outputs.packages }}
+    steps:
+      - name: Checkout examples
+        uses: actions/checkout@v7
+
+      - name: Detect changed packages
+        id: filter
+        if: github.event_name == 'pull_request' || (github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/'))
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            gifeditor:
+              - 'gifeditor/**'
+            sextant:
+              - 'sextant/**'
+            git-viz:
+              - 'git-viz/**'
+            terminal-workspace:
+              - 'terminal-workspace/**'
+            mrkdwn:
+              - 'mrkdwn/**'
+            csvui:
+              - 'csvui/**'
+            lane:
+              - 'Scripts/**'
+              - '.github/workflows/test.yml'
+              - '.swift-version'
+
+      - name: Build the matrix
+        id: select
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          # JSON array of the filter names that matched (empty when the
+          # filter step was skipped).
+          CHANGED: ${{ steps.filter.outputs.changes }}
+          LANE_CHANGED: ${{ steps.filter.outputs.lane }}
+        run: |
+          set -euo pipefail
+          all='["gifeditor","sextant","git-viz","terminal-workspace","mrkdwn","csvui"]'
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] || [ "${REF#refs/tags/}" != "$REF" ] || [ "$LANE_CHANGED" = "true" ]; then
+            packages="$all"
+          else
+            packages="$(python3 - "$all" "${CHANGED:-[]}" <<'PY'
+          import json, sys
+          every = json.loads(sys.argv[1])
+          changed = set(json.loads(sys.argv[2]))
+          print(json.dumps([name for name in every if name in changed]))
+          PY
+          )"
+          fi
+          echo "app-logic packages: $packages"
+          echo "packages=$packages" >> "$GITHUB_OUTPUT"
+
+  linux-examples:
+    name: Linux examples (framework seam)
+    runs-on: ubuntu-24.04
+    # Healthy warm runs are ~13 min; a hang now costs the watchdog's bound
+    # (5-10 min plus a gdb dump), not this cap. Release builds only join on a
+    # tag, where the cap widens with them.
+    timeout-minutes: ${{ startsWith(github.ref, 'refs/tags/') && 60 || 30 }}
     env:
       SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH: ${{ github.workspace }}/swift-tui-examples/.build/shared-swiftpm-linux
+      SWIFTTUI_HANG_DIAGNOSTICS: "1"
     steps:
       - name: Checkout examples
         uses: actions/checkout@v7
@@ -44,6 +128,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             ca-certificates \
             curl \
+            gdb \
             git \
             libcurl4-openssl-dev \
             python3 \
@@ -74,18 +159,80 @@ jobs:
       - name: Run Linux examples
         shell: bash
         working-directory: swift-tui-examples
-        run: Scripts/check_examples_linux.sh --skip-clean
+        env:
+          RELEASE_BUILDS: ${{ startsWith(github.ref, 'refs/tags/') && '--release-builds' || '' }}
+        run: Scripts/check_examples_linux.sh --skip-clean $RELEASE_BUILDS
+
+  app-logic:
+    name: App logic (${{ matrix.package }})
+    needs: changes
+    if: needs.changes.outputs.packages != '[]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJSON(needs.changes.outputs.packages) }}
+    env:
+      SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH: ${{ github.workspace }}/swift-tui-examples/.build/shared-swiftpm-app-${{ matrix.package }}
+      SWIFTTUI_HANG_DIAGNOSTICS: "1"
+    steps:
+      - name: Checkout examples
+        uses: actions/checkout@v7
+        with:
+          path: swift-tui-examples
+      - name: Install Linux example dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ca-certificates \
+            curl \
+            gdb \
+            git \
+            libcurl4-openssl-dev \
+            python3 \
+            unzip
+      - name: Cache Swiftly toolchain
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.local/share/swiftly
+            ~/.local/bin/swiftly
+          key: ${{ runner.os }}-swiftly-${{ env.SWIFTLY_VERSION }}-${{ hashFiles('swift-tui-examples/.swift-version') }}
+          restore-keys: |
+            ${{ runner.os }}-swiftly-${{ env.SWIFTLY_VERSION }}-
+      - name: Install swiftly and Swift toolchain
+        shell: bash
+        run: swift-tui-examples/Scripts/install_swift_toolchain_ci.sh swift-tui-examples/.swift-version
+      - name: Cache SwiftPM
+        uses: actions/cache@v6
+        with:
+          path: |
+            swift-tui-examples/.build/shared-swiftpm-app-${{ matrix.package }}
+            ~/.cache/org.swift.swiftpm
+            ~/.swiftpm
+          key: ${{ runner.os }}-examples-app-${{ matrix.package }}-swiftpm-${{ hashFiles(format('swift-tui-examples/{0}/Package.swift', matrix.package), format('swift-tui-examples/{0}/Package.resolved', matrix.package)) }}
+          restore-keys: |
+            ${{ runner.os }}-examples-app-${{ matrix.package }}-swiftpm-
+            ${{ runner.os }}-swiftpm-
+      - name: Run app-logic tests
+        shell: bash
+        working-directory: swift-tui-examples
+        env:
+          PACKAGE: ${{ matrix.package }}
+        run: Scripts/check_examples_focused_tests.sh --package "$PACKAGE"
 
   macos-examples:
     name: macOS examples
     runs-on: macos-26
-    # Dispatch-only by decision (2026-08-25), mirroring swift-tui's macOS repo
-    # gate: the Linux lane is the push/PR signal, and the org root's pretag
-    # gate already runs this suite against framework HEAD on Linux, so a macOS
-    # runner per push bought little. Run it on demand — `workflow_dispatch`
-    # with `run_macos` — and before a release, where macOS is the primary
-    # user platform.
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_macos }}
+    # Dispatch and tag only (decided 2026-08-25; plan 2026-08-25-001 Stage
+    # 1e/5): the Linux lanes are the push/PR signal, and macOS — the primary
+    # user platform — is verified before a release, where the tag push makes
+    # this job required. Run it on demand with `workflow_dispatch` +
+    # `run_macos`.
+    if: ${{ (github.event_name == 'workflow_dispatch' && inputs.run_macos) || startsWith(github.ref, 'refs/tags/') }}
     # Includes the gallery test suite (macOS focused smoke tests), not just
     # builds — budget headroom for a cold SwiftPM cache.
     timeout-minutes: 60
@@ -126,4 +273,6 @@ jobs:
       - name: Run macOS examples
         shell: bash
         working-directory: swift-tui-examples
-        run: Scripts/check_examples_macos.sh --skip-clean
+        env:
+          RELEASE_BUILDS: ${{ startsWith(github.ref, 'refs/tags/') && '--release-builds' || '' }}
+        run: Scripts/check_examples_macos.sh --skip-clean $RELEASE_BUILDS

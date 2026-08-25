@@ -1,0 +1,136 @@
+name: Framework HEAD seam
+
+# Builds and tests the examples against the `main` branches of swift-tui and
+# swift-tui-charts (swift-tui-org plan 2026-08-25-001 Stage 3e). This seam —
+# examples vs framework HEAD — is where a framework change first meets real
+# consumer code; it used to run in the private coordination root on every
+# root push, where it completed on 29% of runs. Here it runs on free minutes
+# every six hours and skips itself in under a minute when none of its three
+# inputs (this repo's main, swift-tui main, swift-tui-charts main) has moved
+# since its last green run (the lane-verdict cache probe, plan §6).
+#
+# The committed manifests are never modified: Scripts/localize_siblings.sh
+# clones the siblings, copies this repository into a throwaway directory,
+# rewrites the copy's Package.swift files to local path dependencies, proves
+# no tag pin survived, and runs the framework-seam gate there.
+
+on:
+  schedule:
+    - cron: "23 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: framework-head-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  SWIFTLY_VERSION: "1.1.3"
+
+jobs:
+  changes:
+    name: Skip if unchanged
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      changed: ${{ steps.probe.outputs.changed }}
+      key: ${{ steps.probe.outputs.key }}
+    steps:
+      - name: Checkout examples
+        uses: actions/checkout@v7
+
+      - name: Probe the lane verdict cache
+        id: probe
+        uses: ./.github/actions/lane-verdict-probe
+        with:
+          lane: framework-head
+          siblings: SwiftTUI/swift-tui SwiftTUI/swift-tui-charts
+
+  framework-head:
+    name: Examples vs framework HEAD (Linux)
+    needs: changes
+    if: needs.changes.outputs.changed == 'true'
+    runs-on: ubuntu-24.04
+    # Cold (new framework revision → scratch purged): the framework compiles
+    # from source once (~10 min) before the ~13 min gate. Every step is under
+    # the silence watchdog, so a hang costs minutes, not this cap.
+    timeout-minutes: 45
+    env:
+      SEAM_WORK_DIR: ${{ github.workspace }}/framework-head
+      SEAM_SCRATCH: ${{ github.workspace }}/framework-head/scratch
+      SWIFTTUI_HANG_DIAGNOSTICS: "1"
+    steps:
+      - name: Checkout examples
+        uses: actions/checkout@v7
+        with:
+          path: swift-tui-examples
+
+      - name: Install Linux example dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ca-certificates \
+            curl \
+            gdb \
+            git \
+            libcurl4-openssl-dev \
+            python3 \
+            unzip
+
+      - name: Cache Swiftly toolchain
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.local/share/swiftly
+            ~/.local/bin/swiftly
+          key: ${{ runner.os }}-swiftly-${{ env.SWIFTLY_VERSION }}-${{ hashFiles('swift-tui-examples/.swift-version') }}
+          restore-keys: |
+            ${{ runner.os }}-swiftly-${{ env.SWIFTLY_VERSION }}-
+
+      - name: Install swiftly and Swift toolchain
+        shell: bash
+        run: swift-tui-examples/Scripts/install_swift_toolchain_ci.sh swift-tui-examples/.swift-version
+
+      # Keyed on the probe's input key (examples + swift-tui + charts SHAs)
+      # with a prefix fallback. The localize script stamps the scratch with
+      # the two sibling revisions and purges it whenever either moved, so a
+      # prefix hit only buys an incremental build when the framework did not
+      # change — SwiftPM does not invalidate consumer objects across module
+      # surgery in a local sibling.
+      - name: Cache SwiftPM scratch
+        uses: actions/cache@v6
+        with:
+          path: |
+            framework-head/scratch
+            ~/.cache/org.swift.swiftpm
+            ~/.swiftpm
+          key: ${{ runner.os }}-examples-framework-head-${{ needs.changes.outputs.key }}
+          restore-keys: |
+            ${{ runner.os }}-examples-framework-head-
+
+      - name: Run the framework-seam gate against sibling HEADs
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift-tui-examples/Scripts/localize_siblings.sh \
+            --work-dir "$SEAM_WORK_DIR" \
+            --scratch "$SEAM_SCRATCH"
+
+  record:
+    name: Record green verdict
+    needs: [changes, framework-head]
+    if: needs.changes.outputs.changed == 'true' && needs.framework-head.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout examples
+        uses: actions/checkout@v7
+
+      - name: Save the verdict marker
+        uses: ./.github/actions/lane-verdict-record
+        with:
+          key: ${{ needs.changes.outputs.key }}

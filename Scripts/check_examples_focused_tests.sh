@@ -10,14 +10,40 @@ mrkdwn_package_path="$repo_root/mrkdwn"
 csvui_package_path="$repo_root/csvui"
 skip_bun_install=0
 failures=""
+selected_packages=""
+step_index=0
+timeout_count=0
+
+# Every app-logic package, in the order the lane runs them when no --package
+# is given. The CI matrix runs one package per job (see
+# .github/workflows/test.yml `app-logic`); locally the default is all six.
+all_packages="gifeditor sextant git-viz terminal-workspace mrkdwn csvui"
+
+# Silence watchdog, same library and semantics as check_examples.sh. One
+# bound for these steps: each is a `swift test` whose compile phase streams
+# progress, so a quiet 300 s means a parked test, not a slow build.
+case "$(uname -s)" in
+  Darwin) default_test_step_timeout_seconds=600 ;;
+  *) default_test_step_timeout_seconds=300 ;;
+esac
+step_timeout_seconds=${SWIFTTUI_EXAMPLES_TEST_STEP_TIMEOUT_SECONDS:-$default_test_step_timeout_seconds}
+step_timeout_kill_grace_seconds=${SWIFTTUI_EXAMPLES_TIMEOUT_KILL_GRACE_SECONDS:-10}
+step_absolute_timeout_seconds=${SWIFTTUI_EXAMPLES_STEP_ABSOLUTE_TIMEOUT_SECONDS:-$((step_timeout_seconds * 4))}
+step_output_probe_ticks=${SWIFTTUI_EXAMPLES_STEP_OUTPUT_PROBE_TICKS:-25}
 
 usage() {
   cat <<'EOF'
-Usage: Scripts/check_examples_focused_tests.sh [--skip-bun-install]
+Usage: Scripts/check_examples_focused_tests.sh [--package <name>]... [--skip-bun-install]
 
-Runs the example packages' focused behavior tests. The main examples gate
-(`Scripts/check_examples.sh`) is build-first and keeps these slower test suites
-separate so CI and pre-tag lanes can choose the right contract explicitly.
+The app-logic lane: runs the example packages' own domain-logic test suites —
+gifeditor (GIF/LZW/quantizer/project), sextant (filesystem, search, preview),
+git-viz, terminal-workspace, mrkdwn (compiler, links, theme, watcher), csvui
+(document core, model, lifecycle). These are real tests of the apps, not of
+the framework, so they run when their package changes and at tags rather than
+on every push; the framework-exercising suites run on every push in the
+framework-seam gate (Scripts/check_examples.sh).
+
+  --package <name>   Run one package (repeatable). Default: all six.
 
 Set SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH to reuse one sequential SwiftPM scratch
 directory across the example package tests. Do not share that directory across
@@ -25,6 +51,8 @@ parallel checks.
 When SWIFTTUI_CHECKOUT is set, mrkdwn and csvui run from disposable package
 roots whose SwiftTUI dependency points at that exact checkout; public manifests
 are not modified.
+Every step runs under the silence watchdog (SWIFTTUI_EXAMPLES_TEST_STEP_TIMEOUT_SECONDS,
+default 300 on Linux and 600 on macOS; 0 disables it).
 EOF
 }
 
@@ -38,23 +66,50 @@ add_failure() {
   fi
 }
 
-for argument in "$@"; do
-  case "$argument" in
+while [ "$#" -gt 0 ]; do
+  case "$1" in
     --skip-bun-install)
       skip_bun_install=1
+      shift
+      ;;
+    --package)
+      if [ "$#" -lt 2 ]; then
+        >&2 echo "--package needs a value"
+        exit 1
+      fi
+      case " $all_packages " in
+        *" $2 "*) ;;
+        *)
+          >&2 echo "Unknown app-logic package: $2 (expected one of: $all_packages)"
+          exit 1
+          ;;
+      esac
+      selected_packages="$selected_packages $2"
+      shift 2
       ;;
     -h|--help)
       usage
       exit 0
       ;;
     *)
-      >&2 echo "Unknown argument: $argument"
+      >&2 echo "Unknown argument: $1"
       >&2 echo ""
       usage
       exit 1
       ;;
   esac
 done
+
+if [ -z "$selected_packages" ]; then
+  selected_packages=$all_packages
+fi
+
+package_selected() {
+  case " $selected_packages " in
+    *" $1 "*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
 
 require_command() {
   name=$1
@@ -73,10 +128,13 @@ require_checkout() {
   fi
 }
 
+log_root=$(mktemp -d "${TMPDIR:-/tmp}/swift-tui-examples-focused-gate.XXXXXX")
+
 cleanup_runtime_tmpdir() {
   if [ -n "$runtime_tmpdir" ] && [ -d "$runtime_tmpdir" ]; then
     rm -rf -- "$runtime_tmpdir"
   fi
+  rm -rf -- "$log_root"
 }
 
 trap cleanup_runtime_tmpdir EXIT
@@ -132,13 +190,21 @@ prepare_csvui_package() {
   csvui_package_path=$localized_root
 }
 
+. "$repo_root/Scripts/lib/step_watchdog.sh"
+. "$repo_root/Scripts/lib/example_suites.sh"
+validate_timeout_configuration
+
 require_command swiftly
 require_command python3
 ensure_runtime_tmpdir
 if [ -n "$framework_root" ]; then
   require_checkout "$framework_root" "swift-tui"
-  prepare_mrkdwn_package
-  prepare_csvui_package
+  if package_selected mrkdwn; then
+    prepare_mrkdwn_package
+  fi
+  if package_selected csvui; then
+    prepare_csvui_package
+  fi
 fi
 
 run_swift() {
@@ -146,6 +212,18 @@ run_swift() {
     swiftly run swift "$@" --scratch-path "$swiftpm_scratch"
   else
     swiftly run swift "$@"
+  fi
+}
+
+# `swift test --skip` that skips everything exits 0; prove the app-logic
+# selection is non-empty before trusting a green run.
+require_selected_tests() {
+  package_path=$1
+  label=$2
+  shift 2
+  if ! run_swift test list --package-path "$package_path" "$@" | grep -q .; then
+    >&2 echo "No tests selected for $label in $package_path (swift test list $*); refusing to report a green run."
+    return 1
   fi
 }
 
@@ -170,10 +248,13 @@ run_mrkdwn_manifest_contract() {
   return "$status"
 }
 
+# mrkdwn app logic = everything the framework-seam gate does not run (the
+# complementary --skip of Scripts/lib/example_suites.sh's regex).
 run_mrkdwn_tests() {
   run_mrkdwn_manifest_contract || return 1
-  export MRKDWN_REAL_PTY_TESTS=1
-  run_swift test --package-path "$mrkdwn_package_path"
+  require_selected_tests "$mrkdwn_package_path" "mrkdwn app-logic suites" \
+    --skip "$mrkdwn_framework_suites" || return 1
+  run_swift test --package-path "$mrkdwn_package_path" --skip "$mrkdwn_framework_suites"
 }
 
 run_csvui_manifest_contract() {
@@ -197,72 +278,106 @@ run_csvui_manifest_contract() {
   return "$status"
 }
 
+# csvui core = everything but the view contracts and PTY journeys.
 run_csvui_tests() {
   run_csvui_manifest_contract || return 1
-  export CSVUI_REAL_PTY_TESTS=1
-  run_swift test --package-path "$csvui_package_path"
+  require_selected_tests "$csvui_package_path" "csvui core suites" \
+    --skip "$csvui_framework_suites" || return 1
+  run_swift test --package-path "$csvui_package_path" --skip "$csvui_framework_suites"
+}
+
+print_failures() {
+  if [ -z "$failures" ]; then
+    return 0
+  fi
+  >&2 echo "App-logic test failures:"
+  OLD_IFS=$IFS
+  IFS='
+'
+  for failure in $failures; do
+    >&2 echo "  - $failure"
+  done
+  IFS=$OLD_IFS
 }
 
 run_step() {
   title=$1
   workdir=$2
   shift 2
+  step_index=$((step_index + 1))
+  log_file=$log_root/step-$step_index.log
+  status_file=$log_root/step-$step_index.status
+  timeout_file=$log_root/step-$step_index.timeout
 
   echo ""
   echo "==> $title"
 
   if (
     cd "$workdir" &&
-    "$@"
+    run_logged_command "$log_file" "$status_file" "$timeout_file" "$@"
   ); then
     echo "PASS: $title"
-  else
-    >&2 echo "FAIL: $title"
-    add_failure "$title"
+    rm -f "$log_file" "$status_file" "$timeout_file"
+    return 0
   fi
+
+  exit_code=$(read_step_exit_code "$status_file")
+  if [ -f "$timeout_file" ]; then
+    detail=$(cat "$timeout_file")
+    timeout_count=$((timeout_count + 1))
+    >&2 echo "TIMEOUT: $title ($detail)"
+    add_failure "$title (TIMEOUT: $detail)"
+    >&2 echo ""
+    >&2 echo "Last 40 lines of the step log:"
+    tail -n 40 "$log_file" >&2 || true
+    >&2 echo ""
+    rm -f "$log_file" "$status_file" "$timeout_file"
+    if [ "$timeout_count" -ge 2 ]; then
+      >&2 echo "Aborting after a second timeout: the environment is wedged, not one step."
+      print_failures
+      exit 1
+    fi
+    >&2 echo "Continuing with the remaining steps (the gate is already red)."
+    return 0
+  fi
+
+  >&2 echo "FAIL: $title (exit $exit_code)"
+  add_failure "$title"
+  rm -f "$log_file" "$status_file" "$timeout_file"
 }
 
 echo ""
-echo "### Focused SwiftPM behavior tests"
+echo "### App-logic tests ($selected_packages)"
 
-for package_path in \
-  "sextant" \
-  "gallery" \
-  "gifcat" \
-  "gifeditor" \
-  "git-viz" \
-  "layouts" \
-  "terminal-workspace" \
-  "WebHostExample"; do
-  run_step \
-    "Test $package_path" \
-    "$repo_root" \
-    run_swift test --package-path "$package_path"
+for package_path in gifeditor sextant git-viz terminal-workspace; do
+  if package_selected "$package_path"; then
+    run_step \
+      "Test $package_path" \
+      "$repo_root" \
+      run_swift test --package-path "$package_path"
+  fi
 done
 
-run_step \
-  "Test mrkdwn" \
-  "$repo_root" \
-  run_mrkdwn_tests
+if package_selected mrkdwn; then
+  run_step \
+    "Test mrkdwn (app-logic suites)" \
+    "$repo_root" \
+    run_mrkdwn_tests
+fi
 
-run_step \
-  "Test csvui" \
-  "$repo_root" \
-  run_csvui_tests
+if package_selected csvui; then
+  run_step \
+    "Test csvui (core suites)" \
+    "$repo_root" \
+    run_csvui_tests
+fi
 
 echo ""
 if [ -z "$failures" ]; then
-  echo "All focused example tests succeeded."
+  echo "All app-logic tests succeeded."
   exit 0
 fi
 
->&2 echo "Focused example test failures:"
-OLD_IFS=$IFS
-IFS='
-'
-for failure in $failures; do
-  >&2 echo "  - $failure"
-done
-IFS=$OLD_IFS
+print_failures
 
 exit 1

@@ -16,7 +16,10 @@ of each example.
 This repository is a public beta. Default manifests must use tagged HTTPS
 SwiftPM dependencies and released package artifacts. They must not use sibling
 source checkouts. Do not add coordination-only pin files. Pre-tag integration
-belongs in `swift-tui-org`.
+belongs in `swift-tui-org`, with one sanctioned exception: the scheduled
+`Framework HEAD seam` workflow runs `Scripts/localize_siblings.sh`, which
+rewrites a throwaway *copy* of this repository against sibling `main`
+checkouts at run time. Committed manifests stay tagged.
 
 ## Toolchains
 
@@ -26,14 +29,19 @@ Use **`swiftly` run** for Swift packages. This command uses the pinned Swift
 ## Commands
 
 ```bash
-bun run check                                          # repo gate (Scripts/check_examples.sh --skip-clean)
+bun run check                                          # framework-seam gate (Scripts/check_examples.sh --skip-clean)
+bun run check:focused -- --package <example>           # app-logic lane for one package
 swiftly run swift run  --package-path <example> <exe>  # run one example (see README roster)
 swiftly run swift test --package-path <example>        # test one example
 ```
 
 `//:swift_tui_examples_native_gate` in the org root runs
 `Scripts/check_examples.sh --skip-clean`. Examples without focused test targets
-are still build-checked by that script.
+are still build-checked by that script. CI lanes: framework seam on every
+push (debug builds + framework-exercising suites, silence watchdog on every
+step), app-logic matrix when a package changes or on tags, macOS on
+dispatch/tags, and the six-hourly `Framework HEAD seam` (see README § Tests).
+Release builds are `--release-builds` (tags only).
 
 ## Notes
 

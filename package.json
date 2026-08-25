@@ -7,6 +7,8 @@
     "check": "Scripts/check_examples.sh --skip-clean",
     "check:linux": "Scripts/check_examples_linux.sh --skip-clean",
     "check:macos": "Scripts/check_examples_macos.sh --skip-clean",
-    "check:focused": "Scripts/check_examples_focused_tests.sh"
+    "check:release": "Scripts/check_examples.sh --skip-clean --release-builds",
+    "check:focused": "Scripts/check_examples_focused_tests.sh",
+    "check:framework-head": "Scripts/localize_siblings.sh --work-dir ../.swift-tui-examples-framework-head"
   }
 }
