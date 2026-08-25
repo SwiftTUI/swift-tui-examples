@@ -330,14 +330,18 @@ struct AnimationSectionRuntimeTests {
   // first `.dragged` pointer sample on the Animations tab trips the DEBUG
   // oracle in `AnimationController.noteSkippedResolvedTreeProcessing`
   // ("processResolvedTree skipped for a resolved tree that differs in
-  // animation-processing inputs", first divergence at the page picker's
-  // `PickerOption[0]` identity) and kills the test process. The drag lands
-  // on any row of the page, gesture target or not, with or without
-  // `tracksVelocity` (swift-tui b826fc9c). Drag section 18 by hand until the
-  // oracle is settled; this probe stays listed so the gap is visible.
+  // animation-processing inputs") and kills the test process. The divergence
+  // is the page picker's segmented body: the last-processed tree holds
+  // `PickerOption[0]` where the fully reused tree holds its `Group[0]`
+  // wrapper. It is a resolve-side seam, not this tab's animation content: a
+  // Tab press or a press-and-drag trips it on the Transitions and
+  // Transactions pages only, on the G1 gallery (`618e07c`) against swift-tui
+  // 0.9.9 as well as HEAD (plan 2026-08-25-002 §12 follow-ups). Drag section
+  // 18 by hand until the seam is settled; this probe stays listed so the gap
+  // is visible.
   @Test(
     "section 18: a velocity-tracked drag springs home",
-    .disabled("a .dragged pointer sample trips the F66 skip-gate oracle in swift-tui b826fc9c"))
+    .disabled("a .dragged pointer sample trips the F66 skip-gate oracle (pre-existing at 0.9.9)"))
   func trackedVelocityFlingSection() async throws {
     let needle = "state: x="
     var home: Int?
