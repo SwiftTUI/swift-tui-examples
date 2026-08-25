@@ -32,6 +32,7 @@ extension AnimationsTab {
             .foregroundStyle(Color.yellow)
             .padding(3)
             .background(Color.red)
+            .transition(.opacity)
             .matchedGeometryEffect(id: "hero", in: heroNamespace)
           Spacer()
         } else {
@@ -39,6 +40,7 @@ extension AnimationsTab {
           Text("TWO")
             .foregroundStyle(Color.yellow)
             .background(Color.blue)
+            .transition(.opacity)
             .matchedGeometryEffect(id: "hero", in: heroNamespace)
         }
       }
