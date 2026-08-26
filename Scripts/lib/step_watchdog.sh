@@ -165,8 +165,18 @@ dump_hang_diagnostics() {
     fi
   fi
 
+  # Deepest process first. `swiftly` and `swift-test` are supervisors that are
+  # always parked in sigsuspend/waitpid; the wedged test binary is the leaf, and
+  # it is the only one whose backtrace answers anything. On 2026-08-26 the
+  # gallery hang spent this budget on those two supervisors and the run ended
+  # before the leaf was reached, leaving a spinning test process undumped.
+  ordered_pids=$root_pid
+  for pid in $(descendant_pids "$root_pid"); do
+    ordered_pids="$pid $ordered_pids"
+  done
+
   dumped=0
-  for pid in $root_pid $(descendant_pids "$root_pid"); do
+  for pid in $ordered_pids; do
     comm=$(cat "/proc/$pid/comm" 2>/dev/null || echo '?')
     case "$comm" in
     *swift* | *xctest* | *Packag*) ;;
