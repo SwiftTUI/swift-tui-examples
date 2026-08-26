@@ -36,7 +36,7 @@ struct KeyBindingHelpRuntimeTests {
   /// the viewport, and few enough to walk back.
   private static let stepCount = 20
 
-  @Test("End reaches the last catalog section, Home comes back", .timeLimit(.minutes(1)))
+  @Test("End reaches the last catalog section, Home comes back", .timeLimit(.minutes(5)))
   func scrollKeysReachTheFoldedContent() async throws {
     let terminal = HelpRecordingTerminalHost(surfaceSize: .init(width: 80, height: 24))
     let rootIdentity = Identity(components: ["gifeditor.help-runtime.scroll"])
@@ -81,7 +81,7 @@ struct KeyBindingHelpRuntimeTests {
   /// reference card is actually read with. The arrows have to walk back
   /// as far as they walked forward, which a one-directional clamp would
   /// fail.
-  @Test("PgDn pages, and the arrows step both ways", .timeLimit(.minutes(1)))
+  @Test("PgDn pages, and the arrows step both ways", .timeLimit(.minutes(5)))
   func pageAndLineKeysBothScroll() async throws {
     let terminal = HelpRecordingTerminalHost(surfaceSize: .init(width: 80, height: 24))
     let rootIdentity = Identity(components: ["gifeditor.help-runtime.paging"])
@@ -116,7 +116,7 @@ struct KeyBindingHelpRuntimeTests {
   /// still reading. The footer prints the cursor as `[x,y]`, so a run
   /// that hammers `↓` at the bottom and still reads `[0,0]` afterwards is
   /// a run in which none of them escaped.
-  @Test("an exhausted scroll key does not fall through to the editor", .timeLimit(.minutes(1)))
+  @Test("an exhausted scroll key does not fall through to the editor", .timeLimit(.minutes(5)))
   func scrollKeysAreConsumedAtTheEdges() async throws {
     let terminal = HelpRecordingTerminalHost(surfaceSize: .init(width: 80, height: 24))
     let rootIdentity = Identity(components: ["gifeditor.help-runtime.edges"])

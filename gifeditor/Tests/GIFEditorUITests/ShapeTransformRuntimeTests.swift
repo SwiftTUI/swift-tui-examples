@@ -22,7 +22,7 @@ import Testing
 @MainActor
 @Suite("GIF editor shape and transform runtime", .serialized)
 struct ShapeTransformRuntimeTests {
-  @Test("the shape and symmetry keys reach the editor", .timeLimit(.minutes(1)))
+  @Test("the shape and symmetry keys reach the editor", .timeLimit(.minutes(5)))
   func toolKeysReachTheEditor() async throws {
     let terminal = ShapeRuntimeTerminalHost(surfaceSize: .init(width: 80, height: 24))
     let inputReader = ShapeRuntimeInputReader(
@@ -51,7 +51,7 @@ struct ShapeTransformRuntimeTests {
     #expect(terminal.latestFrame?.contains("Mirror-X on") == true)
   }
 
-  @Test("the transform and timeline keys reach the editor", .timeLimit(.minutes(1)))
+  @Test("the transform and timeline keys reach the editor", .timeLimit(.minutes(5)))
   func commandKeysReachTheEditor() async throws {
     let terminal = ShapeRuntimeTerminalHost(surfaceSize: .init(width: 80, height: 24))
     let inputReader = ShapeRuntimeInputReader(

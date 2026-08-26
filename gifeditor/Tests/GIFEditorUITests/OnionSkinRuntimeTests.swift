@@ -21,7 +21,7 @@ import Testing
 @MainActor
 @Suite("GIF editor onion skin runtime", .serialized)
 struct OnionSkinRuntimeTests {
-  @Test("o toggles onion skin, and the status strip says so", .timeLimit(.minutes(1)))
+  @Test("o toggles onion skin, and the status strip says so", .timeLimit(.minutes(5)))
   func bareOTogglesOnionSkin() async throws {
     let terminal = OnionSkinRecordingTerminalHost(surfaceSize: .init(width: 80, height: 24))
     let rootIdentity = Identity(components: ["gifeditor.onionskin-runtime.toggle"])
@@ -56,7 +56,7 @@ struct OnionSkinRuntimeTests {
     expectTheDocumentStayedClean(terminal)
   }
 
-  @Test("O cycles the ghosted sides and { } change the count", .timeLimit(.minutes(1)))
+  @Test("O cycles the ghosted sides and { } change the count", .timeLimit(.minutes(5)))
   func onionSkinSettingKeysReachTheEditor() async throws {
     let terminal = OnionSkinRecordingTerminalHost(surfaceSize: .init(width: 80, height: 24))
     let rootIdentity = Identity(components: ["gifeditor.onionskin-runtime.settings"])

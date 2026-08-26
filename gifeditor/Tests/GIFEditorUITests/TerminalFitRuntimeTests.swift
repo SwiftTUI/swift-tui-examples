@@ -33,7 +33,7 @@ import Testing
 struct TerminalFitRuntimeTests {
   @Test(
     "one column under the floor, the editor says so instead of overflowing",
-    .timeLimit(.minutes(1))
+    .timeLimit(.minutes(5))
   )
   func belowTheFloorTheEditorExplainsItself() async throws {
     let width = EditorLayoutFloor.minimumWidth - 1
@@ -65,7 +65,7 @@ struct TerminalFitRuntimeTests {
     )
   }
 
-  @Test("at the floor exactly, the editor lays out normally", .timeLimit(.minutes(1)))
+  @Test("at the floor exactly, the editor lays out normally", .timeLimit(.minutes(5)))
   func atTheFloorTheEditorRuns() async throws {
     let width = EditorLayoutFloor.minimumWidth
     let terminal = FitRecordingTerminalHost(surfaceSize: .init(width: width, height: 24))
@@ -91,7 +91,7 @@ struct TerminalFitRuntimeTests {
   /// inert where the editor already worked.
   @Test(
     "the guard stays out of the way at the size the editor documents",
-    .timeLimit(.minutes(1))
+    .timeLimit(.minutes(5))
   )
   func theGuardIsInertAtEightyColumns() async throws {
     let terminal = FitRecordingTerminalHost(surfaceSize: .init(width: 80, height: 24))
@@ -119,7 +119,7 @@ struct TerminalFitRuntimeTests {
   /// frames, so the layer list is past its window and the timeline strip has
   /// to scroll. A blank document is the *easiest* case, and the editor's
   /// height has to be a property of the layout rather than of the file.
-  @Test("at 80×24 the presented surface fits the terminal", .timeLimit(.minutes(1)))
+  @Test("at 80×24 the presented surface fits the terminal", .timeLimit(.minutes(5)))
   func theEditorFitsTheDefaultTerminal() async throws {
     let terminal = FitRecordingTerminalHost(surfaceSize: .init(width: 80, height: 24))
 
@@ -170,7 +170,7 @@ struct TerminalFitRuntimeTests {
   /// The height floor, both sides of it, through the run loop — the same pair
   /// the width cases make, on the axis that had no answer at all until the
   /// editor learned to compress.
-  @Test("one row under the height floor, the editor says so", .timeLimit(.minutes(1)))
+  @Test("one row under the height floor, the editor says so", .timeLimit(.minutes(5)))
   func belowTheHeightFloorTheEditorExplainsItself() async throws {
     let height = EditorLayoutFloor.minimumHeight - 1
     let terminal = FitRecordingTerminalHost(surfaceSize: .init(width: 80, height: height))
@@ -191,7 +191,7 @@ struct TerminalFitRuntimeTests {
     }
   }
 
-  @Test("at the height floor exactly, the editor lays out", .timeLimit(.minutes(1)))
+  @Test("at the height floor exactly, the editor lays out", .timeLimit(.minutes(5)))
   func atTheHeightFloorTheEditorRuns() async throws {
     let height = EditorLayoutFloor.minimumHeight
     let terminal = FitRecordingTerminalHost(surfaceSize: .init(width: 80, height: height))

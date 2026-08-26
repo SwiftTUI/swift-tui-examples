@@ -12,13 +12,18 @@ import Testing
 // suite alone — and the per-test `.timeLimit` expires on work that is merely
 // queued. CI failed 14 of these 16 on 2026-08-26; run serially they all pass
 // in 57 s.
+//
+// The limit itself is five minutes rather than one for the same reason: it is
+// there to catch a wedge, and a journey that costs ~3.5 s on an idle machine
+// was measured at 54.4 s on the CI runner *while passing*. A one-minute cap on
+// that runner reports contention, not a hang.
 @MainActor
 @Suite("GIF editor presentation runtime", .serialized)
 struct PresentationRuntimeTests {
   /// A menu trigger changing from `▾` to `▴` proves only that the button
   /// mutated `openMenu`. The user-facing contract is that the dropdown is
   /// painted over the editor on that same click.
-  @Test("clicking File opens its dropdown", .timeLimit(.minutes(1)))
+  @Test("clicking File opens its dropdown", .timeLimit(.minutes(5)))
   func clickingFileOpensItsDropdown() async throws {
     let terminal = GIFEditorPresentationRecordingTerminalHost(
       surfaceSize: .init(width: 80, height: 24)
@@ -66,7 +71,7 @@ struct PresentationRuntimeTests {
   /// but only a thumbnail composes its button tap with a reorder drag. Select
   /// frame 2, then use the known-working duplicate command as the control:
   /// duplicating the selected second frame must land on frame 3, not frame 2.
-  @Test("clicking a timeline thumbnail selects that frame", .timeLimit(.minutes(1)))
+  @Test("clicking a timeline thumbnail selects that frame", .timeLimit(.minutes(5)))
   func clickingATimelineThumbnailSelectsThatFrame() async throws {
     let terminal = GIFEditorPresentationRecordingTerminalHost(
       surfaceSize: .init(width: 80, height: 24)
@@ -161,7 +166,7 @@ struct PresentationRuntimeTests {
   /// `nyan.gif`; the sheet that appears has to be the project save, with
   /// a `.halfcell` destination and the reason spelled out — not a silent
   /// write that flattens every layer.
-  @Test("Ctrl+S on a GIF-backed document falls through to Save As", .timeLimit(.minutes(1)))
+  @Test("Ctrl+S on a GIF-backed document falls through to Save As", .timeLimit(.minutes(5)))
   func ctrlSFallsThroughToSaveAsForAGIFBackedDocument() async throws {
     let terminal = GIFEditorPresentationRecordingTerminalHost(
       surfaceSize: .init(width: 80, height: 24)
@@ -216,7 +221,7 @@ struct PresentationRuntimeTests {
   /// straight back, with no sheet at all. The control for the test
   /// above: without it, a green fall-through could equally mean
   /// "Ctrl+S always prompts".
-  @Test("Ctrl+S on a project-backed document saves without prompting", .timeLimit(.minutes(1)))
+  @Test("Ctrl+S on a project-backed document saves without prompting", .timeLimit(.minutes(5)))
   func ctrlSWritesBackToAProjectPath() async throws {
     let directory = URL(fileURLWithPath: NSTemporaryDirectory())
       .appendingPathComponent("halfcell-runtime-\(UUID().uuidString)")
@@ -277,7 +282,7 @@ struct PresentationRuntimeTests {
   /// disk while the editor renders normally. If the ticker's `.task`
   /// were stacked onto the root beside playback, no snapshot would ever
   /// be written.
-  @Test("the autosave node writes a recovery snapshot", .timeLimit(.minutes(1)))
+  @Test("the autosave node writes a recovery snapshot", .timeLimit(.minutes(5)))
   func autosaveTickerWritesASnapshot() async throws {
     let directory = URL(fileURLWithPath: NSTemporaryDirectory())
       .appendingPathComponent("halfcell-runtime-\(UUID().uuidString)")
@@ -328,7 +333,7 @@ struct PresentationRuntimeTests {
 
   /// The dirty guard, extended past quit: `Ctrl+Alt+N` on a document
   /// with unsaved work raises the confirmation rather than replacing it.
-  @Test("New on a dirty document asks before discarding", .timeLimit(.minutes(1)))
+  @Test("New on a dirty document asks before discarding", .timeLimit(.minutes(5)))
   func newOnADirtyDocumentAsksFirst() async throws {
     let terminal = GIFEditorPresentationRecordingTerminalHost(
       surfaceSize: .init(width: 80, height: 24)
@@ -380,7 +385,7 @@ struct PresentationRuntimeTests {
 
   /// The control for the guard: with nothing unsaved, `Ctrl+Alt+N` goes
   /// straight to the size prompt.
-  @Test("New on a clean document goes straight to the size prompt", .timeLimit(.minutes(1)))
+  @Test("New on a clean document goes straight to the size prompt", .timeLimit(.minutes(5)))
   func newOnACleanDocumentSkipsTheGuard() async throws {
     let terminal = GIFEditorPresentationRecordingTerminalHost(
       surfaceSize: .init(width: 80, height: 24)
@@ -428,7 +433,7 @@ struct PresentationRuntimeTests {
   /// node to keep the root's modifier chain inside the resolve stack.
   /// "Still renders" and "still participates in the dismiss stack" are
   /// different claims, and only the second one is about being usable.
-  @Test("Escape dismisses a sheet presented off the editor root", .timeLimit(.minutes(1)))
+  @Test("Escape dismisses a sheet presented off the editor root", .timeLimit(.minutes(5)))
   func escapeDismissesAHostPresentedSheet() async throws {
     let terminal = GIFEditorPresentationRecordingTerminalHost(
       surfaceSize: .init(width: 80, height: 24)
@@ -482,7 +487,7 @@ struct PresentationRuntimeTests {
 
   /// `Ctrl+O` raises the open sheet, with the path field and the
   /// completion affordance that stands in for a picker.
-  @Test("Ctrl+O opens the open sheet", .timeLimit(.minutes(1)))
+  @Test("Ctrl+O opens the open sheet", .timeLimit(.minutes(5)))
   func ctrlOOpensTheOpenSheet() async throws {
     let terminal = GIFEditorPresentationRecordingTerminalHost(
       surfaceSize: .init(width: 80, height: 24)
@@ -578,7 +583,7 @@ struct PresentationRuntimeTests {
   /// bare-Escape modal dismiss. `bareEscapeOutsideASheetStillClearsTheSelection`
   /// is the control for that claim: the same key on the same editor, with no
   /// sheet up, does reach the editor root.
-  @Test("Escape dismisses the GIF export sheet", .timeLimit(.minutes(1)))
+  @Test("Escape dismisses the GIF export sheet", .timeLimit(.minutes(5)))
   func escapeDismissesExportSheet() async throws {
     let terminal = GIFEditorPresentationRecordingTerminalHost(
       surfaceSize: .init(width: 80, height: 24)
@@ -634,7 +639,7 @@ struct PresentationRuntimeTests {
   /// Bare `Escape` closes the resize-canvas sheet, honoring the `Esc` system
   /// hint on its Cancel button. Unlike the save sheet this one focuses no
   /// `TextField`, so it also covers the button-focused shape of the same path.
-  @Test("Escape dismisses the resize canvas sheet", .timeLimit(.minutes(1)))
+  @Test("Escape dismisses the resize canvas sheet", .timeLimit(.minutes(5)))
   func escapeDismissesResizeCanvasSheet() async throws {
     let terminal = GIFEditorPresentationRecordingTerminalHost(
       surfaceSize: .init(width: 80, height: 24)
@@ -686,7 +691,7 @@ struct PresentationRuntimeTests {
   /// this, a green dismiss test could equally mean "nothing anywhere handles
   /// Escape", and a future root binding that starts swallowing Escape inside
   /// sheets would look identical to today.
-  @Test("bare Escape outside a sheet still clears the selection", .timeLimit(.minutes(1)))
+  @Test("bare Escape outside a sheet still clears the selection", .timeLimit(.minutes(5)))
   func bareEscapeOutsideASheetStillClearsTheSelection() async throws {
     let terminal = GIFEditorPresentationRecordingTerminalHost(
       surfaceSize: .init(width: 80, height: 24)
@@ -737,7 +742,7 @@ struct PresentationRuntimeTests {
   /// The overlay is back, rendered from `KeyBindingCatalog` rather than
   /// from a second copy of the shortcut list, and it still has to hand
   /// the editor back when it closes.
-  @Test("? opens the keyboard overlay and the editor still responds", .timeLimit(.minutes(1)))
+  @Test("? opens the keyboard overlay and the editor still responds", .timeLimit(.minutes(5)))
   func questionMarkOpensKeyboardHelp() async throws {
     let directory = temporaryStateDirectory()
     defer { try? FileManager.default.removeItem(at: directory) }
@@ -799,7 +804,7 @@ struct PresentationRuntimeTests {
 
   /// The first-run hint appears once, and the marker it leaves behind
   /// keeps it from appearing again.
-  @Test("the first-run hint is shown once per state directory", .timeLimit(.minutes(1)))
+  @Test("the first-run hint is shown once per state directory", .timeLimit(.minutes(5)))
   func firstRunHintIsShownOnce() async throws {
     let directory = temporaryStateDirectory()
     defer { try? FileManager.default.removeItem(at: directory) }
