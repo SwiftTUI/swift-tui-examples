@@ -11,8 +11,8 @@
  ──────────────────────────────────────────────────────────────────────────────
 
  6. matchedGeometryEffect: badge slides and resizes between two slots         ▐
- expect: badge slides right AND its box grows over 1.5 s; position only slides▐
- (box snaps), size grows in place                                             ▐
+ expect: badge slides right AND its box grows over 1.5 s, cross-fading between▐
+ the two slots; position only slides (box snaps), size grows in place         ▐
   move right                                                                  ▐
  properties                 anchor                                            ▐
  ╭───────────────────────╮  ╭────────────────────────────────────╮            ▐
