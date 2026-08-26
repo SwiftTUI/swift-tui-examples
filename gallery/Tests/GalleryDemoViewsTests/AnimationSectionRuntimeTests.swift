@@ -93,6 +93,93 @@ struct AnimationSectionRuntimeTests {
     #expect(widths.last == 8)
   }
 
+  // MARK: - Transitions page
+
+  @Test(
+    "section 2: the slide figure slides back in on its own, with no further input",
+    .enabled(if: galleryRuntimeTestsEnabled, galleryRuntimeTestGateComment))
+  func slideTransitionSection() async throws {
+    // Regression for the reported gallery bug. Slide OUT was fine; slide IN
+    // was invisible unless you clicked during the animation, and a late click
+    // popped the figure straight to its final position. The insertion
+    // registers only a placed-level offset animation, and off-screen frame
+    // elision used to skip that animation's pass forever — the arriving figure
+    // starts outside the clipped box, so it had never been drawn, so the gate
+    // read every deadline tick as unable to reach the screen. The two clicks
+    // below are the only input: everything after the second one has to run on
+    // animation deadlines alone, and a stall stops the frames the awaited
+    // steps wait on, ending the test at the gallery ceiling with a named
+    // diagnostic.
+    let needle = "state: showFade="
+    var fullInk = 0
+    var arrivalFirstFrame = 0
+    let host = try await Self.drive(
+      page: .transitions,
+      section: 2,
+      strip: "section-2-transitions",
+      stateNeedle: needle,
+      // The label tracks the state ("slide out" while the figure is up), and
+      // the button does not move between the two, so one location serves both
+      // clicks.
+      controls: ["slide out"]
+    ) { host, at in
+      [
+        .awaitCondition {
+          guard Self.latestState(host, needle).contains("showSlide=true") else { return false }
+          fullInk = Self.latestFigureInk(host)
+          return true
+        }
+      ]
+        + Step.click(at["slide out"]!) + [
+          .awaitCondition {
+            // The exit is done when the box is empty: the departing overlay has
+            // left the clipped box and been purged.
+            guard Self.latestState(host, needle).contains("showSlide=false"),
+              Self.latestFigureInk(host) == 0
+            else { return false }
+            arrivalFirstFrame = host.surfaces.count
+            return true
+          }
+        ]
+        + Step.click(at["slide out"]!) + [
+          // The arrival is done when the box carries the whole figure again:
+          // both ends of the comparison count the same coloured glyphs in the
+          // same view state, so they are exactly equal on a completed
+          // slide-in.
+          .awaitCondition { Self.latestFigureInk(host) >= fullInk }
+        ]
+    }
+
+    let arrival = host.surfaces.dropFirst(arrivalFirstFrame).map(Self.figureInk)
+    #expect(arrival.last == fullInk, "the slide figure never arrived: \(arrival.suffix(20))")
+    // Column by column, not all at once: the ink passes through the middle of
+    // its range on the way in. This is the half the surface-relative edge
+    // offset used to break — the figure started a whole screen away and only
+    // entered the clipped box on the final frame.
+    #expect(
+      arrival.contains { $0 > 0 && $0 < fullInk },
+      "the figure popped in instead of sliding: \(arrival)"
+    )
+  }
+
+  /// Cells of the arriving/departing SLIDE figure on a frame.
+  ///
+  /// Counted by colour, not by glyph: the section stacks the coloured figure
+  /// in an `.overlay` over an `opacity(0)` copy of itself, so the box holds a
+  /// full set of invisible glyphs at the destination at all times. A
+  /// character-based count would read that invisible copy as a fully arrived
+  /// figure on every frame; only the yellow foreground belongs to the figure
+  /// under test.
+  private static func figureInk(_ surface: RasterSurface) -> Int {
+    surface.cells.reduce(0) { total, row in
+      total + row.count { $0.style?.foregroundColor == .yellow }
+    }
+  }
+
+  private static func latestFigureInk(_ host: AnimationRegressionRecordingHost) -> Int {
+    host.surfaces.last.map(figureInk) ?? 0
+  }
+
   // MARK: - Matched page
 
   @Test(
