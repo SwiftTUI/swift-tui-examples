@@ -387,7 +387,8 @@ struct ViewContractTests {
         farRight.raster.lines.joined(separator: "\n")
           .contains("FINAL-COLUMN-MARKER")
       )
-      session.send(.key(.init(.character("d"), modifiers: .ctrl)))
+      // Ctrl+C is the framework default exit binding (`ExitKeyBindings.default`).
+      session.send(.key(.init(.character("c"), modifiers: .ctrl)))
       _ = try await task.value
     } catch {
       session.stop()
