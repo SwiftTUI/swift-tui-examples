@@ -151,9 +151,9 @@ Ghosting does not wrap. The first frame has no previous ghost. The last frame
 has no next ghost. This rule prevents a distant end frame from looking like an
 adjacent frame.
 
-Onion skin changes only the display. It does not affect the eyedropper,
-exported GIF, or saved project. Toggling it does not mark the document as
-changed. A change to the ghost count or side turns onion skin on.
+Onion skin is display only. It does not affect the eyedropper, exported GIF, or
+saved project. Toggling it does not mark the document as changed. A change to
+the ghost count or side turns onion skin on.
 
 ## Layers
 
