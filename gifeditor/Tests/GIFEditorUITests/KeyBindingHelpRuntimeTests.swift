@@ -24,7 +24,7 @@ import Testing
 /// the list — off the rendered terminal. A row that renders only after
 /// `End` is a row that is reachable.
 @MainActor
-@Suite("GIF editor keyboard overlay runtime")
+@Suite("GIF editor keyboard overlay runtime", .serialized)
 struct KeyBindingHelpRuntimeTests {
 
   /// A row near the top of the first section, and the last row of the

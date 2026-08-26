@@ -6,8 +6,14 @@ import Testing
 
 @testable import GIFEditorUI
 
+// Serialized: every test here drives a whole editor through a real `RunLoop`
+// and is CPU-bound for seconds. Run in parallel with each other they
+// oversubscribe the runner on their own — 16 concurrent run loops from this
+// suite alone — and the per-test `.timeLimit` expires on work that is merely
+// queued. CI failed 14 of these 16 on 2026-08-26; run serially they all pass
+// in 57 s.
 @MainActor
-@Suite("GIF editor presentation runtime")
+@Suite("GIF editor presentation runtime", .serialized)
 struct PresentationRuntimeTests {
   /// A menu trigger changing from `▾` to `▴` proves only that the button
   /// mutated `openMenu`. The user-facing contract is that the dropdown is

@@ -19,7 +19,7 @@ import Testing
 /// when it does not, so a run that toggles every onion-skin control and never
 /// paints a `●` is a run in which none of them wrote to the document.
 @MainActor
-@Suite("GIF editor onion skin runtime")
+@Suite("GIF editor onion skin runtime", .serialized)
 struct OnionSkinRuntimeTests {
   @Test("o toggles onion skin, and the status strip says so", .timeLimit(.minutes(1)))
   func bareOTogglesOnionSkin() async throws {

@@ -20,7 +20,7 @@ import Testing
 /// 80×24 and waiting for it to settle is the expensive part, and the
 /// status strip makes a sequence of presses individually readable.
 @MainActor
-@Suite("GIF editor shape and transform runtime")
+@Suite("GIF editor shape and transform runtime", .serialized)
 struct ShapeTransformRuntimeTests {
   @Test("the shape and symmetry keys reach the editor", .timeLimit(.minutes(1)))
   func toolKeysReachTheEditor() async throws {
