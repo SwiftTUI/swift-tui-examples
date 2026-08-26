@@ -93,8 +93,17 @@ struct BrowserHandoffTests {
     await model.shutdown()
     let elapsed = start.duration(to: clock.now)
 
+    // The child traps TERM and never exits on its own, so `shutdown()`
+    // returning at all is the proof that the escalation reached SIGKILL, and
+    // the lower bound is the proof it waited out the grace period first. Both
+    // hold on any machine. How *promptly* the kill lands is a wall-clock claim
+    // about an idle one: alone this shutdown measures ~0.11 s, but beside the
+    // other 22 suites — one of which is this test's own spinning child — CI
+    // measured 10.4 s.
     #expect(elapsed >= .milliseconds(80))
-    #expect(elapsed < .seconds(1))
+    if sextantWallClockBudgetsEnabled {
+      #expect(elapsed < .seconds(1))
+    }
   }
 }
 

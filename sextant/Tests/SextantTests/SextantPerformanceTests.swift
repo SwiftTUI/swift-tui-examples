@@ -83,8 +83,10 @@ struct SextantPerformanceTests {
         + "filter_ms=\(milliseconds(filterDuration)) entries=10000 moves=100"
     )
 
-    #expect(selectionP95 < .milliseconds(50))
-    #expect(filterDuration < .milliseconds(50))
+    if sextantWallClockBudgetsEnabled {
+      #expect(selectionP95 < .milliseconds(50))
+      #expect(filterDuration < .milliseconds(50))
+    }
     #expect(model.state.selectedItem?.name == "item-09999.txt")
     #expect(
       filteredFrame.rasterSurface.lines
@@ -184,10 +186,12 @@ struct SextantPerformanceTests {
         + "preview_launch_ms=\(milliseconds(launchDuration)) "
         + "replacement_termination_ms=\(milliseconds(terminationDuration))"
     )
-    #expect(chromeDuration < .milliseconds(50))
-    #expect(directoryDuration < .milliseconds(250))
-    #expect(launchDuration < .milliseconds(250))
-    #expect(terminationDuration < .milliseconds(900))
+    if sextantWallClockBudgetsEnabled {
+      #expect(chromeDuration < .milliseconds(50))
+      #expect(directoryDuration < .milliseconds(250))
+      #expect(launchDuration < .milliseconds(250))
+      #expect(terminationDuration < .milliseconds(900))
+    }
   }
 
   private func percentile95(_ values: [Duration]) -> Duration {
