@@ -1,4 +1,5 @@
 public import Foundation
+import Dispatch
 import SwiftTUI
 
 #if canImport(Darwin)
@@ -337,8 +338,17 @@ private final class CancellableProcess: @unchecked Sendable {
     lock.unlock()
     if isRunning {
       process.terminate()
-      Task.detached { [weak self] in
-        try? await Task.sleep(for: gracePeriod)
+      // The escalation timer deliberately does not run on the cooperative
+      // pool. That pool has a fixed width and never overcommits, so when the
+      // rest of the suite pins its threads — and a child that traps TERM is
+      // spinning a core of its own — a `Task.sleep` of one grace period can
+      // resume seconds late; CI measured a 100 ms grace taking 10.4 s to
+      // escalate while the same test finished in 0.11 s on an idle machine.
+      // Dispatch's global queue overcommits, so the kill lands on time.
+      let seconds =
+        Double(gracePeriod.components.seconds)
+        + Double(gracePeriod.components.attoseconds) * 1e-18
+      DispatchQueue.global().asyncAfter(deadline: .now() + seconds) { [weak self] in
         self?.forceKillIfRunning()
       }
     }
