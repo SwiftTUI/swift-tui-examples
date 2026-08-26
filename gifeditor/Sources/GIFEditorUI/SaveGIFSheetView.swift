@@ -149,7 +149,7 @@ struct SaveGIFSheetView: View {
           pixels: displayPixels(for: frame),
           mode: .verticalHalfBlock
         )
-        .border(.separator, set: .single)
+        .border(.separator, set: .single, placement: .outset)
         Text(previewSummary)
           .foregroundStyle(.muted)
       }

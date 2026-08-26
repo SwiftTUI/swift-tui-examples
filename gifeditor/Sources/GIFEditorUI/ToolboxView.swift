@@ -49,7 +49,7 @@ struct ToolboxView: View {
     }
     .padding(0)
     .frame(width: density.toolDockWidth, alignment: .center)
-    .border(.separator, set: .single)
+    .border(.separator, set: .single, placement: .outset)
   }
 
   /// The tool icons, chunked into the dock's columns in declaration order —

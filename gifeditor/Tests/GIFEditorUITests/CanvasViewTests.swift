@@ -390,7 +390,7 @@ private struct InteractiveCanvasHarnessView: View {
       )
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    .border(.separator, set: .single)
+    .border(.separator, set: .single, placement: .outset)
   }
 }
 

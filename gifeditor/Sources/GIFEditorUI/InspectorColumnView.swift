@@ -73,7 +73,7 @@ struct InspectorColumnView: View {
       )
       .frame(maxWidth: .infinity, alignment: .leading)
     }
-    .border(.separator, set: .single)
+    .border(.separator, set: .single, placement: .outset)
     .frame(width: Self.width)
   }
 }

@@ -364,7 +364,7 @@ public struct EditorView: View {
                 refresh: refresh
               )
             }
-            .border(.separator, set: .single)
+            .border(.separator, set: .single, placement: .outset)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             if showsRightPanel {
               InspectorColumnView(
