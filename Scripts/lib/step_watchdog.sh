@@ -178,7 +178,13 @@ dump_hang_diagnostics() {
   dumped=0
   for pid in $ordered_pids; do
     comm=$(cat "/proc/$pid/comm" 2>/dev/null || echo '?')
-    case "$comm" in
+    # `/proc/<pid>/comm` truncates at 15 bytes, so a test bundle can lose the
+    # very substring being matched: "gallery-demoPackageTests.xctest" arrives as
+    # "gallery-demoPac", which contains no "Packag" and no "xctest". That is why
+    # every gallery hang through 2026-08-26 went undumped while mrkdwn's
+    # ("mrkdwnPackageTe") did not. argv[0] is not truncated, so match on both.
+    argv0=$(tr '\0' '\n' <"/proc/$pid/cmdline" 2>/dev/null | head -1)
+    case "$comm $argv0" in
     *swift* | *xctest* | *Packag*) ;;
     *) continue ;;
     esac
