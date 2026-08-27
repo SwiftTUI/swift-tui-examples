@@ -106,6 +106,16 @@ struct LogoTab: View {
     in bounds: CellSize,
     metrics: CellPixelMetrics
   ) async {
+    // The loop body guards `@State` behind a cancellation check; this prologue
+    // needs the same guard. `.task(id:)` restarts on every field-bounds change,
+    // and leaving the tab changes the bounds and tears the node down in the
+    // same frame — so a replacement task can start already cancelled, on a node
+    // that is gone. Reading `didSeedInitialPosition` there falls back to the
+    // authored seed and the runtime reports `state.imperativeSeedFallback`.
+    guard !Task.isCancelled else {
+      return
+    }
+
     if !didSeedInitialPosition {
       ball = LogoBreakerGame.spawnBody(in: bounds, metrics: metrics)
       didSeedInitialPosition = true
