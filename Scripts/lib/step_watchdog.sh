@@ -21,6 +21,8 @@
 #   step_timeout_kill_grace_seconds      SIGTERM -> SIGKILL grace
 #   step_absolute_timeout_seconds        livelock backstop (0 disables)
 #   step_output_probe_ticks              log-size sample interval, in 0.2s ticks
+#   step_busy_extensions                 idle windows forgiven while the tree is
+#                                        burning CPU (0 disables; default 3)
 
 read_step_exit_code() {
   status_file=$1
@@ -64,6 +66,11 @@ validate_timeout_configuration() {
     >&2 echo "SWIFTTUI_EXAMPLES_STEP_OUTPUT_PROBE_TICKS must be a positive integer."
     exit 1
   fi
+
+  if ! is_non_negative_integer "$step_busy_extensions"; then
+    >&2 echo "SWIFTTUI_EXAMPLES_STEP_BUSY_EXTENSIONS must be a non-negative integer."
+    exit 1
+  fi
 }
 
 # Byte count of the step's log, without reading the file: the watchdog only
@@ -74,6 +81,53 @@ log_byte_count() {
     return
   fi
   ls -ln "$1" 2>/dev/null | awk 'NR == 1 { print $5; found = 1 } END { if (!found) print 0 }'
+}
+
+# CPU time consumed by a process tree, in hundredths of a second.
+#
+# Silence is not evidence about a process. `swift test`'s stdout is a pipe, so
+# libc block-buffers it, and a perfectly healthy test binary stays quiet for
+# however long its ~4 KB buffer takes to fill: the 2026-08-26 gallery seam step
+# delivered 453 test lines across 14 distinct seconds, in bursts of up to 103
+# lines, and the watchdog read the gap between two bursts as a hang. CPU time
+# is the signal that separates the two cases the gate actually cares about —
+# the mrkdwn lost-continuation wedge sat at 0% CPU parked in `sigsuspend`,
+# while the gallery "hang" was measured at 107%.
+#
+# `/proc` where it exists (10 ms resolution, Linux CI); `ps` elsewhere (10 ms
+# on Darwin). Returns 0 when neither can answer, which makes an unreadable tree
+# look idle — the conservative direction, since it preserves the old
+# kill-on-silence behaviour rather than suppressing it.
+process_tree_cpu_centiseconds() {
+  root_pid=$1
+  total=0
+
+  for pid in $root_pid $(descendant_pids "$root_pid"); do
+    if [ -r "/proc/$pid/stat" ]; then
+      # utime and stime are fields 14 and 15 *after* the parenthesised comm,
+      # which can itself contain spaces — so split on the last ')' first.
+      ticks=$(sed 's/^.*) //' "/proc/$pid/stat" 2>/dev/null |
+        awk '{ print $12 + $13 }' 2>/dev/null)
+      case "$ticks" in
+      "" | *[!0-9]*) ticks=0 ;;
+      esac
+      total=$((total + ticks))
+    else
+      # `[[dd-]hh:]mm:ss[.cc]` -> centiseconds.
+      centiseconds=$(ps -o time= -p "$pid" 2>/dev/null | awk '
+        { gsub(/^[ \t]+/, "", $0)
+          n = split($0, parts, /[:-]/)
+          seconds = 0
+          for (i = 1; i <= n; i++) { seconds = seconds * 60 + parts[i] }
+          printf "%d", seconds * 100 }' 2>/dev/null)
+      case "$centiseconds" in
+      "" | *[!0-9]*) centiseconds=0 ;;
+      esac
+      total=$((total + centiseconds))
+    fi
+  done
+
+  printf '%s' "$total"
 }
 
 process_children() {
@@ -242,6 +296,11 @@ run_logged_command() {
       idle_timeout_ticks=$((step_timeout_seconds * 5))
       absolute_timeout_ticks=$((step_absolute_timeout_seconds * 5))
       last_output_bytes=$(log_byte_count "$log_file")
+      # CPU consumed as of the start of the current idle window, so the check
+      # below asks "did this tree do any work *while it was quiet*" rather than
+      # "has it ever done any work".
+      window_start_cpu=$(process_tree_cpu_centiseconds "$command_pid")
+      busy_extensions_used=0
       detail=""
 
       while [ -z "$detail" ]; do
@@ -257,11 +316,30 @@ run_logged_command() {
           if [ "$current_output_bytes" != "$last_output_bytes" ]; then
             last_output_bytes=$current_output_bytes
             idle_ticks=0
+            window_start_cpu=$(process_tree_cpu_centiseconds "$command_pid")
           fi
         fi
 
         if [ "$idle_ticks" -ge "$idle_timeout_ticks" ]; then
-          detail="produced no output for ${step_timeout_seconds}s"
+          current_cpu=$(process_tree_cpu_centiseconds "$command_pid")
+          if [ "$step_busy_extensions" -gt 0 ] &&
+            [ "$busy_extensions_used" -lt "$step_busy_extensions" ] &&
+            [ "$current_cpu" -gt "$window_start_cpu" ]; then
+            # Quiet, but working: a buffered writer, not a wedge. Forgive the
+            # window and say so, and spend one of a fixed per-step budget so a
+            # genuine livelock still dies here rather than at the absolute cap.
+            # The budget is deliberately NOT refunded when output resumes: this
+            # very message grows the log, and refunding on log growth would let
+            # the watchdog extend itself forever.
+            busy_extensions_used=$((busy_extensions_used + 1))
+            idle_ticks=0
+            window_start_cpu=$current_cpu
+            >&2 echo "NOTE: no output for ${step_timeout_seconds}s, but the process tree consumed CPU; treating that as progress (${busy_extensions_used}/${step_busy_extensions})."
+          elif [ "$current_cpu" -gt "$window_start_cpu" ]; then
+            detail="produced no output for ${step_timeout_seconds}s and exhausted its ${step_busy_extensions} busy extensions while still consuming CPU"
+          else
+            detail="produced no output for ${step_timeout_seconds}s"
+          fi
         elif [ "$absolute_timeout_ticks" -gt 0 ] &&
           [ "$elapsed_ticks" -ge "$absolute_timeout_ticks" ]; then
           detail="exceeded the ${step_absolute_timeout_seconds}s absolute cap while still producing output"

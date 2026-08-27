@@ -41,6 +41,13 @@ step_timeout_kill_grace_seconds=${SWIFTTUI_EXAMPLES_TIMEOUT_KILL_GRACE_SECONDS:-
 # printing. Defaults to 4x the idle bound; 0 disables it.
 step_absolute_timeout_seconds=${SWIFTTUI_EXAMPLES_STEP_ABSOLUTE_TIMEOUT_SECONDS:-$((build_step_timeout_seconds * 4))}
 step_output_probe_ticks=${SWIFTTUI_EXAMPLES_STEP_OUTPUT_PROBE_TICKS:-25}
+# Idle windows the watchdog forgives while the step's process tree is still
+# consuming CPU. Silence alone does not mean parked: `swift test` writes to a
+# pipe, so libc block-buffers it and a healthy binary is quiet until its buffer
+# fills — measured at 274 s on a CI runner. A wedge consumes no CPU, so it
+# still dies at the first idle bound; a quiet worker gets up to this many more
+# windows before the gate stops believing it.
+step_busy_extensions=${SWIFTTUI_EXAMPLES_STEP_BUSY_EXTENSIONS:-3}
 
 usage() {
   cat <<'EOF'
