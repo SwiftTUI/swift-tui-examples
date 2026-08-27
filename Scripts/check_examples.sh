@@ -328,6 +328,34 @@ run_csvui_manifest_contract() {
   return "$status"
 }
 
+run_gallery_tests() {
+  # Two settings, both about the silence watchdog rather than throughput.
+  #
+  # `--no-parallel`: this suite is @MainActor top to bottom, so it never had
+  # real parallelism (a full run measures ~1.0x user/real). What the default
+  # scheduler does buy is interleaving: every in-flight test's clock absorbs
+  # every other test's MainActor work, so a test whose own body costs ~2 s
+  # reports 30 s locally and minutes on a 2-vCPU runner. swift-testing prints
+  # nothing while a test body runs, so that inflated clock IS the step's
+  # silence gap — the 2026-08-26 seam run died at exactly 305 s with the next
+  # log line being the victim test's own checkmark, cut off mid-write. Serial
+  # costs nothing here and caps the worst gap at the slowest single test.
+  #
+  # `SWIFTTUI_SOUNDNESS_PROBE_SAMPLE`: the framework's reconciliation oracles
+  # default to every frame under DEBUG, which is what swift-tui's own suite
+  # wants. A consumer's debug test run pays it on every frame of every
+  # animation — whole-graph debug snapshots, an ungated checkpoint restore and
+  # a deep tree compare, measured at ~25% of this suite's CPU. Sampling keeps
+  # the oracles armed (this suite drives thousands of frames, so a persistent
+  # unsoundness still surfaces in the first second) at a fraction of the cost.
+  # Release already samples 1 in 256; 64 is four times stricter than that.
+  (
+    SWIFTTUI_SOUNDNESS_PROBE_SAMPLE=64
+    export SWIFTTUI_SOUNDNESS_PROBE_SAMPLE
+    run_swift test --package-path gallery --no-parallel
+  )
+}
+
 # csvui's framework-exercising suites (Scripts/lib/example_suites.sh): the
 # view contracts and the real-terminal journeys. The CSV core runs in the
 # app-logic lane via the complementary `--skip`.
@@ -697,7 +725,7 @@ run_linux_examples() {
   run_test_step \
     "Test gallery" \
     "$repo_root" \
-    run_swift test --package-path gallery
+    run_gallery_tests
 
   run_test_step \
     "Test gifcat" \
@@ -818,7 +846,7 @@ run_macos_examples() {
     run_test_step \
       "Test gallery" \
       "$repo_root" \
-      run_swift test --package-path gallery
+      run_gallery_tests
   fi
 }
 
