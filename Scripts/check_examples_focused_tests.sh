@@ -214,11 +214,42 @@ if [ -n "$framework_root" ]; then
   fi
 fi
 
+# Command prefix that line-buffers a child's stdout/stderr, or empty where the
+# platform has no way to ask.
+#
+# `swift test` writes to a pipe, so libc block-buffers it: the 2026-08-26
+# gallery step delivered 453 test lines in 14 bursts, and a burst gap of 274 s
+# is indistinguishable from a stall to anyone reading the log. The watchdog no
+# longer kills on that (it checks CPU too), but the log is still unreadable in
+# real time, and "which test was running when it stopped" is the first question
+# anyone asks. `stdbuf` fixes it at the source.
+#
+# Verified in the gate container against a real Swift binary: 120 printed lines
+# arrived in 2 buffer flushes without it and spread across the whole run with
+# it, and LD_PRELOAD/_STDBUF_O reach the grandchild that `swift test` spawns.
+# Linux only, deliberately. That is where this was verified and where the
+# runners are known. GNU stdbuf works by preloading libstdbuf, which on macOS
+# means DYLD_INSERT_LIBRARIES — stripped by SIP for protected binaries, so it
+# would be a silent no-op at best and a per-process loader warning at worst,
+# and a stock macOS runner has no stdbuf at all. The macOS lanes keep the wider
+# idle bound instead.
+if [ "$(uname -s)" = "Linux" ] && command -v stdbuf >/dev/null 2>&1; then
+  line_buffered_prefix="stdbuf -oL -eL"
+else
+  line_buffered_prefix=""
+fi
+
 run_swift() {
+  # Only for `test`: builds already stream progress, and this puts an
+  # LD_PRELOAD on every process in the subtree.
+  swift_prefix=""
+  if [ "${1:-}" = "test" ]; then
+    swift_prefix=$line_buffered_prefix
+  fi
   if [ -n "$swiftpm_scratch" ]; then
-    swiftly run swift "$@" --scratch-path "$swiftpm_scratch"
+    $swift_prefix swiftly run swift "$@" --scratch-path "$swiftpm_scratch"
   else
-    swiftly run swift "$@"
+    $swift_prefix swiftly run swift "$@"
   fi
 }
 
