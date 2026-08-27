@@ -227,12 +227,15 @@ jobs:
   macos-examples:
     name: macOS examples
     runs-on: macos-26
-    # Dispatch and tag only (decided 2026-08-25; plan 2026-08-25-001 Stage
-    # 1e/5): the Linux lanes are the push/PR signal, and macOS — the primary
-    # user platform — is verified before a release, where the tag push makes
-    # this job required. Run it on demand with `workflow_dispatch` +
-    # `run_macos`.
-    if: ${{ (github.event_name == 'workflow_dispatch' && inputs.run_macos) || startsWith(github.ref, 'refs/tags/') }}
+    # Runs on pushes to main, on tags, and on demand (`workflow_dispatch` +
+    # `run_macos`). Plan 2026-08-25-001 Stage 1e/5 had made this dispatch- and
+    # tag-only on cost grounds, with the Linux lanes carrying the push signal;
+    # re-enabled on push 2026-08-27 at the operator's request, because macOS is
+    # the primary user platform and a tag is a late place to first hear about
+    # it. Pull requests still skip it.
+    if: >-
+      ${{ (github.event_name == 'workflow_dispatch' && inputs.run_macos)
+      || (github.event_name == 'push') }}
     # Includes the gallery test suite (macOS focused smoke tests), not just
     # builds — budget headroom for a cold SwiftPM cache.
     timeout-minutes: 60

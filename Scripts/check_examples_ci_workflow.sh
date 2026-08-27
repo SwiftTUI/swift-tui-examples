@@ -51,11 +51,16 @@ require_text "Scripts/check_examples_focused_tests.sh --package" "$workflow"
 # Tags run everything, add release builds, and are never cancelled.
 require_text 'tags: ["*.*.*"]' "$workflow"
 require_text "--release-builds" "$workflow"
-# macOS: dispatch and tags only.
+# macOS: pushes to main, tags, and dispatch with the flag. Not pull requests —
+# `push` and `pull_request` are distinct events, so the second clause does not
+# match a PR. Re-enabled on push 2026-08-27 (was dispatch/tag only under plan
+# 2026-08-25-001 Stage 1e/5); macOS is the primary user platform and a tag is a
+# late place to first hear about it.
 require_text "macOS examples" "$workflow"
 require_text "runs-on: macos-26" "$workflow"
 require_text "Scripts/check_examples_macos.sh --skip-clean" "$workflow"
-require_text "(github.event_name == 'workflow_dispatch' && inputs.run_macos) || startsWith(github.ref, 'refs/tags/')" "$workflow"
+require_text "(github.event_name == 'workflow_dispatch' && inputs.run_macos)" "$workflow"
+require_text "|| (github.event_name == 'push')" "$workflow"
 forbid_text "repository: SwiftTUI/swift-tui" "$workflow"
 forbid_text "repository: SwiftTUI/swift-tui-web" "$workflow"
 forbid_text 'secrets.SWIFTTUI_CI_TOKEN || github.token' "$workflow"
