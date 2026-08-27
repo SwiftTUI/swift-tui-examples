@@ -24,6 +24,7 @@ struct AnimationRegressionTests {
       rootIdentity: rootIdentity
     )
     let host = AnimationRegressionRecordingHost(size: terminalSize)
+    let markerScan = SlideMarkerScan()
     var initialColumn: Int?
     var framesBeforeToggle = 0
     var markerColumnsAfterToggle: [Int] = []
@@ -32,7 +33,7 @@ struct AnimationRegressionTests {
       frameSignal: host.frameSignal,
       steps: [
         .awaitCondition {
-          let markerColumns = Self.slideMarkerColumns(in: host.surfaces)
+          let markerColumns = markerScan.columns(scanning: host.surfaces)
           guard let latestColumn = markerColumns.last else {
             return false
           }
@@ -47,7 +48,7 @@ struct AnimationRegressionTests {
             return false
           }
           markerColumnsAfterToggle = Array(
-            Self.slideMarkerColumns(in: host.surfaces)
+            markerScan.columns(scanning: host.surfaces)
               .dropFirst(framesBeforeToggle)
           )
           return markerColumnsAfterToggle.contains(initialColumn + 30)
@@ -104,6 +105,7 @@ struct AnimationRegressionTests {
       try? FileManager.default.removeItem(at: diagnosticsURL)
     }
     let host = AnimationRegressionRecordingHost(size: terminalSize)
+    let markerScan = SlideMarkerScan()
     var initialColumn: Int?
     var framesBeforeToggle = 0
     var markerColumnsAfterToggle: [Int] = []
@@ -112,7 +114,7 @@ struct AnimationRegressionTests {
       frameSignal: host.frameSignal,
       steps: [
         .awaitCondition {
-          let markerColumns = Self.slideMarkerColumns(in: host.surfaces)
+          let markerColumns = markerScan.columns(scanning: host.surfaces)
           guard let latestColumn = markerColumns.last else {
             return false
           }
@@ -127,7 +129,7 @@ struct AnimationRegressionTests {
             return false
           }
           markerColumnsAfterToggle = Array(
-            Self.slideMarkerColumns(in: host.surfaces)
+            markerScan.columns(scanning: host.surfaces)
               .dropFirst(framesBeforeToggle)
           )
           return markerColumnsAfterToggle.contains(initialColumn + 30)
@@ -218,14 +220,36 @@ struct AnimationRegressionTests {
     Identity(components: ["App", WindowIdentifier(sceneID).rawValue])
   }
 
-  private static func slideMarkerColumns(
-    in surfaces: [RasterSurface]
-  ) -> [Int] {
-    surfaces.compactMap { surface in
-      surface.lines.compactMap { line in
-        line.range(of: "slide me")?.lowerBound.utf16Offset(in: line)
+  /// Append-only scan of a recording host's surface log.
+  ///
+  /// The awaited conditions below re-run on every presented frame. Deriving
+  /// the marker columns from `host.surfaces` each time re-read `lines` — a
+  /// computed property that rebuilds every row string from the cell grid —
+  /// for every surface recorded so far, so the scan cost grew with the square
+  /// of the frame count over a 96x60 grid. The log only ever grows at the
+  /// end, so a cursor gives the same answer for one pass per surface.
+  @MainActor
+  private final class SlideMarkerScan {
+    private var columns: [Int] = []
+    private var scanned = 0
+
+    func columns(scanning surfaces: [RasterSurface]) -> [Int] {
+      while scanned < surfaces.count {
+        if let column = Self.markerColumn(in: surfaces[scanned]) {
+          columns.append(column)
+        }
+        scanned += 1
       }
-      .first
+      return columns
+    }
+
+    private static func markerColumn(in surface: RasterSurface) -> Int? {
+      for line in surface.lines {
+        if let range = line.range(of: "slide me") {
+          return range.lowerBound.utf16Offset(in: line)
+        }
+      }
+      return nil
     }
   }
 
