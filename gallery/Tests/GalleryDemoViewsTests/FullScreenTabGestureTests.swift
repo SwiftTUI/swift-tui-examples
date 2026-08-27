@@ -519,7 +519,7 @@ struct LogoBreakerGestureTests {
       stageClock: host.stageClock,
       steps: [
         .awaitCondition {
-          deduplicated(host.surfaces).count >= 2
+          host.distinctSurfaces.count >= 2
         },
         .event(.key(KeyPress(.character("c"), modifiers: .ctrl))),
       ])
@@ -535,7 +535,7 @@ struct LogoBreakerGestureTests {
     #expect(result.exitReason == .userExit(KeyPress(.character("c"), modifiers: .ctrl)))
     #expect(result.renderedFrames >= 2)
 
-    let uniqueSurfaces = deduplicated(host.surfaces)
+    let uniqueSurfaces = host.distinctSurfaces
     #expect(uniqueSurfaces.count >= 2)
     #expect(uniqueSurfaces.first != uniqueSurfaces.last)
   }
@@ -624,7 +624,7 @@ struct LogoBreakerGestureTests {
           delayNanoseconds: 30_000_000
         ),
         .awaitCondition {
-          let surfaces = deduplicated(host.surfaces)
+          let surfaces = host.distinctSurfaces
           guard surfaces.count >= 2,
             let bounds = surfaces.last.flatMap(brailleBounds(in:))
           else {
@@ -648,7 +648,7 @@ struct LogoBreakerGestureTests {
           .mouse(.init(kind: .up(.primary), location: capture.secondEnd))
         },
         .awaitCondition {
-          deduplicated(host.surfaces).count >= 3
+          host.distinctSurfaces.count >= 3
         },
       ])
     let result = try await runHarness(
@@ -662,7 +662,7 @@ struct LogoBreakerGestureTests {
 
     #expect(result.exitReason == .inputEnded)
 
-    let uniqueSurfaces = deduplicated(host.surfaces)
+    let uniqueSurfaces = host.distinctSurfaces
     #expect(uniqueSurfaces.count >= 3)
     #expect(uniqueSurfaces.first != uniqueSurfaces.last)
   }
@@ -703,11 +703,11 @@ struct LogoBreakerGestureTests {
           delayNanoseconds: 30_000_000
         ),
         .awaitCondition {
-          capture.surfaceCountAtRelease = deduplicated(host.surfaces).count
+          capture.surfaceCountAtRelease = host.distinctSurfaces.count
           return true
         },
         .awaitCondition {
-          deduplicated(host.surfaces).count > capture.surfaceCountAtRelease
+          host.distinctSurfaces.count > capture.surfaceCountAtRelease
         },
       ])
     let result = try await runHarness(
@@ -721,7 +721,7 @@ struct LogoBreakerGestureTests {
 
     #expect(result.exitReason == .inputEnded)
 
-    let uniqueSurfaces = deduplicated(host.surfaces)
+    let uniqueSurfaces = host.distinctSurfaces
     #expect(
       uniqueSurfaces.count > capture.surfaceCountAtRelease,
       "expected at least one physics-driven frame after release, not only drag/release frames"
@@ -764,7 +764,7 @@ struct LogoBreakerGestureTests {
       stageClock: host.stageClock,
       steps: [
         .awaitCondition {
-          deduplicated(host.surfaces).count >= 2
+          host.distinctSurfaces.count >= 2
         },
         .event(.key(KeyPress(.character("c"), modifiers: .ctrl))),
       ])
@@ -954,6 +954,14 @@ private final class GestureRecordingHost: PresentationSurface {
   let appearance: TerminalAppearance = .fallback
   let stageClock = ManualStageClock()
   private(set) var surfaces: [RasterSurface] = []
+  /// Presented frames with consecutive duplicates dropped, maintained as they
+  /// arrive rather than derived on read. Awaited predicates re-run on every
+  /// presented frame and several of them ask for this, so deriving it per read
+  /// walked the whole recording and compared whole `RasterSurface`s — every
+  /// cell of every frame, on every frame, i.e. O(frames^2) in cell
+  /// comparisons. The log only ever grows at the end, so one comparison per
+  /// frame gives the same answer.
+  private(set) var distinctSurfaces: [RasterSurface] = []
 
   /// Notified after every present, so an awaited input step can re-check its
   /// predicate the instant a frame lands instead of polling under a timeout.
@@ -972,6 +980,9 @@ private final class GestureRecordingHost: PresentationSurface {
   @discardableResult
   func present(_ surface: RasterSurface) throws -> TerminalPresentationMetrics {
     surfaces.append(surface)
+    if distinctSurfaces.last != surface {
+      distinctSurfaces.append(surface)
+    }
     stageClock.advance()
     // The run loop only ever presents on the MainActor; `assumeIsolated`
     // bridges this nonisolated witness to the MainActor-isolated signal.
@@ -1113,15 +1124,4 @@ private func firstReachableBrickPair(
     }
     return nil
   }.first
-}
-
-private func deduplicated(
-  _ surfaces: [RasterSurface]
-) -> [RasterSurface] {
-  var result: [RasterSurface] = []
-  result.reserveCapacity(surfaces.count)
-  for surface in surfaces where result.last != surface {
-    result.append(surface)
-  }
-  return result
 }

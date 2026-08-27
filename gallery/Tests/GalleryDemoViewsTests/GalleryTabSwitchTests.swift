@@ -247,7 +247,7 @@ struct GalleryTabSwitchTests {
         stageClock: host.stageClock,
         steps: [
           .awaitCondition {
-            let surfaces = deduplicated(host.surfaces)
+            let surfaces = host.distinctSurfaces
             guard surfaces.count >= 2 else {
               return false
             }
@@ -331,11 +331,11 @@ struct GalleryTabSwitchTests {
             else {
               return false
             }
-            capture.surfaceCountAtFirstPhysicsFrame = deduplicated(host.surfaces).count
+            capture.surfaceCountAtFirstPhysicsFrame = host.distinctSurfaces.count
             return true
           },
           .awaitCondition {
-            deduplicated(host.surfaces).count >= capture.surfaceCountAtFirstPhysicsFrame + 2
+            host.distinctSurfaces.count >= capture.surfaceCountAtFirstPhysicsFrame + 2
           },
           .event(.key(KeyPress(.character("c"), modifiers: .ctrl))),
         ]),
@@ -346,7 +346,7 @@ struct GalleryTabSwitchTests {
 
     #expect(result.exitReason == .userExit(KeyPress(.character("c"), modifiers: .ctrl)))
 
-    let uniqueSurfaces = deduplicated(host.surfaces)
+    let uniqueSurfaces = host.distinctSurfaces
     #expect(
       uniqueSurfaces.count >= capture.surfaceCountAtFirstPhysicsFrame + 2,
       "expected selecting the gallery Logo Breaker tab to start gravity-driven frames"
@@ -400,11 +400,11 @@ struct GalleryTabSwitchTests {
             else {
               return false
             }
-            capture.surfaceCountAtFirstPhysicsFrame = deduplicated(host.surfaces).count
+            capture.surfaceCountAtFirstPhysicsFrame = host.distinctSurfaces.count
             return true
           },
           .awaitCondition {
-            deduplicated(host.surfaces).count >= capture.surfaceCountAtFirstPhysicsFrame + 2
+            host.distinctSurfaces.count >= capture.surfaceCountAtFirstPhysicsFrame + 2
           },
           .event(.key(KeyPress(.character("c"), modifiers: .ctrl))),
         ]),
@@ -415,7 +415,7 @@ struct GalleryTabSwitchTests {
 
     #expect(result.exitReason == .userExit(KeyPress(.character("c"), modifiers: .ctrl)))
 
-    let uniqueSurfaces = deduplicated(host.surfaces)
+    let uniqueSurfaces = host.distinctSurfaces
     #expect(
       uniqueSurfaces.count >= capture.surfaceCountAtFirstPhysicsFrame + 2,
       "expected selecting overflowed Logo Breaker to start gravity-driven frames"
@@ -448,19 +448,19 @@ struct GalleryTabSwitchTests {
         stageClock: host.stageClock,
         steps: [
           .awaitCondition {
-            let surfaces = deduplicated(host.surfaces)
+            let surfaces = host.distinctSurfaces
             guard surfaces.count >= 4, let surface = surfaces.last else {
               return false
             }
             return Self.containsBrailleDrawing(surface)
           },
           .eventFrom {
-            surfaceCountAtTrigger = deduplicated(host.surfaces).count
+            surfaceCountAtTrigger = host.distinctSurfaces.count
             return .mouse(.init(kind: .down(.primary), location: overflowTriggerCenter))
           },
           .event(.mouse(.init(kind: .up(.primary), location: overflowTriggerCenter))),
           .awaitCondition {
-            let surfaces = deduplicated(host.surfaces)
+            let surfaces = host.distinctSurfaces
             guard surfaces.count >= surfaceCountAtTrigger + 4,
               let surface = surfaces.last
             else {
@@ -474,7 +474,7 @@ struct GalleryTabSwitchTests {
             return true
           },
           .awaitCondition {
-            deduplicated(host.surfaces).count >= expandedSurfaceCount + 3
+            host.distinctSurfaces.count >= expandedSurfaceCount + 3
           },
           .event(.key(KeyPress(.character("c"), modifiers: .ctrl))),
         ]),
@@ -486,7 +486,7 @@ struct GalleryTabSwitchTests {
 
     #expect(result.exitReason == .userExit(KeyPress(.character("c"), modifiers: .ctrl)))
 
-    let surfacesAfterTrigger = Array(deduplicated(host.surfaces).dropFirst(surfaceCountAtTrigger))
+    let surfacesAfterTrigger = Array(host.distinctSurfaces.dropFirst(surfaceCountAtTrigger))
     let missingMenuSurfaces = surfacesAfterTrigger.filter { surface in
       let text = surface.lines.joined(separator: "\n")
       return !text.contains("▲") || !text.contains("Logo Breaker")
@@ -519,7 +519,7 @@ struct GalleryTabSwitchTests {
         stageClock: host.stageClock,
         steps: [
           .awaitCondition {
-            let surfaces = deduplicated(host.surfaces)
+            let surfaces = host.distinctSurfaces
             guard surfaces.count >= 4,
               let bounds = surfaces.last.flatMap(Self.brailleBounds(in:))
             else {
@@ -544,11 +544,11 @@ struct GalleryTabSwitchTests {
             .mouse(.init(kind: .up(.primary), location: capture.dragEnd))
           },
           .awaitCondition {
-            capture.surfaceCountAtRelease = deduplicated(host.surfaces).count
+            capture.surfaceCountAtRelease = host.distinctSurfaces.count
             return true
           },
           .awaitCondition {
-            deduplicated(host.surfaces).count >= capture.surfaceCountAtRelease + 3
+            host.distinctSurfaces.count >= capture.surfaceCountAtRelease + 3
           },
           .event(.key(KeyPress(.character("c"), modifiers: .ctrl))),
         ]),
@@ -563,7 +563,7 @@ struct GalleryTabSwitchTests {
       "expected gravity-driven frames before dragging the gallery Logo Breaker tab"
     )
 
-    let uniqueSurfaces = deduplicated(host.surfaces)
+    let uniqueSurfaces = host.distinctSurfaces
     #expect(
       uniqueSurfaces.count >= capture.surfaceCountAtRelease + 3,
       "expected multiple physics-driven frames after release, not only drag/release frames"
@@ -2304,6 +2304,14 @@ private final class GalleryTabSwitchRecordingHost: PresentationSurface {
   let appearance: TerminalAppearance = .fallback
   let stageClock = ManualStageClock()
   private(set) var surfaces: [RasterSurface] = []
+  /// Presented frames with consecutive duplicates dropped, maintained as they
+  /// arrive rather than derived on read. Awaited predicates re-run on every
+  /// presented frame and several of them ask for this, so deriving it per read
+  /// walked the whole recording and compared whole `RasterSurface`s — every
+  /// cell of every frame, on every frame, i.e. O(frames^2) in cell
+  /// comparisons. The log only ever grows at the end, so one comparison per
+  /// frame gives the same answer.
+  private(set) var distinctSurfaces: [RasterSurface] = []
   private(set) var lastPresentedSurface: RasterSurface?
 
   /// Notified after every `present`, so an awaited input step can re-check its
@@ -2323,6 +2331,9 @@ private final class GalleryTabSwitchRecordingHost: PresentationSurface {
   @discardableResult
   func present(_ surface: RasterSurface) throws -> TerminalPresentationMetrics {
     surfaces.append(surface)
+    if distinctSurfaces.last != surface {
+      distinctSurfaces.append(surface)
+    }
     lastPresentedSurface = surface
     stageClock.advance()
     // The run loop only ever presents on the MainActor; `assumeIsolated`
@@ -2345,6 +2356,14 @@ private final class GalleryDamageValidatingHost: PresentationSurface, DamageAwar
   let appearance: TerminalAppearance = .fallback
   let stageClock = ManualStageClock()
   private(set) var surfaces: [RasterSurface] = []
+  /// Presented frames with consecutive duplicates dropped, maintained as they
+  /// arrive rather than derived on read. Awaited predicates re-run on every
+  /// presented frame and several of them ask for this, so deriving it per read
+  /// walked the whole recording and compared whole `RasterSurface`s — every
+  /// cell of every frame, on every frame, i.e. O(frames^2) in cell
+  /// comparisons. The log only ever grows at the end, so one comparison per
+  /// frame gives the same answer.
+  private(set) var distinctSurfaces: [RasterSurface] = []
   private(set) var damages: [PresentationDamage?] = []
   private(set) var lastPresentedSurface: RasterSurface?
   private var previousSurface: RasterSurface?
@@ -2390,6 +2409,9 @@ private final class GalleryDamageValidatingHost: PresentationSurface, DamageAwar
 
     previousSurface = surface
     surfaces.append(surface)
+    if distinctSurfaces.last != surface {
+      distinctSurfaces.append(surface)
+    }
     damages.append(damage)
     lastPresentedSurface = surface
     stageClock.advance()
@@ -2436,17 +2458,6 @@ private func containsSeedHarnessPaletteSurface(_ text: String) -> Bool {
   text.contains("Switch to Logo Breaker")
     || text.contains("No commands in the current scope.")
     || text.contains("Command palette")
-}
-
-private func deduplicated(
-  _ surfaces: [RasterSurface]
-) -> [RasterSurface] {
-  var result: [RasterSurface] = []
-  result.reserveCapacity(surfaces.count)
-  for surface in surfaces where result.last != surface {
-    result.append(surface)
-  }
-  return result
 }
 
 private struct PTYVisibleScreen {

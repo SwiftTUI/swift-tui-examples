@@ -35,11 +35,15 @@ enum GalleryFrameStrip {
     text += "# frames: \(frames.count)  size: \(sizeText)  state line: \"\(stateNeedle)\"\n"
     for (index, frame) in frames.enumerated() {
       let seconds = frame.elapsed.totalSeconds
+      // `lines` is computed: every read rebuilds each row's String from the
+      // cell grid. Read it once per frame rather than once for the header and
+      // again for the body.
+      let lines = frame.surface.lines
       let state =
-        frame.surface.lines.first { $0.contains(stateNeedle) }.map(trimmingTrailingSpaces)
+        lines.first { $0.contains(stateNeedle) }.map(trimmingTrailingSpaces)
         ?? "(no \(stateNeedle) line)"
       text += "=== frame \(index)  t=+\(String(format: "%.3f", seconds))s  \(state)\n"
-      for line in frame.surface.lines {
+      for line in lines {
         text += trimmingTrailingSpaces(line) + "\n"
       }
     }
