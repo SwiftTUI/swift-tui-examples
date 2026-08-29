@@ -115,6 +115,19 @@ jobs:
     env:
       SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH: ${{ github.workspace }}/swift-tui-examples/.build/shared-swiftpm-linux
       SWIFTTUI_HANG_DIAGNOSTICS: "1"
+      # Worst-case kill = 600 s build bound + 300 s busy grace + 10 s kill
+      # grace = 910 s. It was 2410 s until 2026-08-29 — the grace was a COUNT
+      # of three forgiven windows, each costing another whole idle bound — so
+      # on a 30-minute cap the watchdog could not fire on a wedged build step
+      # at all, and the job died at the cap with no TIMEOUT line and no dump.
+      SWIFTTUI_EXAMPLES_STEP_BUSY_GRACE_SECONDS: "300"
+      # The livelock-while-printing backstop has to fit the cap too, or it is
+      # decoration: the default (4x the build bound) is 2400 s against 1800 s.
+      # It widens with the cap on a tag, where the release builds join.
+      SWIFTTUI_EXAMPLES_STEP_ABSOLUTE_TIMEOUT_SECONDS: ${{ startsWith(github.ref, 'refs/tags/') && 3300 || 1500 }}
+      # This job's `timeout-minutes` in seconds. The gate refuses to start if
+      # the watchdog could not fire inside it — keep the two in step.
+      SWIFTTUI_EXAMPLES_STEP_WATCHDOG_DEADLINE_SECONDS: ${{ startsWith(github.ref, 'refs/tags/') && 3600 || 1800 }}
     steps:
       - name: Checkout examples
         uses: actions/checkout@v7
@@ -176,6 +189,15 @@ jobs:
     env:
       SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH: ${{ github.workspace }}/swift-tui-examples/.build/shared-swiftpm-app-${{ matrix.package }}
       SWIFTTUI_HANG_DIAGNOSTICS: "1"
+      # This lane's silence budget already fits its cap (300 s bound + 150 s
+      # grace + 10 s kill grace = 460 s). The absolute backstop is pinned
+      # rather than left to default, because the default is 4x a bound that
+      # `uname` picks — 300 s on Linux but 600 s on macOS — so the same
+      # configuration fits a 30-minute cap on one platform and not the other.
+      SWIFTTUI_EXAMPLES_STEP_ABSOLUTE_TIMEOUT_SECONDS: "1200"
+      # This job's `timeout-minutes` in seconds. The gate refuses to start if
+      # the watchdog could not fire inside it — keep the two in step.
+      SWIFTTUI_EXAMPLES_STEP_WATCHDOG_DEADLINE_SECONDS: "1800"
     steps:
       - name: Checkout examples
         uses: actions/checkout@v7
@@ -242,6 +264,10 @@ jobs:
     env:
       SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH: ${{ github.workspace }}/swift-tui-examples/.build/shared-swiftpm-macos
       SWIFTTUI_EXAMPLES_XCODE_DERIVED_DATA: ${{ github.workspace }}/swift-tui-examples/.build/xcode-derived-data
+      # This job's `timeout-minutes` in seconds. The macOS defaults fit it
+      # (600 s bound + 300 s grace + 10 s kill grace = 910 s, absolute 2400 s),
+      # so declaring the cap here holds them to it as the numbers move.
+      SWIFTTUI_EXAMPLES_STEP_WATCHDOG_DEADLINE_SECONDS: "3600"
     steps:
       - name: Checkout examples
         uses: actions/checkout@v7

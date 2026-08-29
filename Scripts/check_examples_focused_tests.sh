@@ -30,13 +30,30 @@ step_timeout_seconds=${SWIFTTUI_EXAMPLES_TEST_STEP_TIMEOUT_SECONDS:-$default_tes
 step_timeout_kill_grace_seconds=${SWIFTTUI_EXAMPLES_TIMEOUT_KILL_GRACE_SECONDS:-10}
 step_absolute_timeout_seconds=${SWIFTTUI_EXAMPLES_STEP_ABSOLUTE_TIMEOUT_SECONDS:-$((step_timeout_seconds * 4))}
 step_output_probe_ticks=${SWIFTTUI_EXAMPLES_STEP_OUTPUT_PROBE_TICKS:-25}
-# Idle windows the watchdog forgives while the step's process tree is still
-# consuming CPU. Silence alone does not mean parked: `swift test` writes to a
-# pipe, so libc block-buffers it and a healthy binary is quiet until its buffer
-# fills — measured at 274 s on a CI runner. A wedge consumes no CPU, so it
-# still dies at the first idle bound; a quiet worker gets up to this many more
-# windows before the gate stops believing it.
-step_busy_extensions=${SWIFTTUI_EXAMPLES_STEP_BUSY_EXTENSIONS:-3}
+# Total quiet-but-busy time the watchdog forgives across one step. Silence alone
+# does not mean parked: `swift test` writes to a pipe, so libc block-buffers it
+# and a healthy binary is quiet until its buffer fills — measured at 274 s on a
+# CI runner. A wedge consumes no CPU, so it still dies at the first idle bound;
+# a quiet worker gets up to this much extra silence before the gate stops
+# believing it. Spelled in SECONDS so the worst-case kill time stays additive:
+# `bound + grace + kill grace`. See Scripts/lib/step_watchdog.sh.
+step_busy_grace_seconds=${SWIFTTUI_EXAMPLES_STEP_BUSY_GRACE_SECONDS:-$((step_timeout_seconds / 2))}
+# Average CPU across the silent window that counts as "working". A bare
+# "consumed any CPU at all" test is tripped by a parked tree's signal and timer
+# wakeups; the shapes this has to separate measured 0% and 107%.
+step_busy_min_cpu_percent=${SWIFTTUI_EXAMPLES_STEP_BUSY_MIN_CPU_PERCENT:-25}
+# This job's own wall-clock cap, when it has one (CI sets it from the workflow's
+# `timeout-minutes`). The watchdog refuses to start if it could not fire inside
+# it, because a job that dies at its cap leaves no TIMEOUT line and no dump.
+step_watchdog_deadline_seconds=${SWIFTTUI_EXAMPLES_STEP_WATCHDOG_DEADLINE_SECONDS:-0}
+
+if [ -n "${SWIFTTUI_EXAMPLES_STEP_BUSY_EXTENSIONS:-}" ]; then
+  >&2 echo "SWIFTTUI_EXAMPLES_STEP_BUSY_EXTENSIONS was replaced by"
+  >&2 echo "SWIFTTUI_EXAMPLES_STEP_BUSY_GRACE_SECONDS, which is a budget in seconds"
+  >&2 echo "rather than a count of idle windows. Setting the old name has no effect;"
+  >&2 echo "unset it and set the new one so the worst-case kill time stays visible."
+  exit 1
+fi
 
 usage() {
   cat <<'EOF'
@@ -59,7 +76,12 @@ When SWIFTTUI_CHECKOUT is set, mrkdwn and csvui run from disposable package
 roots whose SwiftTUI dependency points at that exact checkout; public manifests
 are not modified.
 Every step runs under the silence watchdog (SWIFTTUI_EXAMPLES_TEST_STEP_TIMEOUT_SECONDS,
-default 300 on Linux and 600 on macOS; 0 disables it).
+default 300 on Linux and 600 on macOS; 0 disables it). A quiet step whose process
+tree still averages SWIFTTUI_EXAMPLES_STEP_BUSY_MIN_CPU_PERCENT (default 25) of a
+core is forgiven for up to SWIFTTUI_EXAMPLES_STEP_BUSY_GRACE_SECONDS (default:
+half the bound) in total; the worst-case kill time is the sum of those two plus
+the kill grace, and SWIFTTUI_EXAMPLES_STEP_WATCHDOG_DEADLINE_SECONDS checks that
+sum against the job's own cap.
 EOF
 }
 

@@ -41,13 +41,35 @@ step_timeout_kill_grace_seconds=${SWIFTTUI_EXAMPLES_TIMEOUT_KILL_GRACE_SECONDS:-
 # printing. Defaults to 4x the idle bound; 0 disables it.
 step_absolute_timeout_seconds=${SWIFTTUI_EXAMPLES_STEP_ABSOLUTE_TIMEOUT_SECONDS:-$((build_step_timeout_seconds * 4))}
 step_output_probe_ticks=${SWIFTTUI_EXAMPLES_STEP_OUTPUT_PROBE_TICKS:-25}
-# Idle windows the watchdog forgives while the step's process tree is still
-# consuming CPU. Silence alone does not mean parked: `swift test` writes to a
-# pipe, so libc block-buffers it and a healthy binary is quiet until its buffer
-# fills — measured at 274 s on a CI runner. A wedge consumes no CPU, so it
-# still dies at the first idle bound; a quiet worker gets up to this many more
-# windows before the gate stops believing it.
-step_busy_extensions=${SWIFTTUI_EXAMPLES_STEP_BUSY_EXTENSIONS:-3}
+# Total quiet-but-busy time the watchdog forgives across one step. Silence alone
+# does not mean parked: `swift test` writes to a pipe, so libc block-buffers it
+# and a healthy binary is quiet until its buffer fills — measured at 274 s on a
+# CI runner. A wedge consumes no CPU, so it still dies at the first idle bound;
+# a quiet worker gets up to this much extra silence before the gate stops
+# believing it.
+#
+# Spelled in SECONDS on purpose. This was a count of forgiven windows, each
+# costing another whole idle bound, so the real worst case was
+# `(1 + count) * bound` — 2400 s at the build bound, past this gate's own
+# 30-minute Linux cap. Worst-case kill is now `bound + grace + kill grace`.
+step_busy_grace_seconds=${SWIFTTUI_EXAMPLES_STEP_BUSY_GRACE_SECONDS:-$((build_step_timeout_seconds / 2))}
+# Average CPU across the silent window that counts as "working". A bare
+# "consumed any CPU at all" test is tripped by a parked tree's signal and timer
+# wakeups; the shapes this has to separate measured 0% (the mrkdwn journey
+# wedge) and 107% (the gallery step, block-buffering while working).
+step_busy_min_cpu_percent=${SWIFTTUI_EXAMPLES_STEP_BUSY_MIN_CPU_PERCENT:-25}
+# This job's own wall-clock cap, when it has one (CI sets it from the workflow's
+# `timeout-minutes`). The watchdog refuses to start if it could not fire inside
+# it, because a job that dies at its cap leaves no TIMEOUT line and no dump.
+step_watchdog_deadline_seconds=${SWIFTTUI_EXAMPLES_STEP_WATCHDOG_DEADLINE_SECONDS:-0}
+
+if [ -n "${SWIFTTUI_EXAMPLES_STEP_BUSY_EXTENSIONS:-}" ]; then
+  >&2 echo "SWIFTTUI_EXAMPLES_STEP_BUSY_EXTENSIONS was replaced by"
+  >&2 echo "SWIFTTUI_EXAMPLES_STEP_BUSY_GRACE_SECONDS, which is a budget in seconds"
+  >&2 echo "rather than a count of idle windows. Setting the old name has no effect;"
+  >&2 echo "unset it and set the new one so the worst-case kill time stays visible."
+  exit 1
+fi
 
 usage() {
   cat <<'EOF'
@@ -86,6 +108,13 @@ Every step runs under a silence watchdog: SWIFTTUI_EXAMPLES_STEP_TIMEOUT_SECONDS
 (default 600) bounds build steps, SWIFTTUI_EXAMPLES_TEST_STEP_TIMEOUT_SECONDS
 (default 300 on Linux, 600 on macOS) bounds test steps; 0 disables the
 watchdog for local diagnosis.
+A quiet step whose process tree still averages
+SWIFTTUI_EXAMPLES_STEP_BUSY_MIN_CPU_PERCENT (default 25) of a core is treated as
+working — the block-buffered-writer case — for up to
+SWIFTTUI_EXAMPLES_STEP_BUSY_GRACE_SECONDS (default: half the build bound) in
+total, so the worst-case kill time is the sum of those two plus the kill grace.
+Set SWIFTTUI_EXAMPLES_STEP_WATCHDOG_DEADLINE_SECONDS to the job's own cap and
+the gate refuses to start if that sum could not fire inside it.
 SWIFTTUI_EXAMPLES_STEP_ABSOLUTE_TIMEOUT_SECONDS (default 4x the build bound)
 backstops a step that livelocks while printing. Set SWIFTTUI_HANG_DIAGNOSTICS=1
 (Linux) to capture gdb thread backtraces of the wedged process tree before it

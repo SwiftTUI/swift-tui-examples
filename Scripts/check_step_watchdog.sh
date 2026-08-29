@@ -48,8 +48,11 @@ run_case() {
   step_timeout_kill_grace_seconds=1
   step_absolute_timeout_seconds=$absolute_seconds
   step_output_probe_ticks=1
-  # Per-case override; `run_busy_case` raises it to exercise the extension.
-  step_busy_extensions=${case_busy_extensions:-0}
+  # Per-case overrides; the busy cases raise the grace to exercise it, and one
+  # raises the CPU floor above what its step can reach.
+  step_busy_grace_seconds=${case_busy_grace_seconds:-0}
+  step_busy_min_cpu_percent=${case_busy_min_cpu_percent:-25}
+  step_watchdog_deadline_seconds=0
 
   log_file=$work_dir/$case_name.log
   status_file=$work_dir/$case_name.status
@@ -148,14 +151,30 @@ parks_in_child_step() {
 
 . "$repo_root/Scripts/lib/step_watchdog.sh"
 
-echo "1/9 a slow but talking step survives an idle bound it far exceeds"
+# Drives `validate_timeout_configuration` with one configuration, in a subshell
+# because it reports a bad configuration by exiting. Returns success when the
+# configuration is accepted.
+config_is_accepted() {
+  (
+    step_timeout_seconds=$1
+    step_busy_grace_seconds=$2
+    step_absolute_timeout_seconds=$3
+    step_timeout_kill_grace_seconds=$4
+    step_watchdog_deadline_seconds=$5
+    step_output_probe_ticks=25
+    step_busy_min_cpu_percent=25
+    validate_timeout_configuration
+  ) >/dev/null 2>&1
+}
+
+echo "1/12 a slow but talking step survives an idle bound it far exceeds"
 run_case chatty_slow 2 0 chatty_slow_step
 if [ "$case_exit" != "0" ]; then
   fail "a step that kept emitting output was killed (exit=$case_exit, detail='$case_detail'). \
 The watchdog is measuring wall clock instead of silence."
 fi
 
-echo "2/9 a step that parks after emitting output is killed"
+echo "2/12 a step that parks after emitting output is killed"
 run_case parks_after_output 2 0 parks_after_output_step
 if [ "$case_wedged" = "1" ]; then
   fail "the watchdog reported a timeout but never actually killed the step, so the \
@@ -169,7 +188,7 @@ case "$case_detail" in
 *) fail "parked step reported an unexpected timeout detail: '$case_detail'" ;;
 esac
 
-echo "3/9 a step that never emits anything is killed"
+echo "3/12 a step that never emits anything is killed"
 run_case silent 2 0 silent_step
 if [ "$case_wedged" = "1" ]; then
   fail "a silent step outlived the watchdog's kill."
@@ -178,7 +197,7 @@ if [ "$case_exit" != "124" ]; then
   fail "a silent step was not killed (exit=$case_exit)."
 fi
 
-echo "4/9 the absolute backstop kills a step that livelocks while printing"
+echo "4/12 the absolute backstop kills a step that livelocks while printing"
 run_case livelock 60 3 livelock_step
 if [ "$case_wedged" = "1" ]; then
   fail "a livelocking step outlived the watchdog's kill."
@@ -191,7 +210,7 @@ case "$case_detail" in
 *) fail "livelock step reported an unexpected timeout detail: '$case_detail'" ;;
 esac
 
-echo "5/9 a step parked inside a grandchild process is killed with its whole tree"
+echo "5/12 a step parked inside a grandchild process is killed with its whole tree"
 rm -f "$work_dir/grandchild.pid"
 run_case parks_in_child 2 0 parks_in_child_step
 if [ "$case_wedged" = "1" ]; then
@@ -208,16 +227,16 @@ elif kill -0 "$grandchild_pid" 2>/dev/null; then
   kill -KILL "$grandchild_pid" 2>/dev/null || true
 fi
 
-echo "6/9 a disabled watchdog (0) never kills anything"
+echo "6/12 a disabled watchdog (0) never kills anything"
 run_case disabled 0 0 chatty_slow_step
 if [ "$case_exit" != "0" ]; then
   fail "a step ran with the watchdog disabled but still failed (exit=$case_exit)."
 fi
 
-echo "7/9 a silent step that is still burning CPU survives the idle bound"
-case_busy_extensions=3
+echo "7/12 a silent step that is still burning CPU survives the idle bound"
+case_busy_grace_seconds=6
 run_case busy_silent_survives 2 0 busy_silent_step 5
-case_busy_extensions=0
+case_busy_grace_seconds=0
 if [ "$case_wedged" = "1" ]; then
   fail "the busy-but-silent case never finished; the watchdog left it running."
 fi
@@ -228,40 +247,114 @@ until its buffer fills, and killing it turns a healthy lane red with a hang dump
 that shows a working thread."
 fi
 
-echo "8/9 a silent, busy step still dies once its extensions run out"
-case_busy_extensions=1
+echo "8/12 a silent, busy step still dies once its busy grace runs out"
+case_busy_grace_seconds=2
 run_case busy_silent_exhausts 2 0 busy_silent_step 600
-case_busy_extensions=0
+case_busy_grace_seconds=0
 if [ "$case_wedged" = "1" ]; then
   fail "a livelocking silent step outlived the watchdog's kill."
 fi
 if [ "$case_exit" != "124" ]; then
   fail "a silent step that burned CPU forever was never killed (exit=$case_exit); the \
-busy extension is unbounded, so a real livelock would only die at the absolute cap."
+busy grace is unbounded, so a real livelock would only die at the absolute cap."
 fi
 case "$case_detail" in
-*"busy extensions"*) ;;
-*) fail "exhausted-extension step reported an unexpected detail: '$case_detail'" ;;
+*"busy-grace budget"*) ;;
+*) fail "exhausted-grace step reported an unexpected detail: '$case_detail'" ;;
 esac
 
-echo "9/9 a busy-extension budget does not save a parked step"
-case_busy_extensions=3
+echo "9/12 a busy-grace budget does not save a parked step"
+case_busy_grace_seconds=6
 run_case parked_with_budget 2 0 parks_after_output_step
-case_busy_extensions=0
+case_busy_grace_seconds=0
 if [ "$case_wedged" = "1" ]; then
-  fail "a parked step outlived the watchdog's kill when extensions were available."
+  fail "a parked step outlived the watchdog's kill when grace was available."
 fi
 if [ "$case_exit" != "124" ]; then
-  fail "a parked step survived because extensions were available (exit=$case_exit). The \
-extension must require CPU to have advanced; a wedge consumes none."
+  fail "a parked step survived because grace was available (exit=$case_exit). The \
+grace must require CPU to have advanced; a wedge consumes none."
 fi
 case "$case_detail" in
-*"busy extensions"*)
-  fail "a parked step was charged a busy extension: '$case_detail'. It consumed no CPU."
+*"busy-grace budget"*)
+  fail "a parked step was charged busy grace: '$case_detail'. It consumed no CPU."
   ;;
 *"no output"*) ;;
 *) fail "parked step with budget reported an unexpected detail: '$case_detail'" ;;
 esac
+
+# A busy grace SHORTER than the idle bound must still buy exactly that much
+# extra silence. It bought nothing in the first cut of this change: a grant
+# was charged a whole idle bound, so `grace < bound` failed the affordability
+# test on the very first window and the block-buffered-writer protection was
+# silently dead on every lane whose grace was under its bound — the macOS gate
+# included. A budget that reads as 900 s and means 0 s is the same defect as
+# the window COUNT it replaced.
+echo "10/12 a busy grace shorter than the idle bound still buys silence"
+case_busy_grace_seconds=2
+run_case busy_partial_grace 4 0 busy_silent_step 5
+case_busy_grace_seconds=0
+if [ "$case_wedged" = "1" ]; then
+  fail "the partial-grace case never finished; the watchdog left it running."
+fi
+if [ "$case_exit" != "0" ]; then
+  fail "a busy step with 2s of grace against a 4s bound was killed at 4s (exit=$case_exit, \
+detail='$case_detail'). A grant is being charged a whole idle bound instead of the \
+silence it actually hands out, so any grace below one bound forgives nothing at all."
+fi
+
+# The busy test is an average-utilisation FLOOR, not "did the total go up".
+# Until 2026-08-29 it was `current_cpu -gt window_start_cpu` — one centisecond,
+# tree-wide, over a window up to 20 minutes long — so a parked tree's signal and
+# timer wakeups, or any process merely joining the tree, read as work and the
+# gate spent its whole grace on a wedge. Pinned here without depending on how
+# much CPU a shell loop happens to burn on the machine running this: the step is
+# genuinely busy at roughly one core, and the floor is set far above it.
+echo "11/12 a step below the busy CPU floor is killed even with grace available"
+case_busy_grace_seconds=6
+case_busy_min_cpu_percent=400
+run_case busy_below_floor 2 0 busy_silent_step 600
+case_busy_grace_seconds=0
+case_busy_min_cpu_percent=25
+if [ "$case_wedged" = "1" ]; then
+  fail "a step below the busy floor outlived the watchdog's kill."
+fi
+if [ "$case_exit" != "124" ]; then
+  fail "a step burning ~1 core survived a 400% busy floor (exit=$case_exit). The busy \
+test is comparing cumulative CPU totals again instead of an average rate, which is what \
+made a parked wedge read as a spin."
+fi
+case "$case_detail" in
+*"busy-grace budget"*)
+  fail "a step below the busy floor was charged busy grace: '$case_detail'."
+  ;;
+*"busy floor"*) ;;
+*) fail "below-floor step reported an unexpected detail: '$case_detail'" ;;
+esac
+
+# A watchdog whose earliest possible kill lands past the job's own cap is not a
+# watchdog: the job dies at the cap first, with no TIMEOUT line and no hang
+# dump. That was the shipped configuration of every gate lane until 2026-08-29 —
+# this gate's 600 s build bound with three forgiven windows could not fire
+# inside the Linux lane's 1800 s cap — and nothing reported it, because the
+# arithmetic is only wrong when you multiply it out.
+echo "12/12 a watchdog that cannot fire inside the job's cap is rejected"
+if config_is_accepted 1200 3600 4800 10 4500; then
+  fail "the historical macOS configuration (1200 s bound, 3600 s of grace, 4800 s \
+absolute) was accepted against a 4500 s job cap. Its earliest kill is 4810 s, so every \
+wedge burns the whole job and leaves no diagnostic."
+fi
+if config_is_accepted 600 300 2400 10 1800; then
+  fail "an absolute backstop of 2400 s was accepted against a 1800 s job cap; a step \
+that livelocks while printing would still cost the whole job."
+fi
+if ! config_is_accepted 1200 900 3300 10 4500; then
+  fail "the shipped macOS configuration was rejected; its worst case is 2110 s against \
+a 4500 s cap."
+fi
+if ! config_is_accepted 1200 3600 4800 10 0; then
+  fail "a deadline of 0 must skip the check entirely, so local runs and any caller \
+without a job cap are unaffected."
+fi
 
 if [ "$failures" -ne 0 ]; then
   >&2 echo ""

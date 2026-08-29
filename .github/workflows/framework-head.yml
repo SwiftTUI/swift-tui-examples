@@ -61,6 +61,10 @@ jobs:
       SEAM_WORK_DIR: ${{ github.workspace }}/framework-head
       SEAM_SCRATCH: ${{ github.workspace }}/framework-head/scratch
       SWIFTTUI_HANG_DIAGNOSTICS: "1"
+      # This job's `timeout-minutes` in seconds. The seam gate's defaults fit
+      # it (600 s bound + 300 s grace + 10 s kill grace = 910 s, absolute
+      # 2400 s), so declaring the cap here holds them to it as they move.
+      SWIFTTUI_EXAMPLES_STEP_WATCHDOG_DEADLINE_SECONDS: "2700"
     steps:
       - name: Checkout examples
         uses: actions/checkout@v7
