@@ -211,10 +211,14 @@ enum AnimationRegressionHarness {
     let surface = renderSurface(view, terminalSize: terminalSize, rootIdentity: rootIdentity)
     var firstRow = 0
     if let anchor {
-      firstRow = try #require(
+      let anchorRow = try #require(
         surface.lines.firstIndex { $0.contains(anchor) },
         "\(anchor) is not on the static render of the view"
       )
+      // Strictly below the anchor row: a section title that itself contains
+      // the target glyph (section 18's "drag the ◆ and release") would
+      // otherwise capture the click on its own prose.
+      firstRow = anchorRow + 1
     }
     let bounds = try #require(
       boundsOfText(target, in: surface, from: firstRow),
@@ -264,8 +268,19 @@ enum AnimationRegressionHarness {
 
   /// The column `target` starts at in the first line of `surface` containing
   /// it, or `nil`.
-  static func column(of target: String, in surface: RasterSurface) -> Int? {
-    boundsOfText(target, in: surface)?.origin.x
+  static func column(
+    of target: String,
+    in surface: RasterSurface,
+    from firstRow: Int = 0
+  ) -> Int? {
+    boundsOfText(target, in: surface, from: firstRow)?.origin.x
+  }
+
+  /// The row after the one carrying `"<section>. "`, so a readout scoped to a
+  /// section cannot match the section's own title prose. Section 18's title
+  /// ("drag the ◆ and release") contains the very glyph its readouts track.
+  static func rowBelowSectionTitle(_ section: Int, in surface: RasterSurface) -> Int {
+    (surface.lines.firstIndex { $0.contains("\(section). ") }).map { $0 + 1 } ?? 0
   }
 
   static func run<V: View>(

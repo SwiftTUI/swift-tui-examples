@@ -387,7 +387,7 @@ struct AnimationSectionRuntimeTests {
     ) { host, at in
       [
         .awaitCondition {
-          home = Self.latestColumn(of: "◆", in: host)
+          home = Self.latestColumn(of: "◆", in: host, section: 18)
           return home != nil
         }
       ] + Step.click(at["retarget spring"]!) + [
@@ -395,7 +395,7 @@ struct AnimationSectionRuntimeTests {
         .awaitCondition {
           guard let home else { return false }
           return Self.latestState(host, needle).contains("x=20")
-            && Self.marker("◆", restsAt: home, forLast: 4, in: host)
+            && Self.marker("◆", restsAt: home, forLast: 4, in: host, section: 18)
         },
       ]
     }
@@ -410,25 +410,28 @@ struct AnimationSectionRuntimeTests {
     let states = Self.states(host, needle)
     let retargetFrame = try #require(states.firstIndex { $0.contains("x=50") })
     #expect(states[retargetFrame...].contains { $0.contains("x=20") })
-    #expect(Self.latestColumn(of: "◆", in: host) == restColumn)
+    #expect(Self.latestColumn(of: "◆", in: host, section: 18) == restColumn)
   }
 
-  // A velocity-tracked drag cannot be driven through this harness today: the
-  // first `.dragged` pointer sample on the Animations tab trips the DEBUG
-  // oracle in `AnimationController.noteSkippedResolvedTreeProcessing`
-  // ("processResolvedTree skipped for a resolved tree that differs in
-  // animation-processing inputs") and kills the test process. The divergence
-  // is the page picker's segmented body: the last-processed tree holds
-  // `PickerOption[0]` where the fully reused tree holds its `Group[0]`
-  // wrapper. It is a resolve-side seam, not this tab's animation content: a
-  // Tab press or a press-and-drag trips it on the Transitions and
-  // Transactions pages only, on the G1 gallery (`618e07c`) against swift-tui
-  // 0.9.9 as well as HEAD (plan 2026-08-25-002 §12 follow-ups). Drag section
-  // 18 by hand until the seam is settled; this probe stays listed so the gap
-  // is visible.
+  // Drives the real gesture path: a press on the marker, four velocity-tracked
+  // `.dragged` samples, then the release whose spring keeps the drag's
+  // velocity.
+  //
+  // This probe was `.disabled` from 2026-08-25 to 2026-08-30, blamed first on
+  // the F66 skip-gate oracle and later on a "runtime stall" at input step 4.
+  // Re-enabled 2026-08-30: it passes against the pinned 0.9.11 framework with
+  // the DEBUG oracles armed, so neither diagnosis holds on this path. Three
+  // harness defects were: `centerOfText(after:)` searched from the
+  // anchor row *inclusive*, so `"◆"` matched this section's own title prose
+  // ("drag the ◆ and release") four rows above the marker — the press landed
+  // on a `Text` with no gesture, nothing changed, and the runtime correctly
+  // went idle while the wait blamed a stalled animation; `column(of:)` had no
+  // row floor, so every `"◆"` readout tracked that same title glyph; and every
+  // scripted `MouseEvent` shared one construction-time timestamp, so the
+  // release measured a zero-length drag. The framework's drag path was correct
+  // throughout — translations arrive as 0/3/6/9/12.
   @Test(
-    "section 18: a velocity-tracked drag springs home",
-    .disabled("a .dragged pointer sample trips the F66 skip-gate oracle (pre-existing at 0.9.9)"))
+    "section 18: a velocity-tracked drag springs home")
   func trackedVelocityFlingSection() async throws {
     let needle = "state: x="
     var home: Int?
@@ -443,34 +446,49 @@ struct AnimationSectionRuntimeTests {
       func sample(_ delta: Int) -> Point {
         Point(x: start.x + Double(delta), y: start.y)
       }
+      // Every scripted event is constructed before the run starts, so the
+      // default `.now()` stamp would give all of them one instant and the
+      // release would measure a zero-length drag (`elapsedMs=0`). Stamp
+      // deterministic, advancing times, as `MouseEvent.timestamp` prescribes.
+      let base = MonotonicInstant.now()
+      func stamp(_ milliseconds: Int) -> MonotonicInstant {
+        base.advanced(by: .milliseconds(milliseconds))
+      }
       // Four velocity-tracked samples 40 ms apart, then the release.
       var steps: [Step] = [
         .awaitCondition {
-          home = Self.latestColumn(of: "◆", in: host)
+          home = Self.latestColumn(of: "◆", in: host, section: 18)
           return home != nil
         },
-        .event(.mouse(.init(kind: .down(.primary), location: start))),
+        .event(.mouse(.init(kind: .down(.primary), location: start, timestamp: stamp(0)))),
       ]
       for delta in stride(from: 3, through: 12, by: 3) {
         steps += [
           .sleep(.milliseconds(40)),
-          .event(.mouse(.init(kind: .dragged(.primary), location: sample(delta)))),
+          .event(
+            .mouse(
+              .init(
+                kind: .dragged(.primary),
+                location: sample(delta),
+                timestamp: stamp(40 * (delta / 3))
+              ))),
           .awaitCondition { Self.latestState(host, needle).contains("lastDelta=\(delta)") },
         ]
       }
       steps += [
-        .event(.mouse(.init(kind: .up(.primary), location: sample(12)))),
+        .event(
+          .mouse(.init(kind: .up(.primary), location: sample(12), timestamp: stamp(200)))),
         .awaitCondition {
           guard let home else { return false }
           return Self.latestState(host, needle).contains("x=20 lastDelta=12")
-            && Self.marker("◆", restsAt: home, forLast: 4, in: host)
+            && Self.marker("◆", restsAt: home, forLast: 4, in: host, section: 18)
         },
       ]
       return steps
     }
 
     let restColumn = try #require(home)
-    let columns = Self.columns(of: "◆", in: host).compactMap { $0 }
+    let columns = Self.columns(of: "◆", in: host, section: 18).compactMap { $0 }
     #expect(
       columns.contains { $0 >= restColumn + 12 }, "the drag never moved the marker: \(columns)")
     #expect(columns.last == restColumn)
@@ -600,18 +618,30 @@ struct AnimationSectionRuntimeTests {
     return nil
   }
 
+  /// `section` scopes the search below that section's title row; omit it when
+  /// the target cannot collide with title prose.
   private static func latestColumn(
     of text: String,
-    in host: AnimationRegressionRecordingHost
+    in host: AnimationRegressionRecordingHost,
+    section: Int? = nil
   ) -> Int? {
-    host.surfaces.last.flatMap { AnimationRegressionHarness.column(of: text, in: $0) }
+    host.surfaces.last.flatMap {
+      AnimationRegressionHarness.column(of: text, in: $0, from: floor(section, in: $0))
+    }
   }
 
   private static func columns(
     of text: String,
-    in host: AnimationRegressionRecordingHost
+    in host: AnimationRegressionRecordingHost,
+    section: Int? = nil
   ) -> [Int?] {
-    host.surfaces.map { AnimationRegressionHarness.column(of: text, in: $0) }
+    host.surfaces.map {
+      AnimationRegressionHarness.column(of: text, in: $0, from: floor(section, in: $0))
+    }
+  }
+
+  private static func floor(_ section: Int?, in surface: RasterSurface) -> Int {
+    section.map { AnimationRegressionHarness.rowBelowSectionTitle($0, in: surface) } ?? 0
   }
 
   /// Whether `text` sat at `column` on each of the last `frames` frames: the
@@ -620,10 +650,13 @@ struct AnimationSectionRuntimeTests {
     _ text: String,
     restsAt column: Int,
     forLast frames: Int,
-    in host: AnimationRegressionRecordingHost
+    in host: AnimationRegressionRecordingHost,
+    section: Int? = nil
   ) -> Bool {
     let recent = host.surfaces.suffix(frames)
     return recent.count == frames
-      && recent.allSatisfy { AnimationRegressionHarness.column(of: text, in: $0) == column }
+      && recent.allSatisfy {
+        AnimationRegressionHarness.column(of: text, in: $0, from: floor(section, in: $0)) == column
+      }
   }
 }
