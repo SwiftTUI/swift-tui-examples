@@ -53,7 +53,7 @@
   retarget spring    send home
                      ◆
                      ▲ home
- state: x=20 lastDelta=0 elapsedMs=0
+ state: x=20 lastDelta=0 elapsedMs=0 settled=0
 
  ─────────────────────────────────────────────────────────────────────────────────────────────
 

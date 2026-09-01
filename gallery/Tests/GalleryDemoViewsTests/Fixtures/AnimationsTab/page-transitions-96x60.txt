@@ -20,14 +20,14 @@
  ╚════════════╝  ╚══════════════╝
  state: showFade=true showSlide=true
 
+ ──────────────────────────────────────────────────────────────────────────────────────────────
 
-
-
-
-
-
-
-
+ 21. .contentTransition(.numericText()) rolls changed digit columns
+ expect: each changed column counts through its intermediate digits over 1.2 s, dimming at the
+ midpoint; unchanged columns hold still
+  +1    +10    roll to 68
+ ▶ 41
+ state: count=41
 
 
 

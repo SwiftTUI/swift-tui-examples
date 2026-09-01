@@ -203,6 +203,8 @@ extension AnimationsTab {
         Button("send home") {
           withAnimation(Self.flingSpring) {
             flingX = Self.flingHome
+          } completion: {
+            flingSettled += 1
           }
         }
       }
@@ -218,8 +220,12 @@ extension AnimationsTab {
         }
         try? await Task.sleep(for: .milliseconds(300))
         guard !Task.isCancelled else { return }
+        // The completion rides the retarget spring, the one that actually
+        // lands: `settled` ticking is the deterministic end-of-motion signal.
         withAnimation(Self.retargetSpring) {
           flingX = Self.flingHome
+        } completion: {
+          flingSettled += 1
         }
       }
       Text("◆")
@@ -256,13 +262,16 @@ extension AnimationsTab {
               flingLastDelta = Int(value.translation.dx.rounded())
               withAnimation(Self.flingSpring) {
                 flingX = Self.flingHome
+              } completion: {
+                flingSettled += 1
               }
             }
         )
       Text(String(repeating: " ", count: Self.flingHome) + "▲ home")
         .foregroundStyle(.muted)
       stateLine(
-        "x=\(flingX) lastDelta=\(flingLastDelta) elapsedMs=\(flingLastElapsedMilliseconds)")
+        "x=\(flingX) lastDelta=\(flingLastDelta) elapsedMs=\(flingLastElapsedMilliseconds) "
+          + "settled=\(flingSettled)")
     }
   }
 

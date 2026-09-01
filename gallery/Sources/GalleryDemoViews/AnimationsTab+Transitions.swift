@@ -1,10 +1,13 @@
 import SwiftTUIRuntime
 
-// The Transitions page: insertion and removal transitions (section 2).
+// The Transitions page: insertion and removal transitions (section 2) and
+// the numericText content transition's rolling counter (section 21).
 extension AnimationsTab {
   var transitionsPage: some View {
     pageScroll {
       transitionSection
+      Divider()
+      rollingCounterSection
     }
   }
 
@@ -60,6 +63,45 @@ extension AnimationsTab {
           .border(set: .double)
       }
       stateLine("showFade=\(showOpacityFigure) showSlide=\(showSlideFigure)")
+    }
+  }
+
+  // MARK: - 21. .contentTransition(.numericText()) rolling counter
+
+  private var rollingCounterSection: some View {
+    VStack(alignment: .leading, spacing: 0) {
+      sectionTitle(21, ".contentTransition(.numericText()) rolls changed digit columns")
+      expectLine(
+        "each changed column counts through its intermediate digits over 1.2 s, dimming at "
+          + "the midpoint; unchanged columns hold still"
+      )
+      HStack(spacing: 2) {
+        Button("+1") {
+          withAnimation(.easeInOut(duration: .milliseconds(1200))) {
+            rollCount += 1
+          }
+        }
+        Button("+10") {
+          withAnimation(.easeInOut(duration: .milliseconds(1200))) {
+            rollCount += 10
+          }
+        }
+        // A two-column jump (41 -> 68 and back): both digits roll through
+        // real intermediates, so even a text capture shows values that are
+        // neither the old nor the new string mid-flight.
+        Button(rollCount == 41 ? "roll to 68" : "back to 41") {
+          withAnimation(.easeInOut(duration: .milliseconds(1200))) {
+            rollCount = rollCount == 41 ? 68 : 41
+          }
+        }
+      }
+      .focusSection()
+      // The model value snaps at the click; the roll is entirely in the
+      // drawn content, per digit column.
+      Text("▶ \(rollCount)")
+        .foregroundStyle(Color.cyan)
+        .contentTransition(.numericText())
+      stateLine("count=\(rollCount)")
     }
   }
 }

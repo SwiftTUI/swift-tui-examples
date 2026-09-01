@@ -32,7 +32,8 @@ struct AnimationsTabPagesTests {
     .appendingPathComponent("AnimationsTab", isDirectory: true)
 
   /// The section titles each page must show, in order. Numbers are stable
-  /// across pages; 13 is skipped (its stage was deferred).
+  /// across pages; 13 kept its reserved number when co-present adoption
+  /// shipped (0.9.12), and 21 is the numericText rolling counter.
   private static let sectionsByPage: [AnimationsPage: [String]] = [
     .basics: [
       "1. withAnimation foreground color",
@@ -42,10 +43,12 @@ struct AnimationsTabPagesTests {
       "9. withAnimation completion callback",
     ],
     .transitions: [
-      "2. .transition(...) insertion and removal"
+      "2. .transition(...) insertion and removal",
+      "21. .contentTransition(.numericText()) rolls changed digit columns",
     ],
     .matched: [
-      "6. matchedGeometryEffect"
+      "6. matchedGeometryEffect:",
+      "13. matchedGeometryEffect(isSource: false)",
     ],
     .keyframes: [
       "7. PhaseAnimator auto-cycles",

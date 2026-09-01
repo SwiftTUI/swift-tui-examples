@@ -1,12 +1,14 @@
 import SwiftTUIRuntime
 
 // The Matched page: matchedGeometryEffect with its properties and anchor
-// (section 6). Section 13 (co-present adoption, isSource: false) is skipped:
-// that framework stage was deferred.
+// (section 6), and co-present adoption via `isSource: false` (section 13,
+// whose reserved number survived the stage's deferral until 0.9.12).
 extension AnimationsTab {
   var matchedPage: some View {
     pageScroll {
       matchedGeometrySection
+      Divider()
+      adoptionSection
     }
   }
 
@@ -116,6 +118,110 @@ extension AnimationsTab {
       .border(set: .single)
       .foregroundStyle(.muted)
   }
+
+  // MARK: - 13. Co-present adoption (isSource: false)
+
+  /// Inner size of the card in any of its three slots, before its border.
+  static let adoptionCardSize = CellSize(width: 8, height: 1)
+
+  private var adoptionSection: some View {
+    VStack(alignment: .leading, spacing: 0) {
+      sectionTitle(13, "matchedGeometryEffect(isSource: false): the badge adopts the card")
+      // The prose must not contain any control label or readout target (the
+      // button labels, the badge's glyph): the runtime test aims clicks and
+      // scoped readouts below the title, and a match inside this line would
+      // hit inert text (the 2026-08-30 drag-probe lesson).
+      expectLine(
+        "the yellow badge renders on the card's top-trailing corner, never at its own slot "
+          + "below; moving slides card and badge together over 1.5 s; detaching returns the "
+          + "badge to its slot from the adopted rect; re-attaching adopts the third slot"
+      )
+      HStack(spacing: 2) {
+        // A fixed label: the runtime test aims clicks from a pre-run render,
+        // so button geometry must not shift with state. The state line says
+        // which slot the card is in.
+        Button("move card") {
+          withAnimation(.easeInOut(duration: .milliseconds(1500))) {
+            cardSlot = cardSlot == .left ? .right : .left
+            cardMoves += 1
+          } completion: {
+            cardSettled += 1
+          }
+        }
+        Button(cardAttached ? "detach card" : "attach third") {
+          withAnimation(.easeInOut(duration: .milliseconds(1500))) {
+            if cardAttached {
+              cardAttached = false
+            } else {
+              cardAttached = true
+              cardSlot = .third
+            }
+          } completion: {
+            cardSettled += 1
+          }
+        }
+      }
+      .focusSection()
+      // Three fixed slots; the card occupies exactly one of them (or none
+      // while detached), so the row never reflows. The badge is declared in
+      // its own row BELOW — layout keeps its slot there, but whenever a
+      // source card is on screen the badge is drawn at the card's corner
+      // instead: co-present adoption is a render-time rule, applied every
+      // frame and without an animation of its own.
+      HStack(alignment: .top, spacing: 3) {
+        adoptionSlot(.left)
+        adoptionSlot(.right)
+        adoptionSlot(.third)
+      }
+      .frame(height: Self.adoptionCardSize.height + 2, alignment: .topLeading)
+      HStack(spacing: 1) {
+        Text("badge home:").foregroundStyle(.muted)
+        // `.position` with a `.topTrailing` anchor: the badge keeps its own
+        // size and pins its top-trailing corner to the card's. When the card
+        // leaves inside the animated detach transaction, the badge slides
+        // back here from the rect it was drawn at.
+        Text("NEW")
+          .foregroundStyle(Color.black)
+          .background(Color.yellow)
+          .matchedGeometryEffect(
+            id: "card",
+            in: badgeNamespace,
+            properties: .position,
+            anchor: .topTrailing,
+            isSource: false
+          )
+      }
+      stateLine(
+        "cardSlot=\(cardSlot.rawValue) attached=\(cardAttached) moves=\(cardMoves) "
+          + "settled=\(cardSettled)"
+      )
+    }
+  }
+
+  private func adoptionSlot(_ slot: AdoptionCardSlot) -> some View {
+    Group {
+      if cardAttached, cardSlot == slot {
+        Text("CARD")
+          .frame(width: Self.adoptionCardSize.width, height: Self.adoptionCardSize.height)
+          .padding(1)
+          .border(set: .single)
+          .matchedGeometryEffect(id: "card", in: badgeNamespace)
+      } else {
+        Text("(empty)")
+          .frame(width: Self.adoptionCardSize.width, height: Self.adoptionCardSize.height)
+          .padding(1)
+          .border(set: .single)
+          .foregroundStyle(.muted)
+      }
+    }
+  }
+}
+
+/// The slot the section 13 card occupies.
+enum AdoptionCardSlot: String, Hashable, Sendable {
+  case left
+  case right
+  case third
 }
 
 /// The `properties:` argument section 6 offers.

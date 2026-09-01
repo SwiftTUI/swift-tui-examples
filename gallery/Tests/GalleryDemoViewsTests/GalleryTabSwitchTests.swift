@@ -422,6 +422,14 @@ struct GalleryTabSwitchTests {
     )
   }
 
+  // Triage 2026-08-31 (T4/E4, against the pinned 0.9.12): the menu OPENS —
+  // the original "step 4 stall" was the wait for more distinct frames AFTER
+  // it opened. Opening the overflow menu on a tab whose content animates via
+  // a `.task` loop stops new distinct frames from arriving; the sibling test
+  // that opens the same menu from the static Counter tab passes. Suspected
+  // framework-side (TabView overflow presentation vs task-driven content),
+  // needs a swift-tui minimal repro before a fix lands anywhere; tracked in
+  // the org tracker.
   @Test(
     "expanded overflow menu stays visible across animated gallery frames",
     .enabled(if: galleryRuntimeTestsEnabled, galleryRuntimeTestGateComment))
@@ -460,16 +468,13 @@ struct GalleryTabSwitchTests {
           },
           .event(.mouse(.init(kind: .up(.primary), location: overflowTriggerCenter))),
           .awaitCondition {
+            // Pure pacing: accumulate frames, then let the post-run analysis
+            // judge them. Gating this wait on "the menu is open" turns a
+            // menu that never opens (or opens and wrongly disappears) into a
+            // wait-budget stall whose error text blames a stalled runtime —
+            // the post-run assertions fail with frame evidence instead.
             let surfaces = host.distinctSurfaces
-            guard surfaces.count >= surfaceCountAtTrigger + 4,
-              let surface = surfaces.last
-            else {
-              return false
-            }
-            let text = surface.lines.joined(separator: "\n")
-            guard text.contains("▲"), text.contains("Logo Breaker") else {
-              return false
-            }
+            guard surfaces.count >= surfaceCountAtTrigger + 4 else { return false }
             expandedSurfaceCount = surfaces.count
             return true
           },
@@ -486,10 +491,21 @@ struct GalleryTabSwitchTests {
 
     #expect(result.exitReason == .userExit(KeyPress(.character("c"), modifiers: .ctrl)))
 
+    // Continuity is measured from the first frame that actually shows the
+    // open menu: the click-processing frames before it renders (the animated
+    // ball keeps presenting distinct surfaces meanwhile) are legitimately
+    // menu-less and must not count as missing.
     let surfacesAfterTrigger = Array(host.distinctSurfaces.dropFirst(surfaceCountAtTrigger))
-    let missingMenuSurfaces = surfacesAfterTrigger.filter { surface in
-      let text = surface.lines.joined(separator: "\n")
-      return !text.contains("▲") || !text.contains("Logo Breaker")
+    let firstOpenIndex = try #require(
+      surfacesAfterTrigger.firstIndex(where: Self.showsExpandedOverflowMenu(_:)),
+      """
+      the overflow menu never opened after clicking its trigger; frames after \
+      the click:
+      \(surfacesAfterTrigger.prefix(3).map { $0.lines.joined(separator: "\n") }.joined(separator: "\n----\n"))
+      """
+    )
+    let missingMenuSurfaces = surfacesAfterTrigger[firstOpenIndex...].filter {
+      !Self.showsExpandedOverflowMenu($0)
     }
 
     #expect(
@@ -502,6 +518,23 @@ struct GalleryTabSwitchTests {
     )
   }
 
+  /// Whether `surface` shows the expanded overflow menu: the trigger's open
+  /// glyph plus the overflowed tab item it lists.
+  private static func showsExpandedOverflowMenu(_ surface: RasterSurface) -> Bool {
+    let text = surface.lines.joined(separator: "\n")
+    return text.contains("▲") && text.contains("Logo Breaker")
+  }
+
+  // Triage 2026-08-31 (T4/E4, against the pinned 0.9.12): still red, and no
+  // harness anywhere demonstrably grabs a LIVE ball. The bare-LogoTab and
+  // real-terminal arms aim from a static/early render, which shows the ball
+  // at its authored seed or spawn — those passes are position-vacuous. Here,
+  // a delivery-time press inside the ball's visual bounds still starts no
+  // gesture (the ball never jumps to the drag target and never draws
+  // grabbed), while the ball's own physics keep producing frames. Needs an
+  // interaction-region-level diagnosis (canvas `.contentShape(ballRect)`
+  // space vs hit-test space under the TabView tree); tracked in the org
+  // tracker.
   @Test(
     "gallery logo breaker tab keeps advancing after a drag release",
     .enabled(if: galleryRuntimeTestsEnabled, galleryRuntimeTestGateComment))
@@ -519,28 +552,32 @@ struct GalleryTabSwitchTests {
         stageClock: host.stageClock,
         steps: [
           .awaitCondition {
-            let surfaces = host.distinctSurfaces
-            guard surfaces.count >= 4,
-              let bounds = surfaces.last.flatMap(Self.brailleBounds(in:))
-            else {
-              return false
-            }
-            let start = Self.centerPoint(of: bounds)
-            capture.dragStart = start
-            capture.dragEnd = Point(x: start.x + 12, y: start.y - 5)
-            return true
+            host.distinctSurfaces.count >= 4
+              && host.distinctSurfaces.last.flatMap(Self.brailleBounds(in:)) != nil
           },
           .eventFrom {
-            .mouse(.init(kind: .down(.primary), location: capture.dragStart))
+            // Aim at delivery time, not at the awaited frame: the gesture's
+            // hit area is only the ball's own rect (`.contentShape(ballRect)`
+            // in `LogoTab`), and the flying ball can leave a stale rect
+            // between the last presented frame and this press — a miss grabs
+            // nothing and the probe would just watch the autonomous ball.
+            if let bounds = host.distinctSurfaces.last.flatMap(Self.brailleBounds(in:)) {
+              capture.dragStart = Self.centerPoint(of: bounds)
+            }
+            capture.dragEnd = Point(x: capture.dragStart.x + 12, y: capture.dragStart.y - 5)
+            return .mouse(.init(kind: .down(.primary), location: capture.dragStart))
           },
           .eventFrom(
             delayNanoseconds: 30_000_000
           ) {
             .mouse(.init(kind: .dragged(.primary), location: capture.dragEnd))
           },
-          .eventFrom(
-            delayNanoseconds: 30_000_000
-          ) {
+          // The release follows the drag with no delay, mirroring the real
+          // terminal arm: `DragGestureRecognizer.computeVelocity` reads a
+          // trailing ~100ms window, and a paused release sharing the drag's
+          // location would fall back to the stationary sample and report a
+          // dead drop instead of a launch.
+          .eventFrom {
             .mouse(.init(kind: .up(.primary), location: capture.dragEnd))
           },
           .awaitCondition {

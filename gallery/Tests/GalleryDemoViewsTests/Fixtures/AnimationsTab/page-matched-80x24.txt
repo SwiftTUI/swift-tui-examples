@@ -15,9 +15,9 @@
  the two slots; position only slides (box snaps), size grows in place         ▐
   move right                                                                  ▐
  properties                 anchor                                            ▐
- ╭───────────────────────╮  ╭────────────────────────────────────╮            ▐
- │frame │ position │ size│  │center │ topLeading │ bottomTrailing│            ▐
- ╰───────────────────────╯  ╰────────────────────────────────────╯            ▐
+ ╭───────────────────────╮  ╭────────────────────────────────────╮
+ │frame │ position │ size│  │center │ topLeading │ bottomTrailing│
+ ╰───────────────────────╯  ╰────────────────────────────────────╯
  ┌─────────┐   ┌──────────────────┐
  │  ★9x1   │   │                  │
  └─────────┘   │     (empty)      │

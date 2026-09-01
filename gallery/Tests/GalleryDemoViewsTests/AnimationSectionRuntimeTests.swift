@@ -215,6 +215,120 @@ struct AnimationSectionRuntimeTests {
       Self.latestColumn(of: "★18x3", in: host) != nil, "the badge did not adopt its slot size")
   }
 
+  @Test(
+    "section 13: the badge adopts the card, follows its move, and slides home on detach",
+    .enabled(if: galleryRuntimeTestsEnabled, galleryRuntimeTestGateComment))
+  func adoptionSection() async throws {
+    let needle = "state: cardSlot="
+    var adoptedAtLeft: CellRect?
+    var adoptedAtRight: CellRect?
+    var homeAfterDetach: CellRect?
+    let host = try await Self.drive(
+      page: .matched,
+      section: 13,
+      strip: "section-13-adoption",
+      stateNeedle: needle,
+      controls: ["move card", "detach card"]
+    ) { host, at in
+      [
+        // At rest the badge is already adopted: drawn somewhere above its
+        // "badge home:" layout row (on the card), with no animation run yet.
+        .awaitCondition {
+          guard Self.latestState(host, needle).contains("cardSlot=left attached=true") else {
+            return false
+          }
+          adoptedAtLeft = Self.latestBounds(of: "NEW", in: host, section: 13)
+          guard let adoptedAtLeft, let home = Self.latestBounds(of: "badge home:", in: host) else {
+            return false
+          }
+          return adoptedAtLeft.origin.y < home.origin.y
+        },
+      ] + Step.click(at["move card"]!) + [
+        // The move's completion closure is the settle authority (see the
+        // section 18 tests); the badge must have followed the card right.
+        .awaitCondition {
+          guard Self.readout("settled", in: Self.latestState(host, needle)) == 1 else {
+            return false
+          }
+          adoptedAtRight = Self.latestBounds(of: "NEW", in: host, section: 13)
+          guard let adoptedAtRight, let adoptedAtLeft else { return false }
+          return adoptedAtRight.origin.x >= adoptedAtLeft.origin.x + 8
+        },
+      ] + Step.click(at["detach card"]!) + [
+        // With no source on screen the badge owns its layout slot again: same
+        // row as the "badge home:" label.
+        .awaitCondition {
+          guard Self.latestState(host, needle).contains("attached=false"),
+            Self.readout("settled", in: Self.latestState(host, needle)) == 2
+          else { return false }
+          homeAfterDetach = Self.latestBounds(of: "NEW", in: host, section: 13)
+          guard let homeAfterDetach, let home = Self.latestBounds(of: "badge home:", in: host)
+          else { return false }
+          return homeAfterDetach.origin.y == home.origin.y
+        },
+      ] + Step.click(at["detach card"]!) + [
+        // Re-attach at the third slot: the badge adopts the new source's
+        // rect, further right than either of the first two slots.
+        .awaitCondition {
+          guard Self.latestState(host, needle).contains("cardSlot=third attached=true"),
+            Self.readout("settled", in: Self.latestState(host, needle)) == 3,
+            let bounds = Self.latestBounds(of: "NEW", in: host, section: 13),
+            let home = Self.latestBounds(of: "badge home:", in: host),
+            let adoptedAtRight
+          else { return false }
+          return bounds.origin.y < home.origin.y && bounds.origin.x > adoptedAtRight.origin.x
+        },
+      ]
+    }
+
+    let leftRect = try #require(adoptedAtLeft)
+    let rightRect = try #require(adoptedAtRight)
+    let homeRect = try #require(homeAfterDetach)
+    #expect(rightRect.origin.y == leftRect.origin.y, "the badge left the slots row on the move")
+    #expect(
+      homeRect.origin.y > leftRect.origin.y,
+      "the detached badge should sit below the slots row, at its own slot"
+    )
+    #expect(Self.latestState(host, needle).contains("moves=1"))
+  }
+
+  // MARK: - Transitions page
+
+  @Test(
+    "section 21: the numericText counter rolls through intermediate digits",
+    .enabled(if: galleryRuntimeTestsEnabled, galleryRuntimeTestGateComment))
+  func rollingCounterSection() async throws {
+    let needle = "state: count="
+    let host = try await Self.drive(
+      page: .transitions,
+      section: 21,
+      strip: "section-21-rolling-counter",
+      stateNeedle: needle,
+      controls: ["roll to 68"]
+    ) { host, at in
+      [
+        .awaitCondition { Self.latestState(host, needle).contains("count=41") }
+      ] + Step.click(at["roll to 68"]!) + [
+        // The model snaps to 68 at the click; the drawn counter only reaches
+        // "68" once the per-column roll has run its course.
+        .awaitCondition {
+          Self.latestState(host, needle).contains("count=68")
+            && Self.counterText(in: host) == "▶ 68"
+        },
+      ]
+    }
+
+    // The roll's whole point: mid-flight frames draw digits that are neither
+    // the old nor the new value (41's ones column has seven intermediates on
+    // its way to 8), so even a text capture distinguishes a roll from a cut.
+    let counters = host.surfaces.compactMap { Self.counterText(in: $0) }
+    #expect(counters.last == "▶ 68")
+    #expect(
+      counters.contains { $0 != "▶ 41" && $0 != "▶ 68" },
+      "no frame showed an intermediate digit; the counter cut instead of rolling: \(counters)"
+    )
+  }
+
   // MARK: - Transactions page
 
   @Test(
@@ -392,10 +506,16 @@ struct AnimationSectionRuntimeTests {
         }
       ] + Step.click(at["retarget spring"]!) + [
         .awaitCondition { Self.latestState(host, needle).contains("x=50") },
+        // `settled=1` is the retarget spring's completion closure: it fires
+        // only when the spring truly finishes, so the wait cannot be
+        // satisfied mid-oscillation when frames are sparse under load (the
+        // marker-at-rest readout alone aliased that way, 1-in-6 under a
+        // parallel full suite). The marker check then pins the rest column.
         .awaitCondition {
           guard let home else { return false }
           return Self.latestState(host, needle).contains("x=20")
-            && Self.marker("◆", restsAt: home, forLast: 4, in: host, section: 18)
+            && Self.readout("settled", in: Self.latestState(host, needle)) == 1
+            && Self.marker("◆", restsAt: home, forLast: 2, in: host, section: 18)
         },
       ]
     }
@@ -478,10 +598,14 @@ struct AnimationSectionRuntimeTests {
       steps += [
         .event(
           .mouse(.init(kind: .up(.primary), location: sample(12), timestamp: stamp(200)))),
+        // As in the retarget test: the release spring's completion closure
+        // (`settled=1`) is the settle authority; the marker readout only
+        // confirms where it came to rest.
         .awaitCondition {
           guard let home else { return false }
           return Self.latestState(host, needle).contains("x=20 lastDelta=12")
-            && Self.marker("◆", restsAt: home, forLast: 4, in: host, section: 18)
+            && Self.readout("settled", in: Self.latestState(host, needle)) == 1
+            && Self.marker("◆", restsAt: home, forLast: 2, in: host, section: 18)
         },
       ]
       return steps
@@ -523,11 +647,17 @@ struct AnimationSectionRuntimeTests {
     let states = Self.states(host, needle)
     let logicalFrame = try #require(states.firstIndex { $0.contains("logical=1") })
     let removedFrame = try #require(states.firstIndex { $0.contains("removed=1") })
-    // Order and counts only. The strip carries the frame gap between the two
-    // barriers: today it is one frame, because the state write the
-    // `.logicallyComplete` closure makes snaps the still-bouncing spring to
-    // its end value and `.removed` follows on the next frame (swift-tui
-    // b826fc9c; without the write the spring runs its full course).
+    // Order and counts only. Against 0.9.12 the strip shows the two barriers
+    // one frame apart with the bar jumping 35 → 40 on the `logical=1` frame:
+    // root-caused 2026-08-31 (org T5) as a frame-clock bug, not a completion
+    // bug — under this harness's per-frame predicate cost the run loop lags
+    // the 30 fps cadence, deadline frames animate to their *scheduled*
+    // instants, and the closure's state write woke a non-deadline frame that
+    // sampled at the wall clock, advancing the spring by the whole
+    // accumulated lag at once. Fixed in swift-tui (`deriveFrameInstant`
+    // clamps wake frames to the armed deadline chain; pinned by
+    // `AnimationLogicalCompletionAsyncTests`); the strip shows the spring's
+    // full course once a tag carries the fix.
     #expect(logicalFrame > clickFrame)
     #expect(removedFrame > logicalFrame, ".removed fired before .logicallyComplete")
     #expect(states.last?.contains("logical=1 removed=1 wide=true") == true)
@@ -642,6 +772,33 @@ struct AnimationSectionRuntimeTests {
 
   private static func floor(_ section: Int?, in surface: RasterSurface) -> Int {
     section.map { AnimationRegressionHarness.rowBelowSectionTitle($0, in: surface) } ?? 0
+  }
+
+  /// Bounds of `text` on the latest frame, scoped below `section`'s title
+  /// when given (see `latestColumn`).
+  private static func latestBounds(
+    of text: String,
+    in host: AnimationRegressionRecordingHost,
+    section: Int? = nil
+  ) -> CellRect? {
+    host.surfaces.last.flatMap {
+      AnimationRegressionHarness.boundsOfText(text, in: $0, from: floor(section, in: $0))
+    }
+  }
+
+  /// The section 21 odometer ("▶ NN") as drawn on `surface`, or `nil` when
+  /// the counter is off screen.
+  private static func counterText(in surface: RasterSurface) -> String? {
+    let floor = AnimationRegressionHarness.rowBelowSectionTitle(21, in: surface)
+    guard let bounds = AnimationRegressionHarness.boundsOfText("▶ ", in: surface, from: floor)
+    else { return nil }
+    let line = surface.lines[bounds.origin.y]
+    return GalleryFrameStrip.trimmingTrailingSpaces(
+      String(line.dropFirst(bounds.origin.x).prefix(4)))
+  }
+
+  private static func counterText(in host: AnimationRegressionRecordingHost) -> String? {
+    host.surfaces.last.flatMap { Self.counterText(in: $0) }
   }
 
   /// Whether `text` sat at `column` on each of the last `frames` frames: the

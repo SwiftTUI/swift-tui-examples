@@ -35,7 +35,8 @@ public enum AnimationsPage: String, CaseIterable, Hashable, Sendable {
 ///
 /// Section numbers stay sequential across pages so a bug report can cite
 /// "section 4" without naming the page. Section 13 (co-present matched
-/// geometry adoption) is skipped: that stage was deferred.
+/// geometry adoption) kept its reserved number when the deferred stage
+/// shipped in 0.9.12, so it sits on the Matched page after section 6.
 ///
 /// All durations are long (1000 to 2000 ms) so the interpolation is
 /// unmistakable on a 30fps terminal. Only the Keyframes page hosts an
@@ -80,6 +81,10 @@ public struct AnimationsTab: View {
   @State var showOpacityFigure: Bool = true
   @State var showSlideFigure: Bool = true
 
+  // Rolling counter (section 21): the odometer value. 41 is the DocC
+  // example's seed; "roll to 68" exercises two columns of intermediates.
+  @State var rollCount: Int = 41
+
   // MARK: - Matched page state
 
   // Matched geometry demo: which slot the badge lives in, what interpolates,
@@ -95,6 +100,16 @@ public struct AnimationsTab: View {
   // Namespace scoping the matched geometry key so the same "hero" string ID
   // would not collide with any other section's usage.
   @Namespace var heroNamespace
+
+  // Co-present adoption demo (section 13): where the source card sits, whether
+  // it is in the tree at all, and move/settled counters for the readout. The
+  // badge itself needs no state: an `isSource: false` instance renders at the
+  // source's frame whenever a source is on screen.
+  @State var cardSlot: AdoptionCardSlot = .left
+  @State var cardAttached: Bool = true
+  @State var cardMoves: Int = 0
+  @State var cardSettled: Int = 0
+  @Namespace var badgeNamespace
 
   // MARK: - Keyframes page state
 
@@ -140,11 +155,14 @@ public struct AnimationsTab: View {
 
   // tracksVelocity fling (section 18): the marker's column on its track, the
   // last drag's readout, and the retarget request/served pair (see section
-  // 10 for the pattern).
+  // 10 for the pattern). `flingSettled` counts finished springs via the
+  // withAnimation completion, so a reader (and the runtime test) has a
+  // deterministic settle signal instead of watching the marker rest.
   @State var flingX: Int = AnimationsTab.flingHome
   @State var flingLastDelta: Int = 0
   @State var flingLastElapsedMilliseconds: Int = 0
   @State var flingDragStart: MonotonicInstant? = nil
+  @State var flingSettled: Int = 0
   @State var retargetRequest: Int = 0
   @State var retargetServed: Int = 0
 

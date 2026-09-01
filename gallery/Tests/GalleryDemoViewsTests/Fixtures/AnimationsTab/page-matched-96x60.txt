@@ -24,18 +24,18 @@
                └──────────────────┘
  state: heroOnRight=false properties=frame anchor=center box=11x3 moves=0 settled=0
 
+ ──────────────────────────────────────────────────────────────────────────────────────────────
 
-
-
-
-
-
-
-
-
-
-
-
+ 13. matchedGeometryEffect(isSource: false): the badge adopts the card
+ expect: the yellow badge renders on the card's top-trailing corner, never at its own slot
+ below; moving slides card and badge together over 1.5 s; detaching returns the badge to its
+ slot from the adopted rect; re-attaching adopts the third slot
+  move card    detach card
+ ┌──────NEW   ┌────────┐   ┌────────┐
+ │  CARD  │   │(empty) │   │(empty) │
+ └────────┘   └────────┘   └────────┘
+ badge home:
+ state: cardSlot=left attached=true moves=0 settled=0
 
 
 
