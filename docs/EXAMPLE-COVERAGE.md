@@ -57,7 +57,7 @@ host-details scene UI that `SwiftUIExample` uses. The multi-host counter demo
   lane. It builds every CLI, terminal, shared-scene, and localhost WebHost
   package in debug and runs the suites that exercise SwiftTUI behaviour:
   `WebHostExample`, `mrkdwn` (terminal lease and performance envelope, PTY
-  journeys, and — last, because it parks at the 0.9.12 pin and pays the
+  journeys, and — last, because it parks at the 0.10.0 pin and pays the
   watchdog's bound — view contracts and viewer model),
   `csvui` (view contracts, PTY journeys), `gallery`, and `gifcat`. Pass
   `--release-builds` (`bun run check:release`) for the release configuration
