@@ -67,8 +67,20 @@ public struct FlowLayoutWrap: View {
 /// onto a new row whenever the next child would push the row past
 /// the proposal width.  Width-`unspecified` proposals lay every
 /// child out on a single row (no wrap budget known).
+///
+/// The layout declares a horizontal stack orientation, so a `Spacer`
+/// or `Divider` placed directly inside it follows the row exactly as
+/// it would inside an `HStack` — a divider draws as a vertical rule
+/// between neighbours instead of inheriting whichever stack encloses
+/// the flow.
 struct FlowLayout: Layout {
   var spacing: Int
+
+  static var layoutProperties: LayoutProperties {
+    var properties = LayoutProperties()
+    properties.stackOrientation = .horizontal
+    return properties
+  }
 
   var measurementReuseSignature: String? {
     "FlowLayout(spacing:\(spacing)).measure"
