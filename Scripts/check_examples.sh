@@ -801,7 +801,7 @@ run_linux_examples() {
 
   run_layouts_tests_or_skip
 
-  # Last on purpose: this is the invocation that parks at the 0.10.0 pin
+  # Last on purpose: this is the invocation that parks at the 0.10.1 pin
   # (example_suites.sh). It stays on the hot path because it is real
   # framework-vs-app signal; the watchdog bounds what a park costs, and every
   # other step has already delivered its verdict by the time it runs.
