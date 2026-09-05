@@ -464,10 +464,13 @@ struct ViewerModelAndRenderTests {
         $0.contentBounds.size.height > $0.viewportRect.size.height
       }
     )
+    let documentPane = try #require(
+      initial.semanticSnapshot.focusRegions.first { $0.identity == documentRoute.identity }
+    )
     #expect(documentRoute.viewportRect.origin.x == 0)
+    // The pane includes its scrollbar; the content viewport can reserve that column.
     #expect(
-      documentRoute.viewportRect.origin.x
-        + documentRoute.viewportRect.size.width == size.width
+      documentPane.rect.origin.x + documentPane.rect.size.width == size.width
     )
 
     let initialLines = initial.rasterSurface.lines
@@ -501,10 +504,12 @@ struct ViewerModelAndRenderTests {
           && $0.contentBounds.size.height > $0.viewportRect.size.height
       }
     )
+    let wideDocumentPane = try #require(
+      wide.semanticSnapshot.focusRegions.first { $0.identity == wideDocumentRoute.identity }
+    )
     #expect(wideDocumentRoute.viewportRect.origin.x == 29)
     #expect(
-      wideDocumentRoute.viewportRect.origin.x
-        + wideDocumentRoute.viewportRect.size.width == wideSize.width
+      wideDocumentPane.rect.origin.x + wideDocumentPane.rect.size.width == wideSize.width
     )
 
     let surface = HostedRasterSurface(
@@ -535,10 +540,13 @@ struct ViewerModelAndRenderTests {
         runtimeFrame = try #require(frames.last)
       }
       #expect(runtimeFrame.focusedIdentity == runtimeRoute.identity)
+      let runtimePane = try #require(
+        runtimeFrame.semantics.focusRegions.first { $0.identity == runtimeRoute.identity }
+      )
       let runtimeIndicatorColumn =
-        runtimeRoute.viewportRect.origin.x + runtimeRoute.viewportRect.size.width - 1
-      let runtimeIndicatorStart = runtimeRoute.viewportRect.origin.y
-      let runtimeIndicatorEnd = runtimeIndicatorStart + runtimeRoute.viewportRect.size.height
+        runtimePane.rect.origin.x + runtimePane.rect.size.width - 1
+      let runtimeIndicatorStart = runtimePane.rect.origin.y
+      let runtimeIndicatorEnd = runtimeIndicatorStart + runtimePane.rect.size.height
       let runtimeIndicatorRows = runtimeIndicatorStart..<runtimeIndicatorEnd
       let runtimeIndicator = try #require(
         runtimeFrame.raster.cells[runtimeIndicatorRows].compactMap { row -> RasterCell? in
