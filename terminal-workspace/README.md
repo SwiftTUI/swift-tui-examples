@@ -16,7 +16,9 @@ swiftly run swift run --package-path terminal-workspace terminal-workspace
   vendor `Sources/TerminalWorkspace` directly.
 - Retained terminal sessions have visible active-pane controls and a `Ctrl+K`
   command palette. The palette controls focus, splits, zoom, and the pane
-  lifecycle.
+  lifecycle. A custom `PaletteStyle` supplies the workspace header, substring
+  filter, and Cancel button; `paletteCommand` contributions and `paletteSheet`
+  retain framework-owned activation and dismissal.
 - The example writes layout and command metadata to
   `~/.swift-tui-terminal-workspace.json`. It restores this data at launch.
 
