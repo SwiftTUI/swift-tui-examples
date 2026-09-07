@@ -62,6 +62,11 @@ in browse mode.
 
 ## File and edit safety
 
+- Search, filter, and sort cancel superseded background work. Sorting prepares
+  keys once per row: complete signed decimal/exponent values sort numerically,
+  then text sorts by Unicode scalars with natural ASCII digit runs. Dates and
+  filenames keep their suffixes. Equal numeric keys preserve row order; empty
+  cells stay last in both directions.
 - Source files are capped at 256 MiB, 2,000,000 records, 16,384 columns, and
   16 MiB per decoded field. Oversized byte sources fail before terminal
   takeover; invalid UTF-8, NUL bytes, malformed quoting, and structural limits

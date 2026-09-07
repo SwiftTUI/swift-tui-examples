@@ -359,13 +359,19 @@ struct PreviewPipelineTests {
       processClient: sessions.processClient()
     )
 
-    _ = await pipeline.events(
+    let firstStream = await pipeline.events(
       for: first,
       generation: PreviewGeneration(rawValue: 1)
     )
-    try await clock.waitForWaiters(count: 1)
+    try await clock.waitForWaiter(duration: .milliseconds(120))
     await clock.advanceAll()
-    try await sessions.waitForSessions(count: 1)
+    // A published starting event acknowledges installation; the factory's
+    // creation count alone precedes start and cannot establish this boundary.
+    guard case .external = await firstEvent(in: firstStream) else {
+      Issue.record("expected an installed external preview")
+      await pipeline.shutdown()
+      return
+    }
 
     // The replacement arms its own debounce window. Until that window closes
     // the coordinator owns the teardown, so the visible child must still be
@@ -375,7 +381,8 @@ struct PreviewPipelineTests {
       for: second,
       generation: PreviewGeneration(rawValue: 2)
     )
-    try await clock.waitForWaiters(count: 1)
+    // Match the new debounce, not the installed session's two-second timer.
+    try await clock.waitForWaiter(duration: .milliseconds(120))
 
     #expect(await sessions.terminationSignals.isEmpty)
     #expect(await sessions.sessionCount == 1)
@@ -589,12 +596,14 @@ private actor ManualPipelineClock {
     }
   }
 
-  func waitForWaiters(count: Int) async throws {
+  func waitForWaiter(duration: Duration) async throws {
     let deadline = ContinuousClock().now + .seconds(2)
-    while waiters.count < count, ContinuousClock().now < deadline {
+    while !waiters.values.contains(where: { $0.duration == duration }),
+      ContinuousClock().now < deadline
+    {
       await Task.yield()
     }
-    guard waiters.count >= count else {
+    guard waiters.values.contains(where: { $0.duration == duration }) else {
       throw PreviewPipelineTestFailure.timedOut
     }
   }

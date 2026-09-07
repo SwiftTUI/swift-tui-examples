@@ -91,6 +91,7 @@ struct SextantRealTerminalJourneyTests {
     )
     let runTask = Task {
       do {
+        reportEditorJourneyMilestone("runtime start")
         let result = try await Self.runHarness(
           presentationSurface: host,
           terminalInputReader: InputReader(fileDescriptor: pty.slave),
@@ -100,16 +101,21 @@ struct SextantRealTerminalJourneyTests {
         ) {
           ColumnBrowser(model: model)
         }
+        reportEditorJourneyMilestone("runtime returned; model shutdown begin")
         await model.shutdown()
+        reportEditorJourneyMilestone("model shutdown complete")
         return result
       } catch {
+        reportEditorJourneyMilestone("runtime error: \(error); model shutdown begin")
         await model.shutdown()
+        reportEditorJourneyMilestone("model shutdown after error complete")
         throw error
       }
     }
 
     do {
       var screen = ANSIVisibleScreen(size: size)
+      reportEditorJourneyMilestone("initial screen wait begin")
       _ = try await waitForANSIVisibleScreen(
         on: pty.master,
         screen: &screen,
@@ -117,8 +123,10 @@ struct SextantRealTerminalJourneyTests {
       ) {
         $0.contains("BROWSER") && $0.contains("editable.txt")
       }
+      reportEditorJourneyMilestone("initial screen ready")
       let screenBeforeEditor = screen
       let editorDrainTask = Task.detached {
+        reportEditorJourneyMilestone("cooked marker wait begin")
         var editorScreen = screenBeforeEditor
         let rendered = try await waitForANSIVisibleScreen(
           on: pty.master,
@@ -128,10 +136,13 @@ struct SextantRealTerminalJourneyTests {
           $0.contains("SEXTANT_EDITOR_COOKED")
             || $0.contains("SEXTANT_EDITOR_RAW")
         }
+        reportEditorJourneyMilestone("editor marker ready")
         return DetachedVisibleScreenResult(rendered: rendered, screen: editorScreen)
       }
       try writeAllBytes(Array("e".utf8), to: pty.master)
+      reportEditorJourneyMilestone("editor command sent; editor drain join begin")
       let editorResult = try await editorDrainTask.value
+      reportEditorJourneyMilestone("editor drain joined")
       let editorScreen = editorResult.rendered
       screen = editorResult.screen
       #expect(editorScreen.contains("SEXTANT_EDITOR_COOKED"))
@@ -139,6 +150,7 @@ struct SextantRealTerminalJourneyTests {
 
       let screenBeforeRestore = screen
       let restoreDrainTask = Task.detached {
+        reportEditorJourneyMilestone("restored screen wait begin")
         var restoredScreen = screenBeforeRestore
         let rendered = try await waitForANSIVisibleScreen(
           on: pty.master,
@@ -148,24 +160,35 @@ struct SextantRealTerminalJourneyTests {
           $0.contains("editable.txt")
             && $0.contains("Opened editable.txt")
         }
+        reportEditorJourneyMilestone("restored screen ready")
         return DetachedVisibleScreenResult(rendered: rendered, screen: restoredScreen)
       }
       try writeAllBytes(Array("accepted\n".utf8), to: pty.master)
+      reportEditorJourneyMilestone("editor input sent; restore drain join begin")
       let restoreResult = try await restoreDrainTask.value
+      reportEditorJourneyMilestone("restore drain joined; model status wait begin")
       screen = restoreResult.screen
       try await Self.waitForModel(
         deadline: ContinuousClock().now + .seconds(5)
       ) {
         model.state.status == .message("Opened editable.txt in the editor.")
       }
+      reportEditorJourneyMilestone("model status ready; shutdown drain start")
       let shutdownDrain = PTYOutputDrain(fileDescriptor: pty.master)
       try writeAllBytes([0x04], to: pty.master)
+      reportEditorJourneyMilestone("Ctrl-D sent; runtime join begin")
       _ = try await runTask.value
+      reportEditorJourneyMilestone("runtime joined; drain cancel begin")
       await shutdownDrain.cancel()
+      reportEditorJourneyMilestone("drain cancelled; journey complete")
     } catch {
+      reportEditorJourneyMilestone("journey error: \(error); cleanup begin")
       runTask.cancel()
+      reportEditorJourneyMilestone("runtime cancelled; closing PTY master")
       pty.closeMaster()
+      reportEditorJourneyMilestone("PTY master closed; cleanup runtime join begin")
       _ = try? await runTask.value
+      reportEditorJourneyMilestone("cleanup runtime joined")
       throw error
     }
   }
@@ -488,6 +511,7 @@ struct SextantRealTerminalJourneyTests {
       ),
       focusTracker: FocusTracker(invalidationIdentities: [rootIdentity]),
       environmentValues: environment,
+      exitKeyBindings: ExitKeyBindings(CommandCatalog.runtimeExitKeys),
       viewBuilder: { _, _ in viewBuilder() }
     )
     runLoop.renderMode = .async
@@ -553,6 +577,10 @@ struct SextantRealTerminalJourneyTests {
     }
     throw JourneyFailure.previewDidNotResize
   }
+}
+
+private func reportEditorJourneyMilestone(_ message: String) {
+  FileHandle.standardError.write(Data("[sextant-editor-journey] \(Date()) \(message)\n".utf8))
 }
 
 private actor JourneyPreviewEventHub {

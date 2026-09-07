@@ -25,7 +25,8 @@ struct CSVRowOrdinalIndex: Sendable {
   init(rows: [RowID], maximumBytes: Int = Self.maximumBytes) throws {
     var largestSourceIndex = -1
     var insertedCount = 0
-    for row in rows {
+    for (offset, row) in rows.enumerated() {
+      if offset.isMultiple(of: 512) { try Task.checkCancellation() }
       switch row.storage {
       case .source(let sourceIndex):
         largestSourceIndex = max(largestSourceIndex, sourceIndex)
@@ -60,6 +61,7 @@ struct CSVRowOrdinalIndex: Sendable {
     var insertedOrdinals: [UInt64: Int32] = [:]
     insertedOrdinals.reserveCapacity(insertedCount)
     for (ordinal, row) in rows.enumerated() {
+      if ordinal.isMultiple(of: 512) { try Task.checkCancellation() }
       let compactOrdinal = Int32(ordinal)
       switch row.storage {
       case .source(let sourceIndex):
@@ -134,6 +136,7 @@ public final class CSVModel {
 
   @ObservationIgnored private let rowCache = CSVRowCache()
   @ObservationIgnored private let projectionEngine = CSVProjectionEngine()
+  @ObservationIgnored private var projectionOperations = CSVProjectionOperations()
   @ObservationIgnored private let configuration: CSVModelConfiguration
   @ObservationIgnored private var history = CSVHistory()
   @ObservationIgnored private var nextInsertedRowID: UInt64 = 1
@@ -773,6 +776,10 @@ public final class CSVModel {
     documentLoader = loader
   }
 
+  func installProjectionOperationsForTesting(_ operations: CSVProjectionOperations) {
+    projectionOperations = operations
+  }
+
   public func loadInitial(
     source: CSVSourceSnapshot,
     delimiter: CSVDelimiter,
@@ -1031,17 +1038,7 @@ public final class CSVModel {
   nonisolated private static func runDetachedLoad(
     _ operation: @escaping @Sendable () throws -> CSVDocumentLoadResult
   ) async -> Result<CSVDocumentLoadResult, any Error> {
-    let worker = Task.detached { () -> Result<CSVDocumentLoadResult, any Error> in
-      Result {
-        try Task.checkCancellation()
-        return try operation()
-      }
-    }
-    return await withTaskCancellationHandler {
-      await worker.value
-    } onCancel: {
-      worker.cancel()
-    }
+    await runCSVBackgroundWork { try operation() }
   }
 
   private func commitReload(_ result: CSVDocumentLoadResult) {
@@ -1388,21 +1385,11 @@ public final class CSVModel {
     let rows = _state.projection.visibleRows
     let columns = _state.projection.visibleColumns
     let query = _state.searchQuery
+    let search = projectionOperations.search
     searchTask = Task { [weak self] in
-      let result: Result<CSVSearchResultSet, any Error> = await Task.detached {
-        do {
-          return .success(
-            try await CSVProjectionEngine().search(
-              snapshot: snapshot,
-              rows: rows,
-              columns: columns,
-              query: query
-            )
-          )
-        } catch {
-          return .failure(error)
-        }
-      }.value
+      let result = await runCSVBackgroundWork {
+        try await search(snapshot, rows, columns, query)
+      }
       guard let self, !Task.isCancelled, generation == self.searchGeneration else { return }
       self._state.isSearching = false
       switch result {
@@ -1503,38 +1490,25 @@ public final class CSVModel {
     }
 
     let snapshot = CSVScanSnapshot(document: _state.document, journal: _state.journal)
+    let operations = projectionOperations
     projectionTask = Task { [weak self] in
-      let result = await Task.detached {
-        do {
-          var rows = baseRows
-          if let filter {
-            rows = try await CSVProjectionEngine().filter(
-              snapshot: snapshot,
-              rows: rows,
-              visibleColumns: columns,
-              spec: filter
-            )
-          }
-          if let sort {
-            rows = try await CSVProjectionEngine().sort(
-              snapshot: snapshot,
-              rows: rows,
-              spec: sort
-            )
-          }
-          let rowOrdinalIndex =
-            requiresRowOrdinalIndex ? try CSVRowOrdinalIndex(rows: rows) : nil
-          return Result<CSVProjectionComputation, any Error>.success(
-            CSVProjectionComputation(
-              rows: rows,
-              rowOrdinalIndex: rowOrdinalIndex,
-              sharesJournalOrder: !requiresRowOrdinalIndex
-            )
-          )
-        } catch {
-          return Result<CSVProjectionComputation, any Error>.failure(error)
+      let result = await runCSVBackgroundWork {
+        var rows = baseRows
+        if let filter {
+          rows = try await operations.filter(snapshot, rows, columns, filter)
         }
-      }.value
+        if let sort {
+          rows = try await operations.sort(snapshot, rows, sort)
+        }
+        try Task.checkCancellation()
+        let rowOrdinalIndex =
+          requiresRowOrdinalIndex ? try CSVRowOrdinalIndex(rows: rows) : nil
+        return CSVProjectionComputation(
+          rows: rows,
+          rowOrdinalIndex: rowOrdinalIndex,
+          sharesJournalOrder: !requiresRowOrdinalIndex
+        )
+      }
       guard let self, !Task.isCancelled, generation == self.projectionGeneration else { return }
       self._state.isFiltering = false
       self._state.isSorting = false

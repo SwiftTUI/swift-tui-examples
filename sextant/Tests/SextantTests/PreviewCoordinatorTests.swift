@@ -71,6 +71,101 @@ struct PreviewCoordinatorTests {
     #expect(await sessions.liveCount == 0)
   }
 
+  @Test("superseded debounces preserve the installed session and shutdown joins both owners")
+  func installedSessionSurvivesPendingSelections() async throws {
+    let clock = ManualPreviewClock()
+    let sessions = SessionFactory()
+    let events = PreviewEventRecorder()
+    let coordinator = PreviewCoordinator(
+      clock: PreviewClock { try await clock.sleep($0) },
+      processClient: PreviewProcessClient { await sessions.make(launch: $0) },
+      eventSink: { await events.record($0) }
+    )
+    await coordinator.select(generation: 1, launch: launch("installed"), fallback: fallback())
+    try await waitUntil { await clock.pendingDurations == [.milliseconds(120)] }
+    await clock.advanceAll()
+    try await waitUntil { await events.hasReady(generation: 1) }
+    // This timer belongs to the installed session, not the pending selection.
+    try await waitUntil { await clock.pendingDurations == [.seconds(2)] }
+
+    for generation in 2...5 {
+      await coordinator.select(
+        generation: UInt64(generation), launch: launch("pending-\(generation)"),
+        fallback: fallback()
+      )
+      try await waitUntil {
+        await clock.pendingDurations.contains(.milliseconds(120))
+      }
+      #expect(await sessions.terminationSignals.isEmpty)
+      #expect(await sessions.liveCount == 1)
+      #expect(await sessions.startedLaunchNames == ["installed"])
+    }
+
+    await coordinator.shutdown()
+    #expect(await sessions.terminationSignals == [15])
+    #expect(await sessions.liveCount == 0)
+    #expect(await clock.pendingDurations.isEmpty)
+    #expect(await sessions.createdCount == 1)
+  }
+
+  @Test("replacement commits only when its own debounce advances")
+  func replacementCommitOwnsTeardown() async throws {
+    let clock = ManualPreviewClock()
+    let sessions = SessionFactory()
+    let events = PreviewEventRecorder()
+    let coordinator = PreviewCoordinator(
+      clock: PreviewClock { try await clock.sleep($0) },
+      processClient: PreviewProcessClient { await sessions.make(launch: $0) },
+      eventSink: { await events.record($0) }
+    )
+    await coordinator.select(generation: 1, launch: launch("first"), fallback: fallback())
+    try await waitUntil { await clock.pendingDurations == [.milliseconds(120)] }
+    await clock.advanceAll()
+    try await waitUntil { await events.hasReady(generation: 1) }
+    try await waitUntil { await clock.pendingDurations == [.seconds(2)] }
+    await coordinator.select(generation: 2, launch: launch("second"), fallback: fallback())
+    try await waitUntil {
+      await clock.pendingDurations == [.milliseconds(120), .seconds(2)]
+    }
+    #expect(await sessions.terminationSignals.isEmpty)
+
+    await clock.advance(.milliseconds(120))
+    try await waitUntil { await events.hasReady(generation: 2) }
+    #expect(await sessions.terminationSignals == [15])
+    #expect(await sessions.startedLaunchNames == ["first", "second"])
+    #expect(await sessions.maximumLiveCount == 1)
+    await coordinator.shutdown()
+    #expect(await sessions.terminationSignals == [15, 15])
+  }
+
+  @Test("a queued superseded built-in request cannot tear down the installed preview")
+  func supersededBuiltInDoesNotTerminate() async throws {
+    let clock = ManualPreviewClock()
+    let sessions = SessionFactory()
+    let events = PreviewEventRecorder()
+    let coordinator = PreviewCoordinator(
+      clock: PreviewClock { try await clock.sleep($0) },
+      processClient: PreviewProcessClient { await sessions.make(launch: $0) },
+      eventSink: { await events.record($0) }
+    )
+    await coordinator.select(generation: 1, launch: launch("installed"), fallback: fallback())
+    try await waitUntil { await clock.pendingDurations == [.milliseconds(120)] }
+    await clock.advanceAll()
+    try await waitUntil { await events.hasReady(generation: 1) }
+
+    await queueBuiltInThenProcess(
+      on: coordinator, launch: launch("replacement"), fallback: fallback())
+    try await waitUntil { await clock.pendingDurations.contains(.milliseconds(120)) }
+    #expect(await sessions.terminationSignals.isEmpty)
+    #expect(await sessions.liveCount == 1)
+    #expect(await events.contains(generation: 2) == false)
+    await clock.advance(.milliseconds(120))
+    try await waitUntil { await events.hasReady(generation: 3) }
+    #expect(await sessions.startedLaunchNames == ["installed", "replacement"])
+    #expect(await sessions.maximumLiveCount == 1)
+    await coordinator.shutdown()
+  }
+
   @Test("replacement terminates the old child before the new child starts")
   func serializedReplacement() async throws {
     let clock = ManualPreviewClock()
@@ -337,6 +432,17 @@ private enum StubFailure: Error {
   case startup
 }
 
+// One actor turn guarantees the intermediate task cannot run before it is
+// superseded, without relying on executor timing or sleeps in the test.
+private func queueBuiltInThenProcess(
+  on coordinator: isolated PreviewCoordinator,
+  launch: PreviewLaunch,
+  fallback: BuiltInPreview
+) {
+  coordinator.select(generation: 2, launch: nil, fallback: fallback)
+  coordinator.select(generation: 3, launch: launch, fallback: fallback)
+}
+
 private actor ManualPreviewClock {
   private struct Waiter {
     var duration: Duration
@@ -375,6 +481,13 @@ private actor ManualPreviewClock {
     waiters.removeAll()
     for waiter in current {
       waiter.continuation.resume()
+    }
+  }
+
+  func advance(_ duration: Duration) {
+    let ids = waiters.filter { $0.value.duration == duration }.map(\.key)
+    for id in ids {
+      waiters.removeValue(forKey: id)?.continuation.resume()
     }
   }
 

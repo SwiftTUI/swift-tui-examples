@@ -38,6 +38,11 @@ failures.
 `PreviewResolver` is pure adapter selection. `PreviewExecutableCache` probes
 each executable once. `PreviewCoordinator` owns debounce, generation checks,
 serialized replacement, TERM/KILL escalation, lifecycle states, and shutdown.
+Pending selections own debounce and startup; installed sessions have a separate
+observation task. Superseding a pending selection preserves the installed
+preview until the replacement debounce closes. Replacement and explicit
+cancellation stop and join the installed owner before starting another child.
+Events from an older selection remain suppressed while its process is retained.
 `PreviewPipeline` maps those events into the model while retaining the built-in
 fallback.
 

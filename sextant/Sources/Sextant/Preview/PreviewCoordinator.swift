@@ -75,6 +75,9 @@ public actor PreviewCoordinator {
   private var activeGeneration: UInt64?
   private var operationToken: UInt64 = 0
   private var selectionTask: Task<Void, Never>?
+  // Pending selection owns debounce/startup. Installed observation has a
+  // separate lifetime so superseding a request preserves the visible preview.
+  private var sessionTask: Task<Void, Never>?
   private var current: PreviewSessionHandle?
   private var isShuttingDown = false
 
@@ -148,6 +151,7 @@ public actor PreviewCoordinator {
     launch: PreviewLaunch?,
     fallback: BuiltInPreview
   ) async {
+    guard owns(token: token, generation: generation) else { return }
     guard let launch else {
       await terminateCurrent()
       guard owns(token: token, generation: generation) else {
@@ -216,7 +220,24 @@ public actor PreviewCoordinator {
     }
 
     current = handle
-    await eventSink(
+    sessionTask = Task { [weak self] in
+      await self?.observeInstalled(
+        handle,
+        generation: generation,
+        launch: launch,
+        fallback: fallback
+      )
+    }
+  }
+
+  private func observeInstalled(
+    _ handle: PreviewSessionHandle,
+    generation: UInt64,
+    launch: PreviewLaunch,
+    fallback: BuiltInPreview
+  ) async {
+    guard ownsInstalled(handle.id) else { return }
+    await publishInstalledEvent(
       .starting(
         generation: generation,
         launch: launch,
@@ -224,35 +245,23 @@ public actor PreviewCoordinator {
         fallback: fallback
       )
     )
-    guard owns(token: token, generation: generation) else {
-      await terminate(handle)
-      return
-    }
-
     let startedReady: Bool
     if case .running = await handle.lifecycle() {
-      guard owns(token: token, generation: generation) else {
-        await terminate(handle)
-        return
-      }
-      await eventSink(.ready(generation: generation, handleID: handle.id))
+      guard ownsInstalled(handle.id) else { return }
+      await publishInstalledEvent(.ready(generation: generation, handleID: handle.id))
       startedReady = true
     } else {
       startedReady = false
     }
-    guard owns(token: token, generation: generation) else {
-      await terminate(handle)
-      return
-    }
+    guard ownsInstalled(handle.id) else { return }
 
     let reason = await monitor(
       handle,
-      token: token,
       generation: generation,
       startedReady: startedReady
     )
-    if let reason, owns(token: token, generation: generation) {
-      await eventSink(
+    if let reason, ownsInstalled(handle.id) {
+      await publishInstalledEvent(
         .exited(
           generation: generation,
           handleID: handle.id,
@@ -262,15 +271,12 @@ public actor PreviewCoordinator {
     }
     if current?.id == handle.id {
       current = nil
-    }
-    if !owns(token: token, generation: generation) || Task.isCancelled {
-      await terminate(handle)
+      sessionTask = nil
     }
   }
 
   private func monitor(
     _ handle: PreviewSessionHandle,
-    token: UInt64,
     generation: UInt64,
     startedReady: Bool
   ) async -> TerminalExitReason? {
@@ -282,33 +288,33 @@ public actor PreviewCoordinator {
 
     switch observation {
     case .output:
-      guard owns(token: token, generation: generation) else {
+      guard ownsInstalled(handle.id) else {
         return nil
       }
       if !startedReady {
-        await eventSink(.ready(generation: generation, handleID: handle.id))
+        await publishInstalledEvent(.ready(generation: generation, handleID: handle.id))
       }
-      guard owns(token: token, generation: generation) else {
+      guard ownsInstalled(handle.id) else {
         return nil
       }
       return await handle.waitForExit(timeout: nil)
 
     case .slow:
-      guard owns(token: token, generation: generation) else {
+      guard ownsInstalled(handle.id) else {
         return nil
       }
       if Self.hasVisibleOutput(handle.terminal.cachedSnapshot) {
         if !startedReady {
-          await eventSink(.ready(generation: generation, handleID: handle.id))
+          await publishInstalledEvent(.ready(generation: generation, handleID: handle.id))
         }
-        guard owns(token: token, generation: generation) else {
+        guard ownsInstalled(handle.id) else {
           return nil
         }
         return await handle.waitForExit(timeout: nil)
       } else {
-        await eventSink(.slow(generation: generation, handleID: handle.id))
+        await publishInstalledEvent(.slow(generation: generation, handleID: handle.id))
       }
-      guard owns(token: token, generation: generation) else {
+      guard ownsInstalled(handle.id) else {
         return nil
       }
       observation = await Self.firstObservation(
@@ -318,19 +324,19 @@ public actor PreviewCoordinator {
       )
       switch observation {
       case .output:
-        guard owns(token: token, generation: generation) else {
+        guard ownsInstalled(handle.id) else {
           return nil
         }
-        await eventSink(.ready(generation: generation, handleID: handle.id))
-        guard owns(token: token, generation: generation) else {
+        await publishInstalledEvent(.ready(generation: generation, handleID: handle.id))
+        guard ownsInstalled(handle.id) else {
           return nil
         }
         return await handle.waitForExit(timeout: nil)
       case .exited(let reason):
         if Self.hasVisibleOutput(handle.terminal.cachedSnapshot),
-          owns(token: token, generation: generation)
+          ownsInstalled(handle.id)
         {
-          await eventSink(.ready(generation: generation, handleID: handle.id))
+          await publishInstalledEvent(.ready(generation: generation, handleID: handle.id))
         }
         return reason
       case .slow, .cancelled:
@@ -340,9 +346,9 @@ public actor PreviewCoordinator {
     case .exited(let reason):
       if Self.hasVisibleOutput(handle.terminal.cachedSnapshot),
         !startedReady,
-        owns(token: token, generation: generation)
+        ownsInstalled(handle.id)
       {
-        await eventSink(.ready(generation: generation, handleID: handle.id))
+        await publishInstalledEvent(.ready(generation: generation, handleID: handle.id))
       }
       return reason
 
@@ -428,12 +434,34 @@ public actor PreviewCoordinator {
       && activeGeneration == generation
   }
 
+  private func publishInstalledEvent(_ event: PreviewCoordinatorEvent) async {
+    let generation: UInt64
+    switch event {
+    case .starting(let value, _, _, _), .ready(let value, _),
+      .slow(let value, _), .exited(let value, _, _):
+      generation = value
+    case .builtIn, .failed:
+      return
+    }
+    guard !isShuttingDown, !Task.isCancelled, activeGeneration == generation else { return }
+    await eventSink(event)
+  }
+
+  private func ownsInstalled(_ handleID: UUID) -> Bool {
+    !isShuttingDown && !Task.isCancelled && current?.id == handleID
+  }
+
   private func terminateCurrent() async {
+    let observation = sessionTask
+    sessionTask = nil
+    observation?.cancel()
     guard let current else {
+      _ = await observation?.value
       return
     }
     self.current = nil
     await terminate(current)
+    _ = await observation?.value
   }
 
   private func terminate(_ handle: PreviewSessionHandle) async {

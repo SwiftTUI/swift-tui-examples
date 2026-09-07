@@ -133,11 +133,11 @@ public struct CSVProjectionEngine: Sendable {
   ) async throws -> [RowID] {
     struct KeyedRow {
       var row: RowID
-      var value: String
+      var key: CSVSortKey
       var ordinal: Int
     }
     var keyed: [KeyedRow] = []
-    keyed.reserveCapacity(rows.count)
+    keyed.reserveCapacity(min(rows.count, 16_384))
     var workspaceBytes = 0
     for (offset, row) in rows.enumerated() {
       if offset.isMultiple(of: 512) {
@@ -145,18 +145,22 @@ public struct CSVProjectionEngine: Sendable {
         await Task.yield()
       }
       let value = try snapshot.value(row: row, column: spec.column)
-      let (next, overflow) = workspaceBytes.addingReportingOverflow(value.utf8.count + 32)
+      let key = CSVSortKey(value)
+      let (next, overflow) = workspaceBytes.addingReportingOverflow(
+        key.storageBytes + MemoryLayout<KeyedRow>.stride
+      )
       guard !overflow, next <= Self.maximumWorkspaceBytes else {
         throw CSVProjectionError.workspaceLimit
       }
       workspaceBytes = next
-      keyed.append(KeyedRow(row: row, value: value, ordinal: offset))
+      keyed.append(KeyedRow(row: row, key: key, ordinal: offset))
     }
-    keyed.sort { lhs, rhs in
-      let leftEmpty = lhs.value.isEmpty
-      let rightEmpty = rhs.value.isEmpty
+    try keyed.sort { lhs, rhs in
+      try Task.checkCancellation()
+      let leftEmpty = lhs.key.isEmpty
+      let rightEmpty = rhs.key.isEmpty
       if leftEmpty != rightEmpty { return !leftEmpty }
-      let comparison = naturalCompare(lhs.value, rhs.value)
+      let comparison = lhs.key.compare(to: rhs.key)
       if comparison == .orderedSame { return lhs.ordinal < rhs.ordinal }
       switch spec.direction {
       case .ascending: return comparison == .orderedAscending
@@ -164,57 +168,6 @@ public struct CSVProjectionEngine: Sendable {
       }
     }
     return keyed.map(\.row)
-  }
-
-  private func naturalCompare(_ lhs: String, _ rhs: String) -> ComparisonResult {
-    let locale = Locale(identifier: "en_US_POSIX")
-    if let leftNumber = Decimal(string: lhs, locale: locale),
-      let rightNumber = Decimal(string: rhs, locale: locale)
-    {
-      return NSDecimalNumber(decimal: leftNumber).compare(NSDecimalNumber(decimal: rightNumber))
-    }
-
-    let left = Array(lhs.unicodeScalars)
-    let right = Array(rhs.unicodeScalars)
-    var leftIndex = 0
-    var rightIndex = 0
-    while leftIndex < left.count, rightIndex < right.count {
-      if left[leftIndex].properties.numericType != nil,
-        right[rightIndex].properties.numericType != nil
-      {
-        var leftEnd = leftIndex
-        var rightEnd = rightIndex
-        while leftEnd < left.count, left[leftEnd].properties.numericType != nil { leftEnd += 1 }
-        while rightEnd < right.count, right[rightEnd].properties.numericType != nil {
-          rightEnd += 1
-        }
-        let leftDigits = String(String.UnicodeScalarView(left[leftIndex..<leftEnd]))
-        let rightDigits = String(String.UnicodeScalarView(right[rightIndex..<rightEnd]))
-        let trimmedLeft = leftDigits.drop(while: { $0 == "0" })
-        let trimmedRight = rightDigits.drop(while: { $0 == "0" })
-        if trimmedLeft.count != trimmedRight.count {
-          return trimmedLeft.count < trimmedRight.count ? .orderedAscending : .orderedDescending
-        }
-        if trimmedLeft != trimmedRight {
-          return trimmedLeft.lexicographicallyPrecedes(trimmedRight)
-            ? .orderedAscending : .orderedDescending
-        }
-        if leftDigits.count != rightDigits.count {
-          return leftDigits.count < rightDigits.count ? .orderedAscending : .orderedDescending
-        }
-        leftIndex = leftEnd
-        rightIndex = rightEnd
-        continue
-      }
-      if left[leftIndex].value != right[rightIndex].value {
-        return left[leftIndex].value < right[rightIndex].value
-          ? .orderedAscending : .orderedDescending
-      }
-      leftIndex += 1
-      rightIndex += 1
-    }
-    if left.count == right.count { return .orderedSame }
-    return left.count < right.count ? .orderedAscending : .orderedDescending
   }
 
   private struct Matcher {
