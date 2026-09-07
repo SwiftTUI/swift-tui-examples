@@ -65,15 +65,18 @@ in browse mode.
 - Search, filter, and sort cancel superseded background work. Sorting prepares
   keys once per row: complete signed decimal/exponent values sort numerically,
   then text sorts by Unicode scalars with natural ASCII digit runs. Dates and
-  filenames keep their suffixes. Equal numeric keys preserve row order; empty
-  cells stay last in both directions.
+  filenames keep their suffixes. Literals that `Decimal` cannot represent sort
+  as text. Equal numeric keys preserve row order; empty cells stay last in
+  both directions.
 - Source files are capped at 256 MiB, 2,000,000 records, 16,384 columns, and
   16 MiB per decoded field. Oversized byte sources fail before terminal
   takeover; invalid UTF-8, NUL bytes, malformed quoting, and structural limits
   produce an in-app diagnostic without replacing the last-good document.
 - The decoded-row cache is bounded to 512 rows or 16 MiB. Undo history is
-  bounded to 256 entries or 16 MiB. Search stores at most 10,000 matches, and
-  filter/sort workspaces are capped at 64 MiB.
+  bounded to 256 entries or 16 MiB. Search stores at most 10,000 matches,
+  filter workspaces are capped at 64 MiB, and prepared sort keys at 128 MiB.
+  A sort row costs its UTF-8 text plus one fixed record, and the sort budget
+  admits every column the earlier 64 MiB string workspace admitted.
 - In-place Save is offered only for a direct writable regular file with one
   hard link. It compares both the original identity and bytes immediately
   before replacement, writes a same-directory temporary file, flushes it,

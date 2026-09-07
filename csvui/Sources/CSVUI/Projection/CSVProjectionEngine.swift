@@ -7,9 +7,17 @@ public enum CSVProjectionError: Error, Equatable, Sendable, LocalizedError {
   public var errorDescription: String? {
     switch self {
     case .invalidRegex(let reason): "invalid regular expression: \(reason)"
-    case .workspaceLimit: "operation exceeded the 64 MiB projection workspace limit"
+    case .workspaceLimit: "operation exceeded its projection workspace limit"
     }
   }
+}
+
+/// One prepared sort row: the key, its row, and its input position for
+/// stable ties. Its stride is the fixed per-row sort workspace charge.
+struct CSVSortKeyedRow {
+  var row: RowID
+  var key: CSVSortKey
+  var ordinal: Int
 }
 
 public struct CSVSearchResultSet: Equatable, Sendable {
@@ -58,6 +66,13 @@ public struct CSVScanSnapshot: Sendable {
 public struct CSVProjectionEngine: Sendable {
   public static let maximumSearchMatches = 10_000
   public static let maximumWorkspaceBytes = 64 * 1_024 * 1_024
+  /// Prepared sort keys carry a parsed number and a fixed row record, so the
+  /// sort budget is scaled to admit every column that the 0.11.1 string
+  /// workspace admitted at `utf8 + 32` bytes per row within 64 MiB. It bounds
+  /// prepared-key memory; the filter workspace keeps `maximumWorkspaceBytes`.
+  public static let maximumSortWorkspaceBytes = 128 * 1_024 * 1_024
+  /// Fixed bytes charged per prepared sort row beyond its UTF-8 text.
+  static var sortRowOverheadBytes: Int { MemoryLayout<CSVSortKeyedRow>.stride }
 
   public init() {}
 
@@ -131,12 +146,7 @@ public struct CSVProjectionEngine: Sendable {
     rows: [RowID],
     spec: CSVSortSpec
   ) async throws -> [RowID] {
-    struct KeyedRow {
-      var row: RowID
-      var key: CSVSortKey
-      var ordinal: Int
-    }
-    var keyed: [KeyedRow] = []
+    var keyed: [CSVSortKeyedRow] = []
     keyed.reserveCapacity(min(rows.count, 16_384))
     var workspaceBytes = 0
     for (offset, row) in rows.enumerated() {
@@ -147,13 +157,13 @@ public struct CSVProjectionEngine: Sendable {
       let value = try snapshot.value(row: row, column: spec.column)
       let key = CSVSortKey(value)
       let (next, overflow) = workspaceBytes.addingReportingOverflow(
-        key.storageBytes + MemoryLayout<KeyedRow>.stride
+        key.storageBytes + Self.sortRowOverheadBytes
       )
-      guard !overflow, next <= Self.maximumWorkspaceBytes else {
+      guard !overflow, next <= Self.maximumSortWorkspaceBytes else {
         throw CSVProjectionError.workspaceLimit
       }
       workspaceBytes = next
-      keyed.append(KeyedRow(row: row, key: key, ordinal: offset))
+      keyed.append(CSVSortKeyedRow(row: row, key: key, ordinal: offset))
     }
     try keyed.sort { lhs, rhs in
       try Task.checkCancellation()

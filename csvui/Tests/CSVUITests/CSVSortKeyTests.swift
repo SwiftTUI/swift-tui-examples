@@ -32,6 +32,30 @@ struct CSVSortKeyTests {
     }
   }
 
+  @Test("keys borrow UTF-8 text and keep scalar order for non-ASCII values")
+  func utf8Keys() {
+    let key = CSVSortKey("naïve 10")
+    #expect(key.storageBytes == "naïve 10".utf8.count)
+    #expect(key.number == nil)
+    #expect(CSVSortKey("z").compare(to: CSVSortKey("é")) == .orderedAscending)
+    #expect(CSVSortKey("é").compare(to: CSVSortKey("é1")) == .orderedAscending)
+    #expect(CSVSortKey("é2").compare(to: CSVSortKey("é10")) == .orderedAscending)
+    #expect(CSVSortKey("1e400").compare(to: CSVSortKey("1e400")) == .orderedSame)
+  }
+
+  @Test("the sort budget admits every column the 0.11.1 string workspace admitted")
+  func sortBudgetParity() {
+    let previousBudget = 64 * 1_024 * 1_024
+    let previousRowOverhead = 32
+    for textBytes in [0, 1, 8, 16, 64, 1_024, 16 * 1_024] {
+      let previousRows = previousBudget / (textBytes + previousRowOverhead)
+      let rows =
+        CSVProjectionEngine.maximumSortWorkspaceBytes
+        / (textBytes + CSVProjectionEngine.sortRowOverheadBytes)
+      #expect(rows >= previousRows, "\(textBytes)-byte keys")
+    }
+  }
+
   @Test("sort keeps numeric ties stable and empty cells last in both directions")
   func stableRows() async throws {
     let document = try CSVDocument.parse(
