@@ -39,7 +39,7 @@ let package = Package(
     ),
   ],
   dependencies: [
-    .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.12.0")
+    .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.12.1")
   ],
   targets: [
     // Absorbed local copy of swift-gif. Wholesale-duplicated from swift-tui's
