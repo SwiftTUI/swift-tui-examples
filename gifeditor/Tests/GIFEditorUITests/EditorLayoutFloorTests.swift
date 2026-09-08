@@ -246,27 +246,42 @@ struct EditorLayoutFloorTests {
     #expect(text.contains("New layer"), "the inspector's last row was clipped")
   }
 
-  /// One row under the floor the editor overflows rather than compressing —
-  /// the same claim the width side makes, and the reason the gate has to
-  /// exist rather than trusting the stack to cope.
+  /// Height is an intact-content floor, not a bounding-box floor. A bounded
+  /// stack can fit one fewer row by clipping the thumbnail bottoms. That is
+  /// still an unusable editor, even though its surface fits the proposal.
   ///
-  /// Measured with the terminal held one row *above* the floor and the
+  /// Measured with the terminal held at the floor and the
   /// proposal squeezed one row below it. Those are the two different
   /// questions again: the terminal is what picks the density and what the
   /// gate reads, and the proposal is the box the compact layout is being
   /// asked to fit into. Setting both to 21 would measure the too-small
   /// screen, which fits anything.
-  @Test("one row under the floor, the layout overflows instead of shrinking")
-  func belowTheHeightFloorTheLayoutOverflows() {
+  @Test("one row under the height floor clips thumbnails without the fit guard")
+  func belowTheHeightFloorClipsThumbnails() {
     let floor = EditorLayoutFloor.minimumHeight
     let atFloor = squeezed(to: floor, id: "at-height-floor")
-    #expect(atFloor == floor, "the compact editor is \(atFloor) rows at its own floor")
+    #expect(atFloor.size.height == floor)
+    #expect(atFloor.lines.joined().contains("╰────╯"), "the thumbnail bottoms must be whole")
 
     let underFloor = squeezed(to: floor - 1, id: "under-height-floor")
+    #expect(underFloor.size.height == floor - 1)
     #expect(
-      underFloor > floor - 1,
-      "the editor fitted a terminal shorter than its floor, so the floor is wrong"
+      !underFloor.lines.joined().contains("╰────╯"),
+      "fitting the surface bounds must not be mistaken for keeping the thumbnails whole"
     )
+  }
+
+  @Test("the editor replaces clipped content with its height warning below the floor")
+  func heightGuardReplacesClippedEditor() {
+    let height = EditorLayoutFloor.minimumHeight - 1
+    let lines = render(crowdedEditor(), width: 80, height: height, id: "height-guard")
+    let text = lines.joined(separator: "\n")
+    #expect(lines.count <= height)
+    #expect(text.contains("Terminal too small"))
+    #expect(text.contains("80×\(height)"))
+    #expect(text.contains("\(EditorLayoutFloor.minimumHeight) rows"))
+    #expect(text.contains("taller"))
+    #expect(!text.contains("File ▾"), "the warning must replace the editor's content")
   }
 
   @Test("the fit check answers the floor and not a row or column either side of it")
@@ -542,11 +557,11 @@ struct EditorLayoutFloorTests {
     surface(view, proposal: ProposedSize(width: 1, height: 60), id: "floor-\(id)").size.width
   }
 
-  /// The height the compact editor insists on when squeezed into
-  /// `proposedHeight` rows. The environment's terminal stays one row above
+  /// The compact editor's surface when squeezed into `proposedHeight` rows.
+  /// The environment's terminal stays at
   /// the floor so the fit gate is out of the way and the density is the
   /// compact one being measured.
-  private func squeezed(to proposedHeight: Int, id: String) -> Int {
+  private func squeezed(to proposedHeight: Int, id: String) -> RasterSurface {
     var environment = EnvironmentValues()
     environment.terminalSize = CellSize(width: 200, height: EditorLayoutFloor.minimumHeight)
     return DefaultRenderer().render(
@@ -556,7 +571,7 @@ struct EditorLayoutFloorTests {
         environmentValues: environment
       ),
       proposal: ProposedSize(width: 80, height: proposedHeight)
-    ).rasterSurface.size.height
+    ).rasterSurface
   }
 
   private func surfaceWidth(proposedWidth: Int, id: String) -> Int {
