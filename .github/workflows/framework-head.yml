@@ -46,7 +46,7 @@ jobs:
         uses: ./.github/actions/lane-verdict-probe
         with:
           lane: framework-head
-          siblings: SwiftTUI/swift-tui SwiftTUI/swift-tui-charts
+          siblings: SwiftTUI/swift-tui SwiftTUI/swift-tui-charts SwiftTUI/swift-tui-terminal-view
 
   framework-head:
     name: Examples vs framework HEAD (Linux)

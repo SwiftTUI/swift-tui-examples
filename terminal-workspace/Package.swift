@@ -22,16 +22,17 @@ let package = Package(
     ),
   ],
   dependencies: [
-    .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.12.1")
+    .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.12.1"),
+    .package(url: "https://github.com/SwiftTUI/swift-tui-terminal-view.git", exact: "0.12.1")
   ],
   targets: [
     // The tabbed/split-pane workspace layer, owned by this example and built
-    // on the framework's public SwiftTUITerminal embedding surface.
+    // on the SwiftTUITerminalView package's embedding surface.
     .target(
       name: "TerminalWorkspace",
       dependencies: [
         .product(name: "SwiftTUIRuntime", package: "swift-tui"),
-        .product(name: "SwiftTUITerminal", package: "swift-tui"),
+        .product(name: "SwiftTUITerminalView", package: "swift-tui-terminal-view"),
       ],
       swiftSettings: swiftSettings
     ),

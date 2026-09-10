@@ -1,5 +1,5 @@
 import Foundation
-import SwiftTUITerminal
+import SwiftTUITerminalView
 import Testing
 
 @testable import Sextant

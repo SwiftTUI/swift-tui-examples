@@ -1,5 +1,5 @@
 public import SwiftTUIRuntime
-import SwiftTUITerminal
+import SwiftTUITerminalView
 
 /// A first-class terminal workspace surface with tabs, split panes, and retained sessions.
 public struct TerminalWorkspaceView: View {

@@ -1,2 +1,2 @@
 @_exported import SwiftTUIRuntime
-@_exported import SwiftTUITerminal
+@_exported import SwiftTUITerminalView

@@ -12,10 +12,11 @@ set -euo pipefail
 # when nothing landed.
 #
 # The committed manifests are never touched. The script copies the repository
-# into a throwaway work directory, clones (or accepts) the two siblings, and
+# into a throwaway work directory, clones (or accepts) the three siblings, and
 # rewrites the COPY's Package.swift files so every
 #   .package(url: "https://github.com/SwiftTUI/swift-tui(.git)?", <requirement>)
 #   .package(url: "https://github.com/SwiftTUI/swift-tui-charts(.git)?", <requirement>)
+#   .package(url: "https://github.com/SwiftTUI/swift-tui-terminal-view(.git)?", <requirement>)
 # becomes a local `path:` dependency. The charts clone's own swift-tui pin is
 # localized the same way, so both siblings resolve to one swift-tui tree. The
 # rewrite is verified afterwards: a sibling URL that survives in any copied
@@ -30,13 +31,13 @@ set -euo pipefail
 #
 # Usage:
 #   Scripts/localize_siblings.sh --work-dir <dir> [--swift-tui <checkout>]
-#       [--charts <checkout>] [--scratch <swiftpm-scratch>] [--no-check]
+#       [--charts <checkout>] [--terminal-view <checkout>] [--scratch <swiftpm-scratch>] [--no-check]
 #       [-- <check_examples.sh arguments>]
 #
-# Without --swift-tui/--charts the siblings are cloned (depth 1, branch main)
+# Without --swift-tui/--charts/--terminal-view the siblings are cloned (depth 1, branch main)
 # into <work-dir>. With them, existing checkouts are used as-is (local runs).
-# The SwiftPM scratch is stamped with the two sibling revisions and purged
-# when either changes: SwiftPM does not invalidate consumer objects whose
+# The SwiftPM scratch is stamped with the three sibling revisions and purged
+# when any changes: SwiftPM does not invalidate consumer objects whose
 # mangled references name a type's previous module, so a scratch reused across
 # framework module surgery links garbage (struct growth -> far SIGSEGV).
 
@@ -64,6 +65,7 @@ usage() {
 work_dir=""
 swift_tui_checkout=""
 charts_checkout=""
+terminal_view_checkout=""
 scratch_dir=""
 run_check=1
 check_arguments=()
@@ -83,6 +85,11 @@ while [[ $# -gt 0 ]]; do
     --charts)
       [[ $# -ge 2 ]] || fail "--charts needs a value"
       charts_checkout=$2
+      shift 2
+      ;;
+    --terminal-view)
+      [[ $# -ge 2 ]] || fail "--terminal-view needs a value"
+      terminal_view_checkout=$2
       shift 2
       ;;
     --scratch)
@@ -142,18 +149,26 @@ if [[ -z "$charts_checkout" ]]; then
   charts_checkout="$work_dir/swift-tui-charts"
   clone_sibling swift-tui-charts "$charts_checkout"
 fi
+if [[ -z "$terminal_view_checkout" ]]; then
+  terminal_view_checkout="$work_dir/swift-tui-terminal-view"
+  clone_sibling swift-tui-terminal-view "$terminal_view_checkout"
+fi
 [[ -f "$swift_tui_checkout/Package.swift" ]] || fail "not a swift-tui checkout: $swift_tui_checkout"
 [[ -f "$charts_checkout/Package.swift" ]] || fail "not a swift-tui-charts checkout: $charts_checkout"
+[[ -f "$terminal_view_checkout/Package.swift" ]] || fail "not a swift-tui-terminal-view checkout: $terminal_view_checkout"
 swift_tui_checkout="$(cd "$swift_tui_checkout" && pwd)"
 charts_checkout="$(cd "$charts_checkout" && pwd)"
+terminal_view_checkout="$(cd "$terminal_view_checkout" && pwd)"
 
 revision_of() {
   git -C "$1" rev-parse HEAD 2>/dev/null || printf 'unversioned'
 }
 swift_tui_revision="$(revision_of "$swift_tui_checkout")"
 charts_revision="$(revision_of "$charts_checkout")"
+terminal_view_revision="$(revision_of "$terminal_view_checkout")"
 log "swift-tui        = $swift_tui_revision ($swift_tui_checkout)"
 log "swift-tui-charts = $charts_revision ($charts_checkout)"
+log "swift-tui-terminal-view = $terminal_view_revision ($terminal_view_checkout)"
 
 # The charts clone consumes swift-tui by tag; localize it in place when it is
 # a clone this script owns, or in a copy when the caller lent us a checkout
@@ -165,6 +180,15 @@ if [[ "$charts_checkout" != "$work_dir/swift-tui-charts" ]]; then
   # Copy the package sources only; .build and .git stay behind.
   (cd "$charts_checkout" && tar --exclude=.build --exclude=.git -cf - .) | (cd "$localized_charts" && tar -xf -)
   charts_checkout="$localized_charts"
+fi
+
+if [[ "$terminal_view_checkout" != "$work_dir/swift-tui-terminal-view" ]]; then
+  localized_terminal_view="$work_dir/swift-tui-terminal-view"
+  rm -rf "$localized_terminal_view"
+  mkdir -p "$localized_terminal_view"
+  # Copy the package sources only; .build and .git stay behind.
+  (cd "$terminal_view_checkout" && tar --exclude=.build --exclude=.git -cf - .) | (cd "$localized_terminal_view" && tar -xf -)
+  terminal_view_checkout="$localized_terminal_view"
 fi
 
 # Throwaway copy of this repository. Everything the gate reads comes from the
@@ -182,7 +206,7 @@ mkdir -p "$examples_copy"
 # across several (the csvui/mrkdwn/charts manifests use the multi-line form).
 localize_manifest() {
   manifest=$1
-  python3 - "$manifest" "$swift_tui_checkout" "$charts_checkout" <<'PY'
+  python3 - "$manifest" "$swift_tui_checkout" "$charts_checkout" "$terminal_view_checkout" <<'PY'
 import pathlib
 import re
 import sys
@@ -190,6 +214,7 @@ import sys
 manifest = pathlib.Path(sys.argv[1])
 swift_tui = sys.argv[2]
 charts = sys.argv[3]
+terminal_view = sys.argv[4]
 text = manifest.read_text(encoding="utf-8")
 
 requirement = r'(?:exact:\s*"[^"]+"|from:\s*"[^"]+"|\.upToNext(?:Minor|Major)\(from:\s*"[^"]+"\))'
@@ -218,15 +243,17 @@ def localize(slug, path):
 
 # Most specific first: the swift-tui pattern is anchored on `swift-tui(.git)?"`
 # so it cannot match swift-tui-charts, but keep the order explicit anyway.
+terminal_view_count = localize("swift-tui-terminal-view", terminal_view)
 charts_count = localize("swift-tui-charts", charts)
 swift_tui_count = localize("swift-tui", swift_tui)
 manifest.write_text(text, encoding="utf-8")
-print(f"{manifest}: swift-tui x{swift_tui_count}, swift-tui-charts x{charts_count}")
+print(f"{manifest}: swift-tui x{swift_tui_count}, swift-tui-charts x{charts_count}, swift-tui-terminal-view x{terminal_view_count}")
 PY
 }
 
 log "localizing sibling dependencies"
 localize_manifest "$charts_checkout/Package.swift"
+localize_manifest "$terminal_view_checkout/Package.swift"
 while IFS= read -r -d '' manifest; do
   localize_manifest "$manifest"
 done < <(find "$examples_copy" -name Package.swift -not -path '*/.build/*' -print0 | sort -z)
@@ -235,8 +262,8 @@ done < <(find "$examples_copy" -name Package.swift -not -path '*/.build/*' -prin
 # recognise must stop the run, not build the tag under a HEAD label.
 log "verifying no sibling tag pin survived"
 surviving="$(
-  grep -rn --include=Package.swift -E 'github\.com/SwiftTUI/swift-tui(-charts)?(\.git)?"' \
-    "$examples_copy" "$charts_checkout/Package.swift" 2>/dev/null \
+  grep -rn --include=Package.swift -E 'github\.com/SwiftTUI/swift-tui(-charts|-terminal-view)?(\.git)?"' \
+    "$examples_copy" "$charts_checkout/Package.swift" "$terminal_view_checkout/Package.swift" 2>/dev/null \
     | grep -v '/\.build/' || true
 )"
 if [[ -n "$surviving" ]]; then
@@ -245,7 +272,7 @@ if [[ -n "$surviving" ]]; then
 fi
 # Sanity check in the other direction: the rewrite must have produced local
 # path dependencies, or the grep above proved nothing.
-localized_count="$(grep -rl --include=Package.swift -E '\.package\(name: "swift-tui(-charts)?", path: ' "$examples_copy" | wc -l | tr -d '[:space:]')"
+localized_count="$(grep -rl --include=Package.swift -E '\.package\(name: "swift-tui(-charts|-terminal-view)?", path: ' "$examples_copy" | wc -l | tr -d '[:space:]')"
 [[ "$localized_count" -gt 0 ]] || fail "no manifest was localized; the examples copy at $examples_copy has no sibling dependencies?"
 log "localized $localized_count example manifest(s)"
 
@@ -253,7 +280,7 @@ log "localized $localized_count example manifest(s)"
 if [[ -n "$scratch_dir" ]]; then
   mkdir -p "$(dirname "$scratch_dir")"
   stamp_file="$scratch_dir/.swifttui-sibling-revisions"
-  stamp="swift-tui=$swift_tui_revision"$'\n'"swift-tui-charts=$charts_revision"
+  stamp="swift-tui=$swift_tui_revision"$'\n'"swift-tui-charts=$charts_revision"$'\n'"swift-tui-terminal-view=$terminal_view_revision"
   if [[ -e "$scratch_dir" && "$(cat "$stamp_file" 2>/dev/null || true)" != "$stamp" ]]; then
     log "sibling revisions changed; purging SwiftPM scratch $scratch_dir"
     rm -rf "$scratch_dir"
@@ -271,6 +298,7 @@ log "running the framework-seam gate in the localized copy"
 cd "$examples_copy"
 export SWIFTTUI_CHECKOUT="$swift_tui_checkout"
 export SWIFTTUI_CHARTS_CHECKOUT="$charts_checkout"
+export SWIFTTUI_TERMINAL_VIEW_CHECKOUT="$terminal_view_checkout"
 if [[ -n "$scratch_dir" ]]; then
   export SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH="$scratch_dir"
 fi

@@ -1,5 +1,5 @@
 public import Foundation
-public import SwiftTUITerminal
+public import SwiftTUITerminalView
 
 public struct PreviewClock: Sendable {
   public var sleep: @Sendable (Duration) async throws -> Void

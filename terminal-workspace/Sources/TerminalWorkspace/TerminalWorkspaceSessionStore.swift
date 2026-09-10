@@ -1,4 +1,4 @@
-public import SwiftTUITerminal
+public import SwiftTUITerminalView
 
 /// Retains terminal process sessions by pane identity.
 @MainActor

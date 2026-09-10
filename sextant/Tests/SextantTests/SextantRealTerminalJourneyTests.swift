@@ -1,7 +1,7 @@
 import Dispatch
 import Foundation
 @_spi(Runners) @_spi(Testing) import SwiftTUI
-import SwiftTUITerminal
+import SwiftTUITerminalView
 @_spi(Testing) import SwiftTUITestSupport
 import Testing
 

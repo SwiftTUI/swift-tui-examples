@@ -12,7 +12,7 @@ swiftly run swift run --package-path terminal-workspace terminal-workspace
 
 - The example-owned `TerminalWorkspace` module provides a terminal workspace
   with tabs and split panes, built on the framework's public
-  `SwiftTUITerminal` embedding surface. Apps that want a workspace layer can
+  `SwiftTUITerminalView` embedding surface. Apps that want a workspace layer can
   vendor `Sources/TerminalWorkspace` directly.
 - Retained terminal sessions have visible active-pane controls and a `Ctrl+K`
   command palette. The palette controls focus, splits, zoom, and the pane
@@ -51,4 +51,4 @@ workspace has the expected structure. It also covers the pane identifiers.
 
 ## See also
 
-- [DocC reference](https://swifttui.sh/docs/documentation/): the `SwiftTUITerminal` embedding surface the workspace layer builds on.
+- [DocC reference](https://swifttui.sh/docs/documentation/): the `SwiftTUITerminalView` embedding surface the workspace layer builds on.

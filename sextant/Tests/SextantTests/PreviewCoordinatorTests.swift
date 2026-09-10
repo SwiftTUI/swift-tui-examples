@@ -1,6 +1,6 @@
 import Foundation
 import SwiftTUI
-import SwiftTUITerminal
+import SwiftTUITerminalView
 import Synchronization
 import Testing
 

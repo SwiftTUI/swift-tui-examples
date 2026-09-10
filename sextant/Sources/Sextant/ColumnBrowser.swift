@@ -1,6 +1,6 @@
 import Foundation
 import SwiftTUI
-import SwiftTUITerminal
+import SwiftTUITerminalView
 
 struct ColumnBrowser: View {
   @Bindable var model: BrowserModel

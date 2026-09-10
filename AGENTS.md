@@ -10,7 +10,8 @@ This repository contains the maintained list of runnable SwiftTUI example apps.
 Each example has one directory and one README. The examples exercise public
 products such as `SwiftTUI`, `SwiftTUIRuntime`, and `SwiftUIHost`. They also
 use the `SwiftTUICharts` product from the separate
-`swift-tui-charts` package. Use the README roster for the run and test commands
+`swift-tui-charts` package. Terminal embedding examples use
+`SwiftTUITerminalView` from `swift-tui-terminal-view`. Use the README roster for the run and test commands
 of each example.
 
 This repository is a public beta. Default manifests must use tagged HTTPS

@@ -1,6 +1,6 @@
 public import Foundation
 public import SwiftTUI
-public import SwiftTUITerminal
+public import SwiftTUITerminalView
 
 public final class AnyTerminalSession: TerminalSession, @unchecked Sendable {
   private let snapshotValue: @Sendable () -> ForeignGrid

@@ -1,5 +1,5 @@
 import Foundation
-import SwiftTUITerminal
+import SwiftTUITerminalView
 
 struct DirectoryRequestID: Hashable, Sendable {
   let rawValue: UInt64
