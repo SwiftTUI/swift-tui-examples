@@ -51,7 +51,7 @@ struct FormsAndContainersTab: View {
           VStack(alignment: .leading, spacing: 0) {
             Text(includeTests ? "Focused tests will be added to check:focused." : "Build gate only.")
             Link("SwiftTUI repository", destination: "https://github.com/SwiftTUI/swift-tui")
-              .buttonStyle(LinkButtonStyle())
+              .linkStyle(.underlined)
           }
           .padding(.leading, 2)
         }

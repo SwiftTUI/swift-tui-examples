@@ -13,6 +13,7 @@ struct GalleryMetadataTests {
       descriptors.map(\.title) == [
         "Logo Breaker",
         "Counter",
+        "Styles",
         "Life",
         "Todo",
         "Forms & Containers",

@@ -22,6 +22,9 @@ example, pass `--tab images`. Run `gallery-demo --help` for all tab keys.
 - `SwiftTUI` provides the full app surface. The example uses automatic controls,
   tabbed panes, sidebar navigation, multiline editing, focus, alerts, sheets,
   and popovers.
+- The Styles tab is the style system's showcase: all 28 open style families,
+  every built-in style rendered next to its siblings, and a custom conformance
+  per family, so the "restyle any control" claim is something you can see.
 - `SwiftTUICharts` comes from the separate
   [`swift-tui-charts`](https://github.com/SwiftTUI/swift-tui-charts) package. The
   example renders its charts and `SwiftTUIAnimatedImage` playback in terminal
@@ -39,6 +42,7 @@ terminal workspace with a command palette.
 | --- | --- |
 | Logo Breaker | Brick-breaker logo game with truecolor logo cells, drag/release, and bouncing ball physics |
 | Counter | Basic state mutation and button input |
+| Styles | Every style family, its built-ins side by side, and one custom conformance each, across five pages (Controls, Values, Containers, Presentation, Scoping); `--styles-page <key>` opens a page directly |
 | Life | Custom rendering and simulation state |
 | Todo | Lists, editing, deletion, and selection |
 | Forms & Containers | GroupBox, ControlGroup, DisclosureGroup, Link, picker styles, button styles, text-field styles, disabled state, and accessibility metadata |
@@ -62,6 +66,7 @@ terminal workspace with a command palette.
 | `Ctrl+K` | Open the command palette |
 | `--tab <key>` | Launch directly on a named tab (CLI flag) |
 | `--animations-page <key>` | Launch the Animations tab on a page: `basics`, `transitions`, `matched`, `keyframes`, or `transactions` (CLI flag) |
+| `--styles-page <key>` | Launch the Styles tab on a page: `controls`, `values`, `containers`, `presentation`, or `scoping` (CLI flag) |
 
 The gallery exercises the same command and presentation surfaces that apps use.
 

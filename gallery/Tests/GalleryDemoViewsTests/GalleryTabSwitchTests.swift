@@ -1010,7 +1010,7 @@ struct GalleryTabSwitchTests {
     #expect(runLoop.handle(.input(.key(.tab))) == nil)
     paletteText = try render()
     #expect(
-      paletteText.contains("> Life"),
+      paletteText.contains("> Styles"),
       "expected Tab to move the local selection like Down; surface was:\n\(paletteText)"
     )
     #expect(focusTracker.currentFocusIdentity == filterFocusIdentity)

@@ -17,13 +17,28 @@ struct GalleryDemoApp: App {
   @Option(help: "Open the Animations tab on a specific page (implies --tab animations).")
   var animationsPage: AnimationsPage?
 
+  @Option(help: "Open the Styles tab on a specific page (implies --tab styles).")
+  var stylesPage: StylesPage?
+
   var body: some Scene {
     WindowGroup {
       GalleryView(
-        initialTab: tab ?? (animationsPage == nil ? nil : .animations),
-        initialAnimationsPage: animationsPage
+        initialTab: tab ?? impliedTab,
+        initialAnimationsPage: animationsPage,
+        initialStylesPage: stylesPage
       )
     }
+  }
+
+  /// The tab a page option implies when `--tab` is absent.
+  private var impliedTab: GalleryView.GalleryTab? {
+    if animationsPage != nil {
+      return .animations
+    }
+    if stylesPage != nil {
+      return .styles
+    }
+    return nil
   }
 }
 
@@ -40,3 +55,4 @@ extension GalleryView.GalleryTab: ExpressibleByArgument {
 // String-backed and CaseIterable, so ArgumentParser derives the parser and
 // the help listing from the raw values.
 extension AnimationsPage: ExpressibleByArgument {}
+extension StylesPage: ExpressibleByArgument {}

@@ -8,72 +8,35 @@ public struct GalleryView: View {
   // to its tab if the tab owned it. See `LifeTab`.
   @State private var lifeModel = LifeModel()
 
-  // The page the Animations tab opens on. Held as a plain value: the tab
-  // owns the live selection as its own @State.
+  // The pages the Animations and Styles tabs open on. Held as plain values:
+  // each tab owns the live selection as its own @State.
   private let initialAnimationsPage: AnimationsPage
+  private let initialStylesPage: StylesPage
 
-  public init(initialTab: GalleryTab? = nil, initialAnimationsPage: AnimationsPage? = nil) {
+  public init(
+    initialTab: GalleryTab? = nil,
+    initialAnimationsPage: AnimationsPage? = nil,
+    initialStylesPage: StylesPage? = nil
+  ) {
     _selection = State(initialValue: initialTab ?? .logo)
     self.initialAnimationsPage = initialAnimationsPage ?? .basics
+    self.initialStylesPage = initialStylesPage ?? .controls
   }
 
   public var body: some View {
-    TabView(selection: $selection) {
-      Tab(Self.descriptor(for: .logo).title, value: GalleryTab.logo) {
-        LogoTab()
-      }
-      Tab(Self.descriptor(for: .counter).title, value: GalleryTab.counter) {
-        CounterTab()
-      }
-      Tab(Self.descriptor(for: .life).title, value: GalleryTab.life) {
-        LifeTab(model: lifeModel)
-      }
-      Tab(Self.descriptor(for: .todo).title, value: GalleryTab.todo) {
-        TodoTab()
-      }
-      Tab(Self.descriptor(for: .formsAndContainers).title, value: GalleryTab.formsAndContainers) {
-        FormsAndContainersTab()
-      }
-      Tab(Self.descriptor(for: .textInput).title, value: GalleryTab.textInput) {
-        TextInputTab()
-      }
-      Tab(Self.descriptor(for: .scrollControl).title, value: GalleryTab.scrollControl) {
-        ScrollControlTab()
-      }
-      Tab(Self.descriptor(for: .calculator).title, value: GalleryTab.calculator) {
-        CalculatorTab()
-      }
-      Tab(Self.descriptor(for: .bordersAndShapes).title, value: GalleryTab.bordersAndShapes) {
-        BordersAndShapesTab()
-      }
-      Tab(Self.descriptor(for: .presentationLab).title, value: GalleryTab.presentationLab) {
-        PresentationLabTab()
-      }
-      Tab(
-        Self.descriptor(for: .navigationCollections).title, value: GalleryTab.navigationCollections
-      ) {
-        NavigationCollectionsTab()
-      }
-      Tab(Self.descriptor(for: .images).title, value: GalleryTab.images) {
-        ImagesTab()
-      }
-      Tab(Self.descriptor(for: .animations).title, value: GalleryTab.animations) {
-        AnimationsTab(initialPage: initialAnimationsPage)
-      }
-      Tab(Self.descriptor(for: .fileDrop).title, value: GalleryTab.fileDrop) {
-        FileDropTab()
-      }
-      Tab(Self.descriptor(for: .pointerLab).title, value: GalleryTab.pointerLab) {
-        PointerLabTab()
-      }
-      Tab(Self.descriptor(for: .focusContext).title, value: GalleryTab.focusContext) {
-        FocusContextTab()
-      }
-      Tab(Self.descriptor(for: .taskProgress).title, value: GalleryTab.taskProgress) {
-        TaskProgressTab()
-      }
-    }
-    .tabViewStyle(.literalTabs)
+    // The shell's root chain below is ~25 modifier layers deep (one per
+    // palette command), and the resolver copies the wrapped value once per
+    // layer. Keeping the whole tab tuple inside `GalleryShellContent` (a
+    // value a few words wide) instead of directly under the chain is what
+    // keeps that resolve inside the 8 MB main-thread stack: the tuple alone
+    // is ~14 KB, and the nineteenth tab tipped the Presentation Lab render
+    // over the limit when the tuple sat under the chain.
+    GalleryShellContent(
+      selection: $selection,
+      lifeModel: lifeModel,
+      initialAnimationsPage: initialAnimationsPage,
+      initialStylesPage: initialStylesPage
+    )
     .toolbarItem(
       .init(
         title: "⌃K Palette",
@@ -89,6 +52,7 @@ public struct GalleryView: View {
     )
     .galleryTabPaletteCommand(.logo, selection: $selection)
     .galleryTabPaletteCommand(.counter, selection: $selection)
+    .galleryTabPaletteCommand(.styles, selection: $selection)
     .galleryTabPaletteCommand(.life, selection: $selection)
     .galleryTabPaletteCommand(.todo, selection: $selection)
     .galleryTabPaletteCommand(.formsAndContainers, selection: $selection)
@@ -109,11 +73,84 @@ public struct GalleryView: View {
   }
 }
 
+/// The tab strip and every tab's content, kept one struct below the shell's
+/// root modifier chain so the chain copies this small value rather than the
+/// tab tuple (see `GalleryView.body`).
+private struct GalleryShellContent: View {
+  @Binding var selection: GalleryView.GalleryTab
+  let lifeModel: LifeModel
+  let initialAnimationsPage: AnimationsPage
+  let initialStylesPage: StylesPage
+
+  var body: some View {
+    TabView(selection: $selection) {
+      Tab(GalleryView.descriptor(for: .logo).title, value: GalleryView.GalleryTab.logo) {
+        LogoTab()
+      }
+      Tab(GalleryView.descriptor(for: .counter).title, value: GalleryView.GalleryTab.counter) {
+        CounterTab()
+      }
+      Tab(GalleryView.descriptor(for: .styles).title, value: GalleryView.GalleryTab.styles) {
+        StylesTabHost(initialPage: initialStylesPage)
+      }
+      Tab(GalleryView.descriptor(for: .life).title, value: GalleryView.GalleryTab.life) {
+        LifeTab(model: lifeModel)
+      }
+      Tab(GalleryView.descriptor(for: .todo).title, value: GalleryView.GalleryTab.todo) {
+        TodoTab()
+      }
+      Tab(GalleryView.descriptor(for: .formsAndContainers).title, value: GalleryView.GalleryTab.formsAndContainers) {
+        FormsAndContainersTab()
+      }
+      Tab(GalleryView.descriptor(for: .textInput).title, value: GalleryView.GalleryTab.textInput) {
+        TextInputTab()
+      }
+      Tab(GalleryView.descriptor(for: .scrollControl).title, value: GalleryView.GalleryTab.scrollControl) {
+        ScrollControlTab()
+      }
+      Tab(GalleryView.descriptor(for: .calculator).title, value: GalleryView.GalleryTab.calculator) {
+        CalculatorTab()
+      }
+      Tab(GalleryView.descriptor(for: .bordersAndShapes).title, value: GalleryView.GalleryTab.bordersAndShapes) {
+        BordersAndShapesTab()
+      }
+      Tab(GalleryView.descriptor(for: .presentationLab).title, value: GalleryView.GalleryTab.presentationLab) {
+        PresentationLabTab()
+      }
+      Tab(
+        GalleryView.descriptor(for: .navigationCollections).title, value: GalleryView.GalleryTab.navigationCollections
+      ) {
+        NavigationCollectionsTab()
+      }
+      Tab(GalleryView.descriptor(for: .images).title, value: GalleryView.GalleryTab.images) {
+        ImagesTab()
+      }
+      Tab(GalleryView.descriptor(for: .animations).title, value: GalleryView.GalleryTab.animations) {
+        AnimationsTab(initialPage: initialAnimationsPage)
+      }
+      Tab(GalleryView.descriptor(for: .fileDrop).title, value: GalleryView.GalleryTab.fileDrop) {
+        FileDropTab()
+      }
+      Tab(GalleryView.descriptor(for: .pointerLab).title, value: GalleryView.GalleryTab.pointerLab) {
+        PointerLabTab()
+      }
+      Tab(GalleryView.descriptor(for: .focusContext).title, value: GalleryView.GalleryTab.focusContext) {
+        FocusContextTab()
+      }
+      Tab(GalleryView.descriptor(for: .taskProgress).title, value: GalleryView.GalleryTab.taskProgress) {
+        TaskProgressTab()
+      }
+    }
+    .tabViewStyle(.literalTabs)
+  }
+}
+
 extension GalleryView {
   public enum GalleryTab: Hashable, CaseIterable, Sendable {
     case logo
     case life
     case counter
+    case styles
     case todo
     case formsAndContainers
     case textInput
@@ -163,6 +200,8 @@ extension GalleryView {
         LogoTab()
       case .counter:
         CounterTab()
+      case .styles:
+        StylesTabHost()
       case .life:
         // Descriptor content is a standalone snapshot of the tab (no owning
         // gallery above it), so it brings its own model.
@@ -211,6 +250,20 @@ extension GalleryView {
       title: "Counter",
       key: "counter",
       coverageTags: ["state", "buttons"]
+    ),
+    .init(
+      value: .styles,
+      title: "Styles",
+      key: "styles",
+      coverageTags: [
+        "style-protocols", "button-style", "toggle-style", "text-field-style", "picker-style",
+        "link-style", "label-style", "slider-style", "stepper-style", "progress-view-style",
+        "spinner-style", "text-editor-style", "group-box-style", "labeled-content-style",
+        "disclosure-group-style", "control-group-style", "menu-style", "list-style",
+        "table-style", "outline-style", "scroll-view-style", "tab-view-style", "toolbar-style",
+        "sheet-style", "prompt-style", "popover-style", "full-screen-cover-style",
+        "toast-style", "palette-style", "style-scoping",
+      ]
     ),
     .init(
       value: .life,
