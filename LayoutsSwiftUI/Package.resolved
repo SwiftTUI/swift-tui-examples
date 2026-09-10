@@ -1,5 +1,5 @@
 {
-  "originHash" : "f61841d0bbe6489209527ed0c01f4a4b2a3cbaef735c87e7ae2cb3ffd38fca4b",
+  "originHash" : "c652a8089b7fee439ac55def5c396a2aa5ef12ed5873431b6b4588dddaef51a8",
   "pins" : [
     {
       "identity" : "splash",
@@ -42,8 +42,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/SwiftTUI/swift-tui.git",
       "state" : {
-        "revision" : "2c250a5ef383d42bf990b532a20a25d0477b02ef",
-        "version" : "0.12.1"
+        "revision" : "eb9815b43b69ed6e5963970b35d6287a6f48ffb6",
+        "version" : "0.13.0"
       }
     },
     {
@@ -51,8 +51,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/SwiftTUI/swift-tui-charts.git",
       "state" : {
-        "revision" : "d0de7ecbc8545cf92245bfa466c0099704626ddd",
-        "version" : "0.12.1"
+        "revision" : "d15380b64143009e02e334c3bb2db0b178a3b8da",
+        "version" : "0.13.0"
       }
     },
     {
@@ -60,17 +60,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/SwiftTUI/swift-tui-swiftui.git",
       "state" : {
-        "revision" : "211c452fd72d61807c669810801979a023640797",
-        "version" : "0.12.1"
-      }
-    },
-    {
-      "identity" : "swiftterm",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/migueldeicaza/SwiftTerm.git",
-      "state" : {
-        "revision" : "7691f85b222a67a66b58499e1b2647443cf0dda7",
-        "version" : "1.18.0"
+        "revision" : "fa457c4078ee18e25b2ccac89471a77c1d447e68",
+        "version" : "0.13.0"
       }
     }
   ],
