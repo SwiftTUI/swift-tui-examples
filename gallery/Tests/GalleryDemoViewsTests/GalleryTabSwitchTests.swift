@@ -422,11 +422,12 @@ struct GalleryTabSwitchTests {
     )
   }
 
-  // Press inside the live, already-moving ball. Observe its grabbed color and
-  // held movement before release, then wait for motion on both axes. This
-  // prevents an untouched physics animation from masquerading as a drag pass.
+  // A live Logo task can stop producing distinct pixels when the ball settles.
+  // Wait for the menu itself, not a fixed number of later physics frames.
+  // Framework AnimatedOverflowRuntimeTests uses a deterministic ticking tab to
+  // prove post-open task and frame continuity independently of game motion.
   @Test(
-    "expanded overflow menu stays visible across animated gallery frames",
+    "overflow menu opens over an already animated gallery tab",
     .enabled(if: galleryRuntimeTestsEnabled, galleryRuntimeTestGateComment))
   func expandedOverflowMenuStaysVisibleAcrossAnimatedGalleryFrames() async throws {
     let terminalSize = CellSize(width: 80, height: 24)
@@ -442,7 +443,6 @@ struct GalleryTabSwitchTests {
     )
     let host = GalleryTabSwitchRecordingHost(size: terminalSize)
     var surfaceCountAtTrigger = 0
-    var expandedSurfaceCount = 0
 
     let result = try await Self.runHarness(
       presentationSurface: host,
@@ -463,18 +463,8 @@ struct GalleryTabSwitchTests {
           },
           .event(.mouse(.init(kind: .up(.primary), location: overflowTriggerCenter))),
           .awaitCondition {
-            // Pure pacing: accumulate frames, then let the post-run analysis
-            // judge them. Gating this wait on "the menu is open" turns a
-            // menu that never opens (or opens and wrongly disappears) into a
-            // wait-budget stall whose error text blames a stalled runtime —
-            // the post-run assertions fail with frame evidence instead.
-            let surfaces = host.distinctSurfaces
-            guard surfaces.count >= surfaceCountAtTrigger + 4 else { return false }
-            expandedSurfaceCount = surfaces.count
-            return true
-          },
-          .awaitCondition {
-            host.distinctSurfaces.count >= expandedSurfaceCount + 3
+            guard let surface = host.distinctSurfaces.last else { return false }
+            return Self.showsExpandedOverflowMenu(surface)
           },
           .event(.key(KeyPress(.character("c"), modifiers: .ctrl))),
         ]),
@@ -520,16 +510,9 @@ struct GalleryTabSwitchTests {
     return text.contains("▲") && text.contains("Logo Breaker")
   }
 
-  // Triage 2026-08-31 (T4/E4, against the pinned 0.9.12): still red, and no
-  // harness anywhere demonstrably grabs a LIVE ball. The bare-LogoTab and
-  // real-terminal arms aim from a static/early render, which shows the ball
-  // at its authored seed or spawn — those passes are position-vacuous. Here,
-  // a delivery-time press inside the ball's visual bounds still starts no
-  // gesture (the ball never jumps to the drag target and never draws
-  // grabbed), while the ball's own physics keep producing frames. Needs an
-  // interaction-region-level diagnosis (canvas `.contentShape(ballRect)`
-  // space vs hit-test space under the TabView tree); tracked in the org
-  // tracker.
+  // Press inside the live, already-moving ball. Observe its grabbed color and
+  // held movement before release, then wait for motion on both axes. This
+  // prevents an untouched physics animation from masquerading as a drag pass.
   @Test(
     "gallery logo breaker tab keeps advancing after a drag release",
     .enabled(if: galleryRuntimeTestsEnabled, galleryRuntimeTestGateComment))
