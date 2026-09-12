@@ -422,14 +422,9 @@ struct GalleryTabSwitchTests {
     )
   }
 
-  // Triage 2026-08-31 (T4/E4, against the pinned 0.9.12): the menu OPENS —
-  // the original "step 4 stall" was the wait for more distinct frames AFTER
-  // it opened. Opening the overflow menu on a tab whose content animates via
-  // a `.task` loop stops new distinct frames from arriving; the sibling test
-  // that opens the same menu from the static Counter tab passes. Suspected
-  // framework-side (TabView overflow presentation vs task-driven content),
-  // needs a swift-tui minimal repro before a fix lands anywhere; tracked in
-  // the org tracker.
+  // Press inside the live, already-moving ball. Observe its grabbed color and
+  // held movement before release, then wait for motion on both axes. This
+  // prevents an untouched physics animation from masquerading as a drag pass.
   @Test(
     "expanded overflow menu stays visible across animated gallery frames",
     .enabled(if: galleryRuntimeTestsEnabled, galleryRuntimeTestGateComment))
@@ -564,13 +559,27 @@ struct GalleryTabSwitchTests {
             if let bounds = host.distinctSurfaces.last.flatMap(Self.brailleBounds(in:)) {
               capture.dragStart = Self.centerPoint(of: bounds)
             }
+            capture.surfaceCountAtPress = host.distinctSurfaces.count
             capture.dragEnd = Point(x: capture.dragStart.x + 12, y: capture.dragStart.y - 5)
             return .mouse(.init(kind: .down(.primary), location: capture.dragStart))
+          },
+          .awaitCondition {
+            let grabbed = host.distinctSurfaces.last.map(Self.containsGrabbedBall) ?? false
+            capture.observedGrab = grabbed
+            return grabbed
           },
           .eventFrom(
             delayNanoseconds: 30_000_000
           ) {
             .mouse(.init(kind: .dragged(.primary), location: capture.dragEnd))
+          },
+          .awaitCondition {
+            guard let surface = host.distinctSurfaces.last,
+              Self.containsGrabbedBall(surface),
+              let bounds = Self.brailleBounds(in: surface)
+            else { return false }
+            capture.observedDrag = Self.centerPoint(of: bounds).containingCell != capture.dragStart.containingCell
+            return capture.observedDrag
           },
           // The release follows the drag with no delay, mirroring the real
           // terminal arm: `DragGestureRecognizer.computeVelocity` reads a
@@ -585,7 +594,11 @@ struct GalleryTabSwitchTests {
             return true
           },
           .awaitCondition {
-            host.distinctSurfaces.count >= capture.surfaceCountAtRelease + 3
+            let centers = host.distinctSurfaces.dropFirst(capture.surfaceCountAtRelease)
+              .compactMap { Self.brailleBounds(in: $0).map(Self.centerPoint(of:)) }
+            return centers.count >= 3
+              && Set(centers.map { $0.containingCell.x }).count >= 2
+              && Set(centers.map { $0.containingCell.y }).count >= 2
           },
           .event(.key(KeyPress(.character("c"), modifiers: .ctrl))),
         ]),
@@ -600,6 +613,12 @@ struct GalleryTabSwitchTests {
       "expected gravity-driven frames before dragging the gallery Logo Breaker tab"
     )
 
+    #expect(capture.observedGrab, "the live ball must visibly enter its grabbed state")
+    #expect(capture.observedDrag, "the held ball must follow the delivered drag")
+    let prePressCenters = host.distinctSurfaces.prefix(capture.surfaceCountAtPress)
+      .compactMap { Self.brailleBounds(in: $0).map(Self.centerPoint(of:)) }
+    #expect(Set(prePressCenters.map(\.containingCell)).count > 1,
+      "the grab must target an already moving ball")
     let uniqueSurfaces = host.distinctSurfaces
     #expect(
       uniqueSurfaces.count >= capture.surfaceCountAtRelease + 3,
@@ -1496,6 +1515,13 @@ struct GalleryTabSwitchTests {
         y: rect.origin.y + rect.size.height / 2
       )
     )
+  }
+
+  private static func containsGrabbedBall(_ surface: RasterSurface) -> Bool {
+    surface.cells.joined().contains { cell in
+      cell.style?.foregroundColor == .white
+        && cell.character.unicodeScalars.contains { (0x2801...0x28FF).contains(Int($0.value)) }
+    }
   }
 
   private static func containsBrailleDrawing(_ surface: RasterSurface) -> Bool {
@@ -2469,6 +2495,9 @@ private final class GallerySurfaceCapture {
 
 @MainActor
 private final class GalleryPhysicsReleaseCapture {
+  var surfaceCountAtPress = 0
+  var observedGrab = false
+  var observedDrag = false
   var surfaceCountAtRelease = 0
   var dragStart = Point.zero
   var dragEnd = Point.zero
