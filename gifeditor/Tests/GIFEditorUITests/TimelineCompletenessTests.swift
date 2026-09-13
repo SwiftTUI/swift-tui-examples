@@ -98,10 +98,10 @@ struct TimelineCompletenessTests {
     #expect(after == before)
   }
 
-  /// The lossless promise, end to end. A GIF that declares three plays has
-  /// to still declare three plays after being imported, saved as a
+  /// The lossless promise, end to end. A GIF that declares three repeats has
+  /// to still declare three repeats (four plays) after being imported, saved as a
   /// project, closed, reopened and exported — the exact path on which the
-  /// importer's dropped loop count used to turn a three-play banner into
+  /// importer's dropped loop count used to turn a finite banner into
   /// an infinite one, silently and permanently.
   @Test("A finite loop count survives GIF import, project save, reopen and GIF export")
   func loopCountSurvivesTheWholeRoundTrip() throws {
@@ -110,14 +110,16 @@ struct TimelineCompletenessTests {
 
       let imported = try GIFDocumentIO.open(contentsOf: source)
       let model = EditingSession(document: imported)
-      #expect(model.document.loopCount == 3)
+      #expect(model.document.loopCount == 4)
 
       let project = directory.appendingPathComponent("looped.halfcell")
-      guard case .saved = GIFDocumentIO.saveProject(
-        document: model.document,
-        to: project,
-        overwriteExisting: false
-      ) else {
+      guard
+        case .saved = GIFDocumentIO.saveProject(
+          document: model.document,
+          to: project,
+          overwriteExisting: false
+        )
+      else {
         Issue.record("expected the project write to succeed")
         return
       }
@@ -125,14 +127,16 @@ struct TimelineCompletenessTests {
       // A fresh session, so nothing survives in memory between the two
       // halves of the round trip.
       let reopened = EditingSession(document: try GIFDocumentIO.open(contentsOf: project))
-      #expect(reopened.document.loopCount == 3)
+      #expect(reopened.document.loopCount == 4)
 
       let exported = directory.appendingPathComponent("looped.gif")
-      guard case .saved = GIFDocumentIO.save(
-        document: reopened.document,
-        to: exported,
-        overwriteExisting: false
-      ) else {
+      guard
+        case .saved = GIFDocumentIO.save(
+          document: reopened.document,
+          to: exported,
+          overwriteExisting: false
+        )
+      else {
         Issue.record("expected GIF export to succeed")
         return
       }
@@ -140,7 +144,7 @@ struct TimelineCompletenessTests {
       let bytes = try Data(contentsOf: exported)
       let reimported = try GIFLoader.load(data: bytes)
       #expect(GIFLoader.declaredLoopCount(in: bytes) == 3)
-      #expect(reimported.loopCount == 3)
+      #expect(reimported.loopCount == 4)
     }
   }
 
@@ -151,17 +155,19 @@ struct TimelineCompletenessTests {
       model.setLoopCount(12)
 
       let exported = directory.appendingPathComponent("twelve.gif")
-      guard case .saved = GIFDocumentIO.save(
-        document: model.document,
-        to: exported,
-        overwriteExisting: false
-      ) else {
+      guard
+        case .saved = GIFDocumentIO.save(
+          document: model.document,
+          to: exported,
+          overwriteExisting: false
+        )
+      else {
         Issue.record("expected GIF export to succeed")
         return
       }
 
       let bytes = try Data(contentsOf: exported)
-      #expect(GIFLoader.declaredLoopCount(in: bytes) == 12)
+      #expect(GIFLoader.declaredLoopCount(in: bytes) == 11)
     }
   }
 
@@ -271,11 +277,13 @@ struct TimelineCompletenessTests {
       let authored = model.document.frames.map(\.disposal)
 
       let target = directory.appendingPathComponent("disposal.halfcell")
-      guard case .saved = GIFDocumentIO.saveProject(
-        document: model.document,
-        to: target,
-        overwriteExisting: false
-      ) else {
+      guard
+        case .saved = GIFDocumentIO.saveProject(
+          document: model.document,
+          to: target,
+          overwriteExisting: false
+        )
+      else {
         Issue.record("expected the project write to succeed")
         return
       }

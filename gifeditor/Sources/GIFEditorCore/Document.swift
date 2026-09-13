@@ -84,7 +84,8 @@ public struct GIFDocument: Hashable, Sendable, Codable {
   public var size: PixelSize
   public var palette: ColorPalette
   public var frames: [EditorFrame]
-  /// Number of times the GIF should loop on playback. Zero = infinite.
+  /// Total plays, including the initial play. Zero means infinite. GIF's
+  /// repeat count is converted at import/export; APNG uses total plays directly.
   public var loopCount: Int
 
   public init(

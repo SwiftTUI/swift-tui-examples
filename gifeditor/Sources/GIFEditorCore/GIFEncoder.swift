@@ -93,7 +93,8 @@ public enum GIFEncoder {
       size: (x: document.size.width, y: document.size.height),
       globalColorTable: globalColorTable(document: document, encodedFrames: encodedFrames),
       backgroundIndex: Int(ColorPalette.transparentSlot),
-      loopCount: document.loopCount,
+      loopCount: document.loopCount <= 0
+        ? 0 : (document.loopCount == 1 ? nil : min(65535, document.loopCount - 1)),
       frames: frames
     )
 

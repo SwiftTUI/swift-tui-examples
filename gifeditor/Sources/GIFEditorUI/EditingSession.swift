@@ -273,6 +273,7 @@ public final class EditingSession {
   public var selection: Selection? = nil
   public var clipboard: PixelBuffer? = nil
   public private(set) var isPlaybackActive: Bool = false
+  private var completedPlaybackPlays = 0
 
   // MARK: - Pending interactions
 
@@ -939,11 +940,9 @@ public final class EditingSession {
 
   // MARK: - Loop count
 
-  /// The largest loop count a GIF can declare. The `NETSCAPE2.0`
-  /// application extension carries it as a little-endian `UInt16`, and the
-  /// encoder writes it with `UInt16(clamping:)` — clamping here too means
-  /// the number the author sees is the number the file will hold.
-  public static let maximumLoopCount = Int(UInt16.max)
+  /// GIF's largest repeat count plus the initial play. The editor displays
+  /// total plays, so its maximum is one greater than the raw UInt16 field.
+  public static let maximumLoopCount = Int(UInt16.max) + 1
 
   /// Sets how many times an exported GIF plays. **Zero means forever**,
   /// which is the format's own encoding and the one piece of this API that
@@ -959,6 +958,7 @@ public final class EditingSession {
       // extension and read by players. No composited color depends on it.
       mutateDocument(invalidating: .nothing) { $0.loopCount = clamped }
     }
+    stopPlayback()
     announce("Plays \(Self.loopDescription(clamped))")
   }
 
@@ -1043,6 +1043,8 @@ public final class EditingSession {
       announce("Playback needs at least two frames")
       return
     }
+    completedPlaybackPlays = 0
+    currentFrameIndex = 0
     isPlaybackActive = true
     announce("Playback started")
   }
@@ -1060,6 +1062,14 @@ public final class EditingSession {
       isPlaybackActive = false
       announce("Playback stopped")
       return false
+    }
+    if currentFrameIndex == document.frames.count - 1, document.loopCount > 0 {
+      completedPlaybackPlays += 1
+      if completedPlaybackPlays >= min(document.loopCount, Self.maximumLoopCount) {
+        isPlaybackActive = false
+        announce("Playback finished")
+        return false
+      }
     }
     currentFrameIndex = (currentFrameIndex + 1) % document.frames.count
     announce("Playing frame \(currentFrameIndex + 1)/\(document.frames.count)")

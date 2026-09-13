@@ -12,9 +12,8 @@ import Foundation
 /// that is neither "forever" nor "the absent-block default" — had no
 /// fixture, and `GIFLoader` dropping it went unnoticed.
 ///
-/// Three plays is deliberately none of `0` (forever), `1` (what the format
-/// means by a missing block) and the frame count, so an implementation that
-/// confuses any of those with the declared count fails here.
+/// Three raw repeats means four total plays. It is deliberately distinct
+/// from forever, the absent-block default and the two-frame count.
 ///
 /// The bytes come from the package's own vendored `EditorGIF` encoder, so
 /// the fixture reproduces from a bare checkout with nothing but a Swift

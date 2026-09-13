@@ -135,9 +135,9 @@ struct GIFLoaderTests {
     let document = try GIFLoader.load(data: data)
 
     // The whole defect in one assertion: the importer used to hand back a
-    // document with `loopCount == 0`, silently promoting a three-play
+    // document with `loopCount == 0`, silently promoting a four-play
     // animation to an infinite one on the next export.
-    #expect(document.loopCount == FiniteLoopGIFFixture.loopCount)
+    #expect(document.loopCount == FiniteLoopGIFFixture.loopCount + 1)
   }
 
   @Test("The finite-loop fixture on disk is the generator's output")
@@ -150,7 +150,7 @@ struct GIFLoaderTests {
   @Test("Loading through the URL entry point reads the loop count too")
   func finiteLoopCountSurvivesURLImport() throws {
     let document = try GIFLoader.load(contentsOf: FiniteLoopGIFFixture.url)
-    #expect(document.loopCount == FiniteLoopGIFFixture.loopCount)
+    #expect(document.loopCount == FiniteLoopGIFFixture.loopCount + 1)
   }
 
   @Test("A GIF declaring an infinite loop imports as infinite")
@@ -182,7 +182,7 @@ struct GIFLoaderTests {
       GIFLoader.declaredLoopCount(in: Data(bytes)) == FiniteLoopGIFFixture.loopCount
     )
     let reimported = try GIFLoader.load(data: Data(bytes))
-    #expect(reimported.loopCount == FiniteLoopGIFFixture.loopCount)
+    #expect(reimported.loopCount == FiniteLoopGIFFixture.loopCount + 1)
   }
 
   @Test("The probe rejects bytes that only look like the block")

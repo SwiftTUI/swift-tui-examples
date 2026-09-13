@@ -100,7 +100,7 @@ public enum GIFLoader {
       // about every finite animation the editor ever opens — and the
       // project format preserves what it is told, so that lie would be
       // saved and re-exported rather than just shown.
-      loopCount: image.loopCount ?? playsOnce
+      loopCount: image.loopCount.map { $0 == 0 ? 0 : $0 + 1 } ?? playsOnce
     )
   }
 

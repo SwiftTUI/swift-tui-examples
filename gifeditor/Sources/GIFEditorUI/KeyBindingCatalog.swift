@@ -269,10 +269,14 @@ enum KeyBindingSection: String, CaseIterable, Sendable {
         current frame by one position. The bare keys move it to an end.
         """,
         """
-        The loop count belongs to the exported file, not the editor preview. It \
-        sets the GIF `NETSCAPE2.0` block. The format uses zero for "forever". \
-        Thus, `)`, the shifted `0`, toggles this value. The readout shows the \
-        word instead of the digit.
+        The count is total plays, including the first, and controls both export \
+        and the editor preview. Zero means forever; `)`, the shifted `0`, toggles \
+        this value. Play starts at the first frame. A finite preview holds its \
+        final frame after the last delay; changing the count stops the current \
+        preview. GIF stores repeats after the first play, so export subtracts \
+        one from finite counts and omits the loop extension for one play. Import \
+        adds the initial play back. APNG already stores total plays. Existing \
+        project counts retain their meaning.
         """,
       ]
     case .cursor, .layers, .clipboard, .history, .help:
