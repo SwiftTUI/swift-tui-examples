@@ -634,6 +634,7 @@ run_linux_examples() {
 
     for package_path in \
       "minimal" \
+      "hot-reload" \
       "equatable-demo" \
       "argparse" \
       "sextant" \
@@ -666,6 +667,7 @@ run_linux_examples() {
 
   for package_path in \
     "minimal" \
+    "hot-reload" \
     "equatable-demo" \
     "argparse" \
     "sextant" \

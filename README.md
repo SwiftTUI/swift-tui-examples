@@ -58,6 +58,7 @@ example pins the current `0.13.2` release graph. Gallery uses matching
 | Example | Host | What it proves | Run |
 | --- | --- | --- | --- |
 | [minimal](minimal) | CLI | Smallest `RenderOnce.print(...)` path for report-like CLI output, with no app runtime or argument parser | `swiftly run swift run --package-path minimal minimal` |
+| [hot-reload](hot-reload) | Terminal | Codable integer/reference counter with a guarded compiled-reload export and lifecycle probe; current tag supports normal execution | `swiftly run swift run --package-path hot-reload HotReloadDemo` |
 | [equatable-demo](equatable-demo) | Terminal | Smallest `View.equatable()` usage: a stable panel is memoized (reused across frames) while a counter updates | `swiftly run swift run --package-path equatable-demo EquatableDemo` |
 | [argparse](argparse) | Terminal | `SwiftTUI.App` command conformance, consumer flags, standard SwiftTUI flags, and completions in one app type | `swiftly run swift run --package-path argparse argparse-demo --help` |
 | [gallery](gallery) | Terminal+Web | Primary component workbench: tabs, controls, the style system (all 28 open style families, built-ins beside custom conformances), palette, text input, scroll commands, charts, images, animated GIFs, file drop, popovers, and logo-breaker physics | `swiftly run swift run --package-path gallery gallery-demo` |
