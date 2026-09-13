@@ -97,7 +97,8 @@ struct BlockSliderStyle: SliderStyle {
   func makeBody(configuration: SliderStyleConfiguration) -> some View {
     let theme = configuration.styleEnvironment.theme
     let cells = max(configuration.trackCellCount, 4)
-    let filled = min(cells, max(0, Int((Double(cells) * configuration.fractionCompleted).rounded())))
+    let filled = min(
+      cells, max(0, Int((Double(cells) * configuration.fractionCompleted).rounded())))
     return HStack(spacing: 1) {
       configuration.label
       configuration.track {
@@ -197,19 +198,18 @@ struct LeaderLabeledContentStyle: LabeledContentStyle {
 
 /// A disclosure group with a triangle marker and indented content.
 ///
-/// The label row will move inside `configuration.trigger` once the framework
-/// release carrying that route is out (org task T293). This example pins the
-/// published framework tag, so it composes the label directly for now, which
-/// is the documented behaviour for a style that omits the wrapper: the group
-/// still toggles from the keyboard.
+/// The trigger wraps only the label row, so pointer and keyboard activation
+/// toggle the group while interactions with expanded content stay independent.
 struct ArrowDisclosureGroupStyle: DisclosureGroupStyle {
   func makeBody(configuration: DisclosureGroupStyleConfiguration) -> some View {
     let theme = configuration.styleEnvironment.theme
     return VStack(alignment: .leading, spacing: 0) {
-      HStack(spacing: 1) {
-        Text(configuration.isExpanded ? "▾" : "▸")
-          .foregroundStyle(theme.color(for: configuration.focusActive ? .tint : .muted))
-        configuration.label
+      configuration.trigger {
+        HStack(spacing: 1) {
+          Text(configuration.isExpanded ? "▾" : "▸")
+            .foregroundStyle(theme.color(for: configuration.focusActive ? .tint : .muted))
+          configuration.label
+        }
       }
       if configuration.isExpanded {
         configuration.content.padding(.leading, 2)
