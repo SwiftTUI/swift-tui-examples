@@ -11,13 +11,16 @@ displayed generation string is an editable marker; lifecycle modifiers own one
 cancellable task.
 
 The opt-in `SWIFTTUI_HOT_RELOAD` compilation branch exports the root for the
-framework's `swifttui-dev` executable. The current pinned `0.13.2` release does
-not provide that executable or `HotReloadExport`; normal launches compile with
-the branch disabled. Reload integration is exercised against framework HEAD
-through the coordination repository's temporary source overlay. This example
-does not claim a released hot-reload workflow for `0.13.2`.
+framework's `swifttui-dev` executable. The pinned `0.13.3` release provides the
+reload API. Build the matching driver from that framework tag:
 
-With a framework build providing that API and its matching driver:
+```sh
+git clone --branch 0.13.3 --depth 1 https://github.com/SwiftTUI/swift-tui.git
+(cd swift-tui && swiftly run swift build --product swifttui-dev)
+swift-tui/.build/debug/swifttui-dev --package-path hot-reload --product HotReloadDemo
+```
+
+If the matching driver is already on your PATH:
 
 ```sh
 swifttui-dev --package-path hot-reload --product HotReloadDemo
