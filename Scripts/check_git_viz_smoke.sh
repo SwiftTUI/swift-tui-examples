@@ -8,7 +8,6 @@ set -eu
 
 repo_root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 example_root="$repo_root/git-viz"
-binary="$example_root/.build/debug/git-viz"
 
 cd "$example_root"
 
@@ -17,6 +16,7 @@ if ! command -v swiftly >/dev/null 2>&1; then
   exit 1
 fi
 
+binary="$(swiftly run swift build --show-bin-path)/git-viz"
 if [ ! -x "$binary" ]; then
   echo "==> Building git-viz"
   swiftly run swift build

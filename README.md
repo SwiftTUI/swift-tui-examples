@@ -5,7 +5,7 @@ shipped to every host. This repo holds runnable examples for
 [`SwiftTUI`](https://github.com/SwiftTUI/swift-tui): one directory per demo, each
 proving a specific capability, each with the exact command to run it.
 
-![Status](https://img.shields.io/badge/status-0.13.3%20pre--release-DAA520)
+![Status](https://img.shields.io/badge/status-0.13.4%20pre--release-DAA520)
 
 ## Start here
 
@@ -31,9 +31,9 @@ proves, or jump straight to a package in [By product](#by-product).
 
 ## Prerequisites
 
-- **Swift 6.3.x** (`.swift-version` pins 6.3.3).
+- **Swift 6.4.x** (`.swift-version` pins 6.4.0).
 - Commands below use **[`swiftly`](https://www.swift.org/swiftly/)** so every example builds
-  against the repository pinned toolchain. If Swift 6.3.x is active through
+  against the repository pinned toolchain. If Swift 6.4.x is active through
   Xcode 26 or `PATH`, remove the `swiftly run` prefix. Then run the bare
   `swift ...` command.
 
@@ -49,7 +49,7 @@ swiftly run swift run --package-path minimal minimal        # the smallest path
 ```
 
 Each example builds from a fresh clone with tagged HTTPS dependencies. Each
-example pins the current `0.13.3` release graph. Gallery uses matching
+example pins the current `0.13.4` release graph. Gallery uses matching
 `swift-tui` and `swift-tui-charts` versions. `mrkdwn` uses the independent
 `swift-markdown` release range. No sibling source checkout is necessary.
 

@@ -35,7 +35,7 @@ private struct CompilerVisitor: MarkupVisitor {
     self.source = source
   }
 
-  mutating func defaultVisit(_ markup: Markup) -> [MarkdownBlock] {
+  mutating func defaultVisit(_ markup: any Markup) -> [MarkdownBlock] {
     if markup.childCount > 0 {
       return blocks(in: markup)
     }
@@ -161,7 +161,7 @@ private struct CompilerVisitor: MarkupVisitor {
     unsupported(blockDirective)
   }
 
-  private mutating func blocks(in markup: Markup) -> [MarkdownBlock] {
+  private mutating func blocks(in markup: any Markup) -> [MarkdownBlock] {
     markup.children.flatMap { visit($0) }
   }
 
@@ -197,7 +197,7 @@ private struct CompilerVisitor: MarkupVisitor {
   }
 
   private mutating func inlineChildren(
-    of markup: Markup,
+    of markup: any Markup,
     traits: InlineTraits = []
   ) -> [InlineRun] {
     normalizeInlineRuns(
@@ -205,7 +205,7 @@ private struct CompilerVisitor: MarkupVisitor {
     )
   }
 
-  private mutating func inline(_ markup: Markup, traits: InlineTraits) -> [InlineRun] {
+  private mutating func inline(_ markup: any Markup, traits: InlineTraits) -> [InlineRun] {
     if let text = markup as? Markdown.Text {
       return [InlineRun(text: text.string, traits: traits)]
     }
@@ -277,7 +277,7 @@ private struct CompilerVisitor: MarkupVisitor {
     ]
   }
 
-  private func plainText(of markup: Markup) -> String {
+  private func plainText(of markup: any Markup) -> String {
     if let text = markup as? Markdown.Text { return text.string }
     if let code = markup as? InlineCode { return code.code }
     if let html = markup as? InlineHTML { return html.rawHTML }
@@ -304,7 +304,7 @@ private struct CompilerVisitor: MarkupVisitor {
     return normalized
   }
 
-  private mutating func unsupported(_ markup: Markup) -> [MarkdownBlock] {
+  private mutating func unsupported(_ markup: any Markup) -> [MarkdownBlock] {
     let span = sourceSpan(markup)
     let kind = String(describing: type(of: markup))
     let excerpt = sourceExcerpt(span) ?? "⟦unsupported \(kind)⟧"
@@ -338,7 +338,7 @@ private struct CompilerVisitor: MarkupVisitor {
     return value.lowercased()
   }
 
-  private func sourceSpan(_ markup: Markup) -> SourceSpan? {
+  private func sourceSpan(_ markup: any Markup) -> SourceSpan? {
     guard let range = markup.range else { return nil }
     return SourceSpan(
       start: SourcePosition(line: range.lowerBound.line, column: range.lowerBound.column),

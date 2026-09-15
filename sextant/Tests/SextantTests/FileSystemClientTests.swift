@@ -234,17 +234,17 @@ struct FileSystemClientTests {
       let replacement = root.appendingPathComponent("replacement")
       let regularBytes = Data("regular!".utf8)
       try regularBytes.write(to: regular)
-      let fifoResult = unsafe fifo.path.withCString {
+      let fifoResult = fifo.path.withCString {
         unsafe mkfifo($0, mode_t(0o600))
       }
       try #require(fifoResult == 0)
-      let fifoDescriptor = unsafe fifo.path.withCString {
+      let fifoDescriptor = fifo.path.withCString {
         unsafe open($0, O_RDWR | O_NONBLOCK)
       }
       try #require(fifoDescriptor >= 0)
       defer { _ = close(fifoDescriptor) }
       let fill = [UInt8](repeating: 0x58, count: 4_096)
-      while unsafe fill.withUnsafeBytes({
+      while fill.withUnsafeBytes({
         unsafe write(fifoDescriptor, $0.baseAddress, $0.count)
       }) > 0 {}
 
@@ -260,8 +260,8 @@ struct FileSystemClientTests {
             at: replacement,
             withDestinationURL: nextTarget
           )
-          let swapped = unsafe replacement.path.withCString { source in
-            unsafe live.path.withCString { destination in
+          let swapped = replacement.path.withCString { source in
+            live.path.withCString { destination in
               unsafe rename(source, destination)
             }
           }

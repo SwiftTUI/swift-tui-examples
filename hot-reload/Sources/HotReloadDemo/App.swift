@@ -8,8 +8,6 @@ final class ReloadReference: Codable {
 
 /// Currently internal functionality only
 ///
-///  export SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk
-///
 ///  mise exec -- bazel run //:open_overlay -- \
 ///    --source-mode worktree \
 ///    --output "$PWD/.build/coordination/hot-reload-demo" \

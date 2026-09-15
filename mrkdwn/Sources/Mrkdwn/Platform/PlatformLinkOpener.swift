@@ -177,9 +177,9 @@ public struct PlatformLinkOpener: Sendable {
     }
 
     var processIdentifier: pid_t = 0
-    let result = unsafe executable.withCString { executablePointer in
-      unsafe argumentPointers.withUnsafeMutableBufferPointer { argumentBuffer in
-        unsafe environmentPointers.withUnsafeMutableBufferPointer { environmentBuffer in
+    let result = executable.withCString { executablePointer in
+      argumentPointers.withUnsafeMutableBufferPointer { argumentBuffer in
+        environmentPointers.withUnsafeMutableBufferPointer { environmentBuffer in
           unsafe posix_spawn(
             &processIdentifier,
             executablePointer,

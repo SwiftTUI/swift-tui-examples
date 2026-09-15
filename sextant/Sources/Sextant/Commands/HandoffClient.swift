@@ -1,5 +1,5 @@
-public import Foundation
 import Dispatch
+public import Foundation
 import SwiftTUI
 
 #if canImport(Darwin)
@@ -297,7 +297,7 @@ private func resolveLaunchExecutable(
 
 private func isExecutableFile(_ path: String) -> Bool {
   var info = stat()
-  let status = unsafe path.withCString {
+  let status = path.withCString {
     unsafe stat($0, &info)
   }
   guard status == 0,
@@ -305,7 +305,7 @@ private func isExecutableFile(_ path: String) -> Bool {
   else {
     return false
   }
-  return unsafe path.withCString {
+  return path.withCString {
     unsafe access($0, X_OK) == 0
   }
 }

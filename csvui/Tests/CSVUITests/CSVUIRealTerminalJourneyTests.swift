@@ -672,10 +672,22 @@ private func csvuiExecutableURL() throws -> URL {
     .deletingLastPathComponent()
     .deletingLastPathComponent()
   let buildRoot = packageRoot.appendingPathComponent(".build", isDirectory: true)
-  let preferredCandidates = [
-    buildRoot.appendingPathComponent("out/Products/Debug/csvui"),
-    bundleURL.deletingLastPathComponent().appendingPathComponent("csvui"),
+  var preferredCandidates = [
+    bundleURL.deletingLastPathComponent().appendingPathComponent("csvui")
   ]
+  // Swift Build nests resources inside the test bundle, including with a
+  // shared scratch path outside this package's .build directory.
+  var ancestor = bundleURL.deletingLastPathComponent()
+  for _ in 0..<8 {
+    if ancestor.lastPathComponent == "debug" || ancestor.lastPathComponent == "Debug" {
+      preferredCandidates.append(ancestor.appendingPathComponent("csvui"))
+      break
+    }
+    let parent = ancestor.deletingLastPathComponent()
+    if parent == ancestor { break }
+    ancestor = parent
+  }
+  preferredCandidates.append(buildRoot.appendingPathComponent("out/Products/Debug/csvui"))
   if let executable = preferredCandidates.first(where: isRegularExecutable) {
     return executable
   }
@@ -701,7 +713,7 @@ private func csvuiExecutableURL() throws -> URL {
 
 private func isRegularExecutable(_ url: URL) -> Bool {
   var metadata = stat()
-  let status = unsafe url.path.withCString { unsafe lstat($0, &metadata) }
+  let status = url.path.withCString { unsafe lstat($0, &metadata) }
   return status == 0 && metadata.st_mode & S_IFMT == S_IFREG
     && FileManager.default.isExecutableFile(atPath: url.path)
 }
@@ -735,7 +747,7 @@ private final class CSVUIPTYOutputDrain: Sendable {
     source.setEventHandler {
       var buffer = [UInt8](repeating: 0, count: 4_096)
       while true {
-        let count = unsafe buffer.withUnsafeMutableBytes {
+        let count = buffer.withUnsafeMutableBytes {
           unsafe read(fileDescriptor, $0.baseAddress, $0.count)
         }
         if count > 0 { continue }

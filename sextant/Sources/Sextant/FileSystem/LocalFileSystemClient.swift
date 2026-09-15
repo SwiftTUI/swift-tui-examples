@@ -105,7 +105,7 @@ struct LocalFileSystemClient: FileSystemClient {
       )
     }
 
-    let descriptor = unsafe url.path.withCString {
+    let descriptor = url.path.withCString {
       unsafe open($0, O_RDONLY | O_NONBLOCK | O_CLOEXEC | O_NOCTTY)
     }
     guard descriptor >= 0 else {
@@ -133,7 +133,7 @@ struct LocalFileSystemClient: FileSystemClient {
       }
       let requestedCount = min(prefixReadChunkSize, maximumBytes - data.count)
       var buffer = [UInt8](repeating: 0, count: requestedCount)
-      let bytesRead = unsafe buffer.withUnsafeMutableBytes {
+      let bytesRead = buffer.withUnsafeMutableBytes {
         unsafe read(descriptor, $0.baseAddress, requestedCount)
       }
       if bytesRead > 0 {
@@ -278,7 +278,7 @@ private func readStat(
   followingSymbolicLinks: Bool
 ) -> Result<stat, FileSystemFailure> {
   var info = stat()
-  let result = unsafe url.path.withCString { path in
+  let result = url.path.withCString { path in
     if followingSymbolicLinks {
       unsafe stat(path, &info)
     } else {
@@ -296,7 +296,7 @@ private func pathIsAccessible(
   _ path: String,
   mode: Int32
 ) -> Bool {
-  unsafe path.withCString { unsafe access($0, mode) == 0 }
+  path.withCString { unsafe access($0, mode) == 0 }
 }
 
 private func nonnegativeByteCount<T: BinaryInteger>(_ value: T) -> UInt64? {

@@ -248,7 +248,7 @@ private final class RemoteImageTransfer: Sendable {
     var session: URLSession?
     var task: URLSessionDataTask?
     var timeoutTask: Task<Void, Never>?
-    var completion: (@Sendable (Result<Data, Error>) -> Void)?
+    var completion: (@Sendable (Result<Data, any Error>) -> Void)?
     var cancellationRequested = false
     var isFinished = false
   }
@@ -260,7 +260,7 @@ private final class RemoteImageTransfer: Sendable {
     task: URLSessionDataTask,
     timeout: TimeInterval,
     url: URL,
-    completion: @escaping @Sendable (Result<Data, Error>) -> Void
+    completion: @escaping @Sendable (Result<Data, any Error>) -> Void
   ) {
     let cancelAfterStarting = state.withLock {
       $0.session = session
@@ -305,12 +305,12 @@ private final class RemoteImageTransfer: Sendable {
     finish(.failure(CancellationError()), cancellingTransport: true)
   }
 
-  func finish(_ result: Result<Data, Error>) {
+  func finish(_ result: Result<Data, any Error>) {
     finish(result, cancellingTransport: false)
   }
 
   private func finish(
-    _ result: Result<Data, Error>,
+    _ result: Result<Data, any Error>,
     cancellingTransport: Bool
   ) {
     let action:
@@ -318,7 +318,7 @@ private final class RemoteImageTransfer: Sendable {
         session: URLSession?,
         task: URLSessionDataTask?,
         timeoutTask: Task<Void, Never>?,
-        completion: @Sendable (Result<Data, Error>) -> Void
+        completion: @Sendable (Result<Data, any Error>) -> Void
       )? = state.withLock {
         guard !$0.isFinished, let completion = $0.completion else {
           return nil
@@ -366,7 +366,7 @@ private final class RemoteImageDataDelegate: NSObject, URLSessionDataDelegate,
   private struct State {
     var buffer = BoundedResourceBuffer(maximumBytes: ResourceLoader.maximumEncodedBytes)
     var failure: ResourceLoadError?
-    var completion: (@Sendable (Result<Data, Error>) -> Void)?
+    var completion: (@Sendable (Result<Data, any Error>) -> Void)?
     var redirectCount = 0
     var peerValidated = false
   }
@@ -382,7 +382,7 @@ private final class RemoteImageDataDelegate: NSObject, URLSessionDataDelegate,
     remoteURLValidator: @escaping RemoteImageURLValidator,
     remotePeerValidator: @escaping RemoteImagePeerValidator,
     requiresPublicPeerValidation: Bool,
-    completion: @escaping @Sendable (Result<Data, Error>) -> Void
+    completion: @escaping @Sendable (Result<Data, any Error>) -> Void
   ) {
     self.url = url
     self.remoteURLValidator = remoteURLValidator
@@ -506,34 +506,35 @@ private final class RemoteImageDataDelegate: NSObject, URLSessionDataDelegate,
   func urlSession(
     _ session: URLSession,
     task: URLSessionTask,
-    didCompleteWithError error: Error?
+    didCompleteWithError error: (any Error)?
   ) {
-    let completionAndResult: ((@Sendable (Result<Data, Error>) -> Void), Result<Data, Error>)? =
-      state.withLock {
-        guard let completion = $0.completion else { return nil }
-        $0.completion = nil
-        if let failure = $0.failure {
-          return (completion, .failure(failure))
-        }
-        if let error {
-          return (
-            completion,
-            .failure(ResourceLoadError.requestFailed(url, error.localizedDescription))
-          )
-        }
-        guard !requiresPublicPeerValidation || $0.peerValidated else {
-          return (
-            completion,
-            .failure(
-              ResourceLoadError.remoteDestinationBlocked(
-                task.currentRequest?.url ?? url,
-                "connection peer could not be verified"
+    let completionAndResult:
+      ((@Sendable (Result<Data, any Error>) -> Void), Result<Data, any Error>)? =
+        state.withLock {
+          guard let completion = $0.completion else { return nil }
+          $0.completion = nil
+          if let failure = $0.failure {
+            return (completion, .failure(failure))
+          }
+          if let error {
+            return (
+              completion,
+              .failure(ResourceLoadError.requestFailed(url, error.localizedDescription))
+            )
+          }
+          guard !requiresPublicPeerValidation || $0.peerValidated else {
+            return (
+              completion,
+              .failure(
+                ResourceLoadError.remoteDestinationBlocked(
+                  task.currentRequest?.url ?? url,
+                  "connection peer could not be verified"
+                )
               )
             )
-          )
+          }
+          return (completion, .success($0.buffer.data))
         }
-        return (completion, .success($0.buffer.data))
-      }
     session.finishTasksAndInvalidate()
     guard let (completion, result) = completionAndResult else { return }
     completion(result)
@@ -582,7 +583,7 @@ private final class RemoteImageDataDelegate: NSObject, URLSessionDataDelegate,
   }
 
   private func finishStoredFailure(in session: URLSession) {
-    let completionAndFailure: ((@Sendable (Result<Data, Error>) -> Void), ResourceLoadError)? =
+    let completionAndFailure: ((@Sendable (Result<Data, any Error>) -> Void), ResourceLoadError)? =
       state.withLock {
         guard let completion = $0.completion, let failure = $0.failure else {
           return nil

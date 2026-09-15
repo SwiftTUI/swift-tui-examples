@@ -133,7 +133,7 @@ enum BoundedRegularFileReader {
         throw BoundedRegularFileReadError.timedOut
       }
 
-      let byteCount = unsafe buffer.withUnsafeMutableBytes {
+      let byteCount = buffer.withUnsafeMutableBytes {
         unsafe systemRead(descriptor, $0.baseAddress, $0.count)
       }
       if byteCount > 0 {

@@ -15,7 +15,7 @@ struct CSVSortKey {
     var text = value
     // Makes the storage contiguous once, so later borrowed comparisons never
     // copy, and classifies the complete string as a numeric literal.
-    let isNumber = text.withUTF8(Self.isNumber)
+    let isNumber = text.withUTF8 { unsafe Self.isNumber($0) }
     self.text = text
     number = isNumber ? Decimal(string: text, locale: Locale(identifier: "en_US_POSIX")) : nil
   }
@@ -37,7 +37,7 @@ struct CSVSortKey {
     var rhs = other.text
     return lhs.withUTF8 { left in
       rhs.withUTF8 { right in
-        Self.compareText(left, right)
+        unsafe Self.compareText(left, right)
       }
     }
   }
@@ -51,23 +51,23 @@ struct CSVSortKey {
     var left = 0
     var right = 0
     while left < lhs.count, right < rhs.count {
-      if isDigit(lhs[left]), isDigit(rhs[right]) {
+      if unsafe isDigit(lhs[left]), unsafe isDigit(rhs[right]) {
         var leftEnd = left
         var rightEnd = right
-        while leftEnd < lhs.count, isDigit(lhs[leftEnd]) { leftEnd += 1 }
-        while rightEnd < rhs.count, isDigit(rhs[rightEnd]) { rightEnd += 1 }
+        while leftEnd < lhs.count, unsafe isDigit(lhs[leftEnd]) { leftEnd += 1 }
+        while rightEnd < rhs.count, unsafe isDigit(rhs[rightEnd]) { rightEnd += 1 }
         var leftStart = left
         var rightStart = right
-        while leftStart < leftEnd, lhs[leftStart] == zero { leftStart += 1 }
-        while rightStart < rightEnd, rhs[rightStart] == zero { rightStart += 1 }
+        while leftStart < leftEnd, unsafe lhs[leftStart] == zero { leftStart += 1 }
+        while rightStart < rightEnd, unsafe rhs[rightStart] == zero { rightStart += 1 }
         let leftCount = leftEnd - leftStart
         let rightCount = rightEnd - rightStart
         if leftCount != rightCount {
           return leftCount < rightCount ? .orderedAscending : .orderedDescending
         }
         for offset in 0..<leftCount {
-          let leftByte = lhs[leftStart + offset]
-          let rightByte = rhs[rightStart + offset]
+          let leftByte = unsafe lhs[leftStart + offset]
+          let rightByte = unsafe rhs[rightStart + offset]
           if leftByte != rightByte {
             return leftByte < rightByte ? .orderedAscending : .orderedDescending
           }
@@ -78,8 +78,8 @@ struct CSVSortKey {
         left = leftEnd
         right = rightEnd
       } else {
-        if lhs[left] != rhs[right] {
-          return lhs[left] < rhs[right] ? .orderedAscending : .orderedDescending
+        if unsafe lhs[left] != rhs[right] {
+          return unsafe lhs[left] < rhs[right] ? .orderedAscending : .orderedDescending
         }
         left += 1
         right += 1
@@ -100,22 +100,22 @@ struct CSVSortKey {
     let lowerE = UInt8(ascii: "e")
     let upperE = UInt8(ascii: "E")
     var index = 0
-    if index < bytes.count, bytes[index] == plus || bytes[index] == minus { index += 1 }
+    if index < bytes.count, unsafe bytes[index] == plus || bytes[index] == minus { index += 1 }
     let integerStart = index
-    while index < bytes.count, isDigit(bytes[index]) { index += 1 }
+    while index < bytes.count, unsafe isDigit(bytes[index]) { index += 1 }
     var digits = index - integerStart
-    if index < bytes.count, bytes[index] == dot {
+    if index < bytes.count, unsafe bytes[index] == dot {
       index += 1
       let fractionStart = index
-      while index < bytes.count, isDigit(bytes[index]) { index += 1 }
+      while index < bytes.count, unsafe isDigit(bytes[index]) { index += 1 }
       digits += index - fractionStart
     }
     guard digits > 0 else { return false }
-    if index < bytes.count, bytes[index] == lowerE || bytes[index] == upperE {
+    if index < bytes.count, unsafe bytes[index] == lowerE || bytes[index] == upperE {
       index += 1
-      if index < bytes.count, bytes[index] == plus || bytes[index] == minus { index += 1 }
+      if index < bytes.count, unsafe bytes[index] == plus || bytes[index] == minus { index += 1 }
       let exponentStart = index
-      while index < bytes.count, isDigit(bytes[index]) { index += 1 }
+      while index < bytes.count, unsafe isDigit(bytes[index]) { index += 1 }
       guard index > exponentStart else { return false }
     }
     return index == bytes.count

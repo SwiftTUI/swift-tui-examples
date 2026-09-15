@@ -50,7 +50,7 @@ private func csvFileSignature(of url: URL) -> CSVFileSignature {
 private func csvFileSystemIdentity(at url: URL) -> UInt64? {
   #if canImport(Darwin) || canImport(Glibc)
     var metadata = stat()
-    guard unsafe url.path.withCString({ unsafe lstat($0, &metadata) }) == 0 else { return nil }
+    guard url.path.withCString({ unsafe lstat($0, &metadata) }) == 0 else { return nil }
     return (UInt64(metadata.st_dev) &* 1_099_511_628_211) ^ UInt64(metadata.st_ino)
   #else
     return nil
@@ -59,7 +59,7 @@ private func csvFileSystemIdentity(at url: URL) -> UInt64? {
 
 #if canImport(Darwin)
   func openCSVWatchDirectory(_ directory: URL) -> Int32 {
-    unsafe directory.path.withCString { unsafe open($0, O_EVTONLY | O_CLOEXEC) }
+    directory.path.withCString { unsafe open($0, O_EVTONLY | O_CLOEXEC) }
   }
 
   private func darwinChanges(to url: URL) -> AsyncStream<Void> {
@@ -196,7 +196,7 @@ private func csvFileSystemIdentity(at url: URL) -> UInt64? {
         Thread.sleep(forTimeInterval: 0.1)
         continue
       }
-      let watch = unsafe directoryPath.withCString {
+      let watch = directoryPath.withCString {
         unsafe inotify_add_watch(descriptor, $0, mask)
       }
       guard watch >= 0 else {
@@ -216,7 +216,7 @@ private func csvFileSystemIdentity(at url: URL) -> UInt64? {
           continue
         }
         guard result > 0, pollDescriptor.revents & Int16(POLLIN) != 0 else { continue }
-        let byteCount = unsafe buffer.withUnsafeMutableBytes {
+        let byteCount = buffer.withUnsafeMutableBytes {
           unsafe read(descriptor, $0.baseAddress, $0.count)
         }
         guard byteCount > 0 else {
@@ -225,7 +225,7 @@ private func csvFileSystemIdentity(at url: URL) -> UInt64? {
         }
         var offset = 0
         while offset + MemoryLayout<inotify_event>.size <= byteCount {
-          let event = unsafe buffer.withUnsafeBytes {
+          let event = buffer.withUnsafeBytes {
             unsafe $0.loadUnaligned(fromByteOffset: offset, as: inotify_event.self)
           }
           if event.mask & UInt32(IN_IGNORED | IN_MOVE_SELF | IN_DELETE_SELF) != 0 {

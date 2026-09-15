@@ -188,7 +188,7 @@ actor LiveDirectoryWatcher: DirectoryWatching {
       guard descriptor >= 0 else {
         return nil
       }
-      let watch = unsafe url.path.withCString {
+      let watch = url.path.withCString {
         unsafe inotify_add_watch(descriptor, $0, Self.inotifyMask)
       }
       guard watch >= 0 else {
@@ -274,7 +274,7 @@ actor LiveDirectoryWatcher: DirectoryWatching {
         guard ready > 0, pollDescriptor.revents & Int16(POLLIN) != 0 else {
           return .idle
         }
-        let byteCount = unsafe buffer.withUnsafeMutableBytes { rawBuffer in
+        let byteCount = buffer.withUnsafeMutableBytes { rawBuffer in
           unsafe read(descriptor, rawBuffer.baseAddress, rawBuffer.count)
         }
         guard byteCount > 0 else {
@@ -284,7 +284,7 @@ actor LiveDirectoryWatcher: DirectoryWatching {
         var offset = 0
         var watchEnded = false
         while offset + MemoryLayout<inotify_event>.size <= byteCount {
-          let event = unsafe buffer.withUnsafeBytes { rawBuffer -> inotify_event in
+          let event = buffer.withUnsafeBytes { rawBuffer -> inotify_event in
             unsafe rawBuffer.loadUnaligned(
               fromByteOffset: offset,
               as: inotify_event.self

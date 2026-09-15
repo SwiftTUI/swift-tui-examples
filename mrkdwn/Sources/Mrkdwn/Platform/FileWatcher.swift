@@ -55,7 +55,7 @@ private func fileSystemIdentity(at url: URL) -> UInt64? {
   #if canImport(Darwin) || canImport(Glibc)
     var metadata = stat()
     guard
-      unsafe url.path.withCString({
+      url.path.withCString({
         unsafe lstat($0, &metadata)
       }) == 0
     else {
@@ -71,7 +71,7 @@ private func fileSystemIdentity(at url: URL) -> UInt64? {
 
 #if canImport(Darwin)
   func openDarwinWatchDirectory(_ directory: URL) -> Int32 {
-    unsafe directory.path.withCString {
+    directory.path.withCString {
       unsafe open($0, O_EVTONLY | O_CLOEXEC)
     }
   }
@@ -88,7 +88,7 @@ private func fileSystemIdentity(at url: URL) -> UInt64? {
 
   private final class DarwinDirectoryWatcher: Sendable {
     private struct State {
-      var source: DispatchSourceFileSystemObject?
+      var source: (any DispatchSourceFileSystemObject)?
       var previous: FileSignature
       var isCancelled = false
     }
@@ -237,7 +237,7 @@ private func fileSystemIdentity(at url: URL) -> UInt64? {
         Thread.sleep(forTimeInterval: 0.1)
         continue
       }
-      let watch = unsafe directoryPath.withCString {
+      let watch = directoryPath.withCString {
         unsafe inotify_add_watch(descriptor, $0, mask)
       }
       guard watch >= 0 else {
@@ -259,7 +259,7 @@ private func fileSystemIdentity(at url: URL) -> UInt64? {
         guard result > 0, pollDescriptor.revents & Int16(POLLIN) != 0 else {
           continue
         }
-        let byteCount = unsafe buffer.withUnsafeMutableBytes { rawBuffer in
+        let byteCount = buffer.withUnsafeMutableBytes { rawBuffer in
           unsafe read(descriptor, rawBuffer.baseAddress, rawBuffer.count)
         }
         guard byteCount > 0 else {
@@ -271,7 +271,7 @@ private func fileSystemIdentity(at url: URL) -> UInt64? {
 
         var offset = 0
         while offset + MemoryLayout<inotify_event>.size <= byteCount {
-          let event = unsafe buffer.withUnsafeBytes { rawBuffer -> inotify_event in
+          let event = buffer.withUnsafeBytes { rawBuffer -> inotify_event in
             unsafe rawBuffer.loadUnaligned(
               fromByteOffset: offset,
               as: inotify_event.self

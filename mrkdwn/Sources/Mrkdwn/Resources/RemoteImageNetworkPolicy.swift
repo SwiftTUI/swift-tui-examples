@@ -89,17 +89,17 @@ enum RemoteImageNetworkPolicy {
   private static func addressBytes(_ address: String) -> [UInt8]? {
     var ipv4 = in_addr()
     var ipv6 = in6_addr()
-    let ipv4Status = unsafe address.withCString {
+    let ipv4Status = address.withCString {
       unsafe inet_pton(AF_INET, $0, &ipv4)
     }
     if ipv4Status == 1 {
-      return unsafe withUnsafeBytes(of: ipv4) { unsafe Array($0.prefix(4)) }
+      return withUnsafeBytes(of: ipv4) { unsafe Array($0.prefix(4)) }
     }
-    let ipv6Status = unsafe address.withCString {
+    let ipv6Status = address.withCString {
       unsafe inet_pton(AF_INET6, $0, &ipv6)
     }
     guard ipv6Status == 1 else { return nil }
-    return unsafe withUnsafeBytes(of: ipv6) { unsafe Array($0.prefix(16)) }
+    return withUnsafeBytes(of: ipv6) { unsafe Array($0.prefix(16)) }
   }
 
   private static func isPublicIPv4(_ bytes: [UInt8]) -> Bool {

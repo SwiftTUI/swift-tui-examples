@@ -536,7 +536,7 @@ public final class ViewerModel {
     recordImageState(id)
     let effectID = spawnImageEffect { [weak self] in
       guard let self else { return }
-      let result: Result<LoadedImage, Error>
+      let result: Result<LoadedImage, any Error>
       do {
         result = .success(
           try await self.dependencies.loadImage(image.source, documentURL)
@@ -563,7 +563,7 @@ public final class ViewerModel {
   }
 
   private func completeImage(
-    _ result: Result<LoadedImage, Error>,
+    _ result: Result<LoadedImage, any Error>,
     id: BlockID,
     token: UUID,
     resolvedURL: URL?,
@@ -667,7 +667,7 @@ public final class ViewerModel {
     restartWatcherForCommittedDocument()
   }
 
-  private func failReload(_ error: Error, loadGeneration: UInt64) {
+  private func failReload(_ error: any Error, loadGeneration: UInt64) {
     guard !isShuttingDown, loadGeneration == documentLoadGeneration else { return }
     state.isReloading = false
     state.diagnostic = ViewerDiagnostic(.error, error.localizedDescription)
@@ -779,7 +779,7 @@ public final class ViewerModel {
     }
   }
 
-  private func failThemeReload(_ error: Error, generation: UInt64) {
+  private func failThemeReload(_ error: any Error, generation: UInt64) {
     guard !isShuttingDown, generation == themeLoadGeneration else { return }
     themeDiagnosticMessage = error.localizedDescription
     state.diagnostic = ViewerDiagnostic(.error, error.localizedDescription)
@@ -879,7 +879,7 @@ public final class ViewerModel {
 
   private func reportNavigationFailure(
     _ url: URL,
-    error: Error,
+    error: any Error,
     loadGeneration: UInt64,
     suspendedWatcherURL: URL?
   ) {

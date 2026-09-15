@@ -27,7 +27,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  SWIFTLY_VERSION: "1.1.3"
+  SWIFTLY_VERSION: "1.1.4"
 
 jobs:
   changes:

@@ -912,7 +912,7 @@ private func uniqueRegularExecutable(from candidates: [URL]) throws -> URL {
 
 private func isRegularExecutableFile(_ url: URL) -> Bool {
   var metadata = stat()
-  let status = unsafe url.path.withCString {
+  let status = url.path.withCString {
     unsafe lstat($0, &metadata)
   }
   guard status == 0, metadata.st_mode & S_IFMT == S_IFREG else {
@@ -965,7 +965,7 @@ private func readAvailableBytes(from fileDescriptor: Int32) throws -> [UInt8] {
   var result: [UInt8] = []
   var buffer = [UInt8](repeating: 0, count: 4_096)
   while true {
-    let count = unsafe buffer.withUnsafeMutableBytes {
+    let count = buffer.withUnsafeMutableBytes {
       unsafe read(fileDescriptor, $0.baseAddress, $0.count)
     }
     if count > 0 {
@@ -1026,7 +1026,7 @@ private final class MrkdwnPTYOutputDrain: Sendable {
     source.setEventHandler {
       var buffer = [UInt8](repeating: 0, count: 4_096)
       while true {
-        let count = unsafe buffer.withUnsafeMutableBytes {
+        let count = buffer.withUnsafeMutableBytes {
           unsafe read(fileDescriptor, $0.baseAddress, $0.count)
         }
         if count > 0 { continue }

@@ -1,4 +1,4 @@
-// swift-tools-version: 6.3
+// swift-tools-version: 6.4
 
 import PackageDescription
 
@@ -28,8 +28,8 @@ let package = Package(
   ],
   dependencies: [
     .package(url: "https://github.com/JohnSundell/Splash.git", exact: "0.16.0"),
-    .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.13.3"),
-    .package(url: "https://github.com/SwiftTUI/swift-tui-swiftui.git", exact: "0.13.3"),
+    .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.13.4"),
+    .package(url: "https://github.com/SwiftTUI/swift-tui-swiftui.git", exact: "0.13.4"),
     .package(name: "layouts-demo", path: "../layouts"),
   ],
   targets: [

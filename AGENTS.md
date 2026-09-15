@@ -25,7 +25,7 @@ checkouts at run time. Committed manifests stay tagged.
 ## Toolchains
 
 Use **`swiftly` run** for Swift packages. This command uses the pinned Swift
-6.3.x toolchain. Do not use bare `swift` or `xcrun swift`.
+6.4.x toolchain. Do not use bare `swift` or `xcrun swift`.
 
 ## Commands
 

@@ -121,8 +121,8 @@ public struct CSVFileWriter: Sendable {
       if request.expectedIdentity == nil, !request.overwrite {
         try installWithoutOverwrite(temporary, at: destination)
       } else {
-        let renamed = unsafe temporary.path.withCString { sourcePath in
-          unsafe destination.path.withCString { destinationPath in
+        let renamed = temporary.path.withCString { sourcePath in
+          destination.path.withCString { destinationPath in
             unsafe rename(sourcePath, destinationPath)
           }
         }
@@ -144,7 +144,7 @@ public struct CSVFileWriter: Sendable {
   }
 
   private func openExclusive(_ url: URL) throws -> Int32 {
-    let descriptor = unsafe url.path.withCString {
+    let descriptor = url.path.withCString {
       unsafe open($0, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, mode_t(0o600))
     }
     guard descriptor >= 0 else {
@@ -158,8 +158,8 @@ public struct CSVFileWriter: Sendable {
   /// exactly once or fails with EEXIST; removing the temporary name leaves the
   /// destination as the sole link to the flushed inode.
   private func installWithoutOverwrite(_ temporary: URL, at destination: URL) throws {
-    let linked = unsafe temporary.path.withCString { sourcePath in
-      unsafe destination.path.withCString { destinationPath in
+    let linked = temporary.path.withCString { sourcePath in
+      destination.path.withCString { destinationPath in
         unsafe link(sourcePath, destinationPath)
       }
     }
@@ -167,7 +167,7 @@ public struct CSVFileWriter: Sendable {
       if errno == EEXIST { throw CSVFileWriteError.destinationExists(destination) }
       throw systemWriteError()
     }
-    let removed = unsafe temporary.path.withCString { unsafe unlink($0) }
+    let removed = temporary.path.withCString { unsafe unlink($0) }
     guard removed == 0 else { throw systemWriteError() }
   }
 
@@ -193,7 +193,7 @@ public struct CSVFileWriter: Sendable {
   }
 
   private func flushDirectory(_ url: URL) {
-    let descriptor = unsafe url.path.withCString {
+    let descriptor = url.path.withCString {
       unsafe open($0, O_RDONLY | O_CLOEXEC)
     }
     guard descriptor >= 0 else { return }

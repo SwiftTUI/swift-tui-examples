@@ -1,4 +1,4 @@
-// swift-tools-version: 6.3
+// swift-tools-version: 6.4
 
 import PackageDescription
 
@@ -23,7 +23,7 @@ let package = Package(
   dependencies: [
     .package(
       url: "https://github.com/SwiftTUI/swift-tui.git",
-      .upToNextMinor(from: "0.13.3")
+      .upToNextMinor(from: "0.13.4")
     ),
     .package(
       url: "https://github.com/swiftlang/swift-markdown.git",

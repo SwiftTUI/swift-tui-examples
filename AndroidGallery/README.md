@@ -53,21 +53,22 @@ not a framework limitation. To add an `x86_64` lane:
 Prerequisites:
 
 - Install Android Studio and Android SDK Platform 37.1.
-- Install Swift 6.3.3 through `swiftly`.
-- Install the Swift Android SDK bundle `swift-6.3.3-RELEASE_android`.
-- Set `ANDROID_NDK_HOME` to an Android NDK r27d or newer. The local
-  fallback is the r27d NDK bundled with `swift-6.3-RELEASE_android`.
+- Install Swift 6.4.0 through `swiftly`.
+- Install the Swift Android SDK bundle `swift-6.4.0-RELEASE_android`.
+- Install Android NDK `27.3.13750724` through Android Studio's SDK Manager.
+  The build uses it from the Android SDK directory by default; set
+  `ANDROID_NDK_HOME` to use another installation.
 
-After installing the 6.3.3 Swift Android SDK, materialize its `ndk-sysroot` once:
+After installing the 6.4.0 Swift Android SDK, materialize its `ndk-sysroot` once:
 
 ```bash
-ANDROID_NDK_HOME="$HOME/Library/org.swift.swiftpm/swift-sdks/swift-6.3-RELEASE_android.artifactbundle/swift-android/android-ndk-r27d" \
-"$HOME/Library/org.swift.swiftpm/swift-sdks/swift-6.3.3-RELEASE_android.artifactbundle/swift-android/scripts/setup-android-sdk.sh"
+ANDROID_NDK_HOME="$HOME/Library/Android/sdk/ndk/27.3.13750724" \
+"$HOME/Library/org.swift.swiftpm/swift-sdks/swift-6.4.0-RELEASE_android.artifactbundle/swift-android/scripts/setup-android-sdk.sh"
 ```
 
 The Gradle build creates the `app/build/swift-sdks` search path before it calls
 SwiftPM. This path contains only the configured
-`swift-6.3.3-RELEASE_android` bundle. If the bundle is not in the default
+`swift-6.4.0-RELEASE_android` bundle. If the bundle is not in the default
 SwiftPM SDK directory, set
 `SWIFT_ANDROID_SDK_BUNDLE` to the `.artifactbundle` path.
 
@@ -80,9 +81,9 @@ If the SDK and NDK are not on the default paths, use this command:
 ```bash
 JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" \
 ANDROID_HOME="$HOME/Library/Android/sdk" \
-ANDROID_NDK_HOME="$HOME/Library/org.swift.swiftpm/swift-sdks/swift-6.3-RELEASE_android.artifactbundle/swift-android/android-ndk-r27d" \
-SWIFT_ANDROID_SDK_BUNDLE="$HOME/Library/org.swift.swiftpm/swift-sdks/swift-6.3.3-RELEASE_android.artifactbundle" \
-SWIFT_ANDROID_ROOT="$HOME/Library/org.swift.swiftpm/swift-sdks/swift-6.3.3-RELEASE_android.artifactbundle/swift-android" \
+ANDROID_NDK_HOME="$HOME/Library/Android/sdk/ndk/27.3.13750724" \
+SWIFT_ANDROID_SDK_BUNDLE="$HOME/Library/org.swift.swiftpm/swift-sdks/swift-6.4.0-RELEASE_android.artifactbundle" \
+SWIFT_ANDROID_ROOT="$HOME/Library/org.swift.swiftpm/swift-sdks/swift-6.4.0-RELEASE_android.artifactbundle/swift-android" \
 gradle :app:assembleDebug
 ```
 

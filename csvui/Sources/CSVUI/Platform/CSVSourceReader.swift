@@ -64,7 +64,7 @@ public struct CSVSourceReader: Sendable {
     var buffer = [UInt8](repeating: 0, count: 64 * 1_024)
     while true {
       guard !Task.isCancelled else { throw CSVSourceReadError.cancelled }
-      let count = unsafe buffer.withUnsafeMutableBytes { raw in
+      let count = buffer.withUnsafeMutableBytes { raw in
         unsafe csvuiSystemRead(descriptor, raw.baseAddress, raw.count)
       }
       if count > 0 {
