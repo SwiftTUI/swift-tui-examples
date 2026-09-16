@@ -131,8 +131,16 @@ CI runs three lanes (`.github/workflows/`):
   and runs the gate there; the committed manifests keep their tags.
 
 To test one example, run `swiftly run swift test --package-path <example>`.
-Release-configuration builds (`bun run check:release`) and the macOS lane run
-on release tags and on demand. See the
+Release-configuration builds (`bun run check:release`) run on tags and explicit
+release-build dispatches. The macOS lane also runs on main pushes. To validate
+the complete release build before tagging:
+
+```sh
+gh workflow run test.yml --ref <candidate-branch> -f run_macos=true -f release_builds=true
+```
+
+The gate groups debug builds before release builds so Swift Build can reuse
+the shared framework's optimized products across examples. See the
 [coverage document](docs/EXAMPLE-COVERAGE.md) for the `check:linux`,
 `check:macos`, and `check` build gates and their scratch-directory
 environment variables, and [`AGENTS.md`](AGENTS.md) for the toolchain policy.

@@ -41,7 +41,7 @@ require_text "runs-on: ubuntu-24.04" "$workflow"
 require_text "Scripts/check_examples_linux.sh --skip-clean" "$workflow"
 require_text "SWIFTTUI_HANG_DIAGNOSTICS: \"1\"" "$workflow"
 require_text "            gdb \\" "$workflow"
-require_text "timeout-minutes: \${{ startsWith(github.ref, 'refs/tags/') && 60 || 30 }}" "$workflow"
+require_text "timeout-minutes: \${{ (startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.release_builds)) && 60 || 30 }}" "$workflow"
 # App-logic lane: per-package matrix, path-filtered on push/PR, everything
 # on dispatch and tags.
 require_text "App logic (\${{ matrix.package }})" "$workflow"
@@ -51,6 +51,8 @@ require_text "Scripts/check_examples_focused_tests.sh --package" "$workflow"
 # Tags run everything, add release builds, and are never cancelled.
 require_text 'tags: ["*.*.*"]' "$workflow"
 require_text "--release-builds" "$workflow"
+require_text "release_builds:" "$workflow"
+require_text "inputs.release_builds" "$workflow"
 # macOS: pushes to main, tags, and dispatch with the flag. Not pull requests —
 # `push` and `pull_request` are distinct events, so the second clause does not
 # match a PR. Re-enabled on push 2026-08-27 (was dispatch/tag only under plan

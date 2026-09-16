@@ -9,10 +9,11 @@ name: Test
 #                   package, only when that package (or the lane itself)
 #                   changed; every package on dispatch and on tags
 #                   (Scripts/check_examples_focused_tests.sh --package X).
-#   macos-examples  dispatch (`run_macos`) and tags only.
+#   macos-examples  main pushes, dispatch (`run_macos`), and tags.
 #
 # On a release tag (`*.*.*`) everything runs, the framework seam adds release
-# builds, and nothing is cancelled. Every step runs under a silence watchdog
+# builds, and nothing is cancelled. Dispatch with `release_builds` exercises
+# those optimized builds before tagging. Every step runs under a silence watchdog
 # (Scripts/lib/step_watchdog.sh) with gdb hang dumps enabled, so a wedged
 # test costs ~5 minutes and leaves thread backtraces instead of running to
 # the job cap.
@@ -26,6 +27,11 @@ on:
     inputs:
       run_macos:
         description: Run the macOS examples lane
+        required: false
+        default: false
+        type: boolean
+      release_builds:
+        description: Build optimized examples before tagging a release
         required: false
         default: false
         type: boolean
@@ -110,8 +116,8 @@ jobs:
     runs-on: ubuntu-24.04
     # Healthy warm runs are ~13 min; a hang now costs the watchdog's bound
     # (5-10 min plus a gdb dump), not this cap. Release builds only join on a
-    # tag, where the cap widens with them.
-    timeout-minutes: ${{ startsWith(github.ref, 'refs/tags/') && 60 || 30 }}
+    # tag or an explicit release-build dispatch, where the cap widens with them.
+    timeout-minutes: ${{ (startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.release_builds)) && 60 || 30 }}
     env:
       SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH: ${{ github.workspace }}/swift-tui-examples/.build/shared-swiftpm-linux
       SWIFTTUI_HANG_DIAGNOSTICS: "1"
@@ -124,10 +130,10 @@ jobs:
       # The livelock-while-printing backstop has to fit the cap too, or it is
       # decoration: the default (4x the build bound) is 2400 s against 1800 s.
       # It widens with the cap on a tag, where the release builds join.
-      SWIFTTUI_EXAMPLES_STEP_ABSOLUTE_TIMEOUT_SECONDS: ${{ startsWith(github.ref, 'refs/tags/') && 3300 || 1500 }}
+      SWIFTTUI_EXAMPLES_STEP_ABSOLUTE_TIMEOUT_SECONDS: ${{ (startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.release_builds)) && 3300 || 1500 }}
       # This job's `timeout-minutes` in seconds. The gate refuses to start if
       # the watchdog could not fire inside it — keep the two in step.
-      SWIFTTUI_EXAMPLES_STEP_WATCHDOG_DEADLINE_SECONDS: ${{ startsWith(github.ref, 'refs/tags/') && 3600 || 1800 }}
+      SWIFTTUI_EXAMPLES_STEP_WATCHDOG_DEADLINE_SECONDS: ${{ (startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.release_builds)) && 3600 || 1800 }}
     steps:
       - name: Checkout examples
         uses: actions/checkout@v7
@@ -173,7 +179,7 @@ jobs:
         shell: bash
         working-directory: swift-tui-examples
         env:
-          RELEASE_BUILDS: ${{ startsWith(github.ref, 'refs/tags/') && '--release-builds' || '' }}
+          RELEASE_BUILDS: ${{ (startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.release_builds)) && '--release-builds' || '' }}
         run: Scripts/check_examples_linux.sh --skip-clean $RELEASE_BUILDS
 
   app-logic:
@@ -305,5 +311,5 @@ jobs:
         shell: bash
         working-directory: swift-tui-examples
         env:
-          RELEASE_BUILDS: ${{ startsWith(github.ref, 'refs/tags/') && '--release-builds' || '' }}
+          RELEASE_BUILDS: ${{ (startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.release_builds)) && '--release-builds' || '' }}
         run: Scripts/check_examples_macos.sh --skip-clean $RELEASE_BUILDS

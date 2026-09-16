@@ -35,27 +35,27 @@ mkdir -p \
   "$semantic_package" \
   "$special_checkout"
 
-cat >"$public_dump" <<'EOF'
-{
-  "name": "mrkdwn",
-  "dependencies": [
-    {
-      "sourceControl": [{
-        "identity": "swift-tui",
-        "location": {"remote": [{"urlString": "https://github.com/SwiftTUI/swift-tui.git"}]},
-        "requirement": {"range": [{"lowerBound": "0.13.4", "upperBound": "0.13.4"}]}
-      }]
-    },
-    {
-      "sourceControl": [{
-        "identity": "swift-markdown",
-        "location": {"remote": [{"urlString": "https://github.com/swiftlang/swift-markdown.git"}]},
-        "requirement": {"range": [{"lowerBound": "0.8.0", "upperBound": "0.9.0"}]}
-      }]
-    }
-  ]
-}
-EOF
+# Read the versioned contract so a release bump cannot turn this positive
+# fixture into an empty dependency range.
+"$real_python" - "$validator" "$public_dump" <<'PY'
+import json
+import runpy
+import sys
+
+contract_module = runpy.run_path(sys.argv[1])
+dependencies = []
+for identity, contract in contract_module["PUBLIC_DEPENDENCIES"].items():
+    dependencies.append({"sourceControl": [{
+        "identity": identity,
+        "location": {"remote": [{"urlString": contract["url"]}]},
+        "requirement": {"range": [{
+            "lowerBound": contract["lower"],
+            "upperBound": contract_module["up_to_next_minor"](contract["lower"]),
+        }]},
+    }]})
+with open(sys.argv[2], "w", encoding="utf-8") as handle:
+    json.dump({"name": "mrkdwn", "dependencies": dependencies}, handle)
+PY
 
 cat >"$overlay_dump" <<EOF
 {
@@ -180,6 +180,9 @@ expect_contract_failure \
 cat >"$fake_bin/swiftly" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$SWIFTTUI_EXAMPLES_SWIFTLY_LOG"
+if [[ "$*" == "run which swiftc" ]]; then
+  printf '/fake/swift-toolchain/usr/bin/swiftc\n'
+fi
 if [[ "$*" == *" dump-package" ]]; then
   cat "$SWIFTTUI_EXAMPLES_OVERLAY_DUMP"
 fi
@@ -376,6 +379,26 @@ PATH="$fake_bin:$PATH" \
   SWIFTTUI_EXAMPLES_XCODE_LOG="$xcode_log" \
   SWIFTTUI_EXAMPLES_SWIFTPM_SCRATCH="$scratch_path" \
   "$repo_root/Scripts/check_examples_linux.sh" --skip-bun-install --release-builds >/dev/null
+
+"$real_python" - "$swiftly_log" <<'PY'
+import pathlib
+import shlex
+import sys
+
+configurations = []
+for line in pathlib.Path(sys.argv[1]).read_text().splitlines():
+    args = shlex.split(line)
+    if args[:3] == ["run", "swift", "test"]:
+        break
+    if args[:3] == ["run", "swift", "build"]:
+        configurations.append(args[args.index("-c") + 1] if "-c" in args else "debug")
+assert "debug" in configurations and "release" in configurations, configurations
+release_start = configurations.index("release")
+assert all(value == "release" for value in configurations[release_start:]), (
+    "Debug builds must finish before release builds to preserve Swift Build's cache",
+    configurations,
+)
+PY
 
 if [ -s "$xcode_log" ]; then
   echo "Did not expect the Linux examples lane to invoke xcodebuild" >&2

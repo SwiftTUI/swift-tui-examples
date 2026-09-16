@@ -669,102 +669,76 @@ run_linux_examples() {
 
   print_section "Linux build-only coverage"
 
-  for package_path in \
-    "minimal" \
-    "hot-reload" \
-    "equatable-demo" \
-    "argparse" \
-    "sextant" \
-    "gifcat" \
-    "gifeditor" \
-    "git-viz" \
-    "terminal-workspace"; do
-    run_step \
-      "Build $package_path" \
-      "$repo_root" \
-      run_swift build --package-path "$package_path"
-
-    if [ "$release_builds" -eq 1 ]; then
-      run_step \
-        "Build $package_path (release)" \
-        "$repo_root" \
-        run_swift build -c release --package-path "$package_path"
+  # Swift Build invalidates cached release products after a debug build in
+  # the same scratch directory. Finish each configuration before switching,
+  # so the shared framework is optimized once instead of for every example.
+  configurations=debug
+  if [ "$release_builds" -eq 1 ]; then
+    configurations="$configurations release"
+  fi
+  for configuration in $configurations; do
+    set --
+    configuration_label=""
+    if [ "$configuration" = release ]; then
+      set -- -c release
+      configuration_label=" (release)"
     fi
-  done
 
-  run_step \
-    "Build mrkdwn" \
-    "$repo_root" \
-    run_swift build --package-path "$mrkdwn_package_path"
+    for package_path in \
+      "minimal" \
+      "hot-reload" \
+      "equatable-demo" \
+      "argparse" \
+      "sextant" \
+      "gifcat" \
+      "gifeditor" \
+      "git-viz" \
+      "terminal-workspace"; do
+      run_step \
+        "Build $package_path$configuration_label" \
+        "$repo_root" \
+        run_swift build "$@" --package-path "$package_path"
+    done
 
-  if [ "$release_builds" -eq 1 ]; then
     run_step \
-      "Build mrkdwn (release)" \
+      "Build mrkdwn$configuration_label" \
       "$repo_root" \
-      run_swift build -c release --package-path "$mrkdwn_package_path"
-  fi
+      run_swift build "$@" --package-path "$mrkdwn_package_path"
 
-  run_step \
-    "Build csvui" \
-    "$repo_root" \
-    run_swift build --package-path "$csvui_package_path"
-
-  if [ "$release_builds" -eq 1 ]; then
     run_step \
-      "Build csvui (release)" \
+      "Build csvui$configuration_label" \
       "$repo_root" \
-      run_swift build -c release --package-path "$csvui_package_path"
-  fi
+      run_swift build "$@" --package-path "$csvui_package_path"
 
-  run_step \
-    "Build gallery" \
-    "$repo_root" \
-    run_swift build --package-path gallery
-
-  if [ "$release_builds" -eq 1 ]; then
     run_step \
-      "Build gallery (release)" \
+      "Build gallery$configuration_label" \
       "$repo_root" \
-      run_swift build -c release --package-path gallery
-  fi
+      run_swift build "$@" --package-path gallery
 
-  run_test_step \
-    "Stack safety gallery (debug)" \
-    "$repo_root" \
-    python3 Scripts/stack_safety_harness.py \
-      --binary "$(swiftpm_binary_path gallery debug gallery-demo)" \
-      --count 20
-
-  if [ "$release_builds" -eq 1 ]; then
     run_test_step \
-      "Stack safety gallery (release)" \
+      "Stack safety gallery ($configuration)" \
       "$repo_root" \
       python3 Scripts/stack_safety_harness.py \
-        --binary "$(swiftpm_binary_path gallery release gallery-demo)" \
+        --binary "$(swiftpm_binary_path gallery "$configuration" gallery-demo)" \
         --count 20
-  fi
 
-  run_step \
-    "Build layouts" \
-    "$repo_root" \
-    run_swift build --package-path layouts
-
-  if [ "$release_builds" -eq 1 ]; then
     run_step \
-      "Build layouts (release)" \
+      "Build layouts$configuration_label" \
       "$repo_root" \
-      run_swift build -c release --package-path layouts
-  fi
+      run_swift build "$@" --package-path layouts
 
-  run_step \
-    "Build SwiftUIExample/TerminalApp" \
-    "$repo_root" \
-    run_swift build --package-path SwiftUIExample/TerminalApp
+    if [ "$configuration" = debug ]; then
+      run_step \
+        "Build SwiftUIExample/TerminalApp" \
+        "$repo_root" \
+        run_swift build --package-path SwiftUIExample/TerminalApp
 
-  run_step \
-    "Build WebHostExample" \
-    "$repo_root" \
-    run_swift build --package-path WebHostExample
+      run_step \
+        "Build WebHostExample" \
+        "$repo_root" \
+        run_swift build --package-path WebHostExample
+    fi
+  done
 
   print_section "Linux framework-seam tests"
 
@@ -864,19 +838,17 @@ run_macos_examples() {
     "$repo_root" \
     run_swift build --package-path "$mrkdwn_package_path"
 
-  if [ "$release_builds" -eq 1 ]; then
-    run_step \
-      "Build mrkdwn (release)" \
-      "$repo_root" \
-      run_swift build -c release --package-path "$mrkdwn_package_path"
-  fi
-
   run_step \
     "Build csvui" \
     "$repo_root" \
     run_swift build --package-path "$csvui_package_path"
 
   if [ "$release_builds" -eq 1 ]; then
+    run_step \
+      "Build mrkdwn (release)" \
+      "$repo_root" \
+      run_swift build -c release --package-path "$mrkdwn_package_path"
+
     run_step \
       "Build csvui (release)" \
       "$repo_root" \
