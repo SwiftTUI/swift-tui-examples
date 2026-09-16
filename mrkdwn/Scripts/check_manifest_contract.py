@@ -17,7 +17,7 @@ PUBLIC_DEPENDENCIES = {
         "url": "https://github.com/SwiftTUI/swift-tui.git",
         "lower": "0.13.4",
         "resolved": "0.13.4",
-        "revision": "c0319890ae5e12828d37cd657c62169bcdbf9cca",
+        "revision": "9057e7d63c107ba4ab773fc5e2c7763562d2ed94",
     },
     "swift-markdown": {
         "url": "https://github.com/swiftlang/swift-markdown.git",
