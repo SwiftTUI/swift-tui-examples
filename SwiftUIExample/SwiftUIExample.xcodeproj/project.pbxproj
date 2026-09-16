@@ -142,7 +142,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastUpgradeCheck = 2640;
+				LastUpgradeCheck = 2700;
 				TargetAttributes = {
 					B246CF60B1838184DB3DB021 = {
 						CreatedOnToolsVersion = 26.4;
@@ -514,7 +514,7 @@
 			repositoryURL = "https://github.com/SwiftTUI/swift-tui.git";
 			requirement = {
 				kind = exactVersion;
-				version = 0.13.4;
+				version = 0.13.5;
 			};
 		};
 		4CF7B89AAF3BD3525777216E /* XCRemoteSwiftPackageReference "swift-tui-swiftui" */ = {
@@ -522,7 +522,7 @@
 			repositoryURL = "https://github.com/SwiftTUI/swift-tui-swiftui.git";
 			requirement = {
 				kind = exactVersion;
-				version = 0.13.4;
+				version = 0.13.5;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */

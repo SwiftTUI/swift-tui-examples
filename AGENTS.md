@@ -40,9 +40,10 @@ swiftly run swift test --package-path <example>        # test one example
 `Scripts/check_examples.sh --skip-clean`. Examples without focused test targets
 are still build-checked by that script. CI lanes: framework seam on every
 push (debug builds + framework-exercising suites, silence watchdog on every
-step), app-logic matrix when a package changes or on tags, macOS on
-dispatch/tags, and the six-hourly `Framework HEAD seam` (see README § Tests).
-Release builds are `--release-builds` (tags only).
+step), app-logic matrix when a package changes or on dispatch/tags, macOS on
+main pushes/dispatch/tags, and the six-hourly `Framework HEAD seam` (see README
+§ Tests). Release builds use `--release-builds`; CI runs them on tags and
+dispatches with `release_builds=true`.
 
 ## Notes
 
