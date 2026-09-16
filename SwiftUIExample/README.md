@@ -8,6 +8,9 @@
 open SwiftUIExample/SwiftUIExample.xcodeproj
 ```
 
+Use Xcode 27 or newer, which includes Swift 6.4. The repository gate selects
+the Swiftly-managed compiler explicitly while Xcode provides the SDK and linker.
+
 Run the `SwiftUIExample` scheme from Xcode. To build the reusable scene package
 without Xcode, run:
 

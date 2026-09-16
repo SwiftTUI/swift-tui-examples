@@ -248,7 +248,9 @@ jobs:
 
   macos-examples:
     name: macOS examples
-    runs-on: macos-26
+    # Xcode's package resolver must understand Swift tools 6.4 as well as the
+    # installed Swift compiler. The macos-26 image still defaults to Xcode 26.
+    runs-on: xcode-27
     # Runs on pushes to main, on tags, and on demand (`workflow_dispatch` +
     # `run_macos`). Plan 2026-08-25-001 Stage 1e/5 had made this dispatch- and
     # tag-only on cost grounds, with the Linux lanes carrying the push signal;

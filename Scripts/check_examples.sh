@@ -584,6 +584,9 @@ print_failures() {
 }
 
 run_xcodebuild_swiftui_example() {
+  # xcodebuild does not select the compiler from PATH. Pin Swift to the same
+  # released compiler as SwiftPM while Xcode supplies the SDK and linker.
+  swift_compiler=$(swiftly run which swiftc)
   set -- \
     xcodebuild \
     -project SwiftUIExample/SwiftUIExample.xcodeproj \
@@ -599,6 +602,7 @@ run_xcodebuild_swiftui_example() {
     CODE_SIGNING_ALLOWED=NO \
     CODE_SIGNING_REQUIRED=NO \
     CODE_SIGN_IDENTITY= \
+    SWIFT_EXEC="$swift_compiler" \
     SWIFT_SUPPRESS_WARNINGS=NO
 
   if [ "$skip_clean" -eq 0 ]; then

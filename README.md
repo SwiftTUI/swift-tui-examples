@@ -34,8 +34,11 @@ proves, or jump straight to a package in [By product](#by-product).
 - **Swift 6.4.x** (`.swift-version` pins 6.4.0).
 - Commands below use **[`swiftly`](https://www.swift.org/swiftly/)** so every example builds
   against the repository pinned toolchain. If Swift 6.4.x is active through
-  Xcode 26 or `PATH`, remove the `swiftly run` prefix. Then run the bare
+  Xcode 27 or `PATH`, remove the `swiftly run` prefix. Then run the bare
   `swift ...` command.
+- **Xcode 27 or newer** for the `SwiftUIExample` Xcode project. Its package
+  resolver must support Swift tools 6.4. The repository gate selects the
+  Swiftly-managed compiler explicitly for this build.
 
 Run from the repo root unless a local README says otherwise.
 

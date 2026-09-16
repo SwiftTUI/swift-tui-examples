@@ -57,7 +57,7 @@ require_text "--release-builds" "$workflow"
 # 2026-08-25-001 Stage 1e/5); macOS is the primary user platform and a tag is a
 # late place to first hear about it.
 require_text "macOS examples" "$workflow"
-require_text "runs-on: macos-26" "$workflow"
+require_text "runs-on: xcode-27" "$workflow"
 require_text "Scripts/check_examples_macos.sh --skip-clean" "$workflow"
 require_text "(github.event_name == 'workflow_dispatch' && inputs.run_macos)" "$workflow"
 require_text "|| (github.event_name == 'push')" "$workflow"
