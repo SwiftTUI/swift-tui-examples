@@ -16,7 +16,7 @@ PUBLIC_DEPENDENCIES = {
         "url": "https://github.com/SwiftTUI/swift-tui.git",
         "lower": "0.14.0",
         "resolved": "0.14.0",
-        "revision": "dc91163d40100f6e3c17d0a548c60fd4f9a20cff",
+        "revision": "581c3ab7e2383ce86fcebe36e81041aecac443a5",
     }
 }
 SWIFT_TUI_CONTRACT = PUBLIC_DEPENDENCIES["swift-tui"]
