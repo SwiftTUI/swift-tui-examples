@@ -615,6 +615,10 @@ run_xcodebuild_swiftui_example() {
 }
 
 run_layouts_tests_or_skip() {
+  run_test_step \
+    "Test layout comparison geometry" \
+    "$repo_root" \
+    run_swift test --package-path layouts --filter LayoutComparisonBoundsTests
   if [ "${SWIFTTUI_EXAMPLES_LAYOUTS_TESTS:-0}" = "1" ]; then
     run_test_step \
       "Test layouts" \
