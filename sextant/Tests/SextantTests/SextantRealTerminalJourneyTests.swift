@@ -251,8 +251,11 @@ struct SextantRealTerminalJourneyTests {
             launch: PreviewLaunch(
               adapterID: PreviewAdapterID("journey-cat"),
               adapterName: "Journey cat",
-              executable: "/bin/cat",
-              arguments: ["-v"],
+              executable: "/bin/sh",
+              arguments: [
+                "-c", "printf 'CHILD_READY:%s\\n' \"$1\"; exec /bin/cat -v",
+                "sextant-journey", item.name,
+              ],
               isInteractive: true
             ),
             fallback: fallback
@@ -305,175 +308,199 @@ struct SextantRealTerminalJourneyTests {
       }
     }
 
-    var screen = ANSIVisibleScreen(size: initialSize)
-    let initialScreen = try await waitForANSIVisibleScreen(
-      on: pty.master,
-      screen: &screen,
-      deadline: .now() + .seconds(15)
-    ) { rendered in
-      rendered.contains("first.txt")
-        && rendered.contains("second.txt")
-        && rendered.contains("BROWSER")
-    }
-    #expect(initialScreen.contains("Preview"))
-    try await Self.waitForModel(
-      deadline: ContinuousClock().now + .seconds(5)
-    ) {
-      model.state.selectedItem?.url == firstFile.standardizedFileURL
-    }
-    let initialSelectedID = try #require(model.state.activeDirectory?.selectedItemID)
-
-    // Right is directory-only, so it must leave the browser focused; Return is
-    // what focuses a file's preview.
-    try writeAllBytes([0x1B, 0x5B, 0x43], to: pty.master)
-    try await Self.waitForModel(
-      deadline: ContinuousClock().now + .seconds(5)
-    ) {
-      model.state.focus == .browser(rootID)
-    }
-    try writeAllBytes([0x0D], to: pty.master)
-    let previewScreen = try await waitForANSIVisibleScreen(
-      on: pty.master,
-      screen: &screen,
-      deadline: .now() + .seconds(15)
-    ) {
-      $0.contains("PREVIEW")
-        && $0.contains("first.txt")
-        && $0.contains("Journey cat · ready")
-    }
-    let firstSession = try await capture.waitForSession(
-      count: 1,
-      deadline: ContinuousClock().now + .seconds(5)
-    )
-    let childSizeBeforeResize = try await Self.waitForLayoutSize(
-      of: firstSession,
-      differentFrom: CellSize(width: 80, height: 40),
-      deadline: ContinuousClock().now + .seconds(5)
-    )
-
-    // A real child arrow sequence must reach the nested terminal.
-    try writeAllBytes([0x1B, 0x5B, 0x42, 0x0D], to: pty.master)
-    let childScreen = try await waitForANSIVisibleScreen(
-      on: pty.master,
-      screen: &screen,
-      deadline: .now() + .seconds(15)
-    ) { $0.contains("^[[B") }
-    #expect(childScreen.contains("PREVIEW"))
-
-    // Resize the real outer PTY, deliver SIGWINCH, and require both a changed
-    // visible render and changed embedded-child layout geometry.
-    try Self.resize(fileDescriptor: pty.slave, to: resizedSize)
-    signalReader.send("SIGWINCH")
-    screen = ANSIVisibleScreen(size: resizedSize)
-    let resizedScreen = try await waitForANSIVisibleScreen(
-      on: pty.master,
-      screen: &screen,
-      deadline: .now() + .seconds(15)
-    ) {
-      $0.contains("PREVIEW")
-        && $0.contains("first.txt")
-        && $0.contains("Journey cat")
-    }
-    let childSizeAfterResize = try await Self.waitForLayoutSize(
-      of: firstSession,
-      differentFrom: childSizeBeforeResize,
-      deadline: ContinuousClock().now + .seconds(5)
-    )
-    #expect(host.surfaceSize == resizedSize)
-    #expect(childSizeAfterResize != childSizeBeforeResize)
-    #expect(resizedScreen != previewScreen)
-
-    // Host Escape must not reach the child and must preserve the browser row.
-    try writeAllBytes([0x1B], to: pty.master)
-    _ = try await waitForANSIVisibleScreen(
-      on: pty.master,
-      screen: &screen,
-      deadline: .now() + .seconds(15)
-    ) { $0.contains("BROWSER") && $0.contains("first.txt") }
-    try await Self.waitForModel(
-      deadline: ContinuousClock().now + .seconds(5)
-    ) {
-      model.state.focus == .browser(rootID)
-    }
-    #expect(model.state.activeDirectory?.selectedItemID == initialSelectedID)
-
-    // Down replaces the preview while browser focus remains active.
-    try writeAllBytes([0x1B, 0x5B, 0x42], to: pty.master)
-    _ = try await waitForANSIVisibleScreen(
-      on: pty.master,
-      screen: &screen,
-      deadline: .now() + .seconds(15)
-    ) { rendered in
-      rendered.contains("BROWSER")
-        && rendered.components(separatedBy: "second.txt").count >= 2
-    }
-    try await Self.waitForModel(
-      deadline: ContinuousClock().now + .seconds(5)
-    ) {
-      model.state.selectedItem?.url == secondFile.standardizedFileURL
-    }
-    let secondSession = try await capture.waitForSession(
-      count: 2,
-      deadline: ContinuousClock().now + .seconds(5)
-    )
-    try await Self.waitForExit(
-      of: firstSession,
-      deadline: ContinuousClock().now + .seconds(5)
-    )
-
-    // Tab is the second browser-to-preview transition.
-    try writeAllBytes([0x09], to: pty.master)
-    _ = try await waitForANSIVisibleScreen(
-      on: pty.master,
-      screen: &screen,
-      deadline: .now() + .seconds(15)
-    ) {
-      $0.contains("PREVIEW")
-        && $0.contains("second.txt")
-        && $0.contains("Journey cat · ready")
-    }
-    try writeAllBytes([0x1B, 0x5B, 0x41, 0x0D], to: pty.master)
-    _ = try await waitForANSIVisibleScreen(
-      on: pty.master,
-      screen: &screen,
-      deadline: .now() + .seconds(15)
-    ) { $0.contains("^[[A") }
-
-    try writeAllBytes([0x1B], to: pty.master)
-    _ = try await waitForANSIVisibleScreen(
-      on: pty.master,
-      screen: &screen,
-      deadline: .now() + .seconds(15)
-    ) { $0.contains("BROWSER") && $0.contains("second.txt") }
-    #expect(model.state.selectedItem?.url == secondFile.standardizedFileURL)
-
-    let shutdownDrain = PTYOutputDrain(fileDescriptor: pty.master)
-    try writeAllBytes([0x04], to: pty.master)
+    var shutdownDrain: PTYOutputDrain?
     do {
-      try await capture.waitForShutdown(
+      var screen = ANSIVisibleScreen(size: initialSize)
+      let initialScreen = try await waitForANSIVisibleScreen(
+        on: pty.master,
+        screen: &screen,
+        deadline: .now() + .seconds(15)
+      ) { rendered in
+        rendered.contains("first.txt")
+          && rendered.contains("second.txt")
+          && rendered.contains("BROWSER")
+      }
+      #expect(initialScreen.contains("Preview"))
+      try await Self.waitForModel(
+        deadline: ContinuousClock().now + .seconds(5)
+      ) {
+        model.state.selectedItem?.url == firstFile.standardizedFileURL
+      }
+      let initialSelectedID = try #require(model.state.activeDirectory?.selectedItemID)
+
+      // Right is directory-only, so it must leave the browser focused; Return is
+      // what focuses a file's preview.
+      try writeAllBytes([0x1B, 0x5B, 0x43], to: pty.master)
+      try await Self.waitForModel(
+        deadline: ContinuousClock().now + .seconds(5)
+      ) {
+        model.state.focus == .browser(rootID)
+      }
+      try writeAllBytes([0x0D], to: pty.master)
+      let previewScreen = try await waitForANSIVisibleScreen(
+        on: pty.master,
+        screen: &screen,
+        deadline: .now() + .seconds(15)
+      ) {
+        $0.contains("PREVIEW")
+          && $0.contains("first.txt")
+          && $0.contains("Journey cat · ready")
+          && $0.contains("CHILD_READY:first.txt")
+      }
+      let firstSession = try await capture.waitForSession(
+        count: 1,
         deadline: ContinuousClock().now + .seconds(5)
       )
+      let childSizeBeforeResize = try await Self.waitForLayoutSize(
+        of: firstSession,
+        differentFrom: CellSize(width: 80, height: 40),
+        deadline: ContinuousClock().now + .seconds(5)
+      )
+
+      // A real child arrow sequence must reach the nested terminal.
+      try writeAllBytes([0x1B, 0x5B, 0x42, 0x0D], to: pty.master)
+      let childScreen = try await waitForANSIVisibleScreen(
+        on: pty.master,
+        screen: &screen,
+        deadline: .now() + .seconds(15)
+      ) { $0.contains("^[[B") }
+      #expect(childScreen.contains("PREVIEW"))
+
+      // Resize the real outer PTY, deliver SIGWINCH, and require both a changed
+      // visible render and changed embedded-child layout geometry.
+      try Self.resize(fileDescriptor: pty.slave, to: resizedSize)
+      signalReader.send("SIGWINCH")
+      screen = ANSIVisibleScreen(size: resizedSize)
+      let resizedScreen = try await waitForANSIVisibleScreen(
+        on: pty.master,
+        screen: &screen,
+        deadline: .now() + .seconds(15)
+      ) {
+        $0.contains("PREVIEW")
+          && $0.contains("first.txt")
+          && $0.contains("Journey cat")
+      }
+      let childSizeAfterResize = try await Self.waitForLayoutSize(
+        of: firstSession,
+        differentFrom: childSizeBeforeResize,
+        deadline: ContinuousClock().now + .seconds(5)
+      )
+      #expect(host.surfaceSize == resizedSize)
+      #expect(childSizeAfterResize != childSizeBeforeResize)
+      #expect(resizedScreen != previewScreen)
+
+      // Host Escape must not reach the child and must preserve the browser row.
+      try writeAllBytes([0x1B], to: pty.master)
+      _ = try await waitForANSIVisibleScreen(
+        on: pty.master,
+        screen: &screen,
+        deadline: .now() + .seconds(15)
+      ) { $0.contains("BROWSER") && $0.contains("first.txt") }
+      try await Self.waitForModel(
+        deadline: ContinuousClock().now + .seconds(5)
+      ) {
+        model.state.focus == .browser(rootID)
+      }
+      #expect(model.state.activeDirectory?.selectedItemID == initialSelectedID)
+
+      // Down replaces the preview while browser focus remains active.
+      try writeAllBytes([0x1B, 0x5B, 0x42], to: pty.master)
+      _ = try await waitForANSIVisibleScreen(
+        on: pty.master,
+        screen: &screen,
+        deadline: .now() + .seconds(15)
+      ) { rendered in
+        rendered.contains("BROWSER")
+          && rendered.components(separatedBy: "second.txt").count >= 2
+      }
+      try await Self.waitForModel(
+        deadline: ContinuousClock().now + .seconds(5)
+      ) {
+        model.state.selectedItem?.url == secondFile.standardizedFileURL
+      }
+      let secondSession = try await capture.waitForSession(
+        count: 2,
+        deadline: ContinuousClock().now + .seconds(5)
+      )
+      try await Self.waitForExit(
+        of: firstSession,
+        deadline: ContinuousClock().now + .seconds(5)
+      )
+
+      // Capturing the process precedes delivery of its preview event to the
+      // model. Wait for the replacement to render before asking Tab to focus
+      // it; otherwise Tab can target the temporary loading view instead.
+      _ = try await waitForANSIVisibleScreen(
+        on: pty.master,
+        screen: &screen,
+        deadline: .now() + .seconds(15)
+      ) {
+        $0.contains("BROWSER")
+          && $0.contains("Journey cat · ready")
+          && $0.contains("CHILD_READY:second.txt")
+      }
+
+      // Tab is the second browser-to-preview transition.
+      try writeAllBytes([0x09], to: pty.master)
+      _ = try await waitForANSIVisibleScreen(
+        on: pty.master,
+        screen: &screen,
+        deadline: .now() + .seconds(15)
+      ) {
+        $0.contains("PREVIEW")
+          && $0.contains("second.txt")
+          && $0.contains("Journey cat · ready")
+          && $0.contains("CHILD_READY:second.txt")
+      }
+      try writeAllBytes([0x1B, 0x5B, 0x41, 0x0D], to: pty.master)
+      _ = try await waitForANSIVisibleScreen(
+        on: pty.master,
+        screen: &screen,
+        deadline: .now() + .seconds(15)
+      ) { $0.contains("^[[A") }
+
+      try writeAllBytes([0x1B], to: pty.master)
+      _ = try await waitForANSIVisibleScreen(
+        on: pty.master,
+        screen: &screen,
+        deadline: .now() + .seconds(15)
+      ) { $0.contains("BROWSER") && $0.contains("second.txt") }
+      #expect(model.state.selectedItem?.url == secondFile.standardizedFileURL)
+
+      shutdownDrain = PTYOutputDrain(fileDescriptor: pty.master)
+      try writeAllBytes([0x04], to: pty.master)
+      do {
+        try await capture.waitForShutdown(
+          deadline: ContinuousClock().now + .seconds(5)
+        )
+      } catch {
+        runTask.cancel()
+        throw error
+      }
+      _ = try await runTask.value
+      await shutdownDrain?.cancel()
+
+      let sessions = await capture.allSessions()
+      #expect(sessions.count == 2)
+      for session in sessions {
+        try await Self.waitForExit(
+          of: session,
+          deadline: ContinuousClock().now + .seconds(5)
+        )
+      }
+      if case .exited = await secondSession.currentLifecycle() {
+        // Expected: runner-owned BrowserModel shutdown drains the last child.
+      } else {
+        Issue.record("The current preview child remained alive after shutdown.")
+      }
+      #expect(await capture.isShutdownComplete())
     } catch {
       runTask.cancel()
+      pty.closeMaster()
+      _ = try? await runTask.value
+      await shutdownDrain?.cancel()
       throw error
     }
-    _ = try await runTask.value
-    await shutdownDrain.cancel()
-
-    let sessions = await capture.allSessions()
-    #expect(sessions.count == 2)
-    for session in sessions {
-      try await Self.waitForExit(
-        of: session,
-        deadline: ContinuousClock().now + .seconds(5)
-      )
-    }
-    if case .exited = await secondSession.currentLifecycle() {
-      // Expected: runner-owned BrowserModel shutdown drains the last child.
-    } else {
-      Issue.record("The current preview child remained alive after shutdown.")
-    }
-    #expect(await capture.isShutdownComplete())
   }
 
   nonisolated private static func fallback(for item: BrowserItem) -> BuiltInPreview {
