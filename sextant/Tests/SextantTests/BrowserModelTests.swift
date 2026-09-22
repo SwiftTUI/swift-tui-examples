@@ -1,10 +1,12 @@
 import Foundation
 import SwiftTUITerminalView
+@_spi(Testing) import SwiftTUITestSupport
 import Testing
 
 @testable import Sextant
 
 @MainActor
+@Suite(.timeLimit(.minutes(1)))
 struct BrowserModelTests {
   @Test("initial load selects the first visible item")
   func initialLoadSelectsFirstItem() async throws {
@@ -608,6 +610,61 @@ struct BrowserModelTests {
 }
 
 @MainActor
+@Suite(.timeLimit(.minutes(1)))
+struct ScriptedBrowserRequestTests {
+  @Test func cancellationBeforeAndAfterRegistration() async throws {
+    let loader = ScriptedDirectoryLoader()
+    let before = Task { try await loader.waitForRequest(count: 1) }
+    before.cancel()
+    await #expect(throws: CancellationError.self) { try await before.value }
+    let registered = AsyncEvent()
+    let after = Task {
+      try await loader.waitForRequest(count: 1, onWaiting: { registered.fire() })
+    }
+    await registered.wait()
+    #expect(await loader.waitingCount() == 1)
+    after.cancel()
+    await #expect(throws: CancellationError.self) { try await after.value }
+    #expect(await loader.waitingCount() == 0)
+  }
+
+  @Test func multipleWaitersObserveResponseReadyRequest() async throws {
+    let fixture = BrowserModelFixture()
+    let registered = (0..<3).map { _ in AsyncEvent() }
+    let observers = registered.map { ready in
+      Task { try await fixture.loader.waitForRequest(count: 1, onWaiting: { ready.fire() }) }
+    }
+    for ready in registered { await ready.wait() }
+    #expect(await fixture.loader.waitingCount() == 3)
+    // No loader has been started yet: consumers stay suspended until this
+    // producer is released, independent of the scheduler's elapsed time.
+    fixture.model.send(.start)
+    let first = try await observers[0].value
+    for observer in observers {
+      #expect(try await observer.value.id == first.id)
+    }
+    #expect(try await fixture.loader.waitForRequest(count: 1).id == first.id)
+    #expect(await fixture.loader.waitingCount() == 0)
+    let item = fixture.file("ready.txt", in: first)
+    await fixture.loader.respond(to: first.id, with: .success(fixture.snapshot(first, [item])))
+    try await waitUntil { fixture.model.state.activeDirectory?.selectedItemID == item.id }
+    await fixture.model.shutdown()
+  }
+
+  @Test func teardownFinishesPendingObservers() async {
+    let loader = ScriptedDirectoryLoader()
+    let registered = AsyncEvent()
+    let observer = Task {
+      try await loader.waitForRequest(count: 1, onWaiting: { registered.fire() })
+    }
+    await registered.wait()
+    await loader.finish()
+    await #expect(throws: CancellationError.self) { try await observer.value }
+    #expect(await loader.waitingCount() == 0)
+  }
+}
+
+@MainActor
 private final class BrowserModelFixture {
   let root = URL(fileURLWithPath: "/fixture")
   let rootID = DirectoryID(identity: .path("/fixture"))
@@ -658,6 +715,9 @@ private final class BrowserModelFixture {
         inspectLaunchPath: inspectLaunchPath,
         resolveFileSystemIdentity: resolveFileSystemIdentity,
         shutdown: {
+          await loader.finish()
+          await preview.finish()
+          await directoryWindow.finish()
           await lifecycle.recordShutdown()
         }
       )
@@ -728,6 +788,7 @@ private final class BrowserModelFixture {
 }
 
 private actor RecordingDirectoryWindow {
+  private var changes = ScriptedChangeSignal()
   private var watched: [[URL]] = []
   private var pinned: [[DirectoryRequest]] = []
   private var continuation: AsyncStream<DirectoryWatchEvent>.Continuation?
@@ -737,6 +798,7 @@ private actor RecordingDirectoryWindow {
     return AsyncStream { continuation in
       self.continuation?.finish()
       self.continuation = continuation
+      changes.notify()
     }
   }
 
@@ -752,20 +814,28 @@ private actor RecordingDirectoryWindow {
     pinned.last?.map(\.directoryID) ?? []
   }
 
+  func finish() {
+    continuation?.finish()
+    continuation = nil
+    changes.finish()
+  }
+
   func waitForLatestWatchedURLs(_ expected: [URL]) async throws {
     let expected = expected.map(\.standardizedFileURL)
-    let clock = ContinuousClock()
-    let deadline = clock.now + .seconds(1)
-    while watched.last != expected, clock.now < deadline {
-      await Task.yield()
+    try Task.checkCancellation()
+    if watched.last == expected { return }
+    let (id, stream) = changes.subscribe()
+    defer { changes.remove(id) }
+    for await _ in stream {
+      try Task.checkCancellation()
+      if watched.last == expected { return }
     }
-    guard watched.last == expected else {
-      throw BrowserModelTestFailure.timedOut
-    }
+    throw CancellationError()
   }
 }
 
 private actor ScriptedDirectoryLoader {
+  private var changes = ScriptedChangeSignal()
   private var recordedRequests: [DirectoryRequest] = []
   private var continuations:
     [DirectoryRequestID:
@@ -775,10 +845,18 @@ private actor ScriptedDirectoryLoader {
   func load(
     _ request: DirectoryRequest
   ) async -> Result<DirectorySnapshot, FileSystemFailure> {
-    recordedRequests.append(request)
     return await withTaskCancellationHandler {
       await withCheckedContinuation { continuation in
+        if Task.isCancelled {
+          cancelledRequests.insert(request.id)
+          continuation.resume(returning: .failure(.cancelled))
+          return
+        }
         continuations[request.id] = continuation
+        // Publish only once respond(to:) can consume the continuation. Both
+        // registration and observer notification occur in this actor turn.
+        recordedRequests.append(request)
+        changes.notify()
       }
     } onCancel: {
       Task {
@@ -802,16 +880,32 @@ private actor ScriptedDirectoryLoader {
     continuations.removeValue(forKey: requestID)?.resume(returning: result)
   }
 
-  func waitForRequest(count: Int) async throws -> DirectoryRequest {
-    let clock = ContinuousClock()
-    let deadline = clock.now + .seconds(1)
-    while recordedRequests.count < count, clock.now < deadline {
-      await Task.yield()
+  func waitForRequest(
+    count: Int,
+    onWaiting: @Sendable () -> Void = {}
+  ) async throws -> DirectoryRequest {
+    precondition(count > 0)
+    try Task.checkCancellation()
+    if recordedRequests.count >= count { return recordedRequests[count - 1] }
+    let (id, stream) = changes.subscribe()
+    defer { changes.remove(id) }
+    onWaiting()
+    for await _ in stream {
+      try Task.checkCancellation()
+      if recordedRequests.count >= count { return recordedRequests[count - 1] }
     }
-    guard recordedRequests.count >= count else {
-      throw BrowserModelTestFailure.timedOut
-    }
-    return recordedRequests[count - 1]
+    throw CancellationError()
+  }
+
+  func finish() {
+    changes.finish()
+    let pending = continuations
+    continuations.removeAll()
+    for continuation in pending.values { continuation.resume(returning: .failure(.cancelled)) }
+  }
+
+  func waitingCount() -> Int {
+    changes.count
   }
 
   private func cancel(_ requestID: DirectoryRequestID) {
@@ -821,6 +915,7 @@ private actor ScriptedDirectoryLoader {
 }
 
 private actor ScriptedPreview {
+  private var changes = ScriptedChangeSignal()
   struct Request: Sendable {
     var item: BrowserItem
     var directorySnapshot: DirectorySnapshot?
@@ -844,11 +939,19 @@ private actor ScriptedPreview {
     )
     return AsyncStream { continuation in
       continuations[generation] = continuation
+      changes.notify()
     }
   }
 
   func requests() -> [Request] {
     recordedRequests
+  }
+
+  func finish() {
+    changes.finish()
+    let pending = continuations
+    continuations.removeAll()
+    for continuation in pending.values { continuation.finish() }
   }
 
   func send(
@@ -859,15 +962,51 @@ private actor ScriptedPreview {
   }
 
   func waitForRequest(count: Int) async throws -> Request {
-    let clock = ContinuousClock()
-    let deadline = clock.now + .seconds(1)
-    while recordedRequests.count < count, clock.now < deadline {
-      await Task.yield()
+    precondition(count > 0)
+    try Task.checkCancellation()
+    if recordedRequests.count >= count { return recordedRequests[count - 1] }
+    let (id, stream) = changes.subscribe()
+    defer { changes.remove(id) }
+    for await _ in stream {
+      try Task.checkCancellation()
+      if recordedRequests.count >= count { return recordedRequests[count - 1] }
     }
-    guard recordedRequests.count >= count else {
-      throw BrowserModelTestFailure.timedOut
+    throw CancellationError()
+  }
+}
+
+/// Owned by the scripted actor, so checking state, subscribing, and publishing
+/// never cross an await. AsyncStream supplies cancellation and buffered wakeups;
+/// every waiter owns its subscription and removes it on return or cancellation.
+private struct ScriptedChangeSignal {
+  private var observers: [UUID: AsyncStream<Void>.Continuation] = [:]
+  private var isFinished = false
+  var count: Int { observers.count }
+
+  mutating func subscribe() -> (UUID, AsyncStream<Void>) {
+    let id = UUID()
+    let (stream, continuation) = AsyncStream<Void>.makeStream(bufferingPolicy: .bufferingNewest(1))
+    if isFinished {
+      continuation.finish()
+    } else {
+      observers[id] = continuation
     }
-    return recordedRequests[count - 1]
+    return (id, stream)
+  }
+
+  func notify() {
+    for observer in observers.values { observer.yield(()) }
+  }
+
+  mutating func remove(_ id: UUID) {
+    observers.removeValue(forKey: id)?.finish()
+  }
+
+  mutating func finish() {
+    isFinished = true
+    let pending = observers
+    observers.removeAll()
+    for observer in pending.values { observer.finish() }
   }
 }
 
