@@ -29,3 +29,9 @@ renders. It records the other end-to-end segments. The
 selection, filters, layout, directory, and preview work.
 
 Run `Scripts/check.sh` for the release-shaped native gate.
+
+`BrowserFocusSynchronizationTests` pins focus feedback during terminal preview
+replacement. An authored focus request stays pending until the live runtime
+value acknowledges it; an intermediate browser fallback cannot revoke it.
+The real-terminal journey then verifies that keys reach the replacement child,
+including arrow forwarding, resize, Escape interception and shutdown.

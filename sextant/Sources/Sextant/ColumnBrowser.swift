@@ -9,7 +9,7 @@ struct ColumnBrowser: View {
   @State private var filterText = ""
   @State private var paletteQuery = ""
   @State private var searchQuery = ""
-  @State private var isPreviewFocusHandoffActive = false
+  @State private var focusSynchronization = BrowserFocusSynchronization()
 
   private let commandCatalog: CommandCatalog
   private let configuration: SextantConfiguration
@@ -59,15 +59,17 @@ struct ColumnBrowser: View {
       beginPreviewFocusHandoffIfNeeded(from: previous, to: next)
     }
     .onChange(of: runtimeFocus) { _, next in
-      if isPreviewFocusHandoffActive,
-        model.state.focus == .preview,
-        next != .preview
-      {
-        return
+      switch focusSynchronization.observe(next, current: runtimeFocus) {
+      case .ignore:
+        break
+      case .request(let focus):
+        runtimeFocus = focus
+      case .publish(let focus):
+        model.send(.runtimeFocusChanged(focus))
       }
-      model.send(.runtimeFocusChanged(next))
     }
     .onChange(of: model.state.focus) { _, next in
+      focusSynchronization.request(next, current: runtimeFocus)
       runtimeFocus = next
     }
     .onKeyPress(perform: handleKeyPress)
@@ -556,6 +558,10 @@ struct ColumnBrowser: View {
         .hostFocused($runtimeFocus, equals: .preview)
         .focusable(model.state.focus == .preview)
         .onAppear {
+          focusSynchronization.request(
+            model.state.focus,
+            current: model.state.focus == .preview ? nil : runtimeFocus
+          )
           runtimeFocus = model.state.focus
         }
       }
@@ -793,21 +799,8 @@ struct ColumnBrowser: View {
       return
     }
 
-    isPreviewFocusHandoffActive = true
+    focusSynchronization.request(.preview, current: nil)
     runtimeFocus = .preview
-    Task { @MainActor in
-      for _ in 0..<3 {
-        await Task.yield()
-        guard model.state.focus == .preview,
-          previewFocusTargetKind == .terminal
-        else {
-          isPreviewFocusHandoffActive = false
-          return
-        }
-        runtimeFocus = .preview
-      }
-      isPreviewFocusHandoffActive = false
-    }
   }
 
   private var accentStyle: AnyShapeStyle {
