@@ -17,13 +17,13 @@ private struct ViewThatFitsBoundaryInclusiveFlattenedVariant: View {
           Text("at width 5:").foregroundStyle(.muted)
           Text("F5")
             .frame(width: 5)
-            .border(.separator)
+            .border(.separator, placement: .outset)
         }
         VStack(alignment: .leading, spacing: 0) {
           Text("at width 4:").foregroundStyle(.muted)
           Text("F4")
             .frame(width: 4)
-            .border(.separator)
+            .border(.separator, placement: .outset)
         }
       }
     }

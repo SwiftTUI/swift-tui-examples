@@ -8,7 +8,7 @@ import SwiftTUIRuntime
 /// Layout shape: a 30-row `VStack` of `Text("entry \(i)")` children
 /// is placed inside a `ScrollView` with a `[TOP BAR]` inset attached
 /// at `.top`, constrained to `.frame(height: 10)` and wrapped in
-/// `.border(.separator)` so the viewport edges are visible.
+/// `.border(.separator, placement: .outset)` so the viewport edges are visible.
 ///
 /// Observable invariants (see the behaviour test):
 ///   - `[TOP BAR]` paints at the first content row of the viewport.
@@ -39,7 +39,7 @@ public struct ScrollViewWithSafeAreaInset: View {
           .frame(maxWidth: .infinity, alignment: .leading)
       }
       .frame(height: 10)
-      .border(.separator)
+      .border(.separator, placement: .outset)
     }
     .padding(1)
   }

@@ -4,7 +4,7 @@ import SwiftTUIRuntime
 /// children (`[A]`, `[B]`, `[C]`).  The first container erases a
 /// `VStackLayout`; the second erases an `HStackLayout`.  The catalog
 /// header is rendered above; each container is wrapped in
-/// `.border(.separator)` so its bounding box is unambiguous in the
+/// `.border(.separator, placement: .outset)` so its bounding box is unambiguous in the
 /// raster.
 ///
 /// Layout shape:
@@ -14,10 +14,10 @@ import SwiftTUIRuntime
 ///   Text("Any layout HV swap")
 ///   Text("VStackLayout")
 ///   AnyLayout(VStackLayout()) { Text("[A]"); Text("[B]"); Text("[C]") }
-///     .border(.separator)
+///     .border(.separator, placement: .outset)
 ///   Text("HStackLayout")
 ///   AnyLayout(HStackLayout(spacing: 1)) { Text("[A]"); Text("[B]"); Text("[C]") }
-///     .border(.separator)
+///     .border(.separator, placement: .outset)
 /// }
 /// ```
 ///
@@ -41,7 +41,7 @@ public struct AnyLayoutHVSwap: View {
         Text("[B]")
         Text("[C]")
       }
-      .border(.separator)
+      .border(.separator, placement: .outset)
 
       Text("HStackLayout").foregroundStyle(.muted)
       AnyLayout(HStackLayout(spacing: 1)) {
@@ -49,7 +49,7 @@ public struct AnyLayoutHVSwap: View {
         Text("[B]")
         Text("[C]")
       }
-      .border(.separator)
+      .border(.separator, placement: .outset)
     }
     .padding(1)
   }

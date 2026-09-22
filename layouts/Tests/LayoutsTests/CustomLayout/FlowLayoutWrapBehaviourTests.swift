@@ -22,7 +22,7 @@ private struct FlowLayoutWrapFlattenedVariant: View {
         }
       }
       .frame(width: 30)
-      .border(.separator)
+      .border(.separator, placement: .outset)
       Text("at width 60").foregroundStyle(.muted)
       HStack(spacing: 1) {
         ForEach(0..<8, id: \.self) { i in
@@ -30,7 +30,7 @@ private struct FlowLayoutWrapFlattenedVariant: View {
         }
       }
       .frame(width: 60)
-      .border(.separator)
+      .border(.separator, placement: .outset)
     }
     .padding(1)
   }

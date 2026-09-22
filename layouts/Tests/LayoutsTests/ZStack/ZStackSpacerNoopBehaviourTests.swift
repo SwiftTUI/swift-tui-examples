@@ -17,7 +17,7 @@ private struct ZStackGreedyChildVariant: View {
         Rectangle().fill(Color.blue)
         Text("[X]")
       }
-      .border(.separator)
+      .border(.separator, placement: .outset)
     }
     .padding(1)
   }
@@ -30,7 +30,7 @@ struct ZStackSpacerNoopBehaviourTests {
   /// sizing — the stack hugs its non-Spacer child (`Text("[X]")`,
   /// 3 cells wide) rather than stretching to the full proposed width.
   ///
-  /// A `.border(.separator)` wraps the ZStack to make its measured
+  /// A `.border(.separator, placement: .outset)` wraps the ZStack to make its measured
   /// footprint visible.  Pinned via the raster:
   ///   - The `[X]` glyphs land on a single row.
   ///   - The ZStack's painted footprint is narrow — the separator

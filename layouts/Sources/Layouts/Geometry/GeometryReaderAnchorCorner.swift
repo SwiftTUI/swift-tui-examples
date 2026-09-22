@@ -21,7 +21,7 @@ public struct GeometryReaderAnchorCorner: View {
         Text("[X]").position(x: proxy.size.width - 2, y: 0)
       }
       .frame(width: 40, height: 5)
-      .border(.separator)
+      .border(.separator, placement: .outset)
     }
     .padding(1)
   }

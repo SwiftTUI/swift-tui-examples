@@ -110,7 +110,7 @@ private struct WithoutTopInsetVariant: View {
         }
       }
       .frame(height: 10)
-      .border(.separator)
+      .border(.separator, placement: .outset)
     }
     .padding(1)
   }

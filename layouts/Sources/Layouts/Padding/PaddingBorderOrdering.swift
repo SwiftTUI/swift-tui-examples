@@ -20,9 +20,9 @@ public struct PaddingBorderOrdering: View {
       HStack(alignment: .top, spacing: 4) {
         Text("A")
           .padding(1)
-          .border(.separator)
+          .border(.separator, placement: .outset)
         Text("A")
-          .border(.separator)
+          .border(.separator, placement: .outset)
           .padding(1)
       }
     }

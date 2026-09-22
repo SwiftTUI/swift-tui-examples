@@ -10,7 +10,7 @@ import SwiftTUIRuntime
 ///
 /// Layout shape: a `VStack(alignment: .leading)` with the catalog
 /// marker header on top of a `List` (`.plain` style, fixed
-/// `.frame(height: 5)`, `.border(.separator)` for visual viewport
+/// `.frame(height: 5)`, `.border(.separator, placement: .outset)` for visual viewport
 /// boundaries) containing 20 `Text("row \(i)")` children produced
 /// by `ForEach(0..<20)`.
 ///
@@ -33,7 +33,7 @@ public struct ListInShortFrame: View {
       }
       .listStyle(.plain)
       .frame(height: 5)
-      .border(.separator)
+      .border(.separator, placement: .outset)
     }
     .padding(1)
   }

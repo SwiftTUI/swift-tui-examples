@@ -12,7 +12,7 @@ import SwiftTUIRuntime
 ///
 /// Layout shape: a `VStack(alignment: .leading)` carrying the catalog
 /// marker header on top of `Circle().fill(Color.red)
-/// .frame(width: 12, height: 5).border(.separator)`.
+/// .frame(width: 12, height: 5).border(.separator, placement: .outset)`.
 ///
 /// Observable invariant pinned by the behaviour test:
 ///   - At least one cell **inside** the inscribed disc carries a red
@@ -30,7 +30,7 @@ public struct CircleInNonSquareFrame: View {
       Circle()
         .fill(Color.red)
         .frame(width: 12, height: 5)
-        .border(.separator)
+        .border(.separator, placement: .outset)
     }
     .padding(1)
   }

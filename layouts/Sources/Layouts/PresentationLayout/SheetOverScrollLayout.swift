@@ -33,7 +33,7 @@ public struct SheetOverScrollLayout: View {
         }
       }
       .frame(height: 8)
-      .border(.separator)
+      .border(.separator, placement: .outset)
       Button("show sheet") {
         isShowingSheet.toggle()
       }

@@ -21,7 +21,7 @@ private struct ListInShortFrameTallVariant: View {
       }
       .listStyle(.plain)
       .frame(height: 50)
-      .border(.separator)
+      .border(.separator, placement: .outset)
     }
     .padding(1)
   }

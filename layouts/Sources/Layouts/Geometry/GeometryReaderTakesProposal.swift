@@ -18,7 +18,7 @@ public struct GeometryReaderTakesProposal: View {
         Text("w=\(proxy.size.width) h=\(proxy.size.height)")
       }
       .frame(width: 40, height: 10)
-      .border(.separator)
+      .border(.separator, placement: .outset)
     }
     .padding(1)
   }

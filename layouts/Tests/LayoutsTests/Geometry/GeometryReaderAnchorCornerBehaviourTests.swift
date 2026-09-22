@@ -6,7 +6,7 @@ import Testing
 @MainActor
 @Suite
 struct GeometryReaderAnchorCornerBehaviourTests {
-  /// Reader wrapped in `.frame(width: 40, height: 5).border(.separator)`:
+  /// Reader wrapped in `.frame(width: 40, height: 5).border(.separator, placement: .outset)`:
   ///
   /// ```
   /// [1]  Geometry reader anchor corner|
@@ -147,7 +147,7 @@ private struct WithoutPositionAnchorVariant: View {
         Text("[X]")
       }
       .frame(width: 40, height: 5)
-      .border(.separator)
+      .border(.separator, placement: .outset)
     }
     .padding(1)
   }

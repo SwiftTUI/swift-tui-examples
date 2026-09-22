@@ -16,7 +16,7 @@ public struct AsymmetricPaddingInsets: View {
       Text("Asymmetric padding insets").foregroundStyle(.muted)
       Text("[content]")
         .padding(EdgeInsets(top: 0, leading: 4, bottom: 2, trailing: 0))
-        .border(.separator)
+        .border(.separator, placement: .outset)
     }
     .padding(1)
   }

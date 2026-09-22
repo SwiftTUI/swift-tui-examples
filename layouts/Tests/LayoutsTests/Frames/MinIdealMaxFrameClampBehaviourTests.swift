@@ -11,7 +11,7 @@ struct MinIdealMaxFrameClampBehaviourTests {
   /// above max (80) of the clamp `minWidth: 20, idealWidth: 40,
   /// maxWidth: 60`.
   ///
-  /// The `.border(.separator)` around each clamped copy makes the
+  /// The `.border(.separator, placement: .outset)` around each clamped copy makes the
   /// actual measured width visible as a horizontal run of border
   /// cells. The test sums the length of each visible border run and
   /// pins:

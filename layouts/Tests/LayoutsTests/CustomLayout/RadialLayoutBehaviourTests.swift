@@ -22,7 +22,7 @@ private struct RadialLayoutFlattenedVariant: View {
         Text("[N]")
       }
       .frame(width: 24, height: 16)
-      .border(.separator)
+      .border(.separator, placement: .outset)
     }
     .padding(1)
   }

@@ -15,7 +15,7 @@ private struct CircleInNonSquareFrameSquareVariant: View {
       Circle()
         .fill(Color.red)
         .frame(width: 5, height: 5)
-        .border(.separator)
+        .border(.separator, placement: .outset)
     }
     .padding(1)
   }

@@ -22,7 +22,7 @@ private struct AnyLayoutHVSwapFlattenedVariant: View {
         Text("[B]")
         Text("[C]")
       }
-      .border(.separator)
+      .border(.separator, placement: .outset)
 
       Text("HStackLayout").foregroundStyle(.muted)
       Group {
@@ -30,7 +30,7 @@ private struct AnyLayoutHVSwapFlattenedVariant: View {
         Text("[B]")
         Text("[C]")
       }
-      .border(.separator)
+      .border(.separator, placement: .outset)
     }
     .padding(1)
   }

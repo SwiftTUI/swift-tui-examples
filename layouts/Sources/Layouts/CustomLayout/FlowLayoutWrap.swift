@@ -14,10 +14,10 @@ import SwiftTUIRuntime
 ///   Text("Flow layout wrap")
 ///   Text("at width 30")
 ///   FlowLayout(spacing: 1) { ForEach(0..<8) { Text("[item \($0)]") } }
-///     .frame(width: 30).border(.separator)
+///     .frame(width: 30).border(.separator, placement: .outset)
 ///   Text("at width 60")
 ///   FlowLayout(spacing: 1) { ForEach(0..<8) { Text("[item \($0)]") } }
-///     .frame(width: 60).border(.separator)
+///     .frame(width: 60).border(.separator, placement: .outset)
 /// }
 /// ```
 ///
@@ -49,7 +49,7 @@ public struct FlowLayoutWrap: View {
         }
       }
       .frame(width: 30)
-      .border(.separator)
+      .border(.separator, placement: .outset)
       Text("at width 60").foregroundStyle(.muted)
       FlowLayout(spacing: 1) {
         ForEach(0..<8, id: \.self) { i in
@@ -57,7 +57,7 @@ public struct FlowLayoutWrap: View {
         }
       }
       .frame(width: 60)
-      .border(.separator)
+      .border(.separator, placement: .outset)
     }
     .padding(1)
   }

@@ -8,7 +8,7 @@ import SwiftTUIRuntime
 ///
 /// Layout shape: a 30-row `VStack` of `Text("row \(i)")` children is
 /// placed inside a `ScrollView` that is constrained to
-/// `.frame(height: 8)`. A single-line `.border(.separator)` wraps the
+/// `.frame(height: 8)`. A single-line `.border(.separator, placement: .outset)` wraps the
 /// frame so the bordered region is exactly 8 rows tall — the
 /// behaviour test reads the border rows to pin the viewport height.
 ///
@@ -35,7 +35,7 @@ public struct VerticalScrollMeasuresContent: View {
         }
       }
       .frame(height: 8)
-      .border(.separator)
+      .border(.separator, placement: .outset)
     }
     .padding(1)
   }

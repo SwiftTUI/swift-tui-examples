@@ -19,14 +19,14 @@ private struct ForEachIdentityReorderSameOrderVariant: View {
           Text(item)
         }
       }
-      .border(.separator)
+      .border(.separator, placement: .outset)
       Text("order B (reversed)").foregroundStyle(.muted)
       VStack(alignment: .leading, spacing: 0) {
         ForEach(["[apple]", "[banana]", "[cherry]"], id: \.self) { item in
           Text(item)
         }
       }
-      .border(.separator)
+      .border(.separator, placement: .outset)
     }
     .padding(1)
   }

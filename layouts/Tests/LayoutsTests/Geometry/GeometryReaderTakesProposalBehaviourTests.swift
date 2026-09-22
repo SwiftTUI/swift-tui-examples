@@ -78,7 +78,7 @@ private struct WithoutGeometryReaderVariant: View {
       Text("Geometry reader takes proposal").foregroundStyle(.muted)
       Text("no-geom")
         .frame(width: 40, height: 10)
-        .border(.separator)
+        .border(.separator, placement: .outset)
     }
     .padding(1)
   }

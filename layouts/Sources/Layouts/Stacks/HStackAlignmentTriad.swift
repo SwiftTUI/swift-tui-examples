@@ -21,8 +21,8 @@ public struct HStackAlignmentTriad: View {
   private func row(_ label: String, alignment: VerticalAlignment) -> some View {
     HStack(alignment: alignment, spacing: 1) {
       Text(label).frame(width: 7, alignment: .leading)
-      Text("tall\ntall\ntall").border(.separator)
-      Text("short").border(.separator)
+      Text("tall\ntall\ntall").border(.separator, placement: .outset)
+      Text("short").border(.separator, placement: .outset)
     }
   }
 }

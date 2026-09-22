@@ -7,14 +7,14 @@ import Testing
 @Suite
 struct PaddingBorderOrderingBehaviourTests {
   /// Two `Text("A")` boxes side-by-side in an `HStack` differ only in
-  /// the order of `.padding(1)` vs `.border(.separator)`. The visible
+  /// the order of `.padding(1)` vs `.border(.separator, placement: .outset)`. The visible
   /// border width pins SwiftUI-faithful semantics:
   ///
-  ///   - LEFT  (`.padding(1).border(.separator)`): padding sits INSIDE
+  ///   - LEFT  (`.padding(1).border(.separator, placement: .outset)`): padding sits INSIDE
   ///     the border, so the border ring measures `1 + 1 + 1 + 1 + 1 = 5`
   ///     cells wide (left wall + leading pad + char + trailing pad +
   ///     right wall).
-  ///   - RIGHT (`.border(.separator).padding(1)`): border hugs the
+  ///   - RIGHT (`.border(.separator, placement: .outset).padding(1)`): border hugs the
   ///     letter (`1 + 1 + 1 = 3` cells wide); the outer padding adds
   ///     empty cells OUTSIDE the border ring rather than inside.
   ///
@@ -45,7 +45,7 @@ struct PaddingBorderOrderingBehaviourTests {
     guard let line = raster.row(at: aRow) else { return }
     let cells = Array(line)
 
-    // The vertical wall glyph from `.border(.separator)` is `│`.
+    // The vertical wall glyph from `.border(.separator, placement: .outset)` is `│`.
     // Each box contributes two walls, so the row should hold exactly
     // four wall columns. The box-span is `right_wall - left_wall + 1`.
     let walls = cells.enumerated().compactMap { $0.element == "│" ? $0.offset : nil }

@@ -30,7 +30,7 @@ private struct CanvasHonorsClippedWideVariant: View {
         .foregroundStyle(Color.cyan)
         .frame(width: 30, height: 4)
         .clipped()
-        .border(.separator)
+        .border(.separator, placement: .outset)
     }
     .padding(1)
   }

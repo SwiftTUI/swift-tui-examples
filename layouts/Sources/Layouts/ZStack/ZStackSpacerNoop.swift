@@ -6,7 +6,7 @@ import SwiftTUIRuntime
 /// (`Text("[X]")`, 3 cells wide) rather than stretching to the full
 /// terminal width.
 ///
-/// A `.border(.separator)` wraps the ZStack to make the measured
+/// A `.border(.separator, placement: .outset)` wraps the ZStack to make the measured
 /// footprint visible: if the border hugs the three cells of `"[X]"`,
 /// the Spacer was a no-op; if the border spans the full width, the
 /// Spacer DID claim space (file finding).
@@ -22,7 +22,7 @@ public struct ZStackSpacerNoop: View {
         Spacer()
         Text("[X]")
       }
-      .border(.separator)
+      .border(.separator, placement: .outset)
     }
     .padding(1)
   }

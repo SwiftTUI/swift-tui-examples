@@ -11,7 +11,7 @@ import SwiftTUIRuntime
 /// Layout shape: five `Text("item \(i)").frame(maxWidth: .infinity)`
 /// cells in an `HStack(spacing: 1)`, wrapped in
 /// `ScrollView(.horizontal)` constrained to `.frame(width: 20)` and
-/// surrounded by `.border(.separator)` so the viewport is visible.
+/// surrounded by `.border(.separator, placement: .outset)` so the viewport is visible.
 ///
 /// Observable invariants (see the behaviour test):
 ///   - Rendering completes (no hang / infinite loop).
@@ -37,7 +37,7 @@ public struct HorizontalScrollWithInfiniteChild: View {
         }
       }
       .frame(width: 20)
-      .border(.separator)
+      .border(.separator, placement: .outset)
     }
     .padding(1)
   }

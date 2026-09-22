@@ -21,7 +21,7 @@ import SwiftTUIRuntime
 ///     TableRow { Text("[A2]"); Text("[B2]"); Text("[C2]"); Text("[D2]") }
 ///   }
 ///   .frame(width: 30)
-///   .border(.separator)
+///   .border(.separator, placement: .outset)
 /// }
 /// ```
 ///
@@ -60,7 +60,7 @@ public struct TableColumnPrioritization: View {
         }
       }
       .frame(width: 30)
-      .border(.separator)
+      .border(.separator, placement: .outset)
     }
     .padding(1)
   }

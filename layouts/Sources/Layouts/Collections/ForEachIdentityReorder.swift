@@ -17,9 +17,9 @@ import SwiftTUIRuntime
 /// VStack(alignment: .leading) {
 ///   Text("For each identity reorder")
 ///   Text("order A")
-///   VStack { ForEach(["[apple]", "[banana]", "[cherry]"]) { Text($0) } }.border(.separator)
+///   VStack { ForEach(["[apple]", "[banana]", "[cherry]"]) { Text($0) } }.border(.separator, placement: .outset)
 ///   Text("order B (reversed)")
-///   VStack { ForEach(["[cherry]", "[banana]", "[apple]"]) { Text($0) } }.border(.separator)
+///   VStack { ForEach(["[cherry]", "[banana]", "[apple]"]) { Text($0) } }.border(.separator, placement: .outset)
 /// }
 /// ```
 ///
@@ -43,14 +43,14 @@ public struct ForEachIdentityReorder: View {
           Text(item)
         }
       }
-      .border(.separator)
+      .border(.separator, placement: .outset)
       Text("order B (reversed)").foregroundStyle(.muted)
       VStack(alignment: .leading, spacing: 0) {
         ForEach(["[cherry]", "[banana]", "[apple]"], id: \.self) { item in
           Text(item)
         }
       }
-      .border(.separator)
+      .border(.separator, placement: .outset)
     }
     .padding(1)
   }

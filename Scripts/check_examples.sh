@@ -99,10 +99,7 @@ directory across the example package builds. Do not share that directory across
 parallel check runs.
 Set SWIFTTUI_EXAMPLES_XCODE_DERIVED_DATA to reuse an Xcode DerivedData path for
 the macOS app build.
-Set SWIFTTUI_EXAMPLES_LAYOUTS_TESTS=1 to run the layouts package's
-LayoutsTests (85 behaviour tests). They are opt-in until their raster
-expectations are repaired against the current framework (55 of 85 failed
-against 0.9.9 on 2026-08-25; see the SKIP line the gate prints).
+Layouts behavior, raster, catalog and geometry tests run on both native paths.
 
 Every step runs under a silence watchdog: SWIFTTUI_EXAMPLES_STEP_TIMEOUT_SECONDS
 (default 600) bounds build steps, SWIFTTUI_EXAMPLES_TEST_STEP_TIMEOUT_SECONDS
@@ -614,21 +611,11 @@ run_xcodebuild_swiftui_example() {
   "$@"
 }
 
-run_layouts_tests_or_skip() {
+run_layouts_tests() {
   run_test_step \
-    "Test layout comparison geometry" \
+    "Test layouts" \
     "$repo_root" \
-    run_swift test --package-path layouts --filter LayoutComparisonBoundsTests
-  if [ "${SWIFTTUI_EXAMPLES_LAYOUTS_TESTS:-0}" = "1" ]; then
-    run_test_step \
-      "Test layouts" \
-      "$repo_root" \
-      run_swift test --package-path layouts
-  else
-    skip_step \
-      "Test layouts" \
-      "opt-in via SWIFTTUI_EXAMPLES_LAYOUTS_TESTS=1: 55 of 85 LayoutsTests fail against 0.9.9 — raster expectations predate the inset-border default; repair them, then make this step unconditional"
-  fi
+    run_swift test --package-path layouts
 }
 
 run_linux_examples() {
@@ -783,7 +770,7 @@ run_linux_examples() {
     "$repo_root" \
     run_swift test --package-path gifcat
 
-  run_layouts_tests_or_skip
+  run_layouts_tests
 
   # Last on purpose: this is the invocation that parks at the 0.11.3 pin
   # (example_suites.sh). It stays on the hot path because it is real

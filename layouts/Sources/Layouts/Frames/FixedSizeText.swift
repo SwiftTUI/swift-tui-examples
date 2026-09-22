@@ -22,12 +22,12 @@ public struct FixedSizeText: View {
         Text("without .fixedSize():").foregroundStyle(.muted)
         Text("thelongerstring")
           .frame(width: 10)
-          .border(.separator)
+          .border(.separator, placement: .outset)
         Text("with .fixedSize():").foregroundStyle(.muted)
         Text("thelongerstring")
           .fixedSize()
           .frame(width: 10)
-          .border(.separator)
+          .border(.separator, placement: .outset)
       }
     }
     .padding(1)

@@ -38,7 +38,7 @@ public struct ColonAlignedForm: View {
         row(label: "color", value: "blue")
         row(label: "x", value: "42")
       }
-      .border(.separator)
+      .border(.separator, placement: .outset)
     }
     .padding(1)
   }

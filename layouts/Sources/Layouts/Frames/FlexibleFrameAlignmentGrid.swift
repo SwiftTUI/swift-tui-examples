@@ -37,7 +37,7 @@ public struct FlexibleFrameAlignmentGrid: View {
         Text("BR").frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
       }
       .frame(width: 60, height: 20)
-      .border(.separator)
+      .border(.separator, placement: .outset)
     }
     .padding(1)
   }

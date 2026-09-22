@@ -19,8 +19,8 @@ import SwiftTUIRuntime
 ///
 /// ```
 /// HStack(spacing: 4) {
-///   VStack { Text("at width 5:"); ViewThatFits { "HELLO"; "HI" }.frame(width: 5).border(.separator) }
-///   VStack { Text("at width 4:"); ViewThatFits { "HELLO"; "HI" }.frame(width: 4).border(.separator) }
+///   VStack { Text("at width 5:"); ViewThatFits { "HELLO"; "HI" }.frame(width: 5).border(.separator, placement: .outset) }
+///   VStack { Text("at width 4:"); ViewThatFits { "HELLO"; "HI" }.frame(width: 4).border(.separator, placement: .outset) }
 /// }
 /// ```
 ///
@@ -40,7 +40,7 @@ public struct ViewThatFitsBoundaryInclusive: View {
             Text("HI")
           }
           .frame(width: 5)
-          .border(.separator)
+          .border(.separator, placement: .outset)
         }
         VStack(alignment: .leading, spacing: 0) {
           Text("at width 4:").foregroundStyle(.muted)
@@ -49,7 +49,7 @@ public struct ViewThatFitsBoundaryInclusive: View {
             Text("HI")
           }
           .frame(width: 4)
-          .border(.separator)
+          .border(.separator, placement: .outset)
         }
       }
     }

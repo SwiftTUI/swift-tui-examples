@@ -43,9 +43,14 @@ Thus, this catalog remains a focused layout reference.
 swiftly run swift test --package-path layouts
 ```
 
-The package has 81 tests across 54 suites. It has 56 parameterized smoke tests,
+The package has 92 tests across 57 suites, enabled in the default Linux/macOS examples gate. It has 56 parameterized smoke tests,
 one for each catalog entry. Focused behavior tests cover the `.behaviour` tier.
-Other tests cover catalog integrity and rasterize each picker category.
+Other tests cover catalog integrity, painted geometry bounds and each picker category.
+
+Decorative separator borders use explicit `placement: .outset`: they frame the
+measured content without painting over the markers or changing the proposal
+being demonstrated. Border-behavior examples retain their own explicit geometry
+and paint-order assertions.
 
 ## Findings
 

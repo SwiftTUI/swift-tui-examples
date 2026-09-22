@@ -36,6 +36,6 @@ public struct FrameFixedInsideUnbounded: View {
   private var fixedBox: some View {
     Text("fixed 30x5")
       .frame(width: 30, height: 5, alignment: .center)
-      .border(.separator)
+      .border(.separator, placement: .outset)
   }
 }

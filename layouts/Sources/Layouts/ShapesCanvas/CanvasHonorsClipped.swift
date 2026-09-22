@@ -14,7 +14,7 @@ import SwiftTUIRuntime
 ///
 /// Layout shape: `VStack(alignment: .leading)` header + `Canvas(...)`
 /// with `.foregroundStyle(Color.cyan).frame(width: 10, height: 4)
-/// .clipped().border(.separator)`.
+/// .clipped().border(.separator, placement: .outset)`.
 ///
 /// Observable invariants pinned by the behaviour test:
 ///   - Cells inside the 10-cell canvas frame on the line's row are
@@ -33,7 +33,7 @@ public struct CanvasHonorsClipped: View {
         .foregroundStyle(Color.cyan)
         .frame(width: 10, height: 4)
         .clipped()
-        .border(.separator)
+        .border(.separator, placement: .outset)
     }
     .padding(1)
   }

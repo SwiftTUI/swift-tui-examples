@@ -16,17 +16,17 @@ private struct ViewThatFitsVerticalOnlyFlattenedVariant: View {
       Text("at height 5:").foregroundStyle(.muted)
       Text("[FLAT-H5]")
         .frame(width: 12, height: 5)
-        .border(.separator)
+        .border(.separator, placement: .outset)
 
       Text("at height 2:").foregroundStyle(.muted)
       Text("[FLAT-H2]")
         .frame(width: 12, height: 2)
-        .border(.separator)
+        .border(.separator, placement: .outset)
 
       Text("at height 1:").foregroundStyle(.muted)
       Text("[FLAT-H1]")
         .frame(width: 12, height: 1)
-        .border(.separator)
+        .border(.separator, placement: .outset)
     }
     .padding(1)
   }

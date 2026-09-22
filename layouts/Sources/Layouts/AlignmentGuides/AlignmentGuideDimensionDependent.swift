@@ -20,11 +20,11 @@ import SwiftTUIRuntime
 /// VStack(alignment: .leading) {
 ///   Text("Alignment guide dimension dependent")
 ///   HStack(alignment: .bottom, spacing: 2) {
-///     Text("[A]")            .border(.separator)
-///     Text("[B]\n[B]")       .border(.separator)
-///     Text("[C]\n[C]\n[C]")  .border(.separator)
+///     Text("[A]")            .border(.separator, placement: .outset)
+///     Text("[B]\n[B]")       .border(.separator, placement: .outset)
+///     Text("[C]\n[C]\n[C]")  .border(.separator, placement: .outset)
 ///   }
-///   .border(.separator)
+///   .border(.separator, placement: .outset)
 /// }
 /// ```
 ///
@@ -37,11 +37,11 @@ public struct AlignmentGuideDimensionDependent: View {
     VStack(alignment: .leading, spacing: 1) {
       Text("Alignment guide dimension dependent").foregroundStyle(.muted)
       HStack(alignment: .bottom, spacing: 2) {
-        Text("[A]").border(.separator)
-        Text("[B]\n[B]").border(.separator)
-        Text("[C]\n[C]\n[C]").border(.separator)
+        Text("[A]").border(.separator, placement: .outset)
+        Text("[B]\n[B]").border(.separator, placement: .outset)
+        Text("[C]\n[C]\n[C]").border(.separator, placement: .outset)
       }
-      .border(.separator)
+      .border(.separator, placement: .outset)
     }
     .padding(1)
   }

@@ -40,7 +40,7 @@ public struct MatchedGeometryBadgeMove: View {
           }
         }
       }
-      .border(.separator)
+      .border(.separator, placement: .outset)
       Button("swap") {
         withAnimation {
           isLeft.toggle()

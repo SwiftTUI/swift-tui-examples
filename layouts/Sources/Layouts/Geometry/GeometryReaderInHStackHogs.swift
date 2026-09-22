@@ -21,7 +21,7 @@ public struct GeometryReaderInHStackHogs: View {
         Text("[SIBLING]")
       }
       .frame(height: 5)
-      .border(.separator)
+      .border(.separator, placement: .outset)
     }
     .padding(1)
   }

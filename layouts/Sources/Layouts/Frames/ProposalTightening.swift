@@ -22,7 +22,7 @@ public struct ProposalTightening: View {
         Text("w=\(proxy.size.width)")
       }
       .frame(width: 30, height: 3)
-      .border(.separator)
+      .border(.separator, placement: .outset)
     }
     .padding(1)
   }

@@ -46,7 +46,7 @@ struct VerticalScrollMeasuresContentBehaviourTests {
       "expected `row 29` NOT present (content overflows 8-row viewport)\n\(joined)"
     )
 
-    // Border rows: `.border(.separator)` paints half-block corner
+    // Border rows: `.border(.separator, placement: .outset)` paints half-block corner
     // glyphs (`▛ ▜ ▙ ▟`) around the `.frame(height: 8)` region. The
     // bordered region should span exactly 10 rows (8 content + 2
     // border edges).

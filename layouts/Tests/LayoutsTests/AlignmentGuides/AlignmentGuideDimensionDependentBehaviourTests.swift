@@ -13,11 +13,11 @@ private struct AlignmentGuideDimensionDependentTopVariant: View {
     VStack(alignment: .leading, spacing: 1) {
       Text("Alignment guide dimension dependent").foregroundStyle(.muted)
       HStack(alignment: .top, spacing: 2) {
-        Text("[A]").border(.separator)
-        Text("[B]\n[B]").border(.separator)
-        Text("[C]\n[C]\n[C]").border(.separator)
+        Text("[A]").border(.separator, placement: .outset)
+        Text("[B]\n[B]").border(.separator, placement: .outset)
+        Text("[C]\n[C]\n[C]").border(.separator, placement: .outset)
       }
-      .border(.separator)
+      .border(.separator, placement: .outset)
     }
     .padding(1)
   }
@@ -34,7 +34,7 @@ struct AlignmentGuideDimensionDependentBehaviourTests {
   /// their heights differ (1/2/3 content rows).
   ///
   /// Observed raster (60×14 viewport, layout has `.padding(1)` and
-  /// `.border(.separator)` on the HStack):
+  /// `.border(.separator, placement: .outset)` on the HStack):
   ///
   /// ```
   /// [3] | ▛▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▜|

@@ -18,7 +18,7 @@ import SwiftTUIRuntime
 /// VStack(alignment: .leading) {
 ///   Text("Radial layout")
 ///   RingLayout(radius: 6) { Text("[E]"); Text("[S]"); Text("[W]"); Text("[N]") }
-///     .frame(width: 24, height: 16).border(.separator)
+///     .frame(width: 24, height: 16).border(.separator, placement: .outset)
 /// }
 /// ```
 ///
@@ -36,7 +36,7 @@ public struct RadialLayout: View {
         Text("[N]")  // north — 270°
       }
       .frame(width: 24, height: 16)
-      .border(.separator)
+      .border(.separator, placement: .outset)
     }
     .padding(1)
   }

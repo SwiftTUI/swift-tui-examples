@@ -16,17 +16,17 @@ private struct ViewThatFitsAxisChoiceFlattenedVariant: View {
         Text("at width 60:").foregroundStyle(.muted)
         Text("[FLAT-60]")
           .frame(width: 60)
-          .border(.separator)
+          .border(.separator, placement: .outset)
 
         Text("at width 12:").foregroundStyle(.muted)
         Text("[FLAT-12]")
           .frame(width: 12)
-          .border(.separator)
+          .border(.separator, placement: .outset)
 
         Text("at width 4:").foregroundStyle(.muted)
         Text("F4")
           .frame(width: 4)
-          .border(.separator)
+          .border(.separator, placement: .outset)
       }
     }
     .padding(1)

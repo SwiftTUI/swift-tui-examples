@@ -31,17 +31,17 @@ public struct VStackSpacingVsPadding: View {
         // Left: VStack(spacing: 2) — gap lives between borders.
         VStack(alignment: .leading, spacing: 2) {
           Text("spacing").foregroundStyle(.muted)
-          Text("alpha").border(.separator)
-          Text("beta").border(.separator)
-          Text("gamma").border(.separator)
+          Text("alpha").border(.separator, placement: .outset)
+          Text("beta").border(.separator, placement: .outset)
+          Text("gamma").border(.separator, placement: .outset)
         }
         // Right: spacing 0 on the stack; each item has .padding(1)
         // INSIDE its border, widening the ring around the content.
         VStack(alignment: .leading, spacing: 0) {
           Text("padding").foregroundStyle(.muted)
-          Text("alpha").padding(1).border(.separator)
-          Text("beta").padding(1).border(.separator)
-          Text("gamma").padding(1).border(.separator)
+          Text("alpha").padding(1).border(.separator, placement: .outset)
+          Text("beta").padding(1).border(.separator, placement: .outset)
+          Text("gamma").padding(1).border(.separator, placement: .outset)
         }
       }
     }

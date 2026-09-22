@@ -42,7 +42,7 @@ public struct ViewThatFitsVerticalOnly: View {
         Text("[SHORT1]")
       }
       .frame(width: 12, height: 5)
-      .border(.separator)
+      .border(.separator, placement: .outset)
 
       Text("at height 2:").foregroundStyle(.muted)
       ViewThatFits(in: .vertical) {
@@ -58,7 +58,7 @@ public struct ViewThatFitsVerticalOnly: View {
         Text("[SHORT1]")
       }
       .frame(width: 12, height: 2)
-      .border(.separator)
+      .border(.separator, placement: .outset)
 
       Text("at height 1:").foregroundStyle(.muted)
       ViewThatFits(in: .vertical) {
@@ -74,7 +74,7 @@ public struct ViewThatFitsVerticalOnly: View {
         Text("[SHORT1]")
       }
       .frame(width: 12, height: 1)
-      .border(.separator)
+      .border(.separator, placement: .outset)
     }
     .padding(1)
   }

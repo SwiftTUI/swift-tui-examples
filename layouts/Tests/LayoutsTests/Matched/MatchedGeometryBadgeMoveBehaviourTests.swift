@@ -122,7 +122,7 @@ private struct _LeftVariant: View {
           }
         }
       }
-      .border(.separator)
+      .border(.separator, placement: .outset)
     }
     .padding(1)
   }
@@ -152,7 +152,7 @@ private struct _RightVariant: View {
           }
         }
       }
-      .border(.separator)
+      .border(.separator, placement: .outset)
     }
     .padding(1)
   }

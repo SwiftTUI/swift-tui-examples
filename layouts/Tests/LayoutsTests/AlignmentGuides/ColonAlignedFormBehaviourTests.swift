@@ -19,7 +19,7 @@ private struct ColonAlignedFormFlattenedVariant: View {
         row(label: "color", value: "blue")
         row(label: "x", value: "42")
       }
-      .border(.separator)
+      .border(.separator, placement: .outset)
     }
     .padding(1)
   }
@@ -39,7 +39,7 @@ struct ColonAlignedFormBehaviourTests {
   /// all paint their `:` glyph at the same raster column.
   ///
   /// Observed raster (60×14 viewport, layout has `.padding(1)` and
-  /// `.border(.separator)`):
+  /// `.border(.separator, placement: .outset)`):
   ///
   /// ```
   /// [1] | Colon aligned form|

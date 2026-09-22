@@ -33,6 +33,6 @@ public struct MinIdealMaxFrameClamp: View {
         minHeight: 3,
         alignment: .center
       )
-      .border(.separator)
+      .border(.separator, placement: .outset)
   }
 }

@@ -26,7 +26,7 @@ public struct ZStackAlignmentGrid: View {
         Text("BL").frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
         Text("BR").frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
       }
-      .border(.separator)
+      .border(.separator, placement: .outset)
     }
     .padding(1)
   }

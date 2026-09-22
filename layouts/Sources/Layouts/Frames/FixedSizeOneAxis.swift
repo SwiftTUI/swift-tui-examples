@@ -17,7 +17,7 @@ public struct FixedSizeOneAxis: View {
       Text("abc def ghi jkl mno pqr")
         .fixedSize(horizontal: false, vertical: true)
         .frame(width: 8)
-        .border(.separator)
+        .border(.separator, placement: .outset)
     }
     .padding(1)
   }

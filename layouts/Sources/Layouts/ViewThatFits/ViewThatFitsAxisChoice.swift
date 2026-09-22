@@ -17,11 +17,11 @@ import SwiftTUIRuntime
 /// VStack(alignment: .leading, spacing: 1) {
 ///   Text("View that fits axis choice")
 ///   Text("at width 60:")
-///   ViewThatFits { Text("[LONG: ...]"); Text("[MEDIUM]"); Text("[S]") }.frame(width: 60).border(.separator)
+///   ViewThatFits { Text("[LONG: ...]"); Text("[MEDIUM]"); Text("[S]") }.frame(width: 60).border(.separator, placement: .outset)
 ///   Text("at width 12:")
-///   ViewThatFits { same... }.frame(width: 12).border(.separator)
+///   ViewThatFits { same... }.frame(width: 12).border(.separator, placement: .outset)
 ///   Text("at width 4:")
-///   ViewThatFits { same... }.frame(width: 4).border(.separator)
+///   ViewThatFits { same... }.frame(width: 4).border(.separator, placement: .outset)
 /// }
 /// ```
 ///
@@ -40,7 +40,7 @@ public struct ViewThatFitsAxisChoice: View {
           Text("[S]")
         }
         .frame(width: 60)
-        .border(.separator)
+        .border(.separator, placement: .outset)
 
         Text("at width 12:").foregroundStyle(.muted)
         ViewThatFits {
@@ -49,7 +49,7 @@ public struct ViewThatFitsAxisChoice: View {
           Text("[S]")
         }
         .frame(width: 12)
-        .border(.separator)
+        .border(.separator, placement: .outset)
 
         Text("at width 4:").foregroundStyle(.muted)
         ViewThatFits {
@@ -58,7 +58,7 @@ public struct ViewThatFitsAxisChoice: View {
           Text("[S]")
         }
         .frame(width: 4)
-        .border(.separator)
+        .border(.separator, placement: .outset)
       }
     }
     .padding(1)
