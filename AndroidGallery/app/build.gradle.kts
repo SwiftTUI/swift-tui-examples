@@ -4,7 +4,7 @@ plugins {
   id("sh.swifttui.android") version "0.14.0"
 }
 
-val ndkVersionPin = "27.3.13750724"
+val ndkVersionPin = "30.0.16248370"
 val androidSdkDir = providers.environmentVariable("ANDROID_HOME")
   .orElse(providers.environmentVariable("ANDROID_SDK_ROOT"))
   .orElse(providers.systemProperty("user.home").map { "$it/Library/Android/sdk" })

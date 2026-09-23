@@ -55,14 +55,14 @@ Prerequisites:
 - Install Android Studio and Android SDK Platform 37.1.
 - Install Swift 6.4.0 through `swiftly`.
 - Install the Swift Android SDK bundle `swift-6.4.0-RELEASE_android`.
-- Install Android NDK `27.3.13750724` through Android Studio's SDK Manager.
+- Install Android NDK `30.0.16248370` through Android Studio's SDK Manager.
   The build uses it from the Android SDK directory by default; set
   `ANDROID_NDK_HOME` to use another installation.
 
 After installing the 6.4.0 Swift Android SDK, materialize its `ndk-sysroot` once:
 
 ```bash
-ANDROID_NDK_HOME="$HOME/Library/Android/sdk/ndk/27.3.13750724" \
+ANDROID_NDK_HOME="$HOME/Library/Android/sdk/ndk/30.0.16248370" \
 "$HOME/Library/org.swift.swiftpm/swift-sdks/swift-6.4.0-RELEASE_android.artifactbundle/swift-android/scripts/setup-android-sdk.sh"
 ```
 
@@ -81,7 +81,7 @@ If the SDK and NDK are not on the default paths, use this command:
 ```bash
 JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" \
 ANDROID_HOME="$HOME/Library/Android/sdk" \
-ANDROID_NDK_HOME="$HOME/Library/Android/sdk/ndk/27.3.13750724" \
+ANDROID_NDK_HOME="$HOME/Library/Android/sdk/ndk/30.0.16248370" \
 SWIFT_ANDROID_SDK_BUNDLE="$HOME/Library/org.swift.swiftpm/swift-sdks/swift-6.4.0-RELEASE_android.artifactbundle" \
 SWIFT_ANDROID_ROOT="$HOME/Library/org.swift.swiftpm/swift-sdks/swift-6.4.0-RELEASE_android.artifactbundle/swift-android" \
 gradle :app:assembleDebug
