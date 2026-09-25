@@ -21,7 +21,7 @@ let package = Package(
   dependencies: [
     .package(
       url: "https://github.com/SwiftTUI/swift-tui.git",
-      .upToNextMinor(from: "0.14.0")
+      .upToNextMinor(from: "0.15.0")
     )
   ],
   targets: [
