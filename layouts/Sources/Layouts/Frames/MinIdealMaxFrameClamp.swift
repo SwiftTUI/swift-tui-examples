@@ -3,7 +3,10 @@ import SwiftTUIRuntime
 /// A single `.frame(minWidth: 20, idealWidth: 40, maxWidth: 60)` view
 /// shown under three parent proposals:
 ///
-/// - Below min (`.frame(width: 10)`) — the inner view clamps UP to 20.
+/// - Below min (`.frame(width: 10, alignment: .leading)`) — the inner view
+///   clamps UP to 20 and overflows the frame's trailing edge. Leading
+///   alignment keeps the whole box on screen: centred, the oversized box
+///   would overflow both edges, as in SwiftUI.
 /// - At ideal (`.frame(width: 40)`) — the inner view sits at 40.
 /// - Above max (`.frame(width: 80)`) — the inner view clamps DOWN to 60.
 ///
@@ -17,7 +20,7 @@ public struct MinIdealMaxFrameClamp: View {
   public var body: some View {
     VStack(alignment: .leading, spacing: 1) {
       Text("Min ideal max frame clamp").foregroundStyle(.muted)
-      clampedBox.frame(width: 10)
+      clampedBox.frame(width: 10, alignment: .leading)
       clampedBox.frame(width: 40)
       clampedBox.frame(width: 80)
     }
