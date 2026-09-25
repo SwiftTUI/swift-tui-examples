@@ -60,7 +60,10 @@ struct CurveStrip {
         LinearKeyframe(1, duration: .milliseconds(500))
         MoveKeyframe(0.25)
         SpringKeyframe(0.9, duration: .milliseconds(700), spring: .bouncy)
-        CubicKeyframe(0, duration: .milliseconds(800))
+        // Explicit velocities keep the strip identical across framework
+        // versions: how a defaulted cubic side beside a spring is resolved
+        // changed in swift-tui (STUI-612), and the tests snapshot this curve.
+        CubicKeyframe(0, duration: .milliseconds(800), startVelocity: 0, endVelocity: 0)
       }
       boundaries = [.milliseconds(500), .milliseconds(1200)]
     }
