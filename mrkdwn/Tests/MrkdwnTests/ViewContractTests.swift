@@ -387,8 +387,9 @@ struct ViewContractTests {
         farRight.raster.lines.joined(separator: "\n")
           .contains("FINAL-COLUMN-MARKER")
       )
-      // Ctrl+C is the framework default exit binding (`ExitKeyBindings.default`).
-      session.send(.key(.init(.character("c"), modifiers: .ctrl)))
+      // The embedding host owns this session's lifetime. Exit keys deliberately
+      // leave non-exitable hosted sessions alive; teardown uses the host API.
+      session.stop()
       _ = try await task.value
     } catch {
       session.stop()
