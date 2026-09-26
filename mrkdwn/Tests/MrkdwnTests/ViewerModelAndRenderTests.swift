@@ -561,8 +561,8 @@ struct ViewerModelAndRenderTests {
       let runtimeIndicatorColor = try #require(runtimeIndicator.style?.foregroundColor)
       #expect(runtimeIndicatorColor.red > runtimeIndicatorColor.green)
       #expect(runtimeIndicatorColor.red > runtimeIndicatorColor.blue)
-      // Ctrl+C is the framework default exit binding (`ExitKeyBindings.default`).
-      session.send(.key(.init(.character("c"), modifiers: .ctrl)))
+      // The embedding host, rather than an exit key, owns session teardown.
+      session.stop()
       _ = try await sessionTask.value
     } catch {
       session.stop()
@@ -668,7 +668,7 @@ struct ViewerModelAndRenderTests {
       )
       #expect(scrolledStartRow - scrolledImageMetadataRow == expectedSectionDistance)
 
-      session.send(.key(.init(.character("c"), modifiers: .ctrl)))
+      session.stop()
       _ = try await sessionTask.value
     } catch {
       session.stop()
@@ -740,7 +740,7 @@ struct ViewerModelAndRenderTests {
         "Down committed a frame that moved the README table toward the bottom: \(tableRows)"
       )
 
-      session.send(.key(.init(.character("c"), modifiers: .ctrl)))
+      session.stop()
       _ = try await sessionTask.value
     } catch {
       session.stop()
