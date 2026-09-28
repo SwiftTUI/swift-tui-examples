@@ -338,7 +338,7 @@ private actor BenchmarkTerminalState {
   }
 }
 
-private final class BenchmarkTerminalSession: TerminalSession, @unchecked Sendable {
+private final class BenchmarkTerminalSession: TerminalSession {
   private let state: BenchmarkTerminalState
   private let snapshotStorage = Mutex<ForeignGrid>(.empty)
 

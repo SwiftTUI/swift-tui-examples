@@ -3,6 +3,7 @@ import Foundation
 @_spi(Runners) @_spi(Testing) import SwiftTUI
 import SwiftTUITerminalView
 @_spi(Testing) import SwiftTUITestSupport
+import Synchronization
 import Testing
 
 @testable import Sextant
@@ -820,59 +821,65 @@ private struct DetachedVisibleScreenResult: Sendable {
   var screen: ANSIVisibleScreen
 }
 
-private final class PTYOutputDrain: @unchecked Sendable {
-  private let source: any DispatchSourceRead
-  private let lock = NSLock()
-  private var cancelled = false
-  private var cancellationWaiter: CheckedContinuation<Void, Never>?
+private final class PTYOutputDrain: Sendable {
+  private struct CancellationState {
+    var cancelled = false
+    var waiters: [CheckedContinuation<Void, Never>] = []
+  }
+
+  private let source = Mutex<(any DispatchSourceRead)?>(nil)
+  private let cancellation = Mutex(CancellationState())
 
   init(fileDescriptor: Int32) {
     let queue = DispatchQueue(label: "SextantTests.PTYOutputDrain")
-    let source = DispatchSource.makeReadSource(
-      fileDescriptor: fileDescriptor,
-      queue: queue
-    )
-    self.source = source
-    source.setEventHandler {
-      var buffer = Array(repeating: UInt8(0), count: 4_096)
-      while true {
-        let count = unsafe read(fileDescriptor, &buffer, buffer.count)
-        if count > 0 {
-          continue
+    source.withLock { storedSource in
+      let source = DispatchSource.makeReadSource(
+        fileDescriptor: fileDescriptor,
+        queue: queue
+      )
+      source.setEventHandler {
+        var buffer = Array(repeating: UInt8(0), count: 4_096)
+        while true {
+          let count = unsafe read(fileDescriptor, &buffer, buffer.count)
+          if count > 0 {
+            continue
+          }
+          if count < 0, errno == EINTR {
+            continue
+          }
+          return
         }
-        if count < 0, errno == EINTR {
-          continue
-        }
-        return
       }
+      source.setCancelHandler { [weak self] in
+        self?.didCancel()
+      }
+      source.resume()
+      storedSource = source
     }
-    source.setCancelHandler { [weak self] in
-      self?.didCancel()
-    }
-    source.resume()
   }
 
   func cancel() async {
-    source.cancel()
+    source.withLock { $0?.cancel() }
     await withCheckedContinuation { continuation in
-      lock.lock()
-      if cancelled {
-        lock.unlock()
+      let alreadyCancelled = cancellation.withLock { state in
+        if state.cancelled { return true }
+        state.waiters.append(continuation)
+        return false
+      }
+      if alreadyCancelled {
         continuation.resume()
-      } else {
-        cancellationWaiter = continuation
-        lock.unlock()
       }
     }
   }
 
   private func didCancel() {
-    lock.lock()
-    cancelled = true
-    let waiter = cancellationWaiter
-    cancellationWaiter = nil
-    lock.unlock()
-    waiter?.resume()
+    let waiters = cancellation.withLock { state in
+      state.cancelled = true
+      let waiters = state.waiters
+      state.waiters.removeAll()
+      return waiters
+    }
+    for waiter in waiters { waiter.resume() }
   }
 }
 

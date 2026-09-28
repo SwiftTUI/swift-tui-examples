@@ -71,6 +71,39 @@ struct PreviewCoordinatorTests {
     #expect(await sessions.liveCount == 0)
   }
 
+  @Test("shutdown retains the child while waiting for a canceled pending selection")
+  func shutdownAfterReadinessRetainsOwnership() async throws {
+    for iteration in 0..<10 {
+      let clock = ManualPreviewClock(blocksDebounceCancellation: true)
+      let sessions = SessionFactory()
+      let events = PreviewEventRecorder()
+      let coordinator = PreviewCoordinator(
+        clock: PreviewClock { try await clock.sleep($0) },
+        processClient: PreviewProcessClient { await sessions.make(launch: $0) },
+        eventSink: { await events.record($0) }
+      )
+      await coordinator.select(generation: 1, launch: launch("ready"), fallback: fallback())
+      try await waitUntil { await clock.pendingDurations == [.milliseconds(120)] }
+      await clock.advanceAll()
+      try await waitUntil { await sessions.createdCount == 1 }
+      try await waitUntil { await events.hasReady(generation: 1) }
+      try await waitUntil { await clock.pendingDurations == [.seconds(2)] }
+      await coordinator.select(generation: 2, launch: launch("pending"), fallback: fallback())
+      try await waitUntil { await clock.pendingDurations.contains(.milliseconds(120)) }
+      let shutdown = Task { await coordinator.shutdown() }
+      try await waitUntil { await clock.cancelledDebounces == 1 }
+      await sessions.produceOutputForLatest()
+      // Output ends the observation while shutdown is joining the pending
+      // selection. Its slow timer is canceled, but the child is still live.
+      try await waitUntil { await clock.pendingDurations == [.milliseconds(120)] }
+      for _ in 0..<100 { await Task.yield() }
+      await clock.advance(.milliseconds(120))
+      await shutdown.value
+      #expect(await sessions.liveCount == 0, "child remained live in iteration \(iteration)")
+      #expect(await sessions.terminationSignals == [15])
+    }
+  }
+
   @Test("superseded debounces preserve the installed session and shutdown joins both owners")
   func installedSessionSurvivesPendingSelections() async throws {
     let clock = ManualPreviewClock()
@@ -450,6 +483,12 @@ private actor ManualPreviewClock {
   }
 
   private var waiters: [UUID: Waiter] = [:]
+  private let blocksDebounceCancellation: Bool
+  private(set) var cancelledDebounces = 0
+
+  init(blocksDebounceCancellation: Bool = false) {
+    self.blocksDebounceCancellation = blocksDebounceCancellation
+  }
 
   var pendingDurations: [Duration] {
     waiters.values.map(\.duration).sorted { $0 < $1 }
@@ -492,6 +531,10 @@ private actor ManualPreviewClock {
   }
 
   private func cancel(_ id: UUID) {
+    if blocksDebounceCancellation, waiters[id]?.duration == .milliseconds(120) {
+      cancelledDebounces += 1
+      return
+    }
     waiters.removeValue(forKey: id)?.continuation.resume(
       throwing: CancellationError()
     )
@@ -648,7 +691,7 @@ private actor SessionFactory {
   }
 }
 
-private final class StubTerminalSession: TerminalSession, @unchecked Sendable {
+private final class StubTerminalSession: TerminalSession {
   private let state = StubTerminalState()
   private let snapshotStorage = Mutex<ForeignGrid>(.empty)
 

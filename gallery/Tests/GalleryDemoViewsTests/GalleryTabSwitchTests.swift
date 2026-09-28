@@ -1,6 +1,7 @@
 import Dispatch
 @_spi(Runners) @_spi(Testing) import SwiftTUI
 @_spi(Testing) import SwiftTUITestSupport
+import Synchronization
 import Testing
 
 @testable import GalleryDemoViews
@@ -16,6 +17,24 @@ import Testing
 @MainActor
 @Suite(.serialized)
 struct GalleryTabSwitchTests {
+  @Test("PTY readable source delivers bytes and awaits repeated cancellation")
+  func ptyReadableSourceDeliversAndCancels() async throws {
+    let pty = try #require(Self.makePseudoTerminal(size: CellSize(width: 80, height: 24)))
+    defer {
+      _ = close(pty.master)
+      _ = close(pty.slave)
+    }
+    let source = PTYReadableSource(fileDescriptor: pty.master, timeoutNanoseconds: 5_000_000_000)
+    try Self.writeAllBytes(Array("ready".utf8), to: pty.slave)
+    var events = source.events.makeAsyncIterator()
+    let event: Void? = await events.next()
+    #expect(event != nil)
+    async let first: Void = source.cancel()
+    async let second: Void = source.cancel()
+    _ = await (first, second)
+    await source.cancel()
+  }
+
   @Test("gallery tabs collapse into the overflow trigger instead of ellipsizing")
   func galleryTabsCollapseIntoOverflowTrigger() {
     var env = EnvironmentValues()
@@ -561,7 +580,8 @@ struct GalleryTabSwitchTests {
               Self.containsGrabbedBall(surface),
               let bounds = Self.brailleBounds(in: surface)
             else { return false }
-            capture.observedDrag = Self.centerPoint(of: bounds).containingCell != capture.dragStart.containingCell
+            capture.observedDrag =
+              Self.centerPoint(of: bounds).containingCell != capture.dragStart.containingCell
             return capture.observedDrag
           },
           // The release follows the drag with no delay, mirroring the real
@@ -600,7 +620,8 @@ struct GalleryTabSwitchTests {
     #expect(capture.observedDrag, "the held ball must follow the delivered drag")
     let prePressCenters = host.distinctSurfaces.prefix(capture.surfaceCountAtPress)
       .compactMap { Self.brailleBounds(in: $0).map(Self.centerPoint(of:)) }
-    #expect(Set(prePressCenters.map(\.containingCell)).count > 1,
+    #expect(
+      Set(prePressCenters.map(\.containingCell)).count > 1,
       "the grab must target an already moving ball")
     let uniqueSurfaces = host.distinctSurfaces
     #expect(
@@ -2004,37 +2025,36 @@ struct GalleryTabSwitchTests {
 /// down and waits until libdispatch has released its hold on the fd, which
 /// avoids the trap that closing the fd under a live source would cause.
 ///
-/// `@unchecked Sendable` because the wall-clock watchdog below hands `self` to
-/// a libdispatch block: every stored member is a `let` of a thread-safe type
-/// (`AsyncStream`, `AsyncEvent`, and the source itself), but the Linux Dispatch
-/// overlay does not declare `DispatchSourceRead: Sendable` the way Darwin's
-/// does, so the compiler cannot see that for itself.
-private final class PTYReadableSource: @unchecked Sendable {
+/// The source stays inside a mutex, including on Linux where Dispatch does
+/// not declare read sources Sendable. The watchdog captures this checked
+/// wrapper without transferring the source between isolation domains.
+private final class PTYReadableSource: Sendable {
   let events: AsyncStream<Void>
-  private let source: any DispatchSourceRead
+  private let source = Mutex<(any DispatchSourceRead)?>(nil)
   private let cancelled = AsyncEvent()
 
   init(fileDescriptor: Int32, timeoutNanoseconds: UInt64 = 15_000_000_000) {
     let queue = DispatchQueue(label: "GalleryTabSwitchTests.ptyReadable")
-    let source = DispatchSource.makeReadSource(
-      fileDescriptor: fileDescriptor,
-      queue: queue
-    )
-    self.source = source
-
     var streamContinuation: AsyncStream<Void>.Continuation!
     events = AsyncStream<Void> { streamContinuation = $0 }
     let continuation = streamContinuation!
     let cancelledEvent = cancelled
 
-    source.setEventHandler {
-      continuation.yield(())
+    source.withLock { storedSource in
+      let source = DispatchSource.makeReadSource(
+        fileDescriptor: fileDescriptor,
+        queue: queue
+      )
+      source.setEventHandler {
+        continuation.yield(())
+      }
+      source.setCancelHandler {
+        continuation.finish()
+        cancelledEvent.fire()
+      }
+      source.resume()
+      storedSource = source
     }
-    source.setCancelHandler {
-      continuation.finish()
-      cancelledEvent.fire()
-    }
-    source.resume()
 
     // Wall-clock safety net: a PTY wait must never outlive `timeoutNanoseconds`.
     // The consuming helpers break out of `for await _ in events` on the awaited
@@ -2047,14 +2067,14 @@ private final class PTYReadableSource: @unchecked Sendable {
     // Reach the source through `self` rather than capturing the local: the
     // local is `any DispatchSourceRead`, which is non-Sendable on Linux.
     queue.asyncAfter(deadline: .now() + .nanoseconds(Int(timeoutNanoseconds))) { [self] in
-      self.source.cancel()
+      self.source.withLock { $0?.cancel() }
     }
   }
 
   /// Cancels the source and suspends until its cancel handler has run — i.e.
   /// until libdispatch has released the file descriptor.
   func cancel() async {
-    source.cancel()
+    source.withLock { $0?.cancel() }
     await cancelled.wait()
   }
 }

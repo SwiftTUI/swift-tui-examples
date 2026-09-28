@@ -551,19 +551,15 @@ struct ColumnBrowser: View {
       VStack(alignment: .leading, spacing: 0) {
         Text("\(preview.adapterName) · \(externalStatusLabel(preview.status))")
           .foregroundStyle(mutedStyle)
-        TerminalView(
-          session: preview.handle.terminal,
-          keyRouting: routePreviewKey
-        )
-        .hostFocused($runtimeFocus, equals: .preview)
-        .focusable(model.state.focus == .preview)
-        .onAppear {
-          focusSynchronization.request(
-            model.state.focus,
-            current: model.state.focus == .preview ? nil : runtimeFocus
-          )
-          runtimeFocus = model.state.focus
-        }
+        terminalPreview(session: preview.handle.terminal)
+          .focusable(model.state.focus == .preview)
+          .onAppear {
+            focusSynchronization.request(
+              model.state.focus,
+              current: model.state.focus == .preview ? nil : runtimeFocus
+            )
+            runtimeFocus = model.state.focus
+          }
       }
     case .unavailable(_, _, let reason):
       Text(unavailableLabel(reason))
@@ -588,6 +584,14 @@ struct ColumnBrowser: View {
         }
       }
     }
+  }
+
+  // Open the existential before erasing the view, retaining every session capability.
+  private func terminalPreview<Session: TerminalSession>(session: Session) -> AnyView {
+    AnyView(
+      TerminalView(session: session, keyRouting: routePreviewKey)
+        .hostFocused($runtimeFocus, equals: .preview)
+    )
   }
 
   @ViewBuilder

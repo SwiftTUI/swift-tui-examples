@@ -384,10 +384,11 @@ private struct TerminalWorkspacePaneView: View {
       }
       .padding(.horizontal, 1)
       TerminalView(session: session, onExit: { _ in onSessionExit() })
-        .focused(focusedPane, equals: pane.id)
+        .hostFocused(focusedPane, equals: pane.id)
         .defaultFocus(focusedPane, pane.id)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
+    .padding(1)
     .border(isFocused ? .tint : .separator)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   }

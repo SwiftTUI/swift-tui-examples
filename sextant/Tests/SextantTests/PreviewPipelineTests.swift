@@ -487,7 +487,7 @@ struct PreviewPipelineTests {
   }
 }
 
-private final class PipelineTerminalSession: TerminalSession, @unchecked Sendable {
+private final class PipelineTerminalSession: TerminalSession {
   private let lifecycleStorage = Mutex<TerminalLifecycle>(.notStarted)
 
   var cachedSnapshot: ForeignGrid { .empty }

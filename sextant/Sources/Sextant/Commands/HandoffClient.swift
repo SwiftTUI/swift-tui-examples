@@ -1,6 +1,7 @@
 import Dispatch
 public import Foundation
 import SwiftTUI
+import Synchronization
 
 #if canImport(Darwin)
   import Darwin
@@ -317,25 +318,24 @@ enum ProcessStandardIO: Sendable {
   case input(Data)
 }
 
-private final class CancellableProcess: @unchecked Sendable {
+private final class CancellableProcess: Sendable {
   let process = Process()
-  private let lock = NSLock()
-  private var cancellationRequested = false
+  private let cancellationRequested = Mutex(false)
 
   func run() throws {
-    lock.lock()
-    defer { lock.unlock() }
-    guard !cancellationRequested else {
-      throw CancellationError()
+    try cancellationRequested.withLock { cancelled in
+      guard !cancelled else {
+        throw CancellationError()
+      }
+      try process.run()
     }
-    try process.run()
   }
 
   func cancel(gracePeriod: Duration) {
-    lock.lock()
-    cancellationRequested = true
-    let isRunning = process.isRunning
-    lock.unlock()
+    let isRunning = cancellationRequested.withLock { cancelled in
+      cancelled = true
+      return process.isRunning
+    }
     if isRunning {
       process.terminate()
       // The escalation timer deliberately does not run on the cooperative
@@ -355,10 +355,9 @@ private final class CancellableProcess: @unchecked Sendable {
   }
 
   private func forceKillIfRunning() {
-    lock.lock()
-    let processIdentifier =
+    let processIdentifier = cancellationRequested.withLock { _ in
       process.isRunning ? process.processIdentifier : nil
-    lock.unlock()
+    }
     guard let processIdentifier else {
       return
     }

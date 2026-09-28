@@ -269,7 +269,9 @@ public actor PreviewCoordinator {
         )
       )
     }
-    if current?.id == handle.id {
+    // Cancellation or revoked ownership can end observation before the child
+    // exits. Keep its handle for the pending teardown to terminate and join.
+    if reason != nil, current?.id == handle.id {
       current = nil
       sessionTask = nil
     }

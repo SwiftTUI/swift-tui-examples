@@ -42,6 +42,8 @@ Pending selections own debounce and startup; installed sessions have a separate
 observation task. Superseding a pending selection preserves the installed
 preview until the replacement debounce closes. Replacement and explicit
 cancellation stop and join the installed owner before starting another child.
+An observation ending without a confirmed exit retains its session handle for
+teardown; shutdown cannot lose a live child while joining a pending selection.
 Events from an older selection remain suppressed while its process is retained.
 `PreviewPipeline` maps those events into the model while retaining the built-in
 fallback.
@@ -76,3 +78,9 @@ descriptor during shutdown.
   The data covers selection, preview, focus, overlays, hidden files, and
   root-relative selection. Tests can determine dispatch without a live
   `BrowserModel`. A command reads browser state only through this value.
+
+Preview handles retain `any TerminalSession`. The view opens that existential
+before constructing TerminalView and erases the resulting view with AnyView.
+This preserves the concrete session's protocol conformance when the embedding
+package adds capabilities; a closure wrapper with inherited protocol defaults
+could otherwise silently lose history or graphic snapshots.
