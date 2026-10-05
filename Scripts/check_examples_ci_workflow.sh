@@ -45,7 +45,9 @@ require_text "timeout-minutes: \${{ (startsWith(github.ref, 'refs/tags/') || (gi
 # App-logic lane: per-package matrix, path-filtered on push/PR, everything
 # on dispatch and tags.
 require_text "App logic (\${{ matrix.package }})" "$workflow"
-require_text "dorny/paths-filter@v3" "$workflow"
+if ! grep -Eq 'uses: dorny/paths-filter@[[:xdigit:]]{40} # v3$' "$workflow"; then
+  fail "expected the paths-filter action to use a full commit SHA with its v3 release comment"
+fi
 require_text "package: \${{ fromJSON(needs.changes.outputs.packages) }}" "$workflow"
 require_text "Scripts/check_examples_focused_tests.sh --package" "$workflow"
 # Tags run everything, add release builds, and are never cancelled.
