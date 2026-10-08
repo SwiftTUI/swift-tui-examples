@@ -4,6 +4,14 @@ All notable Sextant changes are recorded here.
 
 ## Unreleased
 
+## 0.16.0 - 2026-10-08
+
+- External previews retain terminal capabilities and their shutdown ownership
+  through the terminal embedding lifecycle.
+- Update the framework and terminal-view dependencies to 0.16.0.
+
+## Earlier changes (included in 0.15.1)
+
 - Fixed the preview panel rendering at half height for external previews. A
   trailing `Spacer` in the pane and the embedded terminal are both flexible, so
   a `VStack` split the available rows evenly between them and a previewer such
