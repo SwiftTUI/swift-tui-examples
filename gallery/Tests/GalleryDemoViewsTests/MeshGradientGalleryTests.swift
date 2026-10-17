@@ -38,8 +38,12 @@ struct MeshGradientGalleryTests {
     #expect(definition.contains("colorSpace: .perceptual"))
   }
 
-  @Test("Copy Definition writes the current mesh through the active host clipboard")
-  func copyDefinitionWritesHostClipboard() async throws {
+  @Test(
+    "Copy Definition writes the current mesh through the active host clipboard",
+    .timeLimit(.minutes(1)),
+    arguments: [RuntimeRenderMode.sync, .async]
+  )
+  func copyDefinitionWritesHostClipboard(renderMode: RuntimeRenderMode) async throws {
     let terminalSize = CellSize(width: 100, height: 30)
     let rootIdentity = Identity(components: [.named("MeshGradientCrafterClipboard")])
     let host = MeshCrafterClipboardHost(size: terminalSize)
@@ -47,41 +51,46 @@ struct MeshGradientGalleryTests {
     environment.terminalSize = terminalSize
     environment.terminalAppearance = host.appearance
 
-    let initial = DefaultRenderer().render(
-      MeshGradientCrafter(),
-      context: .init(
-        identity: rootIdentity,
-        environmentValues: environment
-      ),
-      proposal: .init(width: terminalSize.width, height: terminalSize.height)
-    ).rasterSurface
-    let copyCenter = try #require(Self.center(of: "Copy Definition", in: initial))
+    let (events, continuation) = AsyncStream<InputEvent>.makeStream()
+    var sentClick = false
+    host.onPresent = { surface in
+      guard !sentClick else { return }
+      sentClick = true
+      defer { continuation.finish() }
+      // Initial focus can expand the menu picker and move the controls below
+      // it. Click the committed host frame, not an unfocused renderer snapshot.
+      guard let copyCenter = Self.center(of: "Copy Definition", in: surface) else {
+        Issue.record("Copy Definition is missing from the presented frame")
+        return
+      }
+      continuation.yield(.mouse(.init(kind: .down(.primary), location: copyCenter)))
+      continuation.yield(.mouse(.init(kind: .up(.primary), location: copyCenter)))
+    }
 
+    let focusTracker = FocusTracker(invalidationIdentities: [rootIdentity])
+    // Keep the picker closed while the pointer moves focus to Copy Definition;
+    // collapsing its inline menu mid-press would move the release target.
+    focusTracker.clearFocus()
     let runLoop = RunLoop(
       rootIdentity: rootIdentity,
       presentationSurface: host,
-      terminalInputReader: MeshCrafterScriptedInput(
-        events: [
-          .mouse(.init(kind: .down(.primary), location: copyCenter)),
-          .mouse(.init(kind: .up(.primary), location: copyCenter)),
-        ]
-      ),
+      terminalInputReader: MeshCrafterScriptedInput(events: events),
       signalReader: MeshCrafterEmptySignals(),
       scheduler: FrameScheduler(),
       stateContainer: StateContainer(
         initialState: 0,
         invalidationIdentities: [rootIdentity]
       ),
-      focusTracker: FocusTracker(
-        invalidationIdentities: [rootIdentity]
-      ),
+      focusTracker: focusTracker,
       environmentValues: environment,
       proposal: .init(width: terminalSize.width, height: terminalSize.height),
       viewBuilder: { _, _ in MeshGradientCrafter() }
     )
+    runLoop.renderMode = renderMode
     _ = try await runLoop.run()
 
-    #expect(host.clipboardWrites.count == 1)
+    #expect(sentClick)
+    try #require(host.clipboardWrites.count == 1)
     #expect(host.clipboardWrites[0].hasPrefix("MeshGradient("))
     #expect(
       host.lastSurface?.lines.joined(separator: "\n").contains("Copied MeshGradient") == true
@@ -123,6 +132,7 @@ private final class MeshCrafterClipboardHost:
   let appearance: TerminalAppearance = .fallback
   private(set) var lastSurface: RasterSurface?
   private(set) var clipboardWrites: [String] = []
+  var onPresent: ((RasterSurface) -> Void)?
 
   init(size: CellSize) {
     surfaceSize = size
@@ -137,6 +147,7 @@ private final class MeshCrafterClipboardHost:
   @discardableResult
   func present(_ surface: RasterSurface) throws -> TerminalPresentationMetrics {
     lastSurface = surface
+    onPresent?(surface)
     return .init(
       bytesWritten: 0,
       linesTouched: surface.size.height,
@@ -153,19 +164,14 @@ private final class MeshCrafterClipboardHost:
 }
 
 private final class MeshCrafterScriptedInput: TerminalInputReading {
-  let events: [InputEvent]
+  let events: AsyncStream<InputEvent>
 
-  init(events: [InputEvent]) {
+  init(events: AsyncStream<InputEvent>) {
     self.events = events
   }
 
   func inputEvents() -> AsyncStream<InputEvent> {
-    AsyncStream { continuation in
-      for event in events {
-        continuation.yield(event)
-      }
-      continuation.finish()
-    }
+    events
   }
 }
 
