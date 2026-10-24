@@ -277,8 +277,8 @@ enum ExternalImage {
     let outURL = scratch.appendingPathComponent("stdout-\(identifier)")
     let errURL = scratch.appendingPathComponent("stderr-\(identifier)")
     try FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
-    FileManager.default.createFile(atPath: outURL.path, contents: nil)
-    FileManager.default.createFile(atPath: errURL.path, contents: nil)
+    _ = FileManager.default.createFile(atPath: outURL.path, contents: nil)
+    _ = FileManager.default.createFile(atPath: errURL.path, contents: nil)
     let outHandle = try FileHandle(forWritingTo: outURL)
     let errHandle = try FileHandle(forWritingTo: errURL)
 

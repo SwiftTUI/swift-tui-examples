@@ -47,7 +47,7 @@ struct TimelineView: View {
     }
     .padding(.horizontal, 1)
     .frame(maxWidth: .infinity, alignment: .leading)
-    .border(.separator, set: .single, placement: .outset)
+    .border(.separator, style: .single, placement: .outset)
   }
 
   // MARK: - Navigation cluster (◀◀ ◀ ▶ ▶▶)
@@ -179,7 +179,7 @@ struct TimelineView: View {
         pixels: pixels,
         mode: .verticalHalfBlock
       )
-      .border(active ? .tint : .separator, set: .rounded, placement: .outset)
+      .border(active ? .tint : .separator, style: .rounded, placement: .outset)
       // .overlay(alignment: .bottomTrailing) {
       //   Text(active ? "[\(index + 1)]" : "\(index + 1)")
       //     .foregroundStyle(active ? .tint : .muted)

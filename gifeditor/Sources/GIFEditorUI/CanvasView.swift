@@ -51,7 +51,7 @@ struct CanvasView: View {
       ghosts: ghosts,
       theme: theme
     )
-    .border(.separator, set: .single, placement: .outset)
+    .border(.separator, style: .single, placement: .outset)
   }
 }
 

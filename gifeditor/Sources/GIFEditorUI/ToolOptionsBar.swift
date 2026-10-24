@@ -37,7 +37,7 @@ struct ToolOptionsBar: View {
   @ViewBuilder
   private var boxedBar: some View {
     if density.boxesToolOptionsBar {
-      bar.border(.separator, set: .single, placement: .outset)
+      bar.border(.separator, style: .single, placement: .outset)
     } else {
       bar
     }
