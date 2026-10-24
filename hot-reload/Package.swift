@@ -5,7 +5,7 @@ let package = Package(
   name: "hot-reload",
   platforms: [.macOS(.v15)],
   dependencies: [
-    .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.19.0")
+    .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.19.2")
   ],
   targets: [
     .executableTarget(
