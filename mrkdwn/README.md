@@ -136,6 +136,8 @@ are:
 
 - Markdown is read-only. Task checkboxes are presentation only.
 - Raw HTML is displayed literally and never executed.
+- Links with an empty destination, such as `[label]()`, display their label
+  without a clickable link or an entry in link navigation.
 - Code has a language label but no syntax highlighting.
 - Terminal image display depends on host attachment support. Alt text remains
   visible for blocked or failed images.
