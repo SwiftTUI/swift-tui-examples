@@ -100,6 +100,69 @@ struct MarkdownCompilerTests {
   }
 }
 
+// Wave-2 regression hunt, part CA (STUI-1165): neighbours of the STUI-1185
+// correction. Cases w2ca022-w2ca024; the hypotheses precede these tests in the
+// hunt's evidence directory.
+@Suite("Wave-2 hunt CA: numeric reference correction neighbours")
+struct Wave2RegressionHuntMarkdownTests {
+  @Test("w2ca022 a reference before a trailing space and a soft break stays literal")
+  func w2ca022ReferenceBeforeTrailingSpaceSoftBreakStaysLiteral() {
+    let compiled = MarkdownCompiler().compile(source: "foo &#87654321; \nbar", sourceURL: nil)
+    #expect(compiled.diagnostics.isEmpty)
+    w2HuntKnown(
+      """
+      NEW-5: a reference before a trailing space and a soft break still decodes to U+FFFD; \
+      cmark right-trims the text before a line ending but keeps its untrimmed end \
+      column, so the source excerpt holds spaces the node text lacks and the \
+      isolated-parse check rejects the correction; contract: CommonMark 0.31.2 §2.5, \
+      858fc70, mrkdwn/README.md:145-150; adjacent STUI-1185
+      """
+    ) {
+      #expect(describe(compiled) == #"p["foo &#87654321; bar"]"#)
+    }
+  }
+
+  @Test("w2ca023 a reference before a two-space hard line break stays literal")
+  func w2ca023ReferenceBeforeTwoSpaceHardBreakStaysLiteral() {
+    let compiled = MarkdownCompiler().compile(source: "foo &#87654321;  \nbar", sourceURL: nil)
+    #expect(compiled.diagnostics.isEmpty)
+    w2HuntKnown(
+      """
+      NEW-5: a reference before a two-space hard line break still decodes to U+FFFD; \
+      cmark right-trims the text before a line ending but keeps its untrimmed end \
+      column, so the source excerpt holds spaces the node text lacks and the \
+      isolated-parse check rejects the correction; contract: CommonMark 0.31.2 §2.5, \
+      858fc70, mrkdwn/README.md:145-150; adjacent STUI-1185
+      """
+    ) {
+      #expect(describe(compiled) == "p[\"foo &#87654321;\nbar\"]")
+    }
+  }
+
+  @Test("w2ca024 a reference in an unchecked task-list item stays literal")
+  func w2ca024TaskListItemReferenceStaysLiteral() throws {
+    let compiled = MarkdownCompiler().compile(source: "- [ ] task &#87654321;", sourceURL: nil)
+    #expect(compiled.diagnostics.isEmpty)
+    guard case .list(_, let list, _) = try #require(compiled.blocks.first) else {
+      Issue.record("expected a list, got \(describe(compiled))")
+      return
+    }
+    let item = try #require(list.items.first)
+    #expect(list.items.count == 1)
+    #expect(item.checkbox == false)
+    #expect(item.blocks.map(describe(block:)) == [#"p["task &#87654321;"]"#])
+  }
+}
+
+/// Preserves an unmarked reproduction while guarding only confirmed assertions.
+private func w2HuntKnown(_ comment: Comment, _ body: () -> Void) {
+  if ProcessInfo.processInfo.environment["SWIFTTUI_W2HUNT_UNMARKED"] == "1" {
+    body()
+  } else {
+    withKnownIssue(comment) { body() }
+  }
+}
+
 struct TextContractCase: Sendable, CustomTestStringConvertible {
   let id: String
   let source: String
