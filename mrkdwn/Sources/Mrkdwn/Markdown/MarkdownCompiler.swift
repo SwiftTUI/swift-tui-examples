@@ -25,6 +25,7 @@ private struct CompilerVisitor: MarkupVisitor {
   typealias Result = [MarkdownBlock]
 
   let source: String
+  private let referenceLiterals: NumericReferenceLiterals?
   var slugger = HeadingSlugger()
   var outline: [OutlineEntry] = []
   var links: [CompiledLink] = []
@@ -33,6 +34,7 @@ private struct CompilerVisitor: MarkupVisitor {
 
   init(source: String) {
     self.source = source
+    referenceLiterals = NumericReferenceLiterals(source: source)
   }
 
   mutating func defaultVisit(_ markup: any Markup) -> [MarkdownBlock] {
@@ -207,7 +209,7 @@ private struct CompilerVisitor: MarkupVisitor {
 
   private mutating func inline(_ markup: any Markup, traits: InlineTraits) -> [InlineRun] {
     if let text = markup as? Markdown.Text {
-      return [InlineRun(text: text.string, traits: traits)]
+      return [InlineRun(text: literalText(text), traits: traits)]
     }
     if markup is SoftBreak {
       return [InlineRun(text: " ", traits: traits)]
@@ -277,8 +279,12 @@ private struct CompilerVisitor: MarkupVisitor {
     ]
   }
 
+  private func literalText(_ text: Markdown.Text) -> String {
+    referenceLiterals?.literalText(for: text) ?? text.string
+  }
+
   private func plainText(of markup: any Markup) -> String {
-    if let text = markup as? Markdown.Text { return text.string }
+    if let text = markup as? Markdown.Text { return literalText(text) }
     if let code = markup as? InlineCode { return code.code }
     if let html = markup as? InlineHTML { return html.rawHTML }
     if markup is SoftBreak { return " " }
@@ -362,5 +368,174 @@ private struct CompilerVisitor: MarkupVisitor {
     guard span.start.line > 0, span.start.line <= lines.count else { return nil }
     let endLine = min(max(span.end.line, span.start.line), lines.count)
     return lines[(span.start.line - 1)..<endLine].joined(separator: "\n")
+  }
+}
+
+/// Keeps numeric character references that CommonMark rejects literal (STUI-1185).
+///
+/// CommonMark 0.31.2 §2.5 allows 1–7 decimal or 1–6 hexadecimal digits. The
+/// pinned swift-cmark 0.8.0 accepts up to eight of either
+/// (`src/houdini_html_u.c`), so `&#87654321;` decoded to U+FFFD instead of
+/// staying literal; no tagged swift-cmark or swift-markdown release changes
+/// that. Nothing is rewritten before parsing. A text node is re-decoded only
+/// when its own source excerpt holds such a reference and an isolated parse of
+/// that excerpt reproduces the node's text exactly; any other node keeps the
+/// parser's text. Destinations, titles and fence info strings are decoded inside
+/// the parser, before any text node exists, and keep the parser's decoding.
+private struct NumericReferenceLiterals {
+  private let bytes: [UInt8]
+  private let lines: [Range<Int>]
+
+  /// Returns `nil`, leaving compilation unchanged, unless the source contains
+  /// an eight-digit decimal or seven- or eight-digit hexadecimal reference.
+  init?(source: String) {
+    let bytes = Array(source.utf8)
+    var index = 0
+    var found = false
+    while index < bytes.count, !found {
+      if let reference = Self.reference(in: bytes, at: index, end: bytes.count) {
+        found = reference.rejectedByCommonMark
+      }
+      index += 1
+    }
+    guard found else { return nil }
+    self.bytes = bytes
+    lines = Self.lines(in: bytes)
+  }
+
+  func literalText(for text: Markdown.Text) -> String? {
+    guard let excerpt = excerpt(text.range) else { return nil }
+    let references = Self.rejectedReferences(in: bytes, excerpt)
+    guard !references.isEmpty else { return nil }
+    let parsed = Self.isolatedText(sentinel(bytes[excerpt]))
+    guard let parsed, parsed.unicodeScalars.elementsEqual(sentinel(text.string).unicodeScalars)
+    else { return nil }
+    var escaped: [UInt8] = []
+    var start = excerpt.lowerBound
+    for reference in references {
+      escaped += bytes[start..<reference.lowerBound]
+      escaped += Array("&amp;".utf8)
+      escaped += bytes[(reference.lowerBound + 1)..<reference.upperBound]
+      start = reference.upperBound
+    }
+    escaped += bytes[start..<excerpt.upperBound]
+    guard var scalars = Self.isolatedText(sentinel(escaped[...]))?.unicodeScalars,
+      scalars.first == "a", scalars.last == "a"
+    else { return nil }
+    scalars.removeFirst()
+    scalars.removeLast()
+    let growth = references.reduce(0) { $0 + $1.count - 1 }
+    guard scalars.count == text.string.unicodeScalars.count + growth else { return nil }
+    return String(scalars)
+  }
+
+  /// The node's single-line source range as UTF-8 offsets (swift-markdown
+  /// columns are 1-based UTF-8 byte columns with an exclusive upper bound).
+  private func excerpt(_ range: SourceRange?) -> Range<Int>? {
+    guard let range, range.lowerBound.line == range.upperBound.line,
+      range.lowerBound.line >= 1, range.lowerBound.line <= lines.count,
+      range.lowerBound.column >= 1, range.lowerBound.column <= range.upperBound.column
+    else { return nil }
+    let line = lines[range.lowerBound.line - 1]
+    let lower = line.lowerBound + range.lowerBound.column - 1
+    let upper = line.lowerBound + range.upperBound.column - 1
+    guard upper <= line.upperBound else { return nil }
+    return lower..<upper
+  }
+
+  private func sentinel(_ text: some StringProtocol) -> String { "a" + text + "a" }
+
+  private func sentinel(_ text: ArraySlice<UInt8>) -> String {
+    sentinel(String(decoding: text, as: UTF8.self))
+  }
+
+  /// Line content ranges, ending at LF, CR or CRLF as cmark does.
+  private static func lines(in bytes: [UInt8]) -> [Range<Int>] {
+    var lines: [Range<Int>] = []
+    var start = 0
+    var index = 0
+    while index < bytes.count {
+      switch bytes[index] {
+      case UInt8(ascii: "\n"):
+        lines.append(start..<index)
+        index += 1
+        start = index
+      case UInt8(ascii: "\r"):
+        lines.append(start..<index)
+        index += index + 1 < bytes.count && bytes[index + 1] == UInt8(ascii: "\n") ? 2 : 1
+        start = index
+      default:
+        index += 1
+      }
+    }
+    lines.append(start..<bytes.count)
+    return lines
+  }
+
+  /// Out-of-grammar references in a text excerpt, tokenized as cmark does:
+  /// a backslash escapes ASCII punctuation, and a reference cmark accepts is
+  /// consumed whole, so `\&#…;` and `&#38;#…;` hold no reference.
+  private static func rejectedReferences(in bytes: [UInt8], _ excerpt: Range<Int>) -> [Range<Int>] {
+    var references: [Range<Int>] = []
+    var index = excerpt.lowerBound
+    while index < excerpt.upperBound {
+      if bytes[index] == UInt8(ascii: "\\"), index + 1 < excerpt.upperBound,
+        isASCIIPunctuation(bytes[index + 1])
+      {
+        index += 2
+      } else if let reference = reference(in: bytes, at: index, end: excerpt.upperBound) {
+        if reference.rejectedByCommonMark {
+          references.append(index..<(index + reference.length))
+        }
+        index += reference.length
+      } else {
+        index += 1
+      }
+    }
+    return references
+  }
+
+  /// A numeric reference that swift-cmark 0.8.0 decodes: `&#`, 1–8 decimal
+  /// digits or `x`/`X` and 1–8 hexadecimal digits, then `;`.
+  private static func reference(
+    in bytes: [UInt8], at index: Int, end: Int
+  ) -> (length: Int, rejectedByCommonMark: Bool)? {
+    guard index + 2 < end, bytes[index] == UInt8(ascii: "&"), bytes[index + 1] == UInt8(ascii: "#")
+    else { return nil }
+    let hexadecimal = bytes[index + 2] == UInt8(ascii: "x") || bytes[index + 2] == UInt8(ascii: "X")
+    let digitsStart = index + (hexadecimal ? 3 : 2)
+    var digitsEnd = digitsStart
+    while digitsEnd < end, isDigit(bytes[digitsEnd], hexadecimal: hexadecimal) {
+      digitsEnd += 1
+    }
+    let count = digitsEnd - digitsStart
+    guard (1...8).contains(count), digitsEnd < end, bytes[digitsEnd] == UInt8(ascii: ";")
+    else { return nil }
+    return (digitsEnd + 1 - index, count > (hexadecimal ? 6 : 7))
+  }
+
+  private static func isDigit(_ byte: UInt8, hexadecimal: Bool) -> Bool {
+    switch byte {
+    case UInt8(ascii: "0")...UInt8(ascii: "9"): true
+    case UInt8(ascii: "a")...UInt8(ascii: "f"), UInt8(ascii: "A")...UInt8(ascii: "F"): hexadecimal
+    default: false
+    }
+  }
+
+  private static func isASCIIPunctuation(_ byte: UInt8) -> Bool {
+    switch byte {
+    case 0x21...0x2F, 0x3A...0x40, 0x5B...0x60, 0x7B...0x7E: true
+    default: false
+    }
+  }
+
+  /// The text of a source that parses, with the compiler's options, to exactly
+  /// one paragraph holding one text node; otherwise `nil`.
+  private static func isolatedText(_ source: String) -> String? {
+    let document = Document(parsing: source, options: [.disableSmartOpts])
+    guard document.childCount == 1, let paragraph = document.child(at: 0) as? Paragraph,
+      paragraph.childCount == 1, let text = paragraph.child(at: 0) as? Markdown.Text
+    else { return nil }
+    return text.string
   }
 }

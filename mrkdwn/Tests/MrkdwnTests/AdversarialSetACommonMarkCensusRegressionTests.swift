@@ -22,9 +22,7 @@ struct AdversarialSetACommonMarkCensusRegressionTests {
       return
     }
     if id == 28 {
-      e1CensusKnown("STUI-1185: cm028 interprets an eight-digit nonentity") {
-        #expect(runs.map(\.text).joined() == source)
-      }
+      #expect(runs.map(\.text).joined() == source)
       #expect(runs.allSatisfy { $0.traits.isEmpty })
     } else {
       e1CensusKnown("STUI-1186: cm354 omits Unicode symbols from delimiter punctuation") {

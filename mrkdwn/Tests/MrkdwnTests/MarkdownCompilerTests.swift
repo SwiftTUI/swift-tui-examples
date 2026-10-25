@@ -87,4 +87,115 @@ struct MarkdownCompilerTests {
     #expect(paragraphRuns.contains { $0.traits.contains(.code) })
     #expect(!compiled.searchableText.matches(for: "HEADING").isEmpty)
   }
+
+  // CommonMark 0.31.2 §2.5 allows 1–7 decimal or 1–6 hexadecimal digits in a
+  // numeric reference; longer forms stay literal (STUI-1185). w2m cases are
+  // repairs, w2n cases neighbours that must not change. Example 28's text is
+  // CommonMark 0.31.2 by John MacFarlane, CC BY-SA 4.0.
+  @Test("numeric references follow the CommonMark digit limits", arguments: textContractCases)
+  func numericReferenceDigitLimits(_ testCase: TextContractCase) {
+    let compiled = MarkdownCompiler().compile(source: testCase.source, sourceURL: nil)
+    #expect(compiled.diagnostics.isEmpty, "\(testCase.id)")
+    #expect(describe(compiled) == testCase.expected, "\(testCase.id)")
+  }
+}
+
+struct TextContractCase: Sendable, CustomTestStringConvertible {
+  let id: String
+  let source: String
+  let expected: String
+  var testDescription: String { id }
+}
+
+private let textContractCases: [TextContractCase] = [
+  .init(id: "w2m01", source: "&#87654321;", expected: #"p["&#87654321;"]"#),
+  .init(
+    id: "w2m02", source: "&nbsp &x; &#; &#x;\n&#87654321;\n&#abcdef0;\n&ThisIsNotDefined; &hi?;\n",
+    expected: #"p["&nbsp &x; &#; &#x; &#87654321; &#abcdef0; &ThisIsNotDefined; &hi?;"]"#),
+  .init(id: "w2m03", source: "foo &#00000065; bar", expected: #"p["foo &#00000065; bar"]"#),
+  .init(
+    id: "w2m04", source: "&#x0000041; &#X0010FFFF;", expected: #"p["&#x0000041; &#X0010FFFF;"]"#),
+  .init(
+    id: "w2m05", source: "Tom &amp; Jerry &#87654321;",
+    expected: #"p["Tom & Jerry &#87654321;"]"#),
+  .init(
+    id: "w2m06", source: "# Title &#87654321;",
+    expected: #"h1["Title &#87654321;"] outline[Title &#87654321;]"#),
+  .init(
+    id: "w2m07", source: "*&#87654321;* [&#87654321;](/u)",
+    expected: #"p["&#87654321;"/emphasis " " "&#87654321;"->/u] links[&#87654321;->/u]"#),
+  .init(
+    id: "w2m08", source: "| a |\n| - |\n| &#87654321; |",
+    expected: #"table{["a"]|["&#87654321;"]}"#),
+  .init(id: "w2m09", source: "![&#87654321;](i.png)", expected: "image[&#87654321;->i.png]"),
+  .init(
+    id: "w2m10", source: "> quote\n> &#87654321;", expected: #"quote{p["quote &#87654321;"]}"#),
+  .init(
+    id: "w2m11", source: "[link](/u) &#87654321; *em*",
+    expected: #"p["link"->/u " &#87654321; " "em"/emphasis] links[link->/u]"#),
+  .init(
+    id: "w2m12", source: "`&#87654321;` and &#87654321;",
+    expected: #"p["&#87654321;"/code " and &#87654321;"]"#),
+  .init(
+    id: "w2n01", source: "&#35; &#1234567; &#x10FFFF; &#x110000; &#xD800; &#X22;",
+    expected: "p[\"# \u{FFFD} \u{10FFFF} \u{FFFD} \u{FFFD} \"\"]"),
+  .init(
+    id: "w2n02", source: "&#123456789; &#x123456789;",
+    expected: #"p["&#123456789; &#x123456789;"]"#),
+  .init(
+    id: "w2n03", source: #"\&#87654321; &#38;#87654321;"#,
+    expected: #"p["&#87654321; &#87654321;"]"#),
+  .init(
+    id: "w2n04", source: "`&#87654321;`\n\n    &#87654321;",
+    expected: #"p["&#87654321;"/code] code()[&#87654321;]"#),
+  .init(
+    id: "w2n05", source: "*foo* £ €\n\n*$*alpha.",
+    expected: #"p["foo"/emphasis " £ €"] p["*$*alpha."]"#),
+]
+
+private func describe(_ document: CompiledDocument) -> String {
+  var parts = document.blocks.map(describe(block:))
+  if !document.outline.isEmpty {
+    parts.append("outline" + document.outline.map { "[\($0.title)]" }.joined())
+  }
+  if !document.links.isEmpty {
+    parts.append("links" + document.links.map { "[\($0.label)->\($0.destination)]" }.joined())
+  }
+  return parts.joined(separator: " ")
+}
+
+private func describe(block: MarkdownBlock) -> String {
+  switch block {
+  case .heading(_, let level, _, let runs, _):
+    "h\(level)" + describe(runs: runs)
+  case .paragraph(_, let runs, _):
+    "p" + describe(runs: runs)
+  case .quote(_, let blocks, _):
+    "quote{" + blocks.map(describe(block:)).joined(separator: " ") + "}"
+  case .code(_, let language, let text, _):
+    "code(\(language ?? ""))[\(text)]"
+  case .table(_, let table, _):
+    describe(table: table)
+  case .image(_, let image, _):
+    "image[\(image.altText)->\(image.source)]"
+  default:
+    "other[\(block.searchableText)]"
+  }
+}
+
+private func describe(table: MarkdownTable) -> String {
+  let cells = table.header + table.rows.flatMap { $0 }
+  return "table{" + cells.map(describe(runs:)).joined(separator: "|") + "}"
+}
+
+private func describe(runs: [InlineRun]) -> String {
+  let names: [(InlineTraits, String)] = [
+    (.emphasis, "emphasis"), (.strong, "strong"), (.code, "code"),
+    (.strikethrough, "strikethrough"), (.html, "html"),
+  ]
+  let described = runs.map { run in
+    let traits = names.filter { run.traits.contains($0.0) }.map { "/" + $0.1 }.joined()
+    return "\"\(run.text)\"" + traits + (run.destination.map { "->" + $0 } ?? "")
+  }
+  return "[" + described.joined(separator: " ") + "]"
 }

@@ -138,6 +138,16 @@ are:
 - Raw HTML is displayed literally and never executed.
 - Links with an empty destination, such as `[label]()`, display their label
   without a clickable link or an entry in link navigation.
+- Emphasis next to non-ASCII symbols follows the bundled parser (swift-cmark
+  0.8.0), which treats symbols such as `£` and `€` as letters rather than
+  punctuation: `*£*bravo.` shows an emphasized `£` instead of the literal text
+  CommonMark specifies (STUI-1186).
+- Numeric character references with more digits than CommonMark allows, such
+  as `&#87654321;`, display literally in text. The bundled parser still decodes
+  them, usually to `�`, in link destinations and titles, in code-block info
+  strings, and on lines whose position it misreports: lazy or re-indented
+  continuation lines, text after a backslash line break, and table cells after
+  an escaped `|`.
 - Code has a language label but no syntax highlighting.
 - Terminal image display depends on host attachment support. Alt text remains
   visible for blocked or failed images.
