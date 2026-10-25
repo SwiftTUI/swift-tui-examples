@@ -102,41 +102,21 @@ struct MarkdownCompilerTests {
 
 // Wave-2 regression hunt, part CA (STUI-1165): neighbours of the STUI-1185
 // correction. Cases w2ca022-w2ca024; the hypotheses precede these tests in the
-// hunt's evidence directory.
+// hunt's evidence directory. w2ca022 and w2ca023 were repaired by STUI-1257.
 @Suite("Wave-2 hunt CA: numeric reference correction neighbours")
 struct Wave2RegressionHuntMarkdownTests {
   @Test("w2ca022 a reference before a trailing space and a soft break stays literal")
   func w2ca022ReferenceBeforeTrailingSpaceSoftBreakStaysLiteral() {
     let compiled = MarkdownCompiler().compile(source: "foo &#87654321; \nbar", sourceURL: nil)
     #expect(compiled.diagnostics.isEmpty)
-    w2HuntKnown(
-      """
-      NEW-5: a reference before a trailing space and a soft break still decodes to U+FFFD; \
-      cmark right-trims the text before a line ending but keeps its untrimmed end \
-      column, so the source excerpt holds spaces the node text lacks and the \
-      isolated-parse check rejects the correction; contract: CommonMark 0.31.2 §2.5, \
-      858fc70, mrkdwn/README.md:145-150; adjacent STUI-1185
-      """
-    ) {
-      #expect(describe(compiled) == #"p["foo &#87654321; bar"]"#)
-    }
+    #expect(describe(compiled) == #"p["foo &#87654321; bar"]"#)
   }
 
   @Test("w2ca023 a reference before a two-space hard line break stays literal")
   func w2ca023ReferenceBeforeTwoSpaceHardBreakStaysLiteral() {
     let compiled = MarkdownCompiler().compile(source: "foo &#87654321;  \nbar", sourceURL: nil)
     #expect(compiled.diagnostics.isEmpty)
-    w2HuntKnown(
-      """
-      NEW-5: a reference before a two-space hard line break still decodes to U+FFFD; \
-      cmark right-trims the text before a line ending but keeps its untrimmed end \
-      column, so the source excerpt holds spaces the node text lacks and the \
-      isolated-parse check rejects the correction; contract: CommonMark 0.31.2 §2.5, \
-      858fc70, mrkdwn/README.md:145-150; adjacent STUI-1185
-      """
-    ) {
-      #expect(describe(compiled) == "p[\"foo &#87654321;\nbar\"]")
-    }
+    #expect(describe(compiled) == "p[\"foo &#87654321;\nbar\"]")
   }
 
   @Test("w2ca024 a reference in an unchecked task-list item stays literal")
@@ -151,15 +131,6 @@ struct Wave2RegressionHuntMarkdownTests {
     #expect(list.items.count == 1)
     #expect(item.checkbox == false)
     #expect(item.blocks.map(describe(block:)) == [#"p["task &#87654321;"]"#])
-  }
-}
-
-/// Preserves an unmarked reproduction while guarding only confirmed assertions.
-private func w2HuntKnown(_ comment: Comment, _ body: () -> Void) {
-  if ProcessInfo.processInfo.environment["SWIFTTUI_W2HUNT_UNMARKED"] == "1" {
-    body()
-  } else {
-    withKnownIssue(comment) { body() }
   }
 }
 
@@ -214,6 +185,41 @@ private let textContractCases: [TextContractCase] = [
   .init(
     id: "w2n05", source: "*foo* £ €\n\n*$*alpha.",
     expected: #"p["foo"/emphasis " £ €"] p["*$*alpha."]"#),
+  // STUI-1257: cmark trims spaces and tabs before a line ending from the text but not from
+  // its source range, so the excerpt is compared without them. w3ca31-w3ca38 are repairs,
+  // w3ca41-w3ca47 neighbours that must not change.
+  .init(
+    id: "w3ca31", source: "foo &#87654321; \nbar", expected: #"p["foo &#87654321; bar"]"#),
+  .init(
+    id: "w3ca32", source: "foo &#87654321;  \nbar", expected: "p[\"foo &#87654321;\nbar\"]"),
+  .init(
+    id: "w3ca33", source: "foo &#87654321;\t\nbar", expected: #"p["foo &#87654321; bar"]"#),
+  .init(
+    id: "w3ca34", source: "foo &#87654321; \r\nbar", expected: #"p["foo &#87654321; bar"]"#),
+  .init(
+    id: "w3ca35", source: "foo &#x1234567;  \nbar", expected: "p[\"foo &#x1234567;\nbar\"]"),
+  .init(
+    id: "w3ca36", source: "a &#87654321; \nb &#87654321; \nc",
+    expected: #"p["a &#87654321; b &#87654321; c"]"#),
+  .init(
+    id: "w3ca37", source: "> foo &#87654321; \n> bar",
+    expected: #"quote{p["foo &#87654321; bar"]}"#),
+  .init(
+    id: "w3ca38", source: "foo &#87654321; \nbar\n===",
+    expected: #"h1["foo &#87654321; bar"] outline[foo &#87654321; bar]"#),
+  .init(id: "w3ca41", source: "foo &#65; \nbar", expected: #"p["foo A bar"]"#),
+  .init(
+    id: "w3ca42", source: "foo &#87654321;\u{00A0}\nbar",
+    expected: "p[\"foo &#87654321;\u{00A0} bar\"]"),
+  .init(
+    id: "w3ca43", source: #"foo \&#87654321; "# + "\nbar", expected: #"p["foo &#87654321; bar"]"#),
+  .init(id: "w3ca44", source: "foo &#87654321;  ", expected: #"p["foo &#87654321;"]"#),
+  .init(
+    id: "w3ca45", source: "foo &#87654321;\\\nbar", expected: "p[\"foo &#87654321;\nbar\"]"),
+  .init(
+    id: "w3ca46", source: "foo &#87654321; \n\nbar",
+    expected: #"p["foo &#87654321;"] p["bar"]"#),
+  .init(id: "w3ca47", source: "foo &#87654321;  bar", expected: #"p["foo &#87654321;  bar"]"#),
 ]
 
 private func describe(_ document: CompiledDocument) -> String {

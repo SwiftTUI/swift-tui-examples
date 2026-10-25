@@ -431,6 +431,9 @@ private struct NumericReferenceLiterals {
 
   /// The node's single-line source range as UTF-8 offsets (swift-markdown
   /// columns are 1-based UTF-8 byte columns with an exclusive upper bound).
+  /// cmark right-trims the spaces and tabs before a line ending from a text run
+  /// but keeps the untrimmed end column (`inlines.c`, copied to the merged node
+  /// by `iterator.c`), so a range that reaches its line's end drops them too.
   private func excerpt(_ range: SourceRange?) -> Range<Int>? {
     guard let range, range.lowerBound.line == range.upperBound.line,
       range.lowerBound.line >= 1, range.lowerBound.line <= lines.count,
@@ -438,8 +441,15 @@ private struct NumericReferenceLiterals {
     else { return nil }
     let line = lines[range.lowerBound.line - 1]
     let lower = line.lowerBound + range.lowerBound.column - 1
-    let upper = line.lowerBound + range.upperBound.column - 1
+    var upper = line.lowerBound + range.upperBound.column - 1
     guard upper <= line.upperBound else { return nil }
+    if upper == line.upperBound {
+      while upper > lower,
+        bytes[upper - 1] == UInt8(ascii: " ") || bytes[upper - 1] == UInt8(ascii: "\t")
+      {
+        upper -= 1
+      }
+    }
     return lower..<upper
   }
 
