@@ -15,9 +15,9 @@ GIT_OID_PATTERN = re.compile(r"[0-9a-f]{40}")
 PUBLIC_DEPENDENCIES = {
     "swift-tui": {
         "url": "https://github.com/SwiftTUI/swift-tui.git",
-        "lower": "0.19.2",
-        "resolved": "0.19.2",
-        "revision": "81c7a0ba85a3c50b7d45a45d606fbfee97e881b9",
+        "lower": "0.19.3",
+        "resolved": "0.19.3",
+        "revision": "4a84b2b5d47e6c32fe01762028cdaf3380376a49",
     },
     "swift-markdown": {
         "url": "https://github.com/swiftlang/swift-markdown.git",
