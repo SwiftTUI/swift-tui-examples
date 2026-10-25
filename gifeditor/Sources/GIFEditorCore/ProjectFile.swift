@@ -193,16 +193,23 @@ public struct ProjectFile: Hashable, Sendable {
     }
   }
 
-  /// True when `data` opens with the GIF signature (`GIF87a` / `GIF89a`).
+  /// True when `data` opens with a complete GIF header, `GIF87a` or
+  /// `GIF89a`.
   ///
   /// `Open` routes on content rather than on the extension, so a
   /// project saved without one — or a GIF someone renamed — still
   /// reaches the right reader.
+  ///
+  /// The header is six bytes (GIF89a §17): the signature `GIF` and a
+  /// version. Those two versions are the ones the decoder reads, so a
+  /// shorter prefix or any other version is not a GIF this build opens.
+  /// Only the header is checked; a truncated or damaged stream after it
+  /// is the decoder's to report.
   public static func hasGIFSignature(_ data: Data) -> Bool {
-    let magic = Array("GIF8".utf8)
-    guard data.count >= magic.count else { return false }
-    return Array(data.prefix(magic.count)) == magic
+    gifHeaders.contains(Array(data.prefix(6)))
   }
+
+  private static let gifHeaders = [Array("GIF87a".utf8), Array("GIF89a".utf8)]
 }
 
 extension ProjectFile: Codable {

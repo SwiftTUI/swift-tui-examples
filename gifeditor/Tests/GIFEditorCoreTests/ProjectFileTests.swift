@@ -274,4 +274,25 @@ struct ProjectFileSniffTests {
     let project = try ProjectFile.data(for: GIFDocument.blank(size: PixelSize(width: 2, height: 2)))
     #expect(!ProjectFile.hasGIFSignature(project))
   }
+
+  /// GIF89a §17: the header is the signature `GIF` plus a three-byte
+  /// version, and the decoder reads only `87a` and `89a`. A shorter prefix
+  /// or another version must not be routed to it as a GIF. (`GIF8` and
+  /// `GIF8xx` are pinned by the E1 corpus, e1s060.)
+  @Test("Only a complete GIF87a or GIF89a header is a GIF signature")
+  func signatureRequiresACompleteSupportedHeader() {
+    for text in ["GIF87a", "GIF89a", "GIF87a;", "GIF89a\u{01}\u{00}"] {
+      #expect(ProjectFile.hasGIFSignature(Data(text.utf8)), "\(text.debugDescription)")
+    }
+    for text in [
+      "G", "GIF87", "GIF89", "GIF88a", "GIF89b", "GIF89A", "GIF90a", "gif89a", " GIF89a",
+    ] {
+      #expect(!ProjectFile.hasGIFSignature(Data(text.utf8)), "\(text.debugDescription)")
+    }
+
+    // A slice keeps its parent's indices; the predicate reads the slice's
+    // own first six bytes.
+    #expect(ProjectFile.hasGIFSignature(Data("xxGIF89a".utf8).dropFirst(2)))
+    #expect(!ProjectFile.hasGIFSignature(Data("GIF89a".utf8).dropFirst(1)))
+  }
 }

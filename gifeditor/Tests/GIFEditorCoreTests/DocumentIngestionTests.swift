@@ -18,6 +18,35 @@ struct DocumentIngestionTests {
     #expect(DocumentIngestion.kind(of: beyondBound) == nil)
   }
 
+  @Test("Only a complete supported GIF header routes to the GIF decoder")
+  func gifRoutingRequiresACompleteSupportedHeader() throws {
+    #expect(DocumentIngestion.kind(of: Data("GIF87a".utf8)) == .gif)
+    #expect(DocumentIngestion.kind(of: Data("GIF89".utf8)) == nil)
+    #expect(DocumentIngestion.kind(of: Data("GIF88a".utf8)) == nil)
+
+    let encoded = try GIFEncoder.encode(
+      document: GIFDocument.blank(size: PixelSize(width: 2, height: 2)))
+    try #require(Array(encoded.prefix(6)) == Array("GIF89a".utf8))
+
+    // The same stream under the other supported version still opens.
+    var gif87a = encoded
+    gif87a[4] = UInt8(ascii: "7")
+    let ingested = try DocumentIngestion.ingest(Data(gif87a))
+    #expect(ingested.kind == .gif)
+    #expect(ingested.document.frames.count == 1)
+
+    // Under a version the decoder does not read, it is not a GIF this
+    // build supports, so it is unrecognized rather than a damaged GIF.
+    var gif88a = encoded
+    gif88a[4] = UInt8(ascii: "8")
+    do {
+      _ = try DocumentIngestion.ingest(Data(gif88a))
+      Issue.record("expected an unsupported GIF version to be refused")
+    } catch {
+      #expect(error == .unrecognizedFormat)
+    }
+  }
+
   @Test("A GIF is imported with its policy and provenance")
   func gifIngestion() throws {
     let sourceDocument = GIFDocument.blank(size: PixelSize(width: 2, height: 2))

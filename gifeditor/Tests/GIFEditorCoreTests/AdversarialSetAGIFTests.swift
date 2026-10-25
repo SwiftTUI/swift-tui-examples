@@ -175,16 +175,8 @@ private func e1PaletteAndProject(_ id: Int) throws {
     #expect(ProjectFile.hasGIFSignature(Data("GIF89a".utf8)))
     for text in ["", "GIF", "GIF8", "GIF8xx", "GIF90a"] {
       let bytes = Data(text.utf8)
-      let accepted = ProjectFile.hasGIFSignature(bytes)
-      let known = text == "GIF8" || text == "GIF8xx"
-      if known && ProcessInfo.processInfo.environment["SWIFTTUI_E1_UNMARKED"] != "1" {
-        withKnownIssue("STUI-1184: e1s060 accepts an incomplete or unsupported GIF8 header") {
-          #expect(!accepted)
-        }
-      } else {
-        #expect(!accepted)
-      }
-      if known {
+      #expect(!ProjectFile.hasGIFSignature(bytes))
+      if text == "GIF8" || text == "GIF8xx" {
         #expect(throws: GIFLoaderError.self) { _ = try GIFLoader.load(data: bytes) }
       }
     }
