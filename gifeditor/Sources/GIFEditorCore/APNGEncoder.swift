@@ -123,12 +123,15 @@ public enum APNGEncoder {
   ///
   /// `num_plays` of zero means "loop forever", which is the same
   /// convention ``GIFDocument/loopCount`` uses, so the field passes
-  /// straight through.
+  /// straight through — clamped to what the field may hold. PNG limits
+  /// its four-byte unsigned integers to 2^31 - 1 (PNG Third Edition
+  /// §7.1), so a larger count is written as the largest finite one, and a
+  /// negative count, like the GIF encoder's, as zero.
   private static func actlPayload(frameCount: Int, loopCount: Int) -> [UInt8] {
     var payload = [UInt8]()
     payload.reserveCapacity(8)
     payload.appendBigEndian(UInt32(frameCount))
-    payload.appendBigEndian(UInt32(clamping: loopCount))
+    payload.appendBigEndian(UInt32(min(max(loopCount, 0), Int(Int32.max))))
     return payload
   }
 

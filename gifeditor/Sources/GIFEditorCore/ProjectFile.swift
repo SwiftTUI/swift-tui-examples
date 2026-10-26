@@ -45,6 +45,12 @@ public enum ProjectDecodeError: Error, Hashable, Sendable, CustomStringConvertib
   /// palette rather than reporting a damaged file.
   case emptyPalette
 
+  /// The palette carried more colors than a palette holds
+  /// (``ColorPalette/capacity``, GIF's 256-entry color table).
+  /// ``ColorPalette/init(colors:)`` would keep the first 256 and silently
+  /// drop the rest.
+  case paletteTooLarge(found: Int, capacity: Int)
+
   /// The palette's `usedCount` disagrees with the colors it carries.
   /// ``ColorPalette/usedColors`` takes a prefix of that length (a
   /// negative one traps) and ``ColorPalette/nearestIndex(to:)`` scans
@@ -83,6 +89,8 @@ public enum ProjectDecodeError: Error, Hashable, Sendable, CustomStringConvertib
       return "pixel plane '\(field)' has \(found) bytes, expected \(expected)"
     case .emptyPalette:
       return "project file carries an empty palette"
+    case .paletteTooLarge(let found, let capacity):
+      return "palette carries \(found) colors, but a palette holds at most \(capacity)"
     case .invalidPaletteUsedCount(let found, let available):
       return "palette declares \(found) used slots but carries \(available) colors"
     case .emptyFrameList:

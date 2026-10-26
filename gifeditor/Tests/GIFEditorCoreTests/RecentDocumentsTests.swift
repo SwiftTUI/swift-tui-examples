@@ -218,4 +218,31 @@ struct RecentDocumentsTests {
       #expect(read.urls.map(\.lastPathComponent) == ["1.halfcell", "2.halfcell"])
     }
   }
+
+  // MARK: - Repair wave 4 (STUI-1346)
+
+  @Test("w4gcm-n06: a value decoded through Codable directly still carries the default limit")
+  func codableDecodeKeepsTheDefaultLimit() throws {
+    let urls = (1...15).map { URL(fileURLWithPath: "/art/\($0).halfcell") }
+    let data = try JSONEncoder().encode(RecentDocuments(urls: urls, limit: 15))
+    let decoded = try JSONDecoder().decode(RecentDocuments.self, from: data)
+    #expect(decoded.limit == RecentDocuments.defaultLimit)
+    #expect(decoded.urls == Array(urls.prefix(RecentDocuments.defaultLimit)))
+  }
+
+  @Test("w4gcm-r13: forgetting one spelling of a name keeps a distinct file's entry")
+  func removingUsesTheSameIdentityAsDeduplication() {
+    let composed = URL(fileURLWithPath: "/art/\u{E9}.halfcell")
+    let decomposed = URL(fileURLWithPath: "/art/e\u{301}.halfcell")
+    let recents = RecentDocuments(urls: [composed, decomposed])
+    #if canImport(Darwin)
+      // APFS and HFS+ name one file by either spelling.
+      #expect(recents.count == 1)
+      #expect(recents.removing(decomposed).isEmpty)
+    #else
+      // POSIX file names are byte strings: these are two files.
+      #expect(recents.count == 2)
+      #expect(recents.removing(composed).urls.map(\.path) == [decomposed.path])
+    #endif
+  }
 }

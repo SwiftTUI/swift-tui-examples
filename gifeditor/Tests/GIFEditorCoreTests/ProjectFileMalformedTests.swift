@@ -94,6 +94,35 @@ struct ProjectFileMalformedTests {
     #expect(decoded.flattenedColors(frameIndex: 0).count == decoded.size.area)
   }
 
+  @Test("w4gcm-r14: ColorPalette: a project palette over 256 colors is reported")
+  func oversizedPaletteIsReported() throws {
+    let data = try Corpus.serialize(
+      Corpus.mutatingDocument(try Corpus.validEnvelope()) { document in
+        document["palette"] = (0..<ColorPalette.capacity + 1).map { index in
+          ["red": index % 256, "green": index / 256, "blue": 7, "alpha": 255]
+        }
+      }
+    )
+    #expect(
+      Corpus.decodeError(data)
+        == .paletteTooLarge(found: ColorPalette.capacity + 1, capacity: ColorPalette.capacity))
+  }
+
+  @Test("w4gcm-n08: ColorPalette: a palette of exactly 256 colors loads whole")
+  func fullPaletteLoads() throws {
+    let colors = (0..<ColorPalette.capacity).map { index in
+      ["red": index, "green": 255 - index, "blue": 7, "alpha": 255]
+    }
+    let data = try Corpus.serialize(
+      Corpus.mutatingDocument(try Corpus.validEnvelope()) { document in
+        document["palette"] = colors
+      }
+    )
+    let decoded = try ProjectFile.document(from: data)
+    #expect(decoded.palette.usedCount == ColorPalette.capacity)
+    #expect(decoded.palette.usedColors.last == EditorColor(red: 255, green: 0, blue: 7))
+  }
+
   @Test("GIFDocument: an empty frame list is rejected")
   func emptyFrameList() throws {
     // `document.frames[currentFrameIndex]` traps on the first render.
@@ -363,6 +392,18 @@ struct ColorPaletteDecodingTests {
         "usedCount": 0,
       ]) == .invalidPaletteUsedCount(found: 0, available: 1)
     )
+  }
+
+  @Test("w4gcm-r15: more used colors than a palette holds are reported, not cut to 256")
+  func oversizedUsedPalette() throws {
+    let colors = (0..<300).map { PaletteCorpus.color($0 % 256, $0 / 256, 7, 255) }
+    #expect(
+      PaletteCorpus.decodeError(["colors": colors, "usedCount": 300])
+        == .paletteTooLarge(found: 300, capacity: ColorPalette.capacity)
+    )
+    // The used colors are what is checked: padding past them is not content.
+    let padded = try PaletteCorpus.decode(["colors": colors, "usedCount": 3])
+    #expect(padded.usedCount == 3)
   }
 
   @Test("an empty colors array is rejected rather than silently substituted")
