@@ -85,8 +85,9 @@ git-viz/Scripts/record_git_fixtures.sh
 ```
 
 The script builds a temporary repository with inputs that can break parsers. It
-includes a merge without a numstat block and a rename with a three-token NUL
-entry under `-z`. It also includes a Unicode subject and both tag types. Then
+includes a merge without a numstat block and a rename, which `-z` writes as a
+count entry with an empty path followed by both paths. It also includes a
+Unicode subject and both tag types. Then
 the script runs the exact `argv` from `GitRepo`. Fixed commit dates produce
 byte-identical fixtures. A diff indicates a change in the git output format.
 The provenance record is in

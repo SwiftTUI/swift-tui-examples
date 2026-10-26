@@ -42,16 +42,9 @@ private func e1NumstatAndSeparators(_ id: Int) throws {
     try fixture.git(["mv", before, after], in: repo)
     try fixture.commitAll("rename", at: "2020-01-02T00:00:00+0000")
     let rename = try #require(try fixture.open().commits().first { $0.subject == "rename" })
-    if id == 101 {
-      e1Known(
-        "NEW-1: a rename whose paths hold TAB-digit runs inflates deletions; sumNumstat splits every NUL entry on TAB, so the -z rename's path entries are parsed as counts; contract: git-diff(1) --numstat -z rename framing"
-      ) {
-        #expect(rename.deletions == 0)
-      }
-      #expect(rename.insertions == 0)
-    } else {
-      #expect(rename.insertions == 0 && rename.deletions == 0)
-    }
+    // STUI-1338: the -z rename's path entries are consumed as paths, never as
+    // counts (git-diff(1) --numstat -z rename framing).
+    #expect(rename.insertions == 0 && rename.deletions == 0)
   case 103:
     try fixture.write(Data([0x00, 0x01, 0x02, 0xFF]), to: "bin.dat")
     try fixture.commitAll("binary", at: "2020-01-01T00:00:00+0000")
@@ -78,23 +71,10 @@ private func e1NumstatAndSeparators(_ id: Int) throws {
     #expect(try fixture.gitText(["log", "-1", "--format=%s"]) == subject)
     #expect(try fixture.gitText(["log", "-1", "--format=%aN"]) == author)
     let newest = try #require(commits.first)
-    if id == 107 {
-      #expect(newest.subject == subject && newest.insertions == 1)
-      return
-    }
-    e1Known(
-      "NEW-2: a control-character subject or author shifts git-viz's fields and drops numstat; RS/US are the record and field separators and git preserves them in %s and %aN; contract: GitParsers.swift:10-12 (avoids collisions with any character in subjects or author names)"
-    ) {
-      #expect(newest.subject == subject)
-      #expect(newest.insertions == 1)
-      if id == 106 {
-        #expect(newest.authorName == author)
-        #expect(newest.authorEmail == "a@example.com")
-      }
-    }
-    if id != 106 {
-      #expect(newest.authorName == author && newest.authorEmail == "a@example.com")
-    }
+    // STUI-1338: fields are NUL-framed, so RS and US in %s or %aN stay
+    // content (GitParsers.swift logFormat).
+    #expect(newest.subject == subject && newest.insertions == 1)
+    #expect(newest.authorName == author && newest.authorEmail == "a@example.com")
   default:
     try fixture.commitAll("root", at: "2020-01-01T00:00:00+0000", allowEmpty: true)
     try fixture.git(["checkout", "-q", "-b", "side"], in: repo)
@@ -134,14 +114,9 @@ private func e1ChangedFileCounts(_ id: Int) throws {
     Set(String(decoding: listed, as: UTF8.self).split(separator: "\0").map(String.init))
       == Set(names))
   let tallies = try fixture.open().fileChangeCounts()
-  let expected = Set(names.map { FileTally(path: $0, changeCount: 1) })
-  let comment: Comment =
-    id == 110
-    ? "NEW-4: a path with a leading space is tallied as a different file; parseChangedFileCounts trims whitespace from each path line; contract: one tally per changed path (GitParsers.swift:208-210)"
-    : "NEW-3: non-ASCII and control-character paths appear C-quoted in file rankings; fileChangeCounts reads --name-only without -z, which core.quotePath escapes; contract: git-config(1) core.quotePath, GitParsers.swift:208-210"
-  e1Known(comment) {
-    #expect(Set(tallies) == expected)
-  }
+  // STUI-1338: --name-only runs under -z, so paths are neither C-quoted by
+  // core.quotePath nor trimmed; one tally per changed path.
+  #expect(Set(tallies) == Set(names.map { FileTally(path: $0, changeCount: 1) }))
 }
 
 // MARK: - repository shapes (e1s112–e1s118)

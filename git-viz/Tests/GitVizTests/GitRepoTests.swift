@@ -113,7 +113,7 @@ struct GitRepoTests {
       ["rev-parse", "--show-toplevel"]: "\(Self.repoPath)\n",
       [
         "log", "--no-color", "-z",
-        "--pretty=format:\(GitParsers.recordSeparator)\(GitParsers.logFormat)",
+        "--pretty=format:\(GitParsers.logFormat)",
         "--numstat",
       ]: "",
     ])
@@ -132,11 +132,39 @@ struct GitRepoTests {
     #expect(logCall.contains("--numstat"))
   }
 
+  @Test("fileChangeCounts() issues -z, so paths arrive verbatim rather than C-quoted")
+  func fileChangeCountsIssuesNulSeparatedNameOnly() throws {
+    let runner = RecordedGitRunner([
+      ["rev-parse", "--show-toplevel"]: "\(Self.repoPath)\n",
+      [
+        "log", "--no-color", "-z", "--diff-filter=AMD", "--name-only", "--pretty=format:",
+      ]: "\u{E9}.txt\0a\tb.txt\0",
+    ])
+    let repo = try GitRepo(
+      workingDirectory: URL(fileURLWithPath: Self.repoPath),
+      runner: runner
+    )
+
+    let tallies = try repo.fileChangeCounts()
+
+    let logCall = try #require(runner.issued.first { $0.first == "log" })
+    // Without -z, `core.quotePath` turns `é.txt` into `"\303\251.txt"`.
+    #expect(logCall.contains("-z"))
+    #expect(logCall.contains("--name-only"))
+    #expect(
+      Set(tallies)
+        == [
+          FileTally(path: "\u{E9}.txt", changeCount: 1),
+          FileTally(path: "a\tb.txt", changeCount: 1),
+        ]
+    )
+  }
+
   @Test("commits() appends bounds only when asked")
   func commitsAppendsBoundsOnlyWhenAsked() throws {
     let base = [
       "log", "--no-color", "-z",
-      "--pretty=format:\(GitParsers.recordSeparator)\(GitParsers.logFormat)",
+      "--pretty=format:\(GitParsers.logFormat)",
       "--numstat",
     ]
     let runner = RecordedGitRunner([

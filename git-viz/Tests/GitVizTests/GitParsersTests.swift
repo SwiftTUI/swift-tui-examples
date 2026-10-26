@@ -53,11 +53,41 @@ struct GitParsersTests {
 
     let rename = try #require(commits.first { $0.subject.hasPrefix("refactor:") })
 
-    // Under `-z` a rename emits `0\t0\0<old>\0<new>\0` — three NUL tokens for
-    // one entry. The two bare path tokens carry no tab, so they are skipped
-    // rather than counted as deltas.
+    // Under `-z` a rename emits `0\t0\t\0<old>\0<new>\0`: a count entry with
+    // an empty path, then the two paths as tokens of their own. The parser
+    // consumes those as paths; a path holding a TAB and digits must never
+    // be read as counts.
     #expect(rename.insertions == 0)
     #expect(rename.deletions == 0)
+  }
+
+  @Test("the -z numstat stream frames renames, binaries and commit separators")
+  func numstatStreamFramesRenamesAndSeparators() {
+    let iso = "2020-01-01T00:00:00+00:00"
+    // Three commits as git emits them under `-z`: header fields, a newline
+    // and the entries when there is a diff, then a NUL between commits. The
+    // first holds RS and US in its subject and a rename whose paths contain
+    // TAB-digit runs; the merge has no block; the root has an empty subject
+    // and no parents.
+    let raw =
+      [
+        "c1", iso, "Al\u{1F}ice", "a@x", "p1", "s\u{1F}t\u{1E}u",
+        "\n3\t1\t", "x\t7", "y\t9", "5\t0\tz.txt", "-\t-\tbin", "",
+        "m1", iso, "Bob", "b@x", "p1 p2", "Merge", "",
+        "r1", iso, "Cy", "c@x", "", "", "\n1\t0\t\u{E9}.txt",
+      ].joined(separator: "\0") + "\0"
+
+    let commits = GitParsers.parseLogWithNumstat(raw)
+
+    #expect(commits.map(\.sha) == ["c1", "m1", "r1"])
+    #expect(commits[0].subject == "s\u{1F}t\u{1E}u")
+    #expect(commits[0].authorName == "Al\u{1F}ice")
+    #expect(commits[0].authorEmail == "a@x")
+    #expect(commits[0].insertions == 8 && commits[0].deletions == 1)
+    #expect(commits[1].parents == ["p1", "p2"])
+    #expect(commits[1].insertions == 0 && commits[1].deletions == 0)
+    #expect(commits[2].subject.isEmpty && commits[2].parents.isEmpty)
+    #expect(commits[2].insertions == 1 && commits[2].deletions == 0)
   }
 
   @Test("a unicode subject survives the record/field split")
@@ -128,6 +158,22 @@ struct GitParsersTests {
     #expect(counts.first?.path == "a.txt")
     #expect(counts.first?.changeCount == 2)
     #expect(counts.count == 3)
+  }
+
+  @Test("parseChangedFileCounts tallies each -z path verbatim")
+  func changedFilePathsAreVerbatim() {
+    // Leading spaces and newlines are part of a path, and an empty token is
+    // only the separator between two commits.
+    let raw = " lead.txt\0lead.txt\0nl\nx.txt\0\0lead.txt\0"
+
+    let counts = GitParsers.parseChangedFileCounts(raw)
+
+    #expect(
+      counts == [
+        FileTally(path: "lead.txt", changeCount: 2),
+        FileTally(path: " lead.txt", changeCount: 1),
+        FileTally(path: "nl\nx.txt", changeCount: 1),
+      ])
   }
 
   @Test("parseInteger handles trailing whitespace")

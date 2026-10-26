@@ -122,7 +122,7 @@ struct GitRepo: Sendable {
       "log",
       "--no-color",
       "-z",
-      "--pretty=format:\(GitParsers.recordSeparator)\(GitParsers.logFormat)",
+      "--pretty=format:\(GitParsers.logFormat)",
       "--numstat",
     ]
     if let since {
@@ -174,6 +174,11 @@ struct GitRepo: Sendable {
 
   /// File change-count ranking (by raw file-touch frequency, like
   /// `git log --diff-filter=AMD --name-only`). Sorted desc by count.
+  ///
+  /// `-z` makes the paths NUL-terminated and verbatim; without it
+  /// `core.quotePath` C-quotes any path holding a control character or a
+  /// byte above 0x7F. The empty format prints no header, so the output is
+  /// nothing but paths.
   func fileChangeCounts(
     since: Date? = nil,
     until: Date? = nil,
@@ -182,9 +187,10 @@ struct GitRepo: Sendable {
     var args = [
       "log",
       "--no-color",
+      "-z",
       "--diff-filter=AMD",
       "--name-only",
-      "--pretty=format:\(GitParsers.recordSeparator)",
+      "--pretty=format:",
     ]
     if let since {
       args.append("--since=\(formatGitDate(since))")
