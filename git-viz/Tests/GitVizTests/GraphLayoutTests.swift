@@ -171,4 +171,86 @@ struct GraphLayoutTests {
     #expect(sideBranch.lane == 1)
     #expect(sideBranch.connectorBelow != nil)
   }
+
+  @Test("Convergence joins the lane that holds the parent, colored as the ending lane")
+  func convergenceTargetsTheParentsLane() {
+    // m -> a, b, c; a -> r; b -> s; c -> r. When c's lane ends, r waits in
+    // lane 0 and s in lane 1: the join reaches lane 0 and crosses lane 1.
+    let rows = [
+      (sha: "m", parents: ["a", "b", "c"], subject: "octopus"),
+      (sha: "a", parents: ["r"], subject: "a"),
+      (sha: "b", parents: ["s"], subject: "b"),
+      (sha: "c", parents: ["r"], subject: "c"),
+    ]
+    let result = GraphLayout.layout(rows: rows)
+    let c = result.commits[3]
+    #expect(c.connectorBelow == "├─┼─╯")
+    #expect(c.connectorGlyphs?.map(\.lane) == [0, 2, 1, 2, 2])
+  }
+
+  @Test("A merge whose lane continues still draws the join to a waited parent")
+  func joinWhileCommitLaneContinues() {
+    // m -> a, b; a -> b, x. b already waits in lane 1; x takes a's lane 0.
+    let rows = [
+      (sha: "m", parents: ["a", "b"], subject: "merge"),
+      (sha: "a", parents: ["b", "x"], subject: "merge into a waited parent"),
+      (sha: "b", parents: [], subject: "b"),
+      (sha: "x", parents: [], subject: "x"),
+    ]
+    let result = GraphLayout.layout(rows: rows)
+    #expect(result.commits[1].connectorBelow == "├─┤")
+    #expect(result.commits[2].lane == 1)
+    #expect(result.commits[3].lane == 0)
+  }
+
+  @Test("An ending lane joins every waited parent, on both sides")
+  func endingLaneJoinsBothSides() {
+    // t -> p, a, q; a -> p, q. Both of a's parents already wait.
+    let rows = [
+      (sha: "t", parents: ["p", "a", "q"], subject: "octopus"),
+      (sha: "a", parents: ["p", "q"], subject: "joins both neighbours"),
+    ]
+    let result = GraphLayout.layout(rows: rows)
+    #expect(result.commits[1].connectorBelow == "├─┴─┤")
+  }
+
+  @Test("A fan-out and a join share one connector row")
+  func fanOutAndJoinShareOneConnector() {
+    // t -> x, c; c -> x, n1, n2. x waits in lane 0, n1 continues c's lane
+    // 1 and n2 opens lane 2.
+    let rows = [
+      (sha: "t", parents: ["x", "c"], subject: "merge"),
+      (sha: "c", parents: ["x", "n1", "n2"], subject: "joins x and fans out"),
+    ]
+    let result = GraphLayout.layout(rows: rows)
+    #expect(result.commits[1].connectorBelow == "├─┼─╮")
+  }
+
+  @Test("Bailing drops a connector wider than maxLanes and keeps the commit row")
+  func bailDropsTheOverWideConnector() {
+    var rows: [(sha: String, parents: [String], subject: String)] = []
+    rows.append(("m", (1...5).map { "p\($0)" }, "octopus"))
+    for index in 1...5 {
+      rows.append(("p\(index)", [], "parent \(index)"))
+    }
+    let result = GraphLayout.layout(rows: rows, maxLanes: 3)
+    #expect(result.bailed)
+    #expect(result.commits.count == 1)
+    #expect(result.commits[0].glyphRow == "●")
+    #expect(result.commits[0].connectorBelow == nil)
+  }
+
+  @Test("An octopus merge within maxLanes keeps its fan-out connector")
+  func octopusWithinTheBoundKeepsItsFanOut() {
+    let rows = [
+      (sha: "m", parents: ["a", "b", "c"], subject: "octopus"),
+      (sha: "a", parents: [], subject: "a"),
+      (sha: "b", parents: [], subject: "b"),
+      (sha: "c", parents: [], subject: "c"),
+    ]
+    let result = GraphLayout.layout(rows: rows, maxLanes: 3)
+    #expect(!result.bailed)
+    #expect(result.commits.count == 4)
+    #expect(result.commits[0].connectorBelow == "├─╮─╮")
+  }
 }

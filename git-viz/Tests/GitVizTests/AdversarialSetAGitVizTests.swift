@@ -10,6 +10,9 @@ import Testing
 /// pinned identities and dates, and pins `core.quotePath` / `diff.renames`
 /// locally so a developer's global configuration cannot change what the
 /// runner observes. Layout and adapter cases are pure.
+///
+/// Every expectation is a plain assertion: the findings this file guarded
+/// (STUI-1338 through STUI-1341) are repaired.
 @Suite("Campaign E1 pass 2 git-viz contracts", .serialized)
 struct AdversarialSetAGitVizTests {
   @Test(arguments: Array(101...126))
@@ -249,18 +252,12 @@ private func e1Layout(_ id: Int) {
       rows: rows([("m", ["a", "b", "c"]), ("a", ["r"]), ("b", ["s"]), ("c", ["r"])]))
     let c = result.commits[3]
     #expect(c.lane == 2)
-    e1Known(
-      "NEW-10: a convergence connector joins the nearest occupied lane instead of the lane holding the parent; renderConvergenceConnector picks the first non-nil lane to the left; contract: GraphLayout.swift:209-212"
-    ) {
-      #expect(c.connectorBelow == "├─┼─╯")
-    }
+    // STUI-1341: the join targets the lane waiting for the parent, by id.
+    #expect(c.connectorBelow == "├─┼─╯")
   case 122:
     let result = GraphLayout.layout(rows: rows([("m", ["a", "b"]), ("a", ["b", "x"])]))
-    e1Known(
-      "NEW-11: a merge whose first parent already has a lane draws no join line; the already-waited parent is skipped and the next parent takes the lane, so neither connector branch fires; contract: GitModels.swift:72-75 (joined lines at merges)"
-    ) {
-      #expect(result.commits[1].connectorBelow != nil)
-    }
+    // STUI-1341: every already-waited parent gets a join.
+    #expect(result.commits[1].connectorBelow != nil)
   case 123:
     let result = GraphLayout.layout(
       rows: rows(
@@ -270,11 +267,8 @@ private func e1Layout(_ id: Int) {
     let widest =
       result.commits.flatMap { [$0.glyphRow, $0.connectorBelow ?? ""] }
       .map(\.count).max() ?? 0
-    e1Known(
-      "NEW-12: an octopus merge emits a connector wider than maxLanes before the layout bails; the lane check runs before parents are appended; contract: GraphLayout.swift:23-24"
-    ) {
-      #expect(widest <= 2 * 3 - 1)
-    }
+    // STUI-1341: the lane bound is checked before a connector is emitted.
+    #expect(widest <= 2 * 3 - 1)
   default:
     let result = GraphLayout.layout(rows: rows([("m", ["a", "z"]), ("a", [])]))
     #expect(result.commits[1].glyphRow == "● │")
@@ -306,14 +300,6 @@ private func e1Shortlog() {
 }
 
 // MARK: - fixtures
-
-private func e1Known(_ comment: Comment, _ body: () throws -> Void) {
-  if ProcessInfo.processInfo.environment["SWIFTTUI_E1_UNMARKED"] == "1" {
-    do { try body() } catch { Issue.record(error, comment) }
-  } else {
-    withKnownIssue(comment) { try body() }
-  }
-}
 
 private func e1RealPath(_ url: URL) -> String {
   guard let resolved = realpath(url.path, nil) else { return url.path }
