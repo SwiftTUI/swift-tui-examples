@@ -43,6 +43,9 @@ print/install subcommands through SwiftTUI's command surface.
 - Summaries for loaded directories.
 - Separate states for loading, empty, stale, denied, missing, unsupported, and
   generic failures.
+- A symbolic link whose target cannot be resolved (missing, a link loop, a
+  denied directory, or a path through a non-directory) lists as a broken link.
+  The rest of the directory still lists, and search continues past it.
 - Local filters and bounded recursive filename search.
 - Hidden-file and sort controls.
 - Live directory refresh on macOS.

@@ -49,15 +49,12 @@ struct AdversarialSetASextantTests {
           [.posixPermissions: 0o755], ofItemAtPath: locked.path)
       }
       let result = await LocalFileSystemClient().readDirectory(e1Request(root))
-      e1Known(e1ListingComment) {
-        #expect(e1Names(result) == ["file.txt", "locked", "peek"])
-      }
+      // STUI-1342: the denied target lists as a broken link.
+      #expect(e1Names(result) == ["file.txt", "locked", "peek"])
+      #expect(e1Item(result, "peek")?.kind == .brokenSymbolicLink)
     }
   }
 }
-
-private let e1ListingComment: Comment =
-  "NEW-14: one unresolvable symlink (loop, denied or non-directory target) makes the whole directory unlistable; listingEntry maps only ENOENT to a broken link and returns every other target failure as the listing's failure; contract: POSIX stat ELOOP/EACCES/ENOTDIR are target failures, README.md:44-46"
 
 // MARK: - listing and prefixes (e1s127–e1s137)
 
@@ -82,14 +79,13 @@ private func e1Listing(_ id: Int) async throws {
       let expected: [String] =
         id == 127
         ? ["file.txt", "loop"] : id == 128 ? ["a", "b", "file.txt"] : ["file.txt", "odd"]
-      e1Known(e1ListingComment) {
-        #expect(e1Names(result) == expected)
-        if case .success(let snapshot) = result {
-          #expect(
-            snapshot.items.filter { $0.name != "file.txt" }.allSatisfy {
-              $0.kind.isSymbolicLink && !$0.kind.isDirectoryLike
-            })
-        }
+      // STUI-1342: a loop or non-directory target lists as a broken link.
+      #expect(e1Names(result) == expected)
+      if case .success(let snapshot) = result {
+        #expect(
+          snapshot.items.filter { $0.name != "file.txt" }.allSatisfy {
+            $0.kind == .brokenSymbolicLink && $0.targetDirectoryID == nil
+          })
       }
     case 132:
       try link("gone", "absent")
@@ -176,14 +172,8 @@ private func e1Search(_ id: Int) async throws {
       withDestinationPath: id == 131 ? "loop" : "..")
     let search = FilenameSearchCoordinator(fileSystem: LocalFileSystemClient())
     let (results, _) = await e1Drain(search, root: root, query: "needle")
-    if id == 131 {
-      #expect(results.contains("needle-a"))
-      e1Known(e1ListingComment) {
-        #expect(results.contains("needle-b"))
-      }
-    } else {
-      #expect(results.sorted() == ["needle-a", "needle-b"])
-    }
+    // STUI-1342 (e1s131): search continues past the loop link's directory.
+    #expect(results.sorted() == ["needle-a", "needle-b"])
   }
 }
 

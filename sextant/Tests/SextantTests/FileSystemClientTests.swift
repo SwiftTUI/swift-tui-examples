@@ -222,6 +222,29 @@ struct FileSystemClientTests {
     }
   }
 
+  /// An unresolvable symbolic link lists as a broken link, but a directory
+  /// that cannot itself be read still fails its own listing.
+  @Test(
+    "an unreadable directory still fails its listing as denied",
+    .enabled(if: geteuid() != 0, "permission bits do not apply to root")
+  )
+  func liveAdapterUnreadableDirectory() async throws {
+    try await withTemporaryDirectory { root in
+      let locked = root.appendingPathComponent("locked", isDirectory: true)
+      try FileManager.default.createDirectory(at: locked, withIntermediateDirectories: false)
+      try Data().write(to: locked.appendingPathComponent("inside.txt"))
+      try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: locked.path)
+      defer {
+        try? FileManager.default.setAttributes(
+          [.posixPermissions: 0o755], ofItemAtPath: locked.path)
+      }
+
+      let result = await LocalFileSystemClient().readDirectory(request(1, url: locked))
+
+      #expect(result == .failure(.permissionDenied(path: locked.path)))
+    }
+  }
+
   @Test(
     "live prefix reads never return bytes from a special file swapped after inspection",
     .timeLimit(.minutes(1))
