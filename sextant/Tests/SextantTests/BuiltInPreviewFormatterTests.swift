@@ -148,4 +148,67 @@ struct BuiltInPreviewFormatterTests {
     #expect(preview.text.utf8.count == BuiltInPreviewFormatter.maximumReadBytes)
     #expect(preview.isTruncated)
   }
+
+  /// Only a read that stopped before the end of the file may end in part of
+  /// a scalar, and only a proper prefix of a well-formed sequence (Unicode
+  /// 3.9 Table 3-7) is trimmed there. Anything else is ill-formed.
+  @Test("an incomplete scalar is trimmed only where the read was cut")
+  func cutOnlyTrimsAtTheReadBoundary() {
+    let complete = Data([0x61, 0x62, 0xC3])
+    #expect(formatter.classify(complete) == .binary)
+    expectHexadecimal(complete, isTruncated: false)
+
+    let ascii = [UInt8](repeating: 0x61, count: BuiltInPreviewFormatter.maximumReadBytes - 2)
+    // FF never starts a sequence; E0 80 is not a prefix of one (E0 needs A0-BF).
+    for tail: [UInt8] in [[0x61, 0xFF], [0xE0, 0x80]] {
+      expectHexadecimal(Data(ascii + tail + [0x61]), isTruncated: true)
+    }
+  }
+
+  @Test("UTF-32 byte order marks are not read as UTF-16 text")
+  func utf32ByteOrderMarks() {
+    let littleEndian = Data([0xFF, 0xFE, 0x00, 0x00, 0x41, 0x00, 0x00, 0x00])
+    let bigEndian = Data([0x00, 0x00, 0xFE, 0xFF, 0x00, 0x00, 0x00, 0x41])
+    #expect(formatter.classify(littleEndian) == .binary)
+    #expect(formatter.classify(bigEndian) == .binary)
+    expectHexadecimal(littleEndian, isTruncated: false)
+  }
+
+  @Test("a capped UTF-16 read ends on a whole scalar")
+  func truncatedUTF16() {
+    let units = (BuiltInPreviewFormatter.maximumReadBytes - 4) / 2
+    // The cap falls after the high surrogate of U+1F600; one sentinel byte follows.
+    let data = Data(
+      [0xFF, 0xFE] + Array(repeating: [UInt8(0x61), 0], count: units).flatMap { $0 }
+        + [0x3D, 0xD8, 0x00])
+    #expect(data.count == BuiltInPreviewFormatter.requestedReadBytes)
+    guard
+      case .text(let preview) = formatter.format(
+        prefix: FilePrefix(data: data, totalByteCount: UInt64(data.count + 3), isTruncated: true))
+    else {
+      Issue.record("expected text preview")
+      return
+    }
+    #expect(preview.encoding == .utf16LittleEndian)
+    #expect(preview.text == String(repeating: "a", count: units))
+    #expect(preview.isTruncated)
+  }
+
+  private func expectHexadecimal(
+    _ data: Data,
+    isTruncated: Bool,
+    sourceLocation: SourceLocation = #_sourceLocation
+  ) {
+    let body = formatter.format(
+      prefix: FilePrefix(
+        data: data,
+        totalByteCount: UInt64(data.count + (isTruncated ? 1 : 0)),
+        isTruncated: isTruncated
+      )
+    )
+    guard case .hexadecimal = body else {
+      Issue.record("expected a hexadecimal preview", sourceLocation: sourceLocation)
+      return
+    }
+  }
 }

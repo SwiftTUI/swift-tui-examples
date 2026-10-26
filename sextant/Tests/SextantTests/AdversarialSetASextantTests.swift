@@ -222,21 +222,15 @@ private func e1Classification(_ id: Int) {
     let payload = id == 141 ? Data(data.dropFirst(2)) : data
     #expect(String(data: payload, encoding: id == 141 ? .utf16LittleEndian : .utf8) != nil)
     #expect(data.count > BuiltInPreviewFormatter.classificationByteLimit)
-    e1Known(
-      "NEW-15: well-formed text previews as hexadecimal when a multi-unit scalar straddles byte 8192; classify validates the raw 8 KiB prefix, splitting the scalar; contract: README.md:40 (strict UTF-8 and BOM-aware UTF-16 text), Unicode 3.9 D91-D92"
-    ) {
-      #expect(formatter.classify(data) == .text(encoding))
-    }
+    // STUI-1343: the scalar the 8 KiB sample boundary splits is trimmed.
+    #expect(formatter.classify(data) == .text(encoding))
   case 142, 143:
     let body = formatter.format(
       prefix: FilePrefix(data: data, totalByteCount: UInt64(data.count), isTruncated: false))
-    e1Known(
-      "NEW-16: invalid UTF-8 or NUL after the first 8 KiB previews as text; classification samples only the first 8 KiB and decoding repairs the rest; contract: README.md:40 (strict UTF-8), BuiltInPreviewFormatterTests.swift:74 (invalid UTF-8 and NUL select hexadecimal)"
-    ) {
-      guard case .hexadecimal = body else {
-        Issue.record("expected a hexadecimal preview, got \(e1Describe(body))")
-        return
-      }
+    // STUI-1343: text versus binary is decided on the whole capped read.
+    guard case .hexadecimal = body else {
+      Issue.record("expected a hexadecimal preview, got \(e1Describe(body))")
+      return
     }
   case 144:
     let read = Data(data.prefix(BuiltInPreviewFormatter.requestedReadBytes))
@@ -247,17 +241,13 @@ private func e1Classification(_ id: Int) {
       return
     }
     #expect(preview.isTruncated)
-    e1Known(
-      "NEW-17: a text preview cut at 256 KiB ends with U+FFFD when the cap splits a scalar; decodeText repairs the truncated tail instead of dropping the partial scalar; contract: README.md:40 and :51 (strict UTF-8, bounded read)"
-    ) {
-      #expect(!preview.text.unicodeScalars.contains("\u{FFFD}"))
-    }
+    // STUI-1343: the cap's partial scalar is trimmed, not repaired.
+    #expect(!preview.text.unicodeScalars.contains("\u{FFFD}"))
+    #expect(
+      preview.text == String(repeating: "a", count: BuiltInPreviewFormatter.maximumReadBytes - 1))
   case 145:
-    e1Known(
-      "NEW-18: a UTF-32LE file previews as UTF-16 text full of NUL characters; the FF FE sniff does not exclude the UTF-32LE BOM FF FE 00 00; contract: README.md:40 (UTF-8/UTF-16 text only), Unicode 23.8 Table 23-4"
-    ) {
-      #expect(formatter.classify(data) == .binary)
-    }
+    // STUI-1343: the UTF-32LE mark is checked before the UTF-16LE one.
+    #expect(formatter.classify(data) == .binary)
   case 146:
     #expect(formatter.classify(data) == .text(.utf8))
     #expect(
