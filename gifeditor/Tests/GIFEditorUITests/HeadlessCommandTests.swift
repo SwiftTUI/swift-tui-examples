@@ -654,3 +654,48 @@ struct HeadlessCommandTests {
     return false
   }
 }
+
+// Wave-3 regression hunt, part CA (STUI-1167): neighbours of the STUI-1184 header
+// predicate (5c5d547) in the headless adapter. Case w3ca028; the hypotheses precede
+// this test in the hunt's evidence directory.
+@Suite("Wave-3 hunt CA: headless GIF header neighbours")
+struct Wave3RegressionHuntHeadlessTests {
+  @Test("w3ca028 headless info reports incomplete or unsupported headers as unrecognized")
+  func w3ca028HeadlessInfoReportsIncompleteHeadersAsUnrecognized() throws {
+    let encoded = try GIFEncoder.encode(
+      document: GIFDocument.blank(size: PixelSize(width: 2, height: 2)))
+    var version88a = encoded
+    version88a[4] = UInt8(ascii: "8")
+    let unrecognized: [(name: String, bytes: [UInt8])] = [
+      ("five.gif", Array("GIF89".utf8)),
+      ("family.gif", Array("GIF8xx".utf8) + [1, 2, 3, 4]),
+      ("version88a.gif", Array(version88a)),
+      ("uppercase.gif", Array("GIF89A".utf8) + [1, 2, 3, 4]),
+    ]
+    try HeadlessCommandTests.withTemporaryDirectory { directory in
+      for (name, bytes) in unrecognized {
+        let url = directory.appendingPathComponent(name)
+        try Data(bytes).write(to: url)
+        let error = HeadlessCommandTests.headlessError {
+          _ = try HeadlessInfo.report(contentsOf: url)
+        }
+        guard case .unrecognizedFormat = try #require(error) else {
+          Issue.record("\(name): expected unrecognizedFormat, got \(String(describing: error))")
+          continue
+        }
+        #expect(error?.exitCode == HeadlessExitStatus.dataError, "\(name)")
+      }
+      // Control: a complete header with a damaged stream is a damaged GIF.
+      let damaged = directory.appendingPathComponent("damaged.gif")
+      try Data(Array("GIF89a".utf8) + [1, 2, 3]).write(to: damaged)
+      let error = HeadlessCommandTests.headlessError {
+        _ = try HeadlessInfo.report(contentsOf: damaged)
+      }
+      guard case .damaged = try #require(error) else {
+        Issue.record("expected damaged, got \(String(describing: error))")
+        return
+      }
+      #expect(error?.exitCode == HeadlessExitStatus.dataError)
+    }
+  }
+}

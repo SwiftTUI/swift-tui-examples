@@ -123,3 +123,32 @@ struct DocumentIngestionTests {
     }
   }
 }
+
+// Wave-3 regression hunt, part CA (STUI-1167): neighbours of the STUI-1184 header
+// predicate (5c5d547) in core routing. Case w3ca030; the hypotheses precede this test
+// in the hunt's evidence directory.
+@Suite("Wave-3 hunt CA: GIF87a routing neighbours")
+struct Wave3RegressionHuntIngestionTests {
+  @Test("w3ca030 a genuine GIF87a stream routes and decodes, also from a Data slice")
+  func w3ca030GenuineGIF87aStreamIngests() throws {
+    // A 1x1 red GIF87a: no extension blocks, so nothing in it needs 89a. LZW codes
+    // clear (4), 0 and end (5) at 3 bits, packed LSB first: 0x44 0x01.
+    let gif87a: [UInt8] = [
+      0x47, 0x49, 0x46, 0x38, 0x37, 0x61,  // "GIF87a"
+      0x01, 0x00, 0x01, 0x00, 0x80, 0x00, 0x00,  // 1x1, 2-entry global table
+      0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF,  // red, white
+      0x2C, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00,  // image descriptor
+      0x02, 0x02, 0x44, 0x01, 0x00,  // LZW minimum code size 2, one sub-block
+      0x3B,  // trailer
+    ]
+    let slice = Data([0x00, 0x01, 0x02] + gif87a).dropFirst(3)
+    try #require(slice.startIndex == 3)
+    for (name, data) in [("whole", Data(gif87a)), ("slice", slice)] {
+      #expect(DocumentIngestion.kind(of: data) == .gif, "\(name)")
+      let ingested = try DocumentIngestion.ingest(data)
+      #expect(ingested.kind == .gif, "\(name)")
+      #expect(ingested.document.frames.count == 1, "\(name)")
+      #expect(ingested.document.size == PixelSize(width: 1, height: 1), "\(name)")
+    }
+  }
+}

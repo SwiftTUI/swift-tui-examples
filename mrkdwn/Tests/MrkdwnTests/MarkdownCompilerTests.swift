@@ -134,6 +134,50 @@ struct Wave2RegressionHuntMarkdownTests {
   }
 }
 
+// Wave-3 regression hunt, part CA (STUI-1167): neighbours of the STUI-1257 line-end
+// trim (933e640). Cases w3ca025-w3ca027; the hypotheses precede these tests in the
+// hunt's evidence directory.
+@Suite("Wave-3 hunt CA: line-end reference neighbours")
+struct Wave3RegressionHuntMarkdownTests {
+  @Test("w3ca025 a line-end reference after an inline and inside link and emphasis stays literal")
+  func w3ca025ReferenceBeforeLineEndAfterInlinesAndInWrappers() {
+    #expect(w3Describe("*a* &#87654321; \nb") == #"p["a"/emphasis " &#87654321; b"]"#)
+    #expect(
+      w3Describe("[foo &#87654321; \nbar](/u)")
+        == #"p["foo &#87654321; bar"->/u] links[foo &#87654321; bar->/u]"#)
+    #expect(w3Describe("*foo &#87654321;  \nbar*") == "p[\"foo &#87654321;\nbar\"/emphasis]")
+  }
+
+  @Test("w3ca026 a line-end reference in headings and a list item's first line stays literal")
+  func w3ca026ReferenceBeforeLineEndInHeadingsAndListItems() throws {
+    let heading = #"h1["foo &#87654321;"] outline[foo &#87654321;]"#
+    #expect(w3Describe("# foo &#87654321; #  ") == heading)
+    #expect(w3Describe("foo &#87654321;  \n===") == heading)
+    let compiled = MarkdownCompiler().compile(source: "- foo &#87654321; \n  bar", sourceURL: nil)
+    #expect(compiled.diagnostics.isEmpty)
+    guard case .list(_, let list, _) = try #require(compiled.blocks.first) else {
+      Issue.record("expected a list, got \(describe(compiled))")
+      return
+    }
+    #expect(list.items.count == 1)
+    #expect(list.items.first?.blocks.map(describe(block:)) == [#"p["foo &#87654321; bar"]"#])
+  }
+
+  @Test("w3ca027 CR-only and mixed-whitespace line ends keep the reference literal")
+  func w3ca027ReferenceBeforeCROnlyAndMixedWhitespaceLineEnds() {
+    #expect(w3Describe("foo &#87654321; \rbar") == #"p["foo &#87654321; bar"]"#)
+    #expect(w3Describe("foo &#87654321;  \rbar") == "p[\"foo &#87654321;\nbar\"]")
+    #expect(w3Describe("foo &#87654321;\t  \nbar") == "p[\"foo &#87654321;\nbar\"]")
+    #expect(w3Describe("&amp; &#87654321; \nb") == #"p["& &#87654321; b"]"#)
+  }
+}
+
+private func w3Describe(_ source: String) -> String {
+  let compiled = MarkdownCompiler().compile(source: source, sourceURL: nil)
+  return compiled.diagnostics.isEmpty
+    ? describe(compiled) : "diagnostics \(compiled.diagnostics) " + describe(compiled)
+}
+
 struct TextContractCase: Sendable, CustomTestStringConvertible {
   let id: String
   let source: String

@@ -315,3 +315,44 @@ struct GIFDocumentIOTests {
     return try body(directory)
   }
 }
+
+// Wave-3 regression hunt, part CA (STUI-1167): neighbours of the STUI-1184 header
+// predicate (5c5d547) in the UI open path. Case w3ca029; the hypotheses precede this
+// test in the hunt's evidence directory.
+@Suite("Wave-3 hunt CA: GIF open header neighbours")
+struct Wave3RegressionHuntDocumentIOTests {
+  @Test("w3ca029 opening an incomplete or unsupported header names the file")
+  func w3ca029OpenNamesTheFileForIncompleteHeaders() throws {
+    let encoded = try GIFEncoder.encode(
+      document: GIFDocument.blank(size: PixelSize(width: 2, height: 2)))
+    var version88a = encoded
+    version88a[4] = UInt8(ascii: "8")
+    var version87a = encoded
+    version87a[4] = UInt8(ascii: "7")
+    let refused: [(name: String, bytes: [UInt8])] = [
+      ("five.gif", Array("GIF89".utf8)),
+      ("version88a.gif", Array(version88a)),
+      ("version89b.gif", Array("GIF89b".utf8) + [1, 2, 3, 4]),
+    ]
+    try GIFDocumentIOTests.withTemporaryDirectory { directory in
+      for (name, bytes) in refused {
+        let url = directory.appendingPathComponent(name)
+        try Data(bytes).write(to: url)
+        do {
+          _ = try GIFDocumentIO.open(contentsOf: url)
+          Issue.record("\(name): expected the open to be refused")
+        } catch let error as GIFDocumentIO.OpenError {
+          guard case .unrecognizedFormat = error else {
+            Issue.record("\(name): expected .unrecognizedFormat, got \(error)")
+            continue
+          }
+          #expect(error.description.contains(name), "\(error)")
+          #expect(error.description.contains(ProjectFile.fileExtension), "\(error)")
+        }
+      }
+      let url = directory.appendingPathComponent("version87a.gif")
+      try Data(version87a).write(to: url)
+      #expect(try GIFDocumentIO.open(contentsOf: url).frames.count == 1)
+    }
+  }
+}
