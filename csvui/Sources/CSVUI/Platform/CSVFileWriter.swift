@@ -85,9 +85,15 @@ public struct CSVFileWriter: Sendable {
         throw CSVFileWriteError.sourceChanged
       }
       permissionBits = mode_t(expectedIdentity.mode) & mode_t(0o7777)
-    } else if existing {
+    } else if let entry = directoryEntry(at: destination) {
+      // Classified by the path itself, not by `existing`: `fileExists`
+      // follows a final symlink, so a dangling link looks absent and the
+      // rename below would replace the link instead of refusing it.
       guard request.overwrite else {
         throw CSVFileWriteError.destinationExists(destination)
+      }
+      guard entry == .regularFile else {
+        throw CSVFileWriteError.unsafeDestination(destination)
       }
       let current = try reader.read(fileURL: destination)
       guard let identity = current.identity, current.writeBackAuthority != nil else {
@@ -141,6 +147,22 @@ public struct CSVFileWriter: Sendable {
       throw CSVFileWriteError.writeFailed("saved file could not be verified")
     }
     return CSVFileWriteResult(source: source)
+  }
+
+  private enum DirectoryEntry { case regularFile, other }
+
+  /// What the path itself names, without following a final symlink, or
+  /// `nil` when `lstat` finds nothing there. Anything but a regular file —
+  /// a symlink, live or dangling, a directory, a FIFO — is `.other`, and is
+  /// refused before it is opened.
+  private func directoryEntry(at url: URL) -> DirectoryEntry? {
+    var status = stat()
+    let result = unsafe url.withUnsafeFileSystemRepresentation { path in
+      guard let path = unsafe path else { return Int32(-1) }
+      return unsafe lstat(path, &status)
+    }
+    guard result == 0 else { return nil }
+    return (status.st_mode & mode_t(S_IFMT)) == mode_t(S_IFREG) ? .regularFile : .other
   }
 
   private func openExclusive(_ url: URL) throws -> Int32 {

@@ -3,6 +3,12 @@ import Testing
 
 @testable import CSVUI
 
+#if canImport(Darwin)
+  import Darwin
+#elseif canImport(Glibc)
+  import Glibc
+#endif
+
 @Suite("CSV file lifecycle", .serialized)
 struct CSVFileLifecycleTests {
   @Test(
@@ -291,5 +297,69 @@ struct CSVModelLifecycleTests {
     let padding = String(repeating: "x", count: rowBytes)
     try Data("name,value\noriginal,1\(padding)\n".utf8).write(to: file)
     return (directory, file)
+  }
+}
+
+// Repair wave 4 (STUI-1347, NEW-35): a Save As destination is classified by the path itself
+// (lstat), so only a direct regular file is ever replaced. Scenario ids are those of
+// evidence 2026-10-26-campaign-two-wave-4/ex-gcm/repair-hypotheses.json.
+@Suite("Repair wave 4: Save As destinations", .serialized)
+struct Wave4SaveAsDestinationTests {
+  @Test("w4gcm-r25: an overwriting Save As onto a directory or a FIFO is refused as unsafe")
+  func nonRegularDestinationsAreUnsafe() throws {
+    try Self.withDirectory { directory in
+      let folder = directory.appendingPathComponent("folder.csv")
+      try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false)
+      let folderRequest = Self.request(folder, overwrite: true)
+      #expect(throws: CSVFileWriteError.unsafeDestination(folderRequest.destination)) {
+        try CSVFileWriter().write(folderRequest)
+      }
+
+      let pipe = directory.appendingPathComponent("pipe.csv")
+      let made = pipe.path.withCString { unsafe mkfifo($0, mode_t(0o600)) }
+      try #require(made == 0)
+      // Hold a writer, so even the unfixed path's blocking open returns.
+      let writer = pipe.path.withCString { unsafe open($0, O_RDWR | O_NONBLOCK) }
+      try #require(writer >= 0)
+      defer { _ = close(writer) }
+      let pipeRequest = Self.request(pipe, overwrite: true)
+      #expect(throws: CSVFileWriteError.unsafeDestination(pipeRequest.destination)) {
+        try CSVFileWriter().write(pipeRequest)
+      }
+    }
+  }
+
+  @Test("w4gcm-n14: a dangling symlink without overwrite still asks; a direct file is replaced")
+  func neighborsKeepTheirOutcomes() throws {
+    try Self.withDirectory { directory in
+      let manager = FileManager.default
+      let link = directory.appendingPathComponent("link.csv")
+      try manager.createSymbolicLink(atPath: link.path, withDestinationPath: "missing.csv")
+      let linkRequest = Self.request(link, overwrite: false)
+      #expect(throws: CSVFileWriteError.destinationExists(linkRequest.destination)) {
+        try CSVFileWriter().write(linkRequest)
+      }
+      #expect(try manager.destinationOfSymbolicLink(atPath: link.path) == "missing.csv")
+
+      let plain = directory.appendingPathComponent("plain.csv")
+      try Data("old\n".utf8).write(to: plain)
+      let result = try CSVFileWriter().write(Self.request(plain, overwrite: true))
+      #expect(result.source.bytes == Data("new\n".utf8))
+      #expect(try Data(contentsOf: plain) == Data("new\n".utf8))
+    }
+  }
+
+  private static func request(_ destination: URL, overwrite: Bool) -> CSVFileWriteRequest {
+    CSVFileWriteRequest(
+      destination: destination, bytes: Data("new\n".utf8), expectedBytes: nil,
+      expectedIdentity: nil, overwrite: overwrite)
+  }
+
+  private static func withDirectory(_ body: (URL) throws -> Void) throws {
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent("w4-csv-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    try body(directory)
   }
 }

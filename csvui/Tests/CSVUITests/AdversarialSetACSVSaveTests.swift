@@ -48,29 +48,22 @@ private func e1RoundTrip(_ id: Int) throws {
     guard let output = try? CSVSerializer().serialize(document: document, journal: journal) else {
       return
     }
-    e1Known(
-      "NEW-33: csvui saves a cell value containing NUL into a file it then refuses to reopen; CSVSerializer writes the NUL byte verbatim while CSVRecordIndexer rejects NUL; contract: CSVRecordIndex.swift:295-301 (NUL unsupported), pass 1 round-trip arity"
-    ) {
-      let reopened = try e1Parse(output)
-      #expect(try reopened.decodeSourceRow(RowID(sourceIndex: 0))?.fields.first?.value == "a\u{0}b")
-    }
+    // NUL is refused on read (CSVRecordIndex.swift:293-302), so a save must not write it
+    // (STUI-1347, promoted by repair wave 4).
+    let reopened = try e1Parse(output)
+    #expect(try reopened.decodeSourceRow(RowID(sourceIndex: 0))?.fields.first?.value == "a\u{0}b")
     return
   }
   let output = try CSVSerializer().serialize(document: document, journal: journal)
   let reopened = try e1Parse(output)
   switch id {
   case 184, 185:
-    e1Known(
-      "NEW-32: an empty last row of a single-column CSV without a final newline vanishes on reopen; the serializer writes the empty field as zero bytes after the last line ending, which the indexer reads as end of input; contract: RFC 4180 rule 7 (quoted empty field), pass 1 round-trip arity (AdversarialSetACSVTests.swift:131-132)"
-    ) {
-      #expect(reopened.dataRecordCount == expectedRows)
-    }
+    // RFC 4180 (a quoted empty field) and the round-trip arity contract
+    // (AdversarialSetACSVTests.swift:131-132); STUI-1347, promoted by repair wave 4.
+    #expect(reopened.dataRecordCount == expectedRows)
   case 188:
-    e1Known(
-      "NEW-34: a header renamed to start with U+FEFF loses that character on reopen when the file had no BOM; the unquoted field's leading EF BB BF is reread as a byte order mark; contract: edited values round-trip (CSVSerializer.swift:14, RFC 4180)"
-    ) {
-      #expect(reopened.header?.fields.first?.value == "\u{FEFF}x")
-    }
+    // Edited values round-trip (CSVSerializer.swift:14); STUI-1347, promoted by repair wave 4.
+    #expect(reopened.header?.fields.first?.value == "\u{FEFF}x")
   case 194:
     #expect(output == Data("a,b\n1,\"x\ry\"".utf8))
     #expect(
@@ -102,15 +95,12 @@ private func e1SaveAs(_ id: Int) throws {
       destination: destination, bytes: Data("new\n".utf8), expectedBytes: nil,
       expectedIdentity: nil, overwrite: true)
     let refusal = CSVFileWriteError.unsafeDestination(request.destination)
+    // Only a direct, singly linked regular file is replaced (CSVFileWriter.swift:23-24);
+    // e1s189 is STUI-1347, promoted by repair wave 4.
+    #expect(throws: refusal) { _ = try CSVFileWriter().write(request) }
     if id == 189 {
-      e1Known(
-        "NEW-35: an overwriting Save As replaces a dangling symlink with a regular file; the destination safety check runs only when FileManager.fileExists, which follows the link, is true; contract: CSVFileWriter.swift:23-24 and :88-97 (direct, singly linked regular files only)"
-      ) {
-        #expect(throws: refusal) { _ = try CSVFileWriter().write(request) }
-      }
       #expect(!manager.fileExists(atPath: directory.appendingPathComponent("missing.csv").path))
-    } else {
-      #expect(throws: refusal) { _ = try CSVFileWriter().write(request) }
+      #expect(try manager.destinationOfSymbolicLink(atPath: destination.path) == "missing.csv")
     }
   }
 }
@@ -142,14 +132,6 @@ private func e1NonRegularSource(_ id: Int) throws {
 }
 
 // MARK: - fixtures
-
-private func e1Known(_ comment: Comment, _ body: () throws -> Void) {
-  if ProcessInfo.processInfo.environment["SWIFTTUI_E1_UNMARKED"] == "1" {
-    do { try body() } catch { Issue.record(error, comment) }
-  } else {
-    withKnownIssue(comment) { try body() }
-  }
-}
 
 private func e1Parse(_ bytes: Data) throws -> CSVDocument {
   try CSVDocument.parse(

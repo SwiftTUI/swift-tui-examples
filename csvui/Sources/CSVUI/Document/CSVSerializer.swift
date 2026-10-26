@@ -11,7 +11,7 @@ public struct CSVSerializer: Sendable {
 
     var output = Data()
     output.reserveCapacity(document.source.bytes.count)
-    if document.dialect.hasUTF8BOM { output.append(contentsOf: [0xEF, 0xBB, 0xBF]) }
+    if document.dialect.hasUTF8BOM { output.append(contentsOf: Self.utf8BOM) }
 
     let recordCount = journal.rowOrder.count + (document.dialect.hasHeaders ? 1 : 0)
     let originalColumnOffsets = Dictionary(
@@ -30,14 +30,34 @@ public struct CSVSerializer: Sendable {
       originalEnding: CSVLineEnding?
     ) throws {
       if recordOffset.isMultiple(of: 256) { try Task.checkCancellation() }
+      let recordStart = output.count
       for (fieldIndex, field) in fields.enumerated() {
+        // The indexer refuses NUL anywhere, quoted or not, so a save that
+        // wrote one could never be reopened. Source fields cannot hold it
+        // (they were indexed), so only an edited value is checked.
+        if field.isEdited, field.bytes.contains(0) {
+          let isHeader = document.dialect.hasHeaders && recordOffset == 0
+          let row = document.dialect.hasHeaders ? recordOffset : recordOffset + 1
+          throw CSVSerializationError.nulCharacter(
+            row: isHeader ? nil : row, column: fieldIndex + 1)
+        }
         if fieldIndex > 0 { output.append(document.dialect.delimiter.byte) }
-        output.append(contentsOf: field.bytes)
+        if output.isEmpty, field.bytes.starts(with: Self.utf8BOM) {
+          // With no BOM written, a first field starting with U+FEFF would put
+          // EF BB BF at byte 0, which the indexer reads as the file's BOM.
+          output.append(contentsOf: Self.quoted(field.bytes))
+        } else {
+          output.append(contentsOf: field.bytes)
+        }
       }
       let isLast = recordOffset == recordCount - 1
       if !isLast || document.dialect.hasFinalNewline {
         let ending = originalEnding ?? document.dialect.dominantLineEnding
         output.append(contentsOf: ending.bytes)
+      } else if output.count == recordStart {
+        // An unterminated last record of zero bytes is no record at all to a
+        // reader; a quoted empty field (RFC 4180) keeps it.
+        output.append(contentsOf: [0x22, 0x22])
       }
       recordOffset += 1
     }
@@ -94,7 +114,11 @@ public struct CSVSerializer: Sendable {
 
   private struct SerializedField {
     var bytes: [UInt8]
+    /// True for a value the journal supplied, false for a source lexeme.
+    var isEdited = false
   }
+
+  private static let utf8BOM: [UInt8] = [0xEF, 0xBB, 0xBF]
 
   private func headerFields(
     document: CSVDocument,
@@ -104,7 +128,8 @@ public struct CSVSerializer: Sendable {
     let original = document.header?.fields ?? []
     return journal.columnOrder.map { column in
       if let replacement = journal.headerReplacements[column] {
-        return SerializedField(bytes: encode(replacement, delimiter: document.dialect.delimiter))
+        return SerializedField(
+          bytes: encode(replacement, delimiter: document.dialect.delimiter), isEdited: true)
       }
       guard let base = originalColumnOffsets[column],
         original.indices.contains(base)
@@ -141,7 +166,8 @@ public struct CSVSerializer: Sendable {
 
     return columns.map { column in
       if let replacement = journal.replacement(row: rowID, column: column) {
-        return SerializedField(bytes: encode(replacement, delimiter: document.dialect.delimiter))
+        return SerializedField(
+          bytes: encode(replacement, delimiter: document.dialect.delimiter), isEdited: true)
       }
       guard let base = originalColumnOffsets[column],
         original.indices.contains(base)
@@ -168,13 +194,37 @@ public struct CSVSerializer: Sendable {
       || source.contains(0x0A)
       || source.contains(0x0D)
     guard needsQuotes else { return source }
+    return Self.quoted(source)
+  }
+
+  /// `bytes` as one quoted field: wrapped in quotes, each quote doubled.
+  private static func quoted(_ bytes: [UInt8]) -> [UInt8] {
     var result: [UInt8] = [0x22]
-    result.reserveCapacity(source.count + 2)
-    for byte in source {
+    result.reserveCapacity(bytes.count + 2)
+    for byte in bytes {
       if byte == 0x22 { result.append(0x22) }
       result.append(byte)
     }
     result.append(0x22)
     return result
+  }
+}
+
+/// Why `serialize` refused to write a document.
+///
+/// Internal: callers see it as `any Error` and show its description.
+enum CSVSerializationError: Error, Equatable, Sendable, LocalizedError {
+  /// An edited value holds NUL, which csvui refuses on read
+  /// (`CSVRecordIndexer`), quoted or not. `row` is the 1-based data row in
+  /// the document's current order, or `nil` for the header; `column` is the
+  /// 1-based column in the current order.
+  case nulCharacter(row: Int?, column: Int)
+
+  var errorDescription: String? {
+    switch self {
+    case .nulCharacter(let row, let column):
+      let place = row.map { "row \($0), column \(column)" } ?? "the header of column \(column)"
+      return "cannot save: \(place) contains a NUL character, which csvui cannot reopen"
+    }
   }
 }

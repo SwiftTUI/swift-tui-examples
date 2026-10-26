@@ -68,8 +68,8 @@ public struct CSVRowDecoder: Sendable {
           }
         }
         let rawData = data.subdata(in: fieldStart..<rawEnd)
-        guard let raw = String(data: rawData, encoding: .utf8),
-          let value = String(data: Data(decoded), encoding: .utf8)
+        guard let raw = Self.string(rawData),
+          let value = Self.string(decoded)
         else {
           throw invalidUTF8(record: record, offset: fieldStart)
         }
@@ -88,7 +88,7 @@ public struct CSVRowDecoder: Sendable {
           throw oversizedField(record: record, offset: fieldStart)
         }
         let rawData = data.subdata(in: fieldStart..<cursor)
-        guard let raw = String(data: rawData, encoding: .utf8) else {
+        guard let raw = Self.string(rawData) else {
           throw invalidUTF8(record: record, offset: fieldStart)
         }
         fields.append(CSVDecodedField(value: raw, rawLexeme: raw, wasQuoted: false))
@@ -97,6 +97,16 @@ public struct CSVRowDecoder: Sendable {
       }
     }
     return CSVDecodedRow(fields: fields)
+  }
+
+  /// A field's bytes as a string, or `nil` when they are not UTF-8.
+  ///
+  /// Not `String(data:encoding: .utf8)`: Foundation drops a leading U+FEFF
+  /// there, as if every field began a file. The file's own BOM never reaches
+  /// this decoder (the indexer starts records after it), so a leading U+FEFF
+  /// here is a character of the field, and it is kept.
+  private static func string(_ bytes: some Collection<UInt8>) -> String? {
+    String(validating: bytes, as: UTF8.self)
   }
 
   private func oversizedField(record: CSVRecordDescriptor, offset: Int) -> CSVFormatError {
