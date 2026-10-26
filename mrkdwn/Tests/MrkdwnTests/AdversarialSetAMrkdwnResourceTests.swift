@@ -34,11 +34,9 @@ struct AdversarialSetAMrkdwnResourceTests {
     case 197, 198:
       let url = try #require(
         URL(string: id == 197 ? "http://192.0.32.10/a.png" : "http://198.51.0.1/a.png"))
-      e1Known(
-        "NEW-36: remote images on public addresses in 192.0.0.0/16 and 198.51.0.0/16 are blocked as non-public; isPublicIPv4 matches the 192.0.0.0/24, 192.0.2.0/24 and 198.51.100.0/24 reservations on the second octet only; contract: IANA IPv4 Special-Purpose Address Registry (RFC 6890, RFC 5737)"
-      ) {
-        try RemoteImageNetworkPolicy.validate(url)
-      }
+      // IANA IPv4 Special-Purpose Address Registry (RFC 6890, RFC 5737): the
+      // reservations are /24s (STUI-1348, promoted by repair wave 4).
+      try RemoteImageNetworkPolicy.validate(url)
       // The adjacent reservations themselves stay blocked.
       for reserved in [
         "http://192.0.2.1/a.png", "http://198.51.100.1/a.png", "http://192.0.0.8/a.png",
@@ -58,14 +56,6 @@ struct AdversarialSetAMrkdwnResourceTests {
         LinkResolver().resolve("notes#1.md", relativeTo: document)
           == .file(URL(fileURLWithPath: "/e1/notes")))
     }
-  }
-}
-
-private func e1Known(_ comment: Comment, _ body: () throws -> Void) {
-  if ProcessInfo.processInfo.environment["SWIFTTUI_E1_UNMARKED"] == "1" {
-    do { try body() } catch { Issue.record(error, comment) }
-  } else {
-    withKnownIssue(comment) { try body() }
   }
 }
 
