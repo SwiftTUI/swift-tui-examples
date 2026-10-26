@@ -243,21 +243,65 @@ struct DocumentLifecycleTests {
     try await withTemporaryLifecycleDirectory { directory in
       let lifecycle = DocumentLifecycle(document: layeredDocument(), stateDirectory: directory)
       dirty(lifecycle)
-      let impossible = directory
+      let impossible =
+        directory
         .appendingPathComponent("missing")
         .appendingPathComponent("session.halfcell")
 
       _ = await lifecycle.dispatch(.request(.new))
       _ = await lifecycle.dispatch(.dirtyDecision(.save))
-      guard case .failed = await lifecycle.dispatch(
-        .saveAs(impossible, overwriteExisting: false)
-      ) else {
+      guard
+        case .failed = await lifecycle.dispatch(
+          .saveAs(impossible, overwriteExisting: false)
+        )
+      else {
         Issue.record("expected the write to fail")
         return
       }
 
       #expect(lifecycle.state == .awaitingDirtyDecision(.new))
       #expect(lifecycle.session.isDirty)
+    }
+  }
+
+  /// The guard's dismissal (`.cancelDirtyDecision`) can arrive after the
+  /// decision it follows: the guard's buttons dispatch asynchronously, and a
+  /// confirmation dialog dismisses itself after any of its actions runs. It
+  /// cancels a guard that is still up and nothing else.
+  @Test("The guard's own dismissal cancels only an open guard")
+  func guardDismissalCancelsOnlyAnOpenGuard() async throws {
+    try await withTemporaryLifecycleDirectory { directory in
+      let lifecycle = DocumentLifecycle(document: layeredDocument(), stateDirectory: directory)
+      dirty(lifecycle)
+
+      // Escape on the guard, or its dismissal before any decision.
+      #expect(await lifecycle.dispatch(.request(.new)) == .changed)
+      #expect(await lifecycle.dispatch(.cancelDirtyDecision) == .changed)
+      #expect(lifecycle.state == .ready)
+      #expect(await lifecycle.dispatch(.cancelDirtyDecision) == .noChange)
+      #expect(lifecycle.state == .ready)
+
+      // After Discard opened the held verb's sheet.
+      _ = await lifecycle.dispatch(.request(.new))
+      #expect(await lifecycle.dispatch(.dirtyDecision(.discard)) == .changed)
+      #expect(await lifecycle.dispatch(.cancelDirtyDecision) == .noChange)
+      #expect(lifecycle.state == .presenting(.new, suspended: nil))
+      // The sheet's own cancel still closes it.
+      #expect(await lifecycle.dispatch(.cancelPresentation) == .changed)
+      #expect(lifecycle.state == .ready)
+
+      // After Save… on an untitled document opened Save As, still holding New.
+      _ = await lifecycle.dispatch(.request(.new))
+      #expect(await lifecycle.dispatch(.dirtyDecision(.save)) == .changed)
+      #expect(await lifecycle.dispatch(.cancelDirtyDecision) == .noChange)
+      #expect(lifecycle.state == .presenting(.saveAs, suspended: .new))
+      #expect(await lifecycle.dispatch(.cancelPresentation) == .changed)
+
+      // After Discard armed quit: the arm survives.
+      _ = await lifecycle.dispatch(.request(.quit))
+      #expect(await lifecycle.dispatch(.dirtyDecision(.discard)) == .readyToQuit)
+      #expect(await lifecycle.dispatch(.cancelDirtyDecision) == .noChange)
+      #expect(lifecycle.allowsQuit)
     }
   }
 

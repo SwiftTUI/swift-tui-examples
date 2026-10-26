@@ -452,10 +452,14 @@ public struct EditorView: View {
       // different budget: see `FilePresentationHost` for why two more
       // modifiers on the root chain overflow the resolve stack.
       FilePresentationHost(
+        // The guard's dismissal cancels only a guard that is still up. A
+        // confirmation dialog also writes `false` here after Save…, Discard
+        // or Cancel runs, and those dispatch their decision asynchronously,
+        // so the write can land after the decision opened a sheet.
         isUnsavedChangesPresented: Binding(
           get: { lifecycle.isUnsavedChangesPresented },
           set: { shown in
-            if !shown { dispatchLifecycle(.cancelPresentation) }
+            if !shown { dispatchLifecycle(.cancelDirtyDecision) }
           }
         ),
         fileSheet: Binding(

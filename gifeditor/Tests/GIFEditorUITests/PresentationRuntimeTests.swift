@@ -426,6 +426,121 @@ struct PresentationRuntimeTests {
     #expect(!terminal.frames.contains { $0.contains("Unsaved changes") })
   }
 
+  /// The guard's own buttons, clicked, land the lifecycle where the decision
+  /// says: Discard opens the sheet of the verb it was holding, Save… on an
+  /// untitled document opens Save As, and the sheet stays up.
+  ///
+  /// Each button dispatches its decision on a task of its own, so when the
+  /// button returns the lifecycle is still awaiting it. A confirmation dialog
+  /// also dismisses itself after any of its actions runs (SwiftUI's rule,
+  /// which SwiftTUI follows from 0.19.5, STUI-1309), and that dismissal
+  /// writes `false` to the guard's binding after the decision was queued.
+  /// The write must not undo what the decision then presents.
+  @Test(
+    "an unsaved-changes guard action lands the lifecycle where it decides",
+    .timeLimit(.minutes(5)),
+    arguments: UnsavedChangesGuardJourney.allCases
+  )
+  func unsavedChangesGuardActionLandsItsDecision(
+    _ journey: UnsavedChangesGuardJourney
+  ) async throws {
+    let directory = temporaryStateDirectory()
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    FirstRunHint.claim(inStateDirectory: directory)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let projectURL = directory.appendingPathComponent("session.halfcell")
+
+    // Dirty from the start (as recovered work is), so the journey spends no
+    // frames on painting.
+    let lifecycle =
+      journey.isProjectBacked
+      ? DocumentLifecycle(
+        document: GIFDocument.blank(size: .init(width: 8, height: 8)),
+        origin: DocumentOrigin(source: .file(projectURL), kind: .project),
+        projectBacking: ProjectBacking(projectURL),
+        stateDirectory: directory,
+        startsDirty: true
+      )
+      : DocumentLifecycle(
+        document: GIFDocument.blank(size: .init(width: 8, height: 8)),
+        stateDirectory: directory,
+        startsDirty: true
+      )
+
+    let terminal = GIFEditorPresentationRecordingTerminalHost(
+      surfaceSize: .init(width: 80, height: 24)
+    )
+    let rootIdentity = Identity(components: [
+      "gifeditor.presentation-runtime.guard-action.\(journey.rawValue)"
+    ])
+    var sawGuard = false
+
+    let inputReader = GIFEditorPresentationInputReader(
+      frameSignal: terminal.frameSignal,
+      steps: [
+        .press(journey.trigger),
+        .awaitCondition {
+          // Either the guard came up or the verb's sheet did, unguarded;
+          // waiting on the guard alone would hang rather than fail if it
+          // were dropped.
+          sawGuard = unsavedChangesGuardActionRow(in: terminal.latestSurface) != nil
+          let text = terminal.latestText
+          return sawGuard || fileSheetMarkers.contains { text.contains($0) }
+        },
+        journey.guardButton.map { label in
+          .clickLocated {
+            unsavedChangesGuardButtonCenter(label, in: terminal.latestSurface)
+          }
+        } ?? .press(KeyPress(.escape, modifiers: [])),
+        // The decision is asynchronous: wait until the lifecycle has left the
+        // guard (and any save or open it started has finished), and for a
+        // frame that shows the state it settled in. The guard dismissal's
+        // write was queued behind the decision, so it has run by then too.
+        .awaitCondition {
+          guard lifecycle.hasSettledAfterGuard else { return false }
+          let text = terminal.latestText
+          return unsavedChangesGuardActionRow(in: terminal.latestSurface) == nil
+            && fileSheetMarkers.contains { text.contains($0) } == (lifecycle.fileSheet != nil)
+        },
+      ])
+
+    let result = try await RunLoop(
+      rootIdentity: rootIdentity,
+      presentationSurface: terminal,
+      terminalInputReader: inputReader,
+      signalReader: GIFEditorPresentationEmptySignalReader(),
+      stateContainer: StateContainer(
+        initialState: 0,
+        invalidationIdentities: [rootIdentity]
+      ),
+      focusTracker: FocusTracker(invalidationIdentities: [rootIdentity]),
+      proposal: .init(width: 80, height: 24),
+      viewBuilder: { _, _ in
+        EditorView(lifecycle: lifecycle)
+      }
+    ).run()
+
+    let finalText = terminal.latestText
+    #expect(result.exitReason == .inputEnded)
+    #expect(sawGuard, "the guard never came up")
+    #expect(
+      lifecycle.state == journey.expectedState,
+      "the lifecycle settled in \(lifecycle.state) instead of \(journey.expectedState)"
+    )
+    for marker in fileSheetMarkers {
+      #expect(
+        finalText.contains(marker) == (marker == journey.expectedSheetMarker),
+        "sheet marker \"\(marker)\" in the final frame:\n\(finalText)"
+      )
+    }
+    if journey.isProjectBacked {
+      #expect(FileManager.default.fileExists(atPath: projectURL.path))
+      #expect(!lifecycle.session.isDirty)
+    } else {
+      #expect(!FileManager.default.fileExists(atPath: projectURL.path))
+    }
+  }
+
   /// Escape dismisses a sheet presented from `FilePresentationHost`.
   ///
   /// Worth pinning separately from the other Escape tests: those sheets
@@ -903,6 +1018,125 @@ private let sharedStateDirectory: URL = {
   return directory
 }()
 
+/// One way through the unsaved-changes guard, from a dirty document.
+enum UnsavedChangesGuardJourney: String, CaseIterable, Sendable {
+  /// Discard, holding New: the size sheet opens.
+  case discardBeforeNew
+  /// Discard, holding Open: the open sheet opens.
+  case discardBeforeOpen
+  /// Save… on an untitled document, holding New: Save As opens, still
+  /// holding New.
+  case saveUntitledBeforeNew
+  /// Save… on a project-backed document, holding New: the project is saved
+  /// in place, then the size sheet opens. Neighbour: the decision is still
+  /// running (saving) when the guard's dismissal arrives.
+  case saveBackedBeforeNew
+  /// Cancel: back to the editor, no sheet. Neighbour.
+  case cancelBeforeNew
+  /// Escape on the guard: the guard's binding is written `false` with no
+  /// decision, and the editor is back where it was. Neighbour.
+  case escapeBeforeNew
+
+  var isProjectBacked: Bool {
+    self == .saveBackedBeforeNew
+  }
+
+  /// The verb the guard holds.
+  var trigger: KeyPress {
+    switch self {
+    case .discardBeforeOpen:
+      KeyPress(.character("o"), modifiers: .ctrl)
+    default:
+      KeyPress(.character("n"), modifiers: [.ctrl, .alt])
+    }
+  }
+
+  /// The guard button the author clicks; `nil` answers with Escape.
+  var guardButton: String? {
+    switch self {
+    case .discardBeforeNew, .discardBeforeOpen:
+      "Discard"
+    case .saveUntitledBeforeNew, .saveBackedBeforeNew:
+      "Save…"
+    case .cancelBeforeNew:
+      "Cancel"
+    case .escapeBeforeNew:
+      nil
+    }
+  }
+
+  var expectedState: DocumentLifecycle.State {
+    switch self {
+    case .discardBeforeNew, .saveBackedBeforeNew:
+      .presenting(.new, suspended: nil)
+    case .discardBeforeOpen:
+      .presenting(.open, suspended: nil)
+    case .saveUntitledBeforeNew:
+      .presenting(.saveAs, suspended: .new)
+    case .cancelBeforeNew, .escapeBeforeNew:
+      .ready
+    }
+  }
+
+  /// The title of the sheet the journey ends on, if any.
+  var expectedSheetMarker: String? {
+    switch self {
+    case .discardBeforeNew, .saveBackedBeforeNew:
+      "New document"
+    case .discardBeforeOpen:
+      "Open a GIF"
+    case .saveUntitledBeforeNew:
+      "Save project"
+    case .cancelBeforeNew, .escapeBeforeNew:
+      nil
+    }
+  }
+}
+
+/// The titles of the New, Open and Save As sheets.
+private let fileSheetMarkers = ["New document", "Open a GIF", "Save project"]
+
+/// The guard's action row: the one line that carries all three of its
+/// buttons. Its message also says "save" and "discard", so a label alone
+/// does not identify a button.
+private let unsavedChangesGuardLabels = ["Save…", "Discard", "Cancel"]
+
+private func unsavedChangesGuardActionRow(in surface: RasterSurface?) -> (row: Int, line: String)? {
+  guard let surface else { return nil }
+  for (row, line) in surface.lines.enumerated()
+  where unsavedChangesGuardLabels.allSatisfy({ line.contains($0) }) {
+    return (row, line)
+  }
+  return nil
+}
+
+/// The centre of one of the guard's buttons, or `nil` when the guard is not
+/// up.
+private func unsavedChangesGuardButtonCenter(
+  _ label: String,
+  in surface: RasterSurface?
+) -> CellPoint? {
+  guard
+    let (row, line) = unsavedChangesGuardActionRow(in: surface),
+    let range = line.range(of: label)
+  else { return nil }
+  let column = line.distance(from: line.startIndex, to: range.lowerBound)
+  return CellPoint(x: column + label.count / 2, y: row)
+}
+
+extension DocumentLifecycle {
+  /// The guard is down and no save, open or settle it started is still
+  /// running.
+  fileprivate var hasSettledAfterGuard: Bool {
+    switch state {
+    case .ready, .presenting:
+      true
+    case .awaitingDirtyDecision, .settling, .opening, .saving, .quitArmed:
+      false
+    }
+  }
+}
+
 private func playbackDocument() -> GIFDocument {
   let size = GIFEditorCore.PixelSize(width: 4, height: 4)
   let first = EditorFrame(
@@ -921,9 +1155,17 @@ private final class GIFEditorPresentationRecordingTerminalHost: PresentationSurf
   let capabilityProfile: TerminalCapabilityProfile
   let appearance: TerminalAppearance
   private(set) var frames: [String] = []
+  /// The raster behind the latest presented frame. Its lines are plain cell
+  /// text, so a column found in one is a column to click.
+  private(set) var latestSurface: RasterSurface?
 
   var latestFrame: String? {
     frames.last
+  }
+
+  /// The latest presented surface's text, one line per row.
+  var latestText: String {
+    latestSurface?.lines.joined(separator: "\n") ?? ""
   }
 
   /// Notified after every appended frame, so an awaited input step can
@@ -950,6 +1192,7 @@ private final class GIFEditorPresentationRecordingTerminalHost: PresentationSurf
     let rendered = TerminalSurfaceRenderer(
       capabilityProfile: capabilityProfile
     ).render(surface)
+    latestSurface = surface
     frames.append(rendered.replacingOccurrences(of: "\r\n", with: "\n"))
     notifyFrameObservers()
     return TerminalPresentationMetrics(
@@ -979,6 +1222,10 @@ private final class GIFEditorPresentationRecordingTerminalHost: PresentationSurf
 private enum GIFEditorPresentationInputStep {
   case press(KeyPress)
   case click(CellPoint)
+  /// Clicks the cell `locate` finds when the step runs. When it finds none,
+  /// the script ends there, so the run finishes and its expectations fail
+  /// instead of clicking somewhere arbitrary.
+  case clickLocated(@MainActor () -> CellPoint?)
   /// Suspends the input script until `predicate` holds, re-evaluated only when
   /// the host appends a frame (`frameSignal.notify()`) rather than on a clock.
   case awaitCondition(predicate: @MainActor () -> Bool)
@@ -1006,6 +1253,17 @@ private final class GIFEditorPresentationInputReader: TerminalInputReading {
           case .press(let event):
             continuation.yield(.key(event))
           case .click(let cell):
+            continuation.yield(
+              .mouse(.init(kind: .down(.primary), location: .cellFallback(cell)))
+            )
+            continuation.yield(
+              .mouse(.init(kind: .up(.primary), location: .cellFallback(cell)))
+            )
+          case .clickLocated(let locate):
+            guard let cell = locate() else {
+              continuation.finish()
+              return
+            }
             continuation.yield(
               .mouse(.init(kind: .down(.primary), location: .cellFallback(cell)))
             )

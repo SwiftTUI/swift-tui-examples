@@ -127,7 +127,16 @@ public final class DocumentLifecycle {
     case create(PixelSize)
     case open(URL)
     case saveAs(URL, overwriteExisting: Bool)
+    /// A sheet's cancel: dismisses whichever sheet is up (or a guard that
+    /// is up) and returns to `.ready`.
     case cancelPresentation
+    /// The unsaved-changes guard was dismissed: Escape, or the dialog
+    /// dismissing itself after one of its buttons ran (SwiftUI's rule for
+    /// every confirmation-dialog action). Acts only while the guard is up.
+    /// The buttons dispatch their decision asynchronously, so this can
+    /// arrive after a decision has already opened a sheet or armed quit, and
+    /// it must not undo that.
+    case cancelDirtyDecision
     case autosave(Date)
   }
 
@@ -151,8 +160,7 @@ public final class DocumentLifecycle {
   private(set) var recentDocuments: RecentDocuments
   private(set) var openErrorMessage: String?
   public private(set) var recoverySnapshot: AutosaveSnapshot?
-  private var transitionObservers:
-    [UUID: @MainActor @Sendable () -> Void] = [:]
+  private var transitionObservers: [UUID: @MainActor @Sendable () -> Void] = [:]
   private var autosaveOperation: (id: UUID, task: Task<Void, any Error>)?
   private let autosaveWriter: DocumentAutosaveWriter
 
@@ -403,6 +411,11 @@ public final class DocumentLifecycle {
       case .ready, .settling, .opening, .saving, .quitArmed:
         return .noChange
       }
+    case .cancelDirtyDecision:
+      guard case .awaitingDirtyDecision = state else { return .noChange }
+      transition(to: .ready)
+      openErrorMessage = nil
+      return .changed
     case .autosave(let timestamp):
       guard
         state == .ready,
@@ -614,6 +627,10 @@ public final class DocumentLifecycle {
   private func prepareForDispatch(_ intent: Intent) {
     guard case .quitArmed(let generation) = state else { return }
     if case .request(.quit) = intent, generation == session.generation {
+      return
+    }
+    // The guard's late dismissal is not a command; it leaves the arm alone.
+    if case .cancelDirtyDecision = intent {
       return
     }
     if case .autosave = intent, generation == session.generation {
