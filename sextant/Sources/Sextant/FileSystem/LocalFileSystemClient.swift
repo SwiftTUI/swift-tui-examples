@@ -173,11 +173,12 @@ struct LocalFileSystemClient: FileSystemClient {
 
     if linkType == fileTypeSymbolicLink {
       switch readStat(at: url, followingSymbolicLinks: true) {
-      case .failure(.notFound):
+      case .failure:
+        // Any failure to resolve the target (ENOENT, ELOOP, EACCES, ENOTDIR,
+        // ...) belongs to the target, not to this directory: `lstat` still
+        // describes the link, so it lists as broken and its siblings list too.
         kind = .brokenSymbolicLink
         targetDirectoryID = nil
-      case .failure(let failure):
-        return .failure(failure)
       case .success(let targetInfo):
         let targetType = fileType(of: targetInfo)
         if targetType == fileTypeDirectory {

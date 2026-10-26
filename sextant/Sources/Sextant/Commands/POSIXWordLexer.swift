@@ -1,3 +1,14 @@
+/// Splits an editor command such as `VISUAL` or `EDITOR` into argv words with
+/// the shell's quoting rules, without expanding or executing anything.
+///
+/// It follows POSIX.1-2024 XCU 2.2 and 2.3, scalar by scalar:
+/// - Unquoted, a backslash preserves the next character, except that
+///   backslash-newline is a line continuation and is removed.
+/// - Single quotes preserve everything up to the closing quote.
+/// - Inside double quotes a backslash escapes only `$`, backquote, `"`, `\`
+///   and newline (a continuation, removed); before anything else it is kept.
+/// - Unquoted space, tab and newline delimit words. Other spaces, such as
+///   U+00A0 and U+3000, are word characters.
 public struct POSIXWordLexer: Sendable {
   public enum Failure: Error, Equatable, Sendable {
     case danglingEscape
@@ -16,54 +27,59 @@ public struct POSIXWordLexer: Sendable {
 
     var mode = Mode.unquoted
     var words: [String] = []
-    var current = ""
+    var current = String.UnicodeScalarView()
     var hasWord = false
     var escaping = false
 
-    for character in source {
+    for scalar in source.unicodeScalars {
       if escaping {
-        current.append(character)
-        hasWord = true
         escaping = false
+        if scalar == "\n" {
+          continue
+        }
+        if mode == .doubleQuoted, !Self.doubleQuoteEscapable.contains(scalar) {
+          current.append("\\")
+        }
+        current.append(scalar)
+        hasWord = true
         continue
       }
 
       switch mode {
       case .unquoted:
-        if character == "\\" {
+        if scalar == "\\" {
           escaping = true
-          hasWord = true
-        } else if character == "'" {
+        } else if scalar == "'" {
           mode = .singleQuoted
           hasWord = true
-        } else if character == "\"" {
+        } else if scalar == "\"" {
           mode = .doubleQuoted
           hasWord = true
-        } else if character.isWhitespace {
+        } else if Self.delimiters.contains(scalar) {
           if hasWord {
-            words.append(current)
-            current = ""
+            words.append(String(current))
+            current = String.UnicodeScalarView()
             hasWord = false
           }
         } else {
-          current.append(character)
+          current.append(scalar)
           hasWord = true
         }
 
       case .singleQuoted:
-        if character == "'" {
+        if scalar == "'" {
           mode = .unquoted
         } else {
-          current.append(character)
+          current.append(scalar)
         }
 
       case .doubleQuoted:
-        if character == "\"" {
+        if scalar == "\"" {
           mode = .unquoted
-        } else if character == "\\" {
+        } else if scalar == "\\" {
           escaping = true
         } else {
-          current.append(character)
+          current.append(scalar)
         }
       }
     }
@@ -80,8 +96,15 @@ public struct POSIXWordLexer: Sendable {
       throw Failure.unterminatedDoubleQuote
     }
     if hasWord {
-      words.append(current)
+      words.append(String(current))
     }
     return words
   }
+
+  /// `<blank>` (space and tab) and newline: XCU 2.3, XBD 7.3.1.
+  private static let delimiters: Set<Unicode.Scalar> = [" ", "\t", "\n"]
+
+  /// The characters a backslash escapes inside double quotes (XCU 2.2.3),
+  /// besides newline.
+  private static let doubleQuoteEscapable: Set<Unicode.Scalar> = ["$", "`", "\"", "\\"]
 }

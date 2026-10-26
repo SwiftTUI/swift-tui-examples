@@ -141,6 +141,86 @@ struct ConfigurationAndHandoffTests {
     }
   }
 
+  /// Each template runs inline program text through a common interpreter,
+  /// directly, after a wrapper, or under a versioned name (README:
+  /// "External templates ... cannot execute inline interpreter source").
+  @Test(
+    "preview adapters reject inline source for common interpreters and wrappers",
+    arguments: inlineSourceTemplates
+  )
+  func inlineInterpreterSourcePreviewAdapters(
+    executable: String,
+    arguments: [String]
+  ) {
+    let adapter = ExternalPreviewConfiguration(
+      id: executable,
+      displayName: "Inline",
+      executable: executable,
+      arguments: arguments
+    )
+    #expect(
+      throws: ConfigurationFailure.previewAdapterContainsShellSource(adapter.id)
+    ) {
+      _ = try SextantConfiguration(previewAdapters: [adapter]).validated()
+    }
+  }
+
+  private static let inlineSourceTemplates: [(String, [String])] = [
+    ("perl", ["-ne", "print", "{path}"]),
+    ("/usr/bin/perl5.36", ["-MJSON::PP", "-E", "say 1", "{path}"]),
+    ("ruby", ["-e", "puts File.read(ARGV[0])", "{path}"]),
+    ("node", ["--eval=console.log(1)", "{path}"]),
+    ("nodejs", ["-pe", "1", "{path}"]),
+    ("bun", ["-p", "1", "{path}"]),
+    ("deno", ["eval", "console.log(1)", "{path}"]),
+    ("php", ["-d", "display_errors=1", "-r", "readfile($argv[1]);", "{path}"]),
+    ("lua5.4", ["-e", "print(1)", "{path}"]),
+    ("luajit", ["-eprint(1)", "{path}"]),
+    ("osascript", ["-l", "JavaScript", "-e", "1", "{path}"]),
+    ("pwsh", ["-NoProfile", "-Command", "Get-Content", "{path}"]),
+    ("powershell", ["-ec", "ZQBjAGgAbwA=", "{path}"]),
+    ("fish", ["-C", "cat $argv", "{path}"]),
+    ("zsh", ["--command=cat", "{path}"]),
+    ("timeout", ["5", "python3.12", "-Ic", "print(1)", "{path}"]),
+    ("xcrun", ["python3", "-c", "print(1)", "{path}"]),
+    ("busybox", ["sh", "-c", "cat \"$1\"", "sh", "{path}"]),
+    ("/usr/bin/env", ["PYTHONSAFEPATH=1", "pypy3", "-c", "print(1)", "{path}"]),
+  ]
+
+  /// Templates that name an interpreter without passing it program text, or
+  /// that use `-c`/`-e` as some other tool's option, stay valid.
+  @Test(
+    "preview adapters without inline interpreter source stay valid",
+    arguments: plainTemplates
+  )
+  func previewAdaptersWithoutInlineSource(executable: String, arguments: [String]) throws {
+    _ = try SextantConfiguration(
+      previewAdapters: [
+        ExternalPreviewConfiguration(
+          id: "plain",
+          displayName: "Plain",
+          executable: executable,
+          arguments: arguments
+        )
+      ]
+    ).validated()
+  }
+
+  private static let plainTemplates: [(String, [String])] = [
+    ("viewer", ["--", "{path}"]),
+    ("python3", ["-m", "json.tool", "{path}"]),
+    ("python3", ["-Xpycache_prefix=/tmp/c", "-Wdefault", "tool.py", "{path}"]),
+    ("head", ["-c", "4096", "{path}"]),
+    ("xxd", ["-c", "16", "{path}"]),
+    ("bat", ["-l", "sh", "--color=always", "{path}"]),
+    ("perl", ["-MJSON::PP", "-i.bak", "tool.pl", "{path}"]),
+    ("php", ["-d", "error_reporting=E_ALL", "-derror_log=/dev/null", "tool.php", "{path}"]),
+    ("pwsh", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "tool.ps1", "{path}"]),
+    ("deno", ["run", "--allow-read", "tool.ts", "{path}"]),
+    ("lua", ["-lsocket", "tool.lua", "{path}"]),
+    ("nice", ["glow", "-s", "dark", "{path}"]),
+  ]
+
   @Test("configuration validates effective bindings including defaults")
   func validatesEffectiveBindings() throws {
     let configuration = SextantConfiguration(
@@ -324,6 +404,31 @@ struct ConfigurationAndHandoffTests {
   func lexer(source: String, expected: [String]) throws {
     #expect(try POSIXWordLexer().parse(source) == expected)
   }
+
+  /// POSIX XCU 2.2.1 and 2.2.3: inside double quotes a backslash escapes only
+  /// `$`, backquote, `"`, `\` and newline; backslash-newline is a line
+  /// continuation in both contexts; words split only at space, tab and newline.
+  @Test(
+    "POSIX lexer applies the shell's backslash and blank rules",
+    arguments: backslashAndBlankCases
+  )
+  func posixBackslashRules(source: String, expected: [String]) throws {
+    let words = try POSIXWordLexer().parse(source)
+    #expect(words.map { Array($0.unicodeScalars) } == expected.map { Array($0.unicodeScalars) })
+  }
+
+  private static let backslashAndBlankCases: [(String, [String])] = [
+    (
+      "\"\\$x\" \"\\`\" \"a\\\\b\" \"a\\b\" \"line\\\ncont\"",
+      ["$x", "`", "a\\b", "a\\b", "linecont"]
+    ),
+    ("a \\\n b", ["a", "b"]),
+    ("co\\\nde --wait", ["code", "--wait"]),
+    ("a\tb\nc", ["a", "b", "c"]),
+    ("'a\\b' 'c\\\nd'", ["a\\b", "c\\\nd"]),
+    ("e\\\u{301}", ["e\u{301}"]),
+    ("\u{A0}x\u{2003}y\u{3000}", ["\u{A0}x\u{2003}y\u{3000}"]),
+  ]
 
   @Test("POSIX lexer reports malformed input")
   func malformedLexer() {

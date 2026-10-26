@@ -206,7 +206,7 @@ struct ColumnBrowserRenderingTests {
   /// The status bar is the last row, so its right-hand mode word is the probe:
   /// nothing from the column region may share that row.
   @Test("an open overlay never lets column content paint over the status bar")
-  func overlaySqueezeDoesNotOverflowStatusBar() {
+  func overlaySqueezeDoesNotOverflowStatusBar() throws {
     let root = URL(fileURLWithPath: "/fixture")
     let rootID = DirectoryID(identity: .path(root.path))
     let model = BrowserModel(
@@ -227,13 +227,13 @@ struct ColumnBrowserRenderingTests {
       proposal: .init(width: 100, height: 12)
     )
     let lines = artifacts.rasterSurface.lines
-    let statusRow = try? #require(lines.last)
+    let statusRow = try #require(lines.last)
 
     // The status row carries the path on the left and the mode on the right.
     // Any column content that escaped its region lands between them.
-    #expect(statusRow?.contains("/fixture") == true)
-    #expect(statusRow?.contains("Preview") == false)
-    #expect(statusRow?.contains("(loading)") == false)
+    #expect(statusRow.contains("/fixture"))
+    #expect(!statusRow.contains("Preview"))
+    #expect(!statusRow.contains("(loading)"))
   }
 
   /// An external preview embeds a `TerminalView`, which accepts the parent's

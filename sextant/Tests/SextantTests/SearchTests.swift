@@ -197,6 +197,70 @@ struct SearchTests {
     )
   }
 
+  /// The result limit reports truncation only when a further match exists,
+  /// even when that match is in a directory the search has not yet read.
+  @Test(
+    "the result limit reports truncation only for a further match",
+    arguments: [(["needle-2"], false), (["needle-2", "needle-3"], true)])
+  func resultLimitTruncatesOnlyWithAFurtherMatch(
+    childNames: [String],
+    expectsTruncation: Bool
+  ) async {
+    let fileSystem = InMemoryFileSystemClient()
+    let root = URL(fileURLWithPath: "/root", isDirectory: true)
+    let child = root.appendingPathComponent("child", isDirectory: true)
+    let childID = DirectoryID(identity: .path(child.path))
+    await fileSystem.setDirectory(
+      [
+        InMemoryFileSystemEntry(
+          name: "needle-1",
+          kind: .file,
+          identity: .path("/root/needle-1")
+        ),
+        InMemoryFileSystemEntry(
+          name: "child",
+          kind: .directory,
+          identity: childID.identity,
+          targetDirectoryID: childID
+        ),
+      ],
+      at: root
+    )
+    await fileSystem.setDirectory(
+      childNames.map {
+        InMemoryFileSystemEntry(name: $0, kind: .file, identity: .path("/root/child/\($0)"))
+      },
+      at: child
+    )
+    let search = FilenameSearchCoordinator(
+      fileSystem: fileSystem,
+      budget: .init(batchSize: 10, maximumResults: 2)
+    )
+
+    var names: [String] = []
+    var finished: FilenameSearchEvent?
+    for await event in await search.search(
+      root: root,
+      query: "needle",
+      policy: DirectoryPolicy()
+    ) {
+      switch event {
+      case .batch(_, let batch): names.append(contentsOf: batch.map(\.name))
+      case .finished: finished = event
+      }
+    }
+
+    #expect(names == ["needle-1", "needle-2"])
+    #expect(
+      finished
+        == .finished(
+          generation: FilenameSearchGeneration(rawValue: 1),
+          retainedResultCount: 2,
+          wasTruncated: expectsTruncation
+        )
+    )
+  }
+
   @Test("a huge wide tree stops at the directory budget")
   func hugeWideTreeIsBounded() async {
     let fileSystem = WideTreeFileSystem(childCount: 5_000)

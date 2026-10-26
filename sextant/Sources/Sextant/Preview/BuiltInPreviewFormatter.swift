@@ -8,40 +8,13 @@ public struct BuiltInPreviewFormatter: Sendable {
 
   public init() {}
 
+  /// Classifies the first `classificationByteLimit` bytes of `data`.
+  ///
+  /// When `data` continues past that sample, a scalar the sample boundary
+  /// splits is trimmed before validation: it is cut, not ill-formed.
   public func classify(_ data: Data) -> PreviewContentClassification {
-    let sample = Data(data.prefix(Self.classificationByteLimit))
-    if sample.starts(with: [0xEF, 0xBB, 0xBF]) {
-      let payload = sample.dropFirst(3)
-      if String(data: payload, encoding: .utf8) != nil {
-        return .text(.utf8)
-      }
-      return .binary
-    }
-    if sample.starts(with: [0xFF, 0xFE]) {
-      let payload = sample.dropFirst(2)
-      if payload.count.isMultiple(of: 2),
-        String(data: payload, encoding: .utf16LittleEndian) != nil
-      {
-        return .text(.utf16LittleEndian)
-      }
-      return .binary
-    }
-    if sample.starts(with: [0xFE, 0xFF]) {
-      let payload = sample.dropFirst(2)
-      if payload.count.isMultiple(of: 2),
-        String(data: payload, encoding: .utf16BigEndian) != nil
-      {
-        return .text(.utf16BigEndian)
-      }
-      return .binary
-    }
-    if sample.contains(0) {
-      return .binary
-    }
-    guard String(data: sample, encoding: .utf8) != nil else {
-      return .binary
-    }
-    return .text(.utf8)
+    let sample = data.prefix(Self.classificationByteLimit)
+    return decide(sample, continues: data.count > sample.count).classification
   }
 
   func format(prefix: FilePrefix) -> BuiltInPreviewBody {
@@ -49,11 +22,13 @@ public struct BuiltInPreviewFormatter: Sendable {
     let readWasTruncated =
       prefix.isTruncated || prefix.data.count > Self.maximumReadBytes
 
-    switch classify(bounded) {
-    case .text(let encoding):
+    // Text versus binary is decided on the whole capped read, and the text
+    // shown is exactly the payload that passed strict validation.
+    switch decide(bounded[...], continues: readWasTruncated) {
+    case .text(let encoding, let payload):
       return .text(
         TextPreview(
-          text: decodeText(bounded, encoding: encoding),
+          text: decodeText(payload, encoding: encoding),
           encoding: encoding,
           isTruncated: readWasTruncated
         )
@@ -70,27 +45,158 @@ public struct BuiltInPreviewFormatter: Sendable {
     }
   }
 
+  private enum Decision {
+    /// Strictly valid text; `payload` excludes the byte order mark and any
+    /// scalar the end of the bytes cut.
+    case text(PreviewTextEncoding, payload: Data.SubSequence)
+    case binary
+
+    var classification: PreviewContentClassification {
+      switch self {
+      case .text(let encoding, _): .text(encoding)
+      case .binary: .binary
+      }
+    }
+  }
+
+  /// Decides text versus binary for `bytes`. `continues` says the content
+  /// goes on past `bytes`, so an incomplete scalar at the end was cut there.
+  private func decide(_ bytes: Data.SubSequence, continues: Bool) -> Decision {
+    // UTF-32 marks first: `FF FE 00 00` also starts with the UTF-16LE mark.
+    // UTF-32 is not a preview text encoding (Unicode 23.8, Table 23-4).
+    if bytes.starts(with: [0xFF, 0xFE, 0x00, 0x00])
+      || bytes.starts(with: [0x00, 0x00, 0xFE, 0xFF])
+    {
+      return .binary
+    }
+    if bytes.starts(with: [0xEF, 0xBB, 0xBF]) {
+      let payload = trimmingCutUTF8(bytes.dropFirst(3), continues: continues)
+      return isStrictUTF8(payload) ? .text(.utf8, payload: payload) : .binary
+    }
+    if bytes.starts(with: [0xFF, 0xFE]) {
+      return decideUTF16(bytes.dropFirst(2), byteOrder: .little, continues: continues)
+    }
+    if bytes.starts(with: [0xFE, 0xFF]) {
+      return decideUTF16(bytes.dropFirst(2), byteOrder: .big, continues: continues)
+    }
+    let payload = trimmingCutUTF8(bytes, continues: continues)
+    guard !payload.contains(0), isStrictUTF8(payload) else {
+      return .binary
+    }
+    return .text(.utf8, payload: payload)
+  }
+
+  private func decideUTF16(
+    _ bytes: Data.SubSequence,
+    byteOrder: ByteOrder,
+    continues: Bool
+  ) -> Decision {
+    var payload = bytes
+    if continues {
+      // A cut can leave half a code unit, then a high surrogate whose low
+      // surrogate is past the cut.
+      if !payload.count.isMultiple(of: 2) {
+        payload = payload.dropLast()
+      }
+      if payload.count >= 2 {
+        let last = payload.suffix(2)
+        let unit = codeUnit(
+          last[last.startIndex], last[last.index(after: last.startIndex)], byteOrder)
+        if (0xD800...0xDBFF).contains(unit) {
+          payload = payload.dropLast(2)
+        }
+      }
+    }
+    let (validation, encoding): (String.Encoding, PreviewTextEncoding) =
+      switch byteOrder {
+      case .little: (.utf16LittleEndian, .utf16LittleEndian)
+      case .big: (.utf16BigEndian, .utf16BigEndian)
+      }
+    guard payload.count.isMultiple(of: 2),
+      String(data: Data(payload), encoding: validation) != nil
+    else {
+      return .binary
+    }
+    return .text(encoding, payload: payload)
+  }
+
+  private func isStrictUTF8(_ bytes: Data.SubSequence) -> Bool {
+    String(data: Data(bytes), encoding: .utf8) != nil
+  }
+
+  /// Drops a trailing proper prefix of a well-formed UTF-8 sequence (Unicode
+  /// 3.9, Table 3-7) when the content continues past `bytes`. Bytes that
+  /// cannot begin a well-formed sequence are kept, so they still fail
+  /// validation.
+  private func trimmingCutUTF8(
+    _ bytes: Data.SubSequence,
+    continues: Bool
+  ) -> Data.SubSequence {
+    guard continues else {
+      return bytes
+    }
+    var leadIndex = bytes.endIndex
+    var continuationCount = 0
+    while leadIndex > bytes.startIndex, continuationCount <= 3 {
+      leadIndex = bytes.index(before: leadIndex)
+      guard bytes[leadIndex] & 0xC0 == 0x80 else {
+        break
+      }
+      continuationCount += 1
+    }
+    guard leadIndex < bytes.endIndex, bytes[leadIndex] & 0xC0 != 0x80 else {
+      return bytes
+    }
+    let lead = bytes[leadIndex]
+    let length: Int
+    var secondByteRange: ClosedRange<UInt8> = 0x80...0xBF
+    switch lead {
+    case 0xC2...0xDF: length = 2
+    case 0xE0: (length, secondByteRange) = (3, 0xA0...0xBF)
+    case 0xE1...0xEC, 0xEE...0xEF: length = 3
+    case 0xED: (length, secondByteRange) = (3, 0x80...0x9F)
+    case 0xF0: (length, secondByteRange) = (4, 0x90...0xBF)
+    case 0xF1...0xF3: length = 4
+    case 0xF4: (length, secondByteRange) = (4, 0x80...0x8F)
+    default: return bytes
+    }
+    guard continuationCount + 1 < length else {
+      return bytes
+    }
+    if continuationCount > 0,
+      !secondByteRange.contains(bytes[bytes.index(after: leadIndex)])
+    {
+      return bytes
+    }
+    return bytes[bytes.startIndex..<leadIndex]
+  }
+
   private func decodeText(
-    _ data: Data,
+    _ payload: Data.SubSequence,
     encoding: PreviewTextEncoding
   ) -> String {
     switch encoding {
     case .utf8:
-      let payload =
-        data.starts(with: [0xEF, 0xBB, 0xBF])
-        ? data.dropFirst(3)
-        : data[...]
-      return String(decoding: payload, as: UTF8.self)
+      String(decoding: payload, as: UTF8.self)
     case .utf16LittleEndian:
-      return decodeUTF16(data.dropFirst(2), byteOrder: .little)
+      decodeUTF16(payload, byteOrder: .little)
     case .utf16BigEndian:
-      return decodeUTF16(data.dropFirst(2), byteOrder: .big)
+      decodeUTF16(payload, byteOrder: .big)
     }
   }
 
   private enum ByteOrder {
     case little
     case big
+  }
+
+  private func codeUnit(_ first: UInt8, _ second: UInt8, _ byteOrder: ByteOrder) -> UInt16 {
+    switch byteOrder {
+    case .little:
+      UInt16(first) | (UInt16(second) << 8)
+    case .big:
+      (UInt16(first) << 8) | UInt16(second)
+    }
   }
 
   private func decodeUTF16(
@@ -105,14 +211,7 @@ public struct BuiltInPreviewFormatter: Sendable {
       guard next < bytes.endIndex else {
         break
       }
-      let first = UInt16(bytes[index])
-      let second = UInt16(bytes[next])
-      switch byteOrder {
-      case .little:
-        codeUnits.append(first | (second << 8))
-      case .big:
-        codeUnits.append((first << 8) | second)
-      }
+      codeUnits.append(codeUnit(bytes[index], bytes[next], byteOrder))
       index = bytes.index(after: next)
     }
     return String(decoding: codeUnits, as: UTF16.self)

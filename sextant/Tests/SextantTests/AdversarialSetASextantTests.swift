@@ -49,15 +49,12 @@ struct AdversarialSetASextantTests {
           [.posixPermissions: 0o755], ofItemAtPath: locked.path)
       }
       let result = await LocalFileSystemClient().readDirectory(e1Request(root))
-      e1Known(e1ListingComment) {
-        #expect(e1Names(result) == ["file.txt", "locked", "peek"])
-      }
+      // STUI-1342: the denied target lists as a broken link.
+      #expect(e1Names(result) == ["file.txt", "locked", "peek"])
+      #expect(e1Item(result, "peek")?.kind == .brokenSymbolicLink)
     }
   }
 }
-
-private let e1ListingComment: Comment =
-  "NEW-14: one unresolvable symlink (loop, denied or non-directory target) makes the whole directory unlistable; listingEntry maps only ENOENT to a broken link and returns every other target failure as the listing's failure; contract: POSIX stat ELOOP/EACCES/ENOTDIR are target failures, README.md:44-46"
 
 // MARK: - listing and prefixes (e1s127–e1s137)
 
@@ -82,14 +79,13 @@ private func e1Listing(_ id: Int) async throws {
       let expected: [String] =
         id == 127
         ? ["file.txt", "loop"] : id == 128 ? ["a", "b", "file.txt"] : ["file.txt", "odd"]
-      e1Known(e1ListingComment) {
-        #expect(e1Names(result) == expected)
-        if case .success(let snapshot) = result {
-          #expect(
-            snapshot.items.filter { $0.name != "file.txt" }.allSatisfy {
-              $0.kind.isSymbolicLink && !$0.kind.isDirectoryLike
-            })
-        }
+      // STUI-1342: a loop or non-directory target lists as a broken link.
+      #expect(e1Names(result) == expected)
+      if case .success(let snapshot) = result {
+        #expect(
+          snapshot.items.filter { $0.name != "file.txt" }.allSatisfy {
+            $0.kind == .brokenSymbolicLink && $0.targetDirectoryID == nil
+          })
       }
     case 132:
       try link("gone", "absent")
@@ -155,11 +151,8 @@ private func e1Search(_ id: Int) async throws {
       search, root: root, query: id == 158 ? "needle" : "écl")
     if id == 158 {
       #expect(results.sorted() == ["needle-1", "needle-2"])
-      e1Known(
-        "NEW-24: a search with exactly the result limit of matches reports the results as truncated; reaching maximumResults sets wasTruncated without checking for further matches; contract: FilenameSearchCoordinator.swift:212-214 (truncation means work remained), ColumnBrowser.swift:459-461"
-      ) {
-        #expect(truncated == false)
-      }
+      // STUI-1345: exactly maximumResults matches are not truncated.
+      #expect(truncated == false)
     } else {
       #expect(results == ["e\u{301}clair.txt"])
     }
@@ -176,14 +169,8 @@ private func e1Search(_ id: Int) async throws {
       withDestinationPath: id == 131 ? "loop" : "..")
     let search = FilenameSearchCoordinator(fileSystem: LocalFileSystemClient())
     let (results, _) = await e1Drain(search, root: root, query: "needle")
-    if id == 131 {
-      #expect(results.contains("needle-a"))
-      e1Known(e1ListingComment) {
-        #expect(results.contains("needle-b"))
-      }
-    } else {
-      #expect(results.sorted() == ["needle-a", "needle-b"])
-    }
+    // STUI-1342 (e1s131): search continues past the loop link's directory.
+    #expect(results.sorted() == ["needle-a", "needle-b"])
   }
 }
 
@@ -232,21 +219,15 @@ private func e1Classification(_ id: Int) {
     let payload = id == 141 ? Data(data.dropFirst(2)) : data
     #expect(String(data: payload, encoding: id == 141 ? .utf16LittleEndian : .utf8) != nil)
     #expect(data.count > BuiltInPreviewFormatter.classificationByteLimit)
-    e1Known(
-      "NEW-15: well-formed text previews as hexadecimal when a multi-unit scalar straddles byte 8192; classify validates the raw 8 KiB prefix, splitting the scalar; contract: README.md:40 (strict UTF-8 and BOM-aware UTF-16 text), Unicode 3.9 D91-D92"
-    ) {
-      #expect(formatter.classify(data) == .text(encoding))
-    }
+    // STUI-1343: the scalar the 8 KiB sample boundary splits is trimmed.
+    #expect(formatter.classify(data) == .text(encoding))
   case 142, 143:
     let body = formatter.format(
       prefix: FilePrefix(data: data, totalByteCount: UInt64(data.count), isTruncated: false))
-    e1Known(
-      "NEW-16: invalid UTF-8 or NUL after the first 8 KiB previews as text; classification samples only the first 8 KiB and decoding repairs the rest; contract: README.md:40 (strict UTF-8), BuiltInPreviewFormatterTests.swift:74 (invalid UTF-8 and NUL select hexadecimal)"
-    ) {
-      guard case .hexadecimal = body else {
-        Issue.record("expected a hexadecimal preview, got \(e1Describe(body))")
-        return
-      }
+    // STUI-1343: text versus binary is decided on the whole capped read.
+    guard case .hexadecimal = body else {
+      Issue.record("expected a hexadecimal preview, got \(e1Describe(body))")
+      return
     }
   case 144:
     let read = Data(data.prefix(BuiltInPreviewFormatter.requestedReadBytes))
@@ -257,17 +238,13 @@ private func e1Classification(_ id: Int) {
       return
     }
     #expect(preview.isTruncated)
-    e1Known(
-      "NEW-17: a text preview cut at 256 KiB ends with U+FFFD when the cap splits a scalar; decodeText repairs the truncated tail instead of dropping the partial scalar; contract: README.md:40 and :51 (strict UTF-8, bounded read)"
-    ) {
-      #expect(!preview.text.unicodeScalars.contains("\u{FFFD}"))
-    }
+    // STUI-1343: the cap's partial scalar is trimmed, not repaired.
+    #expect(!preview.text.unicodeScalars.contains("\u{FFFD}"))
+    #expect(
+      preview.text == String(repeating: "a", count: BuiltInPreviewFormatter.maximumReadBytes - 1))
   case 145:
-    e1Known(
-      "NEW-18: a UTF-32LE file previews as UTF-16 text full of NUL characters; the FF FE sniff does not exclude the UTF-32LE BOM FF FE 00 00; contract: README.md:40 (UTF-8/UTF-16 text only), Unicode 23.8 Table 23-4"
-    ) {
-      #expect(formatter.classify(data) == .binary)
-    }
+    // STUI-1343: the UTF-32LE mark is checked before the UTF-16LE one.
+    #expect(formatter.classify(data) == .binary)
   case 146:
     #expect(formatter.classify(data) == .text(.utf8))
     #expect(
@@ -312,23 +289,18 @@ private func e1DisplayNames(_ id: Int) async throws {
       Issue.record("expected a directory summary")
       return
     }
-    e1Known(e1NameComment) {
-      #expect(summary.entryNames == [name])
-    }
+    // STUI-1344: a tag-sequence flag keeps its tag characters.
+    #expect(summary.entryNames == [name])
     return
   }
   let preview = await previewer.preview(item: file)
   if id == 148 {
-    e1Known(e1NameComment) {
-      #expect(preview.metadata.displayName == name)
-    }
+    // STUI-1344: a ZWJ sequence keeps its joiners.
+    #expect(preview.metadata.displayName.unicodeScalars.elementsEqual(name.unicodeScalars))
   } else {
     #expect(preview.metadata.displayName == "a\u{FFFD}b")
   }
 }
-
-private let e1NameComment: Comment =
-  "NEW-19: filenames with emoji ZWJ or tag sequences are mangled in previews; sanitizedDisplayName replaces every CharacterSet.controlCharacters scalar, which includes format (Cf) characters such as U+200D and U+E0020-E007F; contract: UTS #51 2.2.3 and 2.3, BuiltInPreviewer.swift:164-171 (control characters only)"
 
 // MARK: - editor command lexing (e1s151–e1s155)
 
@@ -337,27 +309,18 @@ private func e1Lexer(_ id: Int) throws {
   switch id {
   case 151:
     let words = try lexer.parse("edit \"C:\\temp\"")
-    e1Known(
-      "NEW-20: an editor command loses a backslash inside double quotes; the lexer treats backslash as an escape before any character in double quotes; contract: POSIX XCU 2.2.3 (special only before $ ` \" \\ newline)"
-    ) {
-      #expect(words == ["edit", "C:\\temp"])
-    }
+    // STUI-1344: inside double quotes `\t` is not an escape (XCU 2.2.3).
+    #expect(words == ["edit", "C:\\temp"])
   case 152:
     let words = try lexer.parse("code \\\n--wait")
-    e1Known(
-      "NEW-21: an editor command keeps a backslash-newline as a newline character; the unquoted escape appends the newline instead of removing the continuation; contract: POSIX XCU 2.2.1"
-    ) {
-      #expect(words == ["code", "--wait"])
-    }
+    // STUI-1344: backslash-newline is a removed continuation (XCU 2.2.1).
+    #expect(words == ["code", "--wait"])
   case 153, 154:
     let source = id == 153 ? "/Apps/My\u{A0}Editor --wait" : "エディタ\u{3000}起動"
     let words = try lexer.parse(source)
-    e1Known(
-      "NEW-22: an editor command splits words at no-break and ideographic spaces; the lexer delimits on Character.isWhitespace instead of POSIX blank; contract: POSIX XCU 2.3, XBD 7.3.1 (blank is space and tab)"
-    ) {
-      #expect(
-        words == (id == 153 ? ["/Apps/My\u{A0}Editor", "--wait"] : ["エディタ\u{3000}起動"]))
-    }
+    // STUI-1344: only space, tab and newline delimit (XCU 2.3, XBD 7.3.1).
+    #expect(
+      words == (id == 153 ? ["/Apps/My\u{A0}Editor", "--wait"] : ["エディタ\u{3000}起動"]))
   default:
     #expect(try lexer.parse("'it'\\''s' \"a\\\"b\" \"\"") == ["it's", "a\"b", ""])
   }
@@ -387,15 +350,8 @@ private func e1ExecutableSearch(_ id: Int) async throws {
     let found = await PreviewExecutableCache.live(path: path).availability(for: [adapter])["tool"]
     let resolved = found.map(URL.init(fileURLWithPath:))
     #expect(resolved?.lastPathComponent == "tool")
-    if id == 156 {
-      e1Known(
-        "NEW-23: a directory named like a preview tool earlier in PATH is chosen as its executable; PreviewExecutableCache.live accepts FileManager.isExecutableFile, which is true for searchable directories; contract: POSIX XCU 2.9.1.4 (first executable file), HandoffClient.swift:299-312"
-      ) {
-        #expect(resolved?.deletingLastPathComponent().lastPathComponent == "dirB")
-      }
-    } else {
-      #expect(resolved?.deletingLastPathComponent().lastPathComponent == "dirB")
-    }
+    // STUI-1345 (e1s156): a directory named like the tool is not an executable file.
+    #expect(resolved?.deletingLastPathComponent().lastPathComponent == "dirB")
   }
 }
 
@@ -410,12 +366,9 @@ private func e1PreviewTemplates(_ id: Int) {
     : ExternalPreviewConfiguration(
       id: "nice", displayName: "Nice", executable: "nice",
       arguments: ["sh", "-c", "cat \"$1\"", "sh", "{path}"])
-  e1Known(
-    "NEW-25: preview templates that run inline interpreter source are accepted; executesInterpreterSource recognises only eight shell basenames, directly or after env; contract: README.md:93-96, SextantConfiguration.swift:335-336"
-  ) {
-    #expect(throws: ConfigurationFailure.previewAdapterContainsShellSource(adapter.id)) {
-      _ = try SextantConfiguration(previewAdapters: [adapter]).validated()
-    }
+  // STUI-1345: interpreters other than shells, and wrappers other than env.
+  #expect(throws: ConfigurationFailure.previewAdapterContainsShellSource(adapter.id)) {
+    _ = try SextantConfiguration(previewAdapters: [adapter]).validated()
   }
 }
 
@@ -434,27 +387,12 @@ private func e1Bookmarks() async throws {
       client: .jsonFile(at: root.appendingPathComponent("state.json")))
     #expect(try await repository.toggleBookmark(composed))
     let second = try await repository.toggleBookmark(decomposed)
-    if distinct == 1 {
-      #expect(second == false)
-    } else {
-      e1Known(
-        "NEW-26: bookmarking one of two distinct NFC/NFD-named files reports the other as already bookmarked; bookmark identity is Swift String equality, which is canonical equivalence; contract: POSIX filenames are byte strings (two inodes here)"
-      ) {
-        #expect(second)
-      }
-    }
+    // STUI-1345: bookmarks are keyed by path bytes, so two files stay two.
+    #expect(second == (distinct == 2))
   }
 }
 
 // MARK: - fixtures
-
-private func e1Known(_ comment: Comment, _ body: () throws -> Void) {
-  if ProcessInfo.processInfo.environment["SWIFTTUI_E1_UNMARKED"] == "1" {
-    do { try body() } catch { Issue.record(error, comment) }
-  } else {
-    withKnownIssue(comment) { try body() }
-  }
-}
 
 private func e1Request(_ url: URL, policy: DirectoryPolicy = DirectoryPolicy()) -> DirectoryRequest
 {

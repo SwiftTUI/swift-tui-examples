@@ -161,12 +161,68 @@ struct BuiltInPreviewer: Sendable {
     }
   }
 
+  /// Replaces terminal and format controls with U+FFFD, keeping the joiners
+  /// and tag characters that belong to emoji sequences.
+  ///
+  /// Every Cc scalar is replaced. A Cf scalar (bidi controls, invisible
+  /// separators, ZWJ, tags, ...) is replaced unless it is part of an emoji
+  /// sequence (UTS #51): a ZWJ between an emoji element and an emoji
+  /// (section 2.3), or a run of tag characters U+E0020-E007E that follows an
+  /// emoji element and ends in U+E007F (ED-14a). Variation selectors and
+  /// skin-tone modifiers are not Cf and are always kept.
   private func sanitizedDisplayName(_ name: String) -> String {
-    name.unicodeScalars.map { scalar in
-      if CharacterSet.controlCharacters.contains(scalar) {
-        return "�"
+    let scalars = Array(name.unicodeScalars)
+    var kept = String.UnicodeScalarView()
+    var index = 0
+    while index < scalars.count {
+      let scalar = scalars[index]
+      if tagCharacters.contains(scalar.value) || scalar.value == cancelTag {
+        var end = index
+        while end < scalars.count, tagCharacters.contains(scalars[end].value) {
+          end += 1
+        }
+        let isTagSequence =
+          end > index && end < scalars.count && scalars[end].value == cancelTag
+          && index > 0 && endsEmojiElement(scalars[index - 1])
+        let runEnd = end < scalars.count && scalars[end].value == cancelTag ? end + 1 : end
+        for tag in scalars[index..<runEnd] {
+          kept.append(isTagSequence ? tag : replacementCharacter)
+        }
+        index = runEnd
+        continue
       }
-      return String(scalar)
-    }.joined()
+      switch scalar.properties.generalCategory {
+      case .control:
+        kept.append(replacementCharacter)
+      case .format:
+        let joinsEmoji =
+          scalar.value == zeroWidthJoiner
+          && index > 0 && endsEmojiElement(scalars[index - 1])
+          && index + 1 < scalars.count && isEmoji(scalars[index + 1])
+        kept.append(joinsEmoji ? scalar : replacementCharacter)
+      default:
+        kept.append(scalar)
+      }
+      index += 1
+    }
+    return String(kept)
   }
+}
+
+private let replacementCharacter: Unicode.Scalar = "\u{FFFD}"
+private let zeroWidthJoiner: UInt32 = 0x200D
+private let tagCharacters: ClosedRange<UInt32> = 0xE0020...0xE007E
+private let cancelTag: UInt32 = 0xE007F
+
+/// An emoji character outside ASCII: `#`, `*` and the digits have the Emoji
+/// property only as keycap bases, and never join with ZWJ.
+private func isEmoji(_ scalar: Unicode.Scalar) -> Bool {
+  scalar.value > 0x7F && scalar.properties.isEmoji
+}
+
+/// Whether `scalar` can end an emoji element: an emoji (skin-tone modifiers
+/// included), the emoji presentation selector U+FE0F, or the end of a tag
+/// sequence.
+private func endsEmojiElement(_ scalar: Unicode.Scalar) -> Bool {
+  isEmoji(scalar) || scalar.value == 0xFE0F || scalar.value == cancelTag
 }

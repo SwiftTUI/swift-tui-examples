@@ -123,7 +123,7 @@ extension PreviewExecutableCache {
       for directory in path.split(separator: ":", omittingEmptySubsequences: false) {
         let base = directory.isEmpty ? "." : String(directory)
         let candidate = URL(fileURLWithPath: base).appendingPathComponent(executable).path
-        if FileManager.default.isExecutableFile(atPath: candidate) {
+        if isExecutableRegularFile(candidate) {
           return URL(fileURLWithPath: candidate).standardizedFileURL.path
         }
       }
