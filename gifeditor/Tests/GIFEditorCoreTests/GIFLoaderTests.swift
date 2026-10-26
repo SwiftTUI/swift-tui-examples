@@ -311,3 +311,159 @@ private struct ArraySource: GIF.BytestreamSource {
     return chunk
   }
 }
+
+// Repair wave 4 (STUI-845): GIF import applies the project format's canvas limits and a
+// composited-pixel budget before decoding and compositing. Scenario ids are those of
+// evidence 2026-10-26-campaign-two-wave-4/ex-gcm/repair-hypotheses.json.
+@Suite("GIF import limits")
+struct GIFImportLimitTests {
+  @Test("w4gcm-r02: a GIF taller than the per-axis limit is refused as malformed")
+  func tallGIFIsRefused() throws {
+    let size = PixelSize(width: 1, height: ProjectFile.maximumCanvasDimension + 1)
+    let document = GIFDocument(
+      size: size,
+      palette: ColorPalette(colors: [.transparent, .white]),
+      frames: [
+        EditorFrame(layers: [
+          EditorLayer(
+            name: "tall",
+            pixels: PixelBuffer(size: size, pixels: Array(repeating: 1, count: size.area))
+          )
+        ])
+      ])
+    let gif = Data(try GIFEncoder.encode(document: document))
+    do {
+      let opened = try DocumentIngestion.ingest(gif).document
+      Issue.record("a \(opened.size.height)-pixel-tall GIF opened past the project format's limit")
+    } catch {
+      guard case .malformed(kind: .gif, _) = error else {
+        Issue.record("expected a malformed GIF, got \(error)")
+        return
+      }
+    }
+  }
+
+  // The scenarios below exercise the repair's own error cases and limit functions, so
+  // they were written with the repair (repair-hypotheses.json, before_run false).
+
+  @Test("w4gcm-r01/r02: the loader names the canvas limit for either axis")
+  func loaderReportsTheCanvasLimit() throws {
+    for size in [
+      PixelSize(width: ProjectFile.maximumCanvasDimension + 1, height: 1),
+      PixelSize(width: 1, height: ProjectFile.maximumCanvasDimension + 1),
+    ] {
+      #expect(
+        throws: GIFLoaderError.canvasTooLarge(
+          width: size.width, height: size.height,
+          dimensionLimit: ProjectFile.maximumCanvasDimension,
+          areaLimit: ProjectFile.maximumCanvasArea)
+      ) {
+        try GIFLoader.load(data: Self.screenGIF(width: size.width, height: size.height, frames: 1))
+      }
+    }
+  }
+
+  @Test("w4gcm-r03/r04: a canvas over the area limit is refused from the header")
+  func oversizedScreensAreRefusedFromTheHeader() throws {
+    // Both would cost gigabytes to composite; the refusal must come first.
+    for (width, height) in [(4_097, 4_097), (65_535, 65_535)] {
+      #expect(
+        throws: GIFLoaderError.canvasTooLarge(
+          width: width, height: height,
+          dimensionLimit: ProjectFile.maximumCanvasDimension,
+          areaLimit: ProjectFile.maximumCanvasArea)
+      ) {
+        try GIFLoader.load(data: Self.screenGIF(width: width, height: height, frames: 1))
+      }
+    }
+    // Control: the same stream on a small screen is a GIF the loader opens, so the
+    // refusals above are the limit and not a malformed fixture.
+    let small = try GIFLoader.load(data: Self.screenGIF(width: 2, height: 2, frames: 1))
+    #expect(small.size == PixelSize(width: 2, height: 2))
+    #expect(small.frames.count == 1)
+  }
+
+  @Test("w4gcm-r05: an animation over the pixel budget is refused before compositing")
+  func animationOverTheBudgetIsRefused() throws {
+    let side = 4_096
+    #expect(
+      throws: GIFLoaderError.animationTooLarge(
+        frameCount: 5, canvasArea: side * side, pixelLimit: GIFLoader.maximumImportedPixelCount)
+    ) {
+      try GIFLoader.load(data: Self.screenGIF(width: side, height: side, frames: 5))
+    }
+    // Through the shared seam, as the open paths see it.
+    do {
+      _ = try DocumentIngestion.ingest(Self.screenGIF(width: side, height: side, frames: 5))
+      Issue.record("an animation over the pixel budget opened")
+    } catch {
+      guard case .malformed(kind: .gif, _) = error else {
+        Issue.record("expected a malformed GIF, got \(error)")
+        return
+      }
+    }
+  }
+
+  @Test("w4gcm-r06: both limits are inclusive and the budget cannot overflow")
+  func limitBoundaries() throws {
+    let edge = ProjectFile.maximumCanvasDimension
+    for (width, height) in [(edge, 1), (1, edge), (edge, 1_024), (1_024, edge), (4_096, 4_096)] {
+      #expect(throws: Never.self) { try GIFLoader.checkCanvas(width: width, height: height) }
+    }
+    for (width, height) in [(edge + 1, 1), (1, edge + 1), (edge, 1_025), (4_097, 4_096)] {
+      #expect(throws: GIFLoaderError.self, "\(width)x\(height)") {
+        try GIFLoader.checkCanvas(width: width, height: height)
+      }
+    }
+
+    let budget = GIFLoader.maximumImportedPixelCount
+    #expect(budget == 4 * ProjectFile.maximumCanvasArea)
+    #expect(throws: Never.self) {
+      try GIFLoader.checkPixelBudget(canvasArea: ProjectFile.maximumCanvasArea, frameCount: 4)
+    }
+    #expect(throws: Never.self) {
+      try GIFLoader.checkPixelBudget(canvasArea: 1, frameCount: budget)
+    }
+    #expect(throws: Never.self) {
+      try GIFLoader.checkPixelBudget(canvasArea: 256 * 256, frameCount: 1_024)
+    }
+    for (area, frames) in [
+      (ProjectFile.maximumCanvasArea, 5), (1, budget + 1), (256 * 256, 1_025), (2, Int.max),
+    ] {
+      #expect(throws: GIFLoaderError.self, "\(frames) frames of \(area)") {
+        try GIFLoader.checkPixelBudget(canvasArea: area, frameCount: frames)
+      }
+    }
+  }
+
+  @Test("the header reader needs a complete GIF signature and screen descriptor")
+  func logicalScreenSizeReadsOnlyCompleteHeaders() {
+    let header = Array("GIF89a".utf8) + [0x01, 0x40, 0xFF, 0xFF]
+    #expect(GIFLoader.logicalScreenSize(of: Data(header))?.width == 16_385)
+    #expect(GIFLoader.logicalScreenSize(of: Data(header))?.height == 65_535)
+    #expect(GIFLoader.logicalScreenSize(of: Data(header.dropLast())) == nil)
+    #expect(GIFLoader.logicalScreenSize(of: Data(Array("GIF89b".utf8) + [1, 0, 1, 0])) == nil)
+    // A slice that does not start at index zero reads the same bytes.
+    let padded = Data([0] + header).dropFirst()
+    #expect(GIFLoader.logicalScreenSize(of: padded)?.width == 16_385)
+  }
+
+  /// A GIF89a stream with a two-color global table, a `width` x `height`
+  /// logical screen and `frames` 1x1 images at the origin, each one pixel of
+  /// color 1. Hand-assembled (GIF89a §17-22), so the declared screen can be far
+  /// larger than anything the test allocates.
+  static func screenGIF(width: Int, height: Int, frames: Int) -> Data {
+    var bytes = Array("GIF89a".utf8)
+    bytes += [UInt8(width & 0xFF), UInt8(width >> 8), UInt8(height & 0xFF), UInt8(height >> 8)]
+    bytes += [0x80, 0, 0]  // a 2-entry global color table, background 0, no aspect ratio
+    bytes += [0, 0, 0, 255, 255, 255]
+    for _ in 0..<frames {
+      bytes += [0x2C, 0, 0, 0, 0, 1, 0, 1, 0, 0]  // at (0, 0), 1x1, no local table
+      // LZW minimum code size 2, then one sub-block holding the 3-bit codes
+      // clear (4), 1, end of information (5), packed least significant bit first.
+      bytes += [0x02, 0x02, 0x4C, 0x01, 0x00]
+    }
+    bytes.append(0x3B)
+    return Data(bytes)
+  }
+}

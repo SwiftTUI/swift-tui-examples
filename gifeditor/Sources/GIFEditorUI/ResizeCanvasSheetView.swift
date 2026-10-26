@@ -15,10 +15,10 @@ import SwiftTUI
 /// the custom fields below the fold on a short terminal.
 ///
 /// The `1...256` bound enforced here is a **UI** cap and lives only
-/// here. The project format stores arbitrary dimensions and the GIF
-/// loader opens whatever it is handed, so an oversized document is
-/// something the editor can still show — it is just not a size the New /
-/// Resize flow will hand you.
+/// here. The project format and the GIF loader accept canvases up to
+/// `ProjectFile`'s limits (16384 per axis, 2^24 pixels in all), so a
+/// larger document is something the editor can still show — it is just
+/// not a size the New / Resize flow will hand you.
 struct ResizeCanvasSheetView: View {
   let currentSize: GIFEditorCore.PixelSize
   let onSelect: @MainActor @Sendable (GIFEditorCore.PixelSize) -> Void

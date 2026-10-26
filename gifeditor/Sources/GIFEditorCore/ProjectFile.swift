@@ -45,6 +45,12 @@ public enum ProjectDecodeError: Error, Hashable, Sendable, CustomStringConvertib
   /// palette rather than reporting a damaged file.
   case emptyPalette
 
+  /// The palette carried more colors than a palette holds
+  /// (``ColorPalette/capacity``, GIF's 256-entry color table).
+  /// ``ColorPalette/init(colors:)`` would keep the first 256 and silently
+  /// drop the rest.
+  case paletteTooLarge(found: Int, capacity: Int)
+
   /// The palette's `usedCount` disagrees with the colors it carries.
   /// ``ColorPalette/usedColors`` takes a prefix of that length (a
   /// negative one traps) and ``ColorPalette/nearestIndex(to:)`` scans
@@ -83,6 +89,8 @@ public enum ProjectDecodeError: Error, Hashable, Sendable, CustomStringConvertib
       return "pixel plane '\(field)' has \(found) bytes, expected \(expected)"
     case .emptyPalette:
       return "project file carries an empty palette"
+    case .paletteTooLarge(let found, let capacity):
+      return "palette carries \(found) colors, but a palette holds at most \(capacity)"
     case .invalidPaletteUsedCount(let found, let available):
       return "palette declares \(found) used slots but carries \(available) colors"
     case .emptyFrameList:
@@ -132,12 +140,13 @@ public struct ProjectFile: Hashable, Sendable {
   /// Largest canvas edge a project file may declare, per axis.
   ///
   /// This is a hostile-input backstop, not a product ceiling: the
-  /// format stores arbitrary dimensions, and the editor's authoring cap
-  /// is a UI concern. The limit exists only so a header claiming
-  /// 100000 x 100000 is rejected *before* anything multiplies it out
-  /// and tries to allocate 10^10 elements. 16384 is 64x the editor's
-  /// 256-pixel authoring ceiling per axis, so it is nowhere near
-  /// becoming a de-facto ceiling; ``maximumCanvasArea`` is what
+  /// editor's authoring cap is a UI concern. The limit exists so a header
+  /// claiming 100000 x 100000 is rejected *before* anything multiplies it
+  /// out and tries to allocate 10^10 elements. GIF import applies the same
+  /// limits (`GIFLoader.checkCanvas(width:height:)`), so every document the
+  /// editor holds can be saved in a form it can read back. 16384 is 64x
+  /// the editor's 256-pixel authoring ceiling per axis, so it is nowhere
+  /// near becoming a de-facto ceiling; ``maximumCanvasArea`` is what
   /// actually bounds the allocation.
   public static let maximumCanvasDimension = 16_384
 

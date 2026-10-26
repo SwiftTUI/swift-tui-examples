@@ -1570,10 +1570,10 @@ public final class EditingSession {
 
   /// Largest dimension the New/Resize UI offers on either axis.
   ///
-  /// A *UI* cap, deliberately: the project format stores arbitrary
-  /// `width × height` and the loader opens any GIF it is given, so
-  /// "open any GIF" stays true while 256 is the size the editor promises
-  /// to be pleasant at.
+  /// A *UI* cap, deliberately: the project format and the GIF loader both
+  /// accept canvases up to `ProjectFile`'s limits (16384 per axis, 2^24
+  /// pixels in all), so larger documents still open while 256 is the size
+  /// the editor promises to be pleasant at.
   public static let maximumCanvasDimension: Int = 256
 
   /// Advances the canvas through the standard size progression (each

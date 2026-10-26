@@ -699,3 +699,28 @@ struct Wave3RegressionHuntHeadlessTests {
     }
   }
 }
+
+// Repair wave 4 (STUI-845, w4gcm-r08): the headless open path refuses a GIF whose canvas
+// the project format cannot store as a damaged file, exit 65.
+@Suite("Wave-4 repair: oversized GIF headless input")
+struct Wave4OversizedGIFHeadlessTests {
+  @Test("w4gcm-r08 headless info reports a GIF wider than the project limit as damaged")
+  func oversizedGIFIsDamaged() throws {
+    let size = PixelSize(width: ProjectFile.maximumCanvasDimension + 1, height: 1)
+    var document = GIFDocument.blank(size: size)
+    document.frames[0].layers[0].pixels = PixelBuffer(size: size, fill: 1)
+    let bytes = Data(try GIFEncoder.encode(document: document))
+    try HeadlessCommandTests.withTemporaryDirectory { directory in
+      let url = directory.appendingPathComponent("wide.gif")
+      try bytes.write(to: url)
+      let error = HeadlessCommandTests.headlessError {
+        _ = try HeadlessInfo.report(contentsOf: url)
+      }
+      guard case .damaged = try #require(error) else {
+        Issue.record("expected damaged, got \(String(describing: error))")
+        return
+      }
+      #expect(error?.exitCode == HeadlessExitStatus.dataError)
+    }
+  }
+}

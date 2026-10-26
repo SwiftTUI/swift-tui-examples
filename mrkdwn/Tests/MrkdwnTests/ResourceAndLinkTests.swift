@@ -788,3 +788,76 @@ struct ResourceAndLinkTests {
     bytes[offset + 3] = UInt8(value & 0xFF)
   }
 }
+
+// Repair wave 4 (STUI-1348, w4gcm-r27): each non-public IPv4 block is matched on its full
+// prefix length. Both edges of every block are pinned, and so are the addresses just
+// outside it, against the IANA IPv4 Special-Purpose Address Registry (RFC 6890) and the
+// multicast and reserved ranges (RFC 5771, RFC 1112).
+@Suite("Repair wave 4: IPv4 reservation edges")
+struct Wave4IPv4ReservationEdgeTests {
+  /// (first address, last address, source) of every block the policy refuses.
+  static let blocks: [(first: [UInt8], last: [UInt8], source: String)] = [
+    ([0, 0, 0, 0], [0, 255, 255, 255], "0.0.0.0/8 this network, RFC 791"),
+    ([10, 0, 0, 0], [10, 255, 255, 255], "10.0.0.0/8 private use, RFC 1918"),
+    ([100, 64, 0, 0], [100, 127, 255, 255], "100.64.0.0/10 shared address space, RFC 6598"),
+    ([127, 0, 0, 0], [127, 255, 255, 255], "127.0.0.0/8 loopback, RFC 1122"),
+    ([169, 254, 0, 0], [169, 254, 255, 255], "169.254.0.0/16 link local, RFC 3927"),
+    ([172, 16, 0, 0], [172, 31, 255, 255], "172.16.0.0/12 private use, RFC 1918"),
+    ([192, 0, 0, 0], [192, 0, 0, 255], "192.0.0.0/24 IETF protocol assignments, RFC 6890"),
+    ([192, 0, 2, 0], [192, 0, 2, 255], "192.0.2.0/24 TEST-NET-1, RFC 5737"),
+    (
+      [192, 88, 99, 0], [192, 88, 99, 255], "192.88.99.0/24 deprecated 6to4 relay anycast, RFC 7526"
+    ),
+    ([192, 168, 0, 0], [192, 168, 255, 255], "192.168.0.0/16 private use, RFC 1918"),
+    ([198, 18, 0, 0], [198, 19, 255, 255], "198.18.0.0/15 benchmarking, RFC 2544"),
+    ([198, 51, 100, 0], [198, 51, 100, 255], "198.51.100.0/24 TEST-NET-2, RFC 5737"),
+    ([203, 0, 113, 0], [203, 0, 113, 255], "203.0.113.0/24 TEST-NET-3, RFC 5737"),
+    ([224, 0, 0, 0], [239, 255, 255, 255], "224.0.0.0/4 multicast, RFC 5771"),
+    (
+      [240, 0, 0, 0], [255, 255, 255, 255], "240.0.0.0/4 reserved and limited broadcast, RFC 1112"
+    ),
+  ]
+
+  @Test("both edges of every non-public block are refused")
+  func edgesAreRefused() {
+    for block in Self.blocks {
+      #expect(!RemoteImageNetworkPolicy.isPublicAddress(block.first), "\(block.source)")
+      #expect(!RemoteImageNetworkPolicy.isPublicAddress(block.last), "\(block.source)")
+    }
+  }
+
+  @Test("the addresses just outside each block are public unless another block holds them")
+  func neighboursOutsideTheBlocksArePublic() {
+    func value(_ bytes: [UInt8]) -> UInt32 { bytes.reduce(0) { $0 << 8 | UInt32($1) } }
+    func bytes(_ value: UInt32) -> [UInt8] {
+      (0..<4).map { UInt8(truncatingIfNeeded: value >> (24 - 8 * $0)) }
+    }
+    let ranges = Self.blocks.map { value($0.first)...value($0.last) }
+    var checked = 0
+    for block in Self.blocks {
+      for outside in [
+        value(block.first).subtractingReportingOverflow(1),
+        value(block.last).addingReportingOverflow(1),
+      ]
+      where !outside.overflow && !ranges.contains(where: { $0.contains(outside.partialValue) }) {
+        #expect(
+          RemoteImageNetworkPolicy.isPublicAddress(bytes(outside.partialValue)),
+          "\(bytes(outside.partialValue)) next to \(block.source)")
+        checked += 1
+      }
+    }
+    // 0.0.0.0/8 has no lower neighbour, and 224.0.0.0/4 and 240.0.0.0/4 are adjacent
+    // and end the space: 30 edges less those four leave 26 public neighbours.
+    #expect(checked == 26)
+  }
+
+  @Test("public addresses that only share the second octet with a reservation are public")
+  func secondOctetLookalikesArePublic() {
+    for address: [UInt8] in [
+      [192, 0, 32, 10], [192, 0, 1, 0], [192, 0, 3, 0], [192, 0, 255, 255],
+      [198, 51, 0, 1], [198, 51, 99, 255], [198, 51, 101, 0],
+    ] {
+      #expect(RemoteImageNetworkPolicy.isPublicAddress(address), "\(address)")
+    }
+  }
+}

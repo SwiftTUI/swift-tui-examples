@@ -356,3 +356,30 @@ struct Wave3RegressionHuntDocumentIOTests {
     }
   }
 }
+
+// Repair wave 4 (STUI-845, w4gcm-r07): the interactive open path refuses a GIF whose
+// canvas the project format cannot store, through the malformed-document error.
+@Suite("Wave-4 repair: oversized GIF open")
+struct Wave4OversizedGIFDocumentIOTests {
+  @Test("w4gcm-r07 opening a GIF wider than the project limit is refused as malformed")
+  func oversizedGIFIsRefused() throws {
+    let size = PixelSize(width: ProjectFile.maximumCanvasDimension + 1, height: 1)
+    var document = GIFDocument.blank(size: size)
+    document.frames[0].layers[0].pixels = PixelBuffer(size: size, fill: 1)
+    let bytes = Data(try GIFEncoder.encode(document: document))
+    try GIFDocumentIOTests.withTemporaryDirectory { directory in
+      let url = directory.appendingPathComponent("wide.gif")
+      try bytes.write(to: url)
+      do {
+        let opened = try GIFDocumentIO.open(contentsOf: url)
+        Issue.record("a \(opened.size.width)-pixel-wide GIF opened past the project limit")
+      } catch let error as GIFDocumentIO.OpenError {
+        guard case .malformed(_, kind: .gif, detail: _) = error else {
+          Issue.record("expected .malformed(gif), got \(error)")
+          return
+        }
+        #expect(error.description.contains("wide.gif"), "\(error)")
+      }
+    }
+  }
+}

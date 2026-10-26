@@ -336,3 +336,182 @@ struct CSVDocumentCoreTests {
     #expect(history.redoEntries.isEmpty)
   }
 }
+
+// Repair wave 4 (STUI-1347): save/reopen round trips of edge records. Scenario ids are
+// those of evidence 2026-10-26-campaign-two-wave-4/ex-gcm/repair-hypotheses.json; every
+// reopen goes through the app's own indexer and row decoder.
+@Suite("Repair wave 4: CSV save round trips")
+struct Wave4CSVSaveRoundTripTests {
+  @Test("w4gcm-r16: an empty sole field in the unterminated last record is written quoted")
+  func emptyLastRecordIsQuoted() throws {
+    let document = try Self.parse("a\nb")
+    var journal = CSVEditJournal(document: document)
+    journal.replace(row: RowID(sourceIndex: 0), column: ColumnID(0), with: "")
+    let output = try CSVSerializer().serialize(document: document, journal: journal)
+    #expect(output == Data("a\n\"\"".utf8))
+    let reopened = try Self.parse(output)
+    #expect(reopened.dataRecordCount == 1)
+    #expect(try reopened.decodeSourceRow(RowID(sourceIndex: 0))?.fields.map(\.value) == [""])
+    #expect(!reopened.dialect.hasFinalNewline)
+  }
+
+  @Test("w4gcm-r17: a header-only document keeps an emptied header")
+  func emptiedSoleHeaderSurvives() throws {
+    let document = try Self.parse("a")
+    var journal = CSVEditJournal(document: document)
+    journal.renameHeader(ColumnID(0), to: "")
+    let reopened = try Self.parse(
+      CSVSerializer().serialize(document: document, journal: journal))
+    #expect(reopened.header?.fields.map(\.value) == [""])
+  }
+
+  @Test("w4gcm-r18: an untouched empty row that becomes the last record survives")
+  func emptyRowMovedLastSurvives() throws {
+    let document = try Self.parse("a\n\nb")
+    var journal = CSVEditJournal(document: document)
+    let deleted = journal.deleteRow(RowID(sourceIndex: 1))
+    #expect(deleted)
+    let reopened = try Self.parse(
+      CSVSerializer().serialize(document: document, journal: journal))
+    #expect(reopened.dataRecordCount == 1)
+    #expect(try reopened.decodeSourceRow(RowID(sourceIndex: 0))?.fields.map(\.value) == [""])
+  }
+
+  @Test(
+    "w4gcm-n10: records that already reach the reader serialize unchanged",
+    arguments: [
+      ("a\nb\nc", "a\n\nc"), ("a\nb\n", "a\n\n"), ("a,b\n1,2", "a,b\n,"),
+    ]
+  )
+  func terminatedOrMultiFieldRecordsAreUnchanged(source: String, expected: String) throws {
+    let document = try Self.parse(source)
+    var journal = CSVEditJournal(document: document)
+    for column in journal.columnOrder {
+      journal.replace(row: RowID(sourceIndex: 0), column: column, with: "")
+    }
+    let output = try CSVSerializer().serialize(document: document, journal: journal)
+    #expect(output == Data(expected.utf8))
+    #expect(try Self.parse(output).dataRecordCount == document.dataRecordCount)
+  }
+
+  @Test("w4gcm-r19: a value containing NUL is refused at save")
+  func nulValueIsRefused() throws {
+    let document = try Self.parse("a,b\n1,2")
+    var journal = CSVEditJournal(document: document)
+    journal.replace(row: RowID(sourceIndex: 0), column: ColumnID(0), with: "a\u{0}b")
+    #expect(throws: (any Error).self) {
+      try CSVSerializer().serialize(document: document, journal: journal)
+    }
+  }
+
+  // Written with the repair: these name its internal error (before_run false).
+  @Test("w4gcm-r19/r20: the refusal names where the NUL is, for a cell or a header")
+  func nulRefusalNamesThePlace() throws {
+    let document = try Self.parse("a,b\n1,2\n3,4")
+    var journal = CSVEditJournal(document: document)
+    journal.replace(row: RowID(sourceIndex: 1), column: ColumnID(0), with: "a\u{0}b")
+    #expect(throws: CSVSerializationError.nulCharacter(row: 2, column: 1)) {
+      try CSVSerializer().serialize(document: document, journal: journal)
+    }
+
+    journal = CSVEditJournal(document: document)
+    journal.renameHeader(ColumnID(1), to: "x\u{0}")
+    #expect(throws: CSVSerializationError.nulCharacter(row: nil, column: 2)) {
+      try CSVSerializer().serialize(document: document, journal: journal)
+    }
+    #expect(
+      CSVSerializationError.nulCharacter(row: nil, column: 2).localizedDescription
+        == "cannot save: the header of column 2 contains a NUL character, which csvui cannot reopen"
+    )
+
+    let headerless = try CSVDocument.parse(
+      source: CSVSourceSnapshot(
+        origin: .standardInput, displayName: "fixture", bytes: Data("1\n2".utf8)),
+      delimiter: .comma,
+      hasHeaders: false
+    )
+    journal = CSVEditJournal(document: headerless)
+    journal.replace(row: RowID(sourceIndex: 0), column: ColumnID(0), with: "\u{0}")
+    #expect(throws: CSVSerializationError.nulCharacter(row: 1, column: 1)) {
+      try CSVSerializer().serialize(document: headerless, journal: journal)
+    }
+  }
+
+  @Test("w4gcm-n11: other control characters save and round-trip; copy-row text still works")
+  func controlCharactersOtherThanNULRoundTrip() throws {
+    let document = try Self.parse("a,b\n1,2")
+    var journal = CSVEditJournal(document: document)
+    journal.replace(row: RowID(sourceIndex: 0), column: ColumnID(0), with: "a\u{1}b")
+    let reopened = try Self.parse(
+      CSVSerializer().serialize(document: document, journal: journal))
+    #expect(
+      try reopened.decodeSourceRow(RowID(sourceIndex: 0))?.fields.map(\.value) == ["a\u{1}b", "2"])
+
+    journal.replace(row: RowID(sourceIndex: 0), column: ColumnID(1), with: "x\u{0}y")
+    #expect(
+      try CSVSerializer().serializeRow(RowID(sourceIndex: 0), document: document, journal: journal)
+        == "a\u{1}b,x\u{0}y")
+  }
+
+  @Test("w4gcm-r21: a first header starting with U+FEFF is quoted and survives without a BOM")
+  func leadingByteOrderMarkCharacterIsQuoted() throws {
+    let document = try Self.parse("a,b\n1,2")
+    var journal = CSVEditJournal(document: document)
+    journal.renameHeader(ColumnID(0), to: "\u{FEFF}x")
+    let output = try CSVSerializer().serialize(document: document, journal: journal)
+    #expect(output.first == 0x22)
+    let reopened = try Self.parse(output)
+    #expect(!reopened.dialect.hasUTF8BOM)
+    #expect(reopened.header?.fields.map(\.value) == ["\u{FEFF}x", "b"])
+  }
+
+  @Test("w4gcm-r22: a field starting with U+FEFF decodes with it")
+  func decoderKeepsALeadingByteOrderMarkCharacter() throws {
+    let document = try Self.parse("a,b\n1,\u{FEFF}2\n\"\u{FEFF}3\",4")
+    let first = try #require(try document.decodeSourceRow(RowID(sourceIndex: 0)))
+    #expect(first.fields.map(\.value) == ["1", "\u{FEFF}2"])
+    #expect(first.fields.map(\.rawLexeme) == ["1", "\u{FEFF}2"])
+    let second = try #require(try document.decodeSourceRow(RowID(sourceIndex: 1)))
+    #expect(second.fields.map(\.value) == ["\u{FEFF}3", "4"])
+  }
+
+  @Test("w4gcm-r23: an untouched U+FEFF field survives a save of its row")
+  func untouchedByteOrderMarkCharacterSurvivesASave() throws {
+    let document = try Self.parse("a,b\n1,\u{FEFF}2")
+    var journal = CSVEditJournal(document: document)
+    journal.replace(row: RowID(sourceIndex: 0), column: ColumnID(0), with: "9")
+    let output = try CSVSerializer().serialize(document: document, journal: journal)
+    #expect(output == Data("a,b\n9,\u{FEFF}2".utf8))
+    let reopened = try Self.parse(output)
+    #expect(
+      try reopened.decodeSourceRow(RowID(sourceIndex: 0))?.fields.map(\.value) == [
+        "9", "\u{FEFF}2",
+      ])
+  }
+
+  @Test("w4gcm-n12: a document with a BOM still saves exactly one")
+  func byteOrderMarkDocumentKeepsOneBOM() throws {
+    let document = try Self.parse("\u{FEFF}a,b\n1,2")
+    #expect(document.dialect.hasUTF8BOM)
+    #expect(document.header?.fields.map(\.value) == ["a", "b"])
+    var journal = CSVEditJournal(document: document)
+    journal.replace(row: RowID(sourceIndex: 0), column: ColumnID(0), with: "9")
+    let output = try CSVSerializer().serialize(document: document, journal: journal)
+    #expect(output == Data("\u{FEFF}a,b\n9,2".utf8))
+    let reopened = try Self.parse(output)
+    #expect(reopened.dialect.hasUTF8BOM)
+    #expect(reopened.header?.fields.map(\.value) == ["a", "b"])
+  }
+
+  private static func parse(_ text: String) throws -> CSVDocument {
+    try parse(Data(text.utf8))
+  }
+
+  private static func parse(_ data: Data) throws -> CSVDocument {
+    try CSVDocument.parse(
+      source: CSVSourceSnapshot(origin: .standardInput, displayName: "fixture", bytes: data),
+      delimiter: .comma,
+      hasHeaders: true
+    )
+  }
+}

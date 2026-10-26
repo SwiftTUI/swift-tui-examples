@@ -128,6 +128,22 @@ struct APNGEncoderTests {
     #expect(PNGChunkReader.uint32(actl.payload, at: 4) == UInt32(loops))
   }
 
+  // Repair wave 4 (STUI-1346, w4gcm-r09/n04): PNG Third Edition 7.1 limits four-byte
+  // unsigned integers to 2^31-1, so a larger play count clamps there.
+  @Test(
+    "A play count outside PNG's 31-bit range is clamped into it",
+    arguments: [
+      (2_147_483_648, 2_147_483_647), (Int.max, 2_147_483_647),
+      (2_147_483_647, 2_147_483_647), (-5, 0),
+    ] as [(Int, UInt32)]
+  )
+  func playCountClamp(loops: Int, written: UInt32) throws {
+    let document = slabDocument(size: PixelSize(width: 1, height: 1), slots: [1], loopCount: loops)
+    let chunks = try PNGChunkReader.chunks(in: APNGEncoder.encode(document: document))
+    let actl = try #require(chunks.first { $0.type == "acTL" })
+    #expect(PNGChunkReader.uint32(actl.payload, at: 4) == written)
+  }
+
   @Test("A single-frame document is still a valid animated PNG")
   func singleFrame() throws {
     let document = slabDocument(size: PixelSize(width: 1, height: 1), slots: [2], delays: [7])

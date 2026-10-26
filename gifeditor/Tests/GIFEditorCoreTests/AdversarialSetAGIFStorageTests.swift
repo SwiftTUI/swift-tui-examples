@@ -29,9 +29,16 @@ struct AdversarialSetAGIFStorageTests {
 
 // MARK: - oversized imports (e1s163–e1s165)
 
+// Restated by repair wave 4 (STUI-845; evidence 2026-10-26-campaign-two-wave-4/ex-gcm,
+// oracle-notes.md). The contract is unchanged: a document the app holds round-trips
+// through its project format and its autosave (ProjectFile.swift:99-106,
+// AutosaveStore.swift:76-77). The repair keeps the app from holding a document the
+// format cannot store, so e1s163 checks that such an import is refused with the
+// malformed-document error, and e1s164 checks autosave recovery at the largest canvas
+// the import admits.
 private func e1Oversize(_ id: Int) throws {
   let width =
-    id == 165 ? ProjectFile.maximumCanvasDimension : ProjectFile.maximumCanvasDimension + 1
+    id == 163 ? ProjectFile.maximumCanvasDimension + 1 : ProjectFile.maximumCanvasDimension
   let size = PixelSize(width: width, height: 1)
   let palette = ColorPalette(colors: [
     .transparent, .init(rgbHex: 0xFF0000), .init(rgbHex: 0x0000FF),
@@ -44,34 +51,35 @@ private func e1Oversize(_ id: Int) throws {
       )
     ])
   let gif = Data(try GIFEncoder.encode(document: source))
-  // The app opens the GIF (KEYBINDINGS.md:218-219) and can serialize it.
+  if id == 163 {
+    do {
+      let opened = try DocumentIngestion.ingest(gif).document
+      Issue.record("a \(opened.size.width)-pixel-wide GIF opened past the project format's limit")
+    } catch {
+      guard case .malformed(kind: .gif, let detail) = error else {
+        Issue.record("expected a malformed GIF, got \(error)")
+        return
+      }
+      #expect(detail.contains("canvasTooLarge"), "\(detail)")
+    }
+    return
+  }
+  // The app opens the GIF (KEYBINDINGS.md) and can serialize it.
   let opened = try DocumentIngestion.ingest(gif).document
   #expect(opened.size == size)
-  let project = try ProjectFile.data(for: opened)
   if id == 164 {
     try e1WithDirectory { directory in
       let target = directory.appendingPathComponent(AutosaveStore.defaultFileName)
       try AutosaveStore.snapshot(
         document: opened, originalPath: nil, to: target, at: Date(timeIntervalSince1970: 1))
-      e1Known(e1OversizeComment) {
-        let recovered = try AutosaveStore.recover(from: target)
-        #expect(recovered?.document == opened)
-      }
+      let recovered = try AutosaveStore.recover(from: target)
+      #expect(recovered?.document == opened)
     }
     return
   }
-  if id == 165 {
-    #expect(try DocumentIngestion.ingest(project).document == opened)
-  } else {
-    e1Known(e1OversizeComment) {
-      let reopened = try DocumentIngestion.ingest(project).document
-      #expect(reopened == opened)
-    }
-  }
+  let project = try ProjectFile.data(for: opened)
+  #expect(try DocumentIngestion.ingest(project).document == opened)
 }
-
-private let e1OversizeComment: Comment =
-  "NEW-27: a document opened from a GIF wider than 16384 pixels saves and autosaves to files this build refuses to reopen; GIFLoader admits any GIF canvas while PixelSize decoding enforces ProjectFile's 16384/2^24 limits; contract: ProjectFile.swift:99-106 and :161-178 (lossless project), AutosaveStore.swift:76-77 (lossless recovery), KEYBINDINGS.md:218-219; adjacent STUI-845"
 
 // MARK: - APNG (e1s166–e1s169)
 
@@ -94,12 +102,9 @@ private func e1APNG(_ id: Int) throws {
   switch id {
   case 166:
     let actl = try #require(chunks.first { $0.type == "acTL" })
-    let plays = e1UInt32(actl.data, at: 4)
-    e1Known(
-      "NEW-28: an APNG play count above 2^31-1 is written into acTL num_plays; actlPayload clamps only to UInt32; contract: PNG Third Edition 7.1 (four-byte unsigned integers are limited to 2^31-1)"
-    ) {
-      #expect(plays <= 2_147_483_647)
-    }
+    // PNG Third Edition 7.1: four-byte unsigned integers are limited to 2^31-1
+    // (STUI-1346, promoted by repair wave 4).
+    #expect(e1UInt32(actl.data, at: 4) == 2_147_483_647)
   case 167:
     let fctl = try #require(chunks.first { $0.type == "fcTL" })
     #expect(fctl.data.count == 26)
@@ -187,17 +192,13 @@ private func e1Recents(_ id: Int) throws {
       try RecentDocuments(urls: urls, limit: 15).write(to: state)
       let loaded = RecentDocuments.load(from: state, limit: 20, pruningMissingFiles: false)
       #expect(loaded.limit == 20)
-      e1Known(e1RecentsComment) {
-        #expect(loaded.count == 15)
-      }
+      #expect(loaded.count == 15)
     case 173:
       let urls = (1...12).map { directory.appendingPathComponent("\($0).halfcell") }
       for url in urls.dropFirst(3) { try Data("x".utf8).write(to: url) }
       try RecentDocuments(urls: urls, limit: 12).write(to: state)
       let loaded = RecentDocuments.load(from: state)
-      e1Known(e1RecentsComment) {
-        #expect(loaded.urls.map(\.lastPathComponent) == (4...12).map { "\($0).halfcell" })
-      }
+      #expect(loaded.urls.map(\.lastPathComponent) == (4...12).map { "\($0).halfcell" })
     default:
       let composed = directory.appendingPathComponent("\u{E9}.halfcell")
       let decomposed = directory.appendingPathComponent("e\u{301}.halfcell")
@@ -207,21 +208,12 @@ private func e1Recents(_ id: Int) throws {
       let distinct = try FileManager.default.contentsOfDirectory(atPath: directory.path).count
       try #require(distinct == 1 || distinct == 2)
       let recents = RecentDocuments().inserting(composed).inserting(decomposed)
-      if distinct == 1 {
-        #expect(recents.count == 1)
-      } else {
-        e1Known(
-          "NEW-30: two distinct NFC/NFD-named documents collapse into one recents entry; de-duplication keys on Swift String equality, which is canonical equivalence; contract: RecentDocuments.swift:40 (every distinct document once), POSIX filenames are byte strings"
-        ) {
-          #expect(recents.count == 2)
-        }
-      }
+      // One entry per distinct document (RecentDocuments.swift:40; STUI-1346,
+      // promoted by repair wave 4).
+      #expect(recents.count == distinct)
     }
   }
 }
-
-private let e1RecentsComment: Comment =
-  "NEW-29: loading recents keeps at most ten entries before the caller's limit and pruning apply; RecentDocuments.init(from:) re-runs the initializer with defaultLimit; contract: RecentDocuments.swift:98-108 and :121-127 (caller's cap and pruning apply to what the file held)"
 
 // MARK: - project planes and palettes (e1s175, e1s182)
 
@@ -257,11 +249,9 @@ private func e1ProjectPlanes(_ id: Int) throws {
     #expect(decoded.frames[0].layers[0].pixels.pixels.allSatisfy { $0 != nil })
     return
   }
-  e1Known(
-    "NEW-31: a project palette of more than 256 colors opens silently truncated to 256; GIFDocument.init(from:) routes the colors through ColorPalette(colors:), which keeps the first 256; contract: ProjectFile.swift:16-19 and :43-46 (malformed projects throw; palettes are never silently discarded)"
-  ) {
-    #expect(throws: ProjectDecodeError.self) { try ProjectFile.document(from: bytes) }
-  }
+  // Malformed projects throw; palettes are never silently discarded
+  // (ProjectFile.swift:16-19, :43-46; STUI-1346, promoted by repair wave 4).
+  #expect(throws: ProjectDecodeError.self) { try ProjectFile.document(from: bytes) }
 }
 
 // MARK: - format sniffing (e1s176, e1s177)
@@ -361,14 +351,6 @@ private func e1EmptyFrames() {
 }
 
 // MARK: - fixtures
-
-private func e1Known(_ comment: Comment, _ body: () throws -> Void) {
-  if ProcessInfo.processInfo.environment["SWIFTTUI_E1_UNMARKED"] == "1" {
-    do { try body() } catch { Issue.record(error, comment) }
-  } else {
-    withKnownIssue(comment) { try body() }
-  }
-}
 
 private func e1WithDirectory(_ body: (URL) throws -> Void) throws {
   let directory = FileManager.default.temporaryDirectory

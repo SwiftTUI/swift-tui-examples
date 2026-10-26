@@ -184,7 +184,8 @@ extension GIFDocument {
   ///   (``PixelBuffer/init(from:)``) and its size matches the canvas;
   /// - the frame list is non-empty, so `frames[currentFrameIndex]` on
   ///   the first render cannot trap, and no frame is layerless;
-  /// - the palette is re-normalized through ``ColorPalette/init(colors:)``.
+  /// - the palette holds at most ``ColorPalette/capacity`` colors and is
+  ///   re-normalized through ``ColorPalette/init(colors:)``.
   ///
   /// That last one is not a workaround, and it stays. The palette is
   /// *written* as a plain `[EditorColor]` of used colors (see
@@ -202,6 +203,9 @@ extension GIFDocument {
 
     let colors = try container.decode([EditorColor].self, forKey: .palette)
     guard !colors.isEmpty else { throw ProjectDecodeError.emptyPalette }
+    guard colors.count <= ColorPalette.capacity else {
+      throw ProjectDecodeError.paletteTooLarge(found: colors.count, capacity: ColorPalette.capacity)
+    }
 
     let frames = try container.decode([EditorFrame].self, forKey: .frames)
     guard !frames.isEmpty else { throw ProjectDecodeError.emptyFrameList }

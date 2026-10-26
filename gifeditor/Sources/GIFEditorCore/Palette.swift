@@ -338,7 +338,9 @@ extension ColorPalette {
   /// through the normalizing initializer, which re-establishes the
   /// padding. A short-but-consistent palette — the shape a hand-written
   /// file naturally has — is accepted and padded rather than refused;
-  /// only a `usedCount` the colors cannot support is a rejection.
+  /// only a `usedCount` the colors cannot support is a rejection. So is
+  /// one above ``capacity``: more used colors than a palette holds would
+  /// otherwise be cut to the first 256 without a word.
   public init(from decoder: any Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     let colors = try container.decode([EditorColor].self, forKey: .colors)
@@ -350,6 +352,9 @@ extension ColorPalette {
         found: usedCount,
         available: colors.count
       )
+    }
+    guard usedCount <= Self.capacity else {
+      throw ProjectDecodeError.paletteTooLarge(found: usedCount, capacity: Self.capacity)
     }
 
     self.init(colors: Array(colors.prefix(usedCount)))
