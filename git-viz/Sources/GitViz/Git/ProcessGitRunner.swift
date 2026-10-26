@@ -73,8 +73,10 @@ struct ProcessGitRunner: GitRunning {
     stderrReader.start()
     process.waitUntilExit()
     // Both reader threads exit when the child closes its pipe ends. Join
-    // them before reading the boxes to ensure publication.
-    while stdoutReader.isExecuting || stderrReader.isExecuting {
+    // them before reading the boxes to ensure publication. Wait for them to
+    // finish, not merely to stop executing: a reader that has not started
+    // yet is not executing either, and a fast `git` can exit first.
+    while !stdoutReader.isFinished || !stderrReader.isFinished {
       Thread.sleep(forTimeInterval: 0.001)
     }
     let stdoutData = stdoutBox.get()
