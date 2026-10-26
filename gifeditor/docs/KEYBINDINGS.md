@@ -215,8 +215,12 @@ a layered document without notice. `Export GIF…` flattens the document and
 leaves it unsaved. `New…`, `Open…`, and quit use the same unsaved-changes
 guard.
 
-The New and Resize interfaces limit each axis to 256 pixels. The project format
-has no such limit. The loader opens GIFs with other dimensions.
+The New and Resize interfaces limit each axis to 256 pixels. Open accepts
+larger GIFs and projects up to the project format's limits: 16384 pixels per
+axis and 16,777,216 pixels (for example, 4096 × 4096) in total. Open also
+refuses a GIF whose frames hold more than 67,108,864 pixels in total, for
+example 1025 frames of 256 × 256. It reports a refused GIF as a damaged file.
+Thus, Save and autosave never write a project that Open cannot read.
 
 ## Help
 

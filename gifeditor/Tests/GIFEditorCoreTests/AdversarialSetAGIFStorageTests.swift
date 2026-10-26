@@ -29,9 +29,16 @@ struct AdversarialSetAGIFStorageTests {
 
 // MARK: - oversized imports (e1s163–e1s165)
 
+// Restated by repair wave 4 (STUI-845; evidence 2026-10-26-campaign-two-wave-4/ex-gcm,
+// oracle-notes.md). The contract is unchanged: a document the app holds round-trips
+// through its project format and its autosave (ProjectFile.swift:99-106,
+// AutosaveStore.swift:76-77). The repair keeps the app from holding a document the
+// format cannot store, so e1s163 checks that such an import is refused with the
+// malformed-document error, and e1s164 checks autosave recovery at the largest canvas
+// the import admits.
 private func e1Oversize(_ id: Int) throws {
   let width =
-    id == 165 ? ProjectFile.maximumCanvasDimension : ProjectFile.maximumCanvasDimension + 1
+    id == 163 ? ProjectFile.maximumCanvasDimension + 1 : ProjectFile.maximumCanvasDimension
   let size = PixelSize(width: width, height: 1)
   let palette = ColorPalette(colors: [
     .transparent, .init(rgbHex: 0xFF0000), .init(rgbHex: 0x0000FF),
@@ -44,34 +51,35 @@ private func e1Oversize(_ id: Int) throws {
       )
     ])
   let gif = Data(try GIFEncoder.encode(document: source))
-  // The app opens the GIF (KEYBINDINGS.md:218-219) and can serialize it.
+  if id == 163 {
+    do {
+      let opened = try DocumentIngestion.ingest(gif).document
+      Issue.record("a \(opened.size.width)-pixel-wide GIF opened past the project format's limit")
+    } catch {
+      guard case .malformed(kind: .gif, let detail) = error else {
+        Issue.record("expected a malformed GIF, got \(error)")
+        return
+      }
+      #expect(detail.contains("canvasTooLarge"), "\(detail)")
+    }
+    return
+  }
+  // The app opens the GIF (KEYBINDINGS.md) and can serialize it.
   let opened = try DocumentIngestion.ingest(gif).document
   #expect(opened.size == size)
-  let project = try ProjectFile.data(for: opened)
   if id == 164 {
     try e1WithDirectory { directory in
       let target = directory.appendingPathComponent(AutosaveStore.defaultFileName)
       try AutosaveStore.snapshot(
         document: opened, originalPath: nil, to: target, at: Date(timeIntervalSince1970: 1))
-      e1Known(e1OversizeComment) {
-        let recovered = try AutosaveStore.recover(from: target)
-        #expect(recovered?.document == opened)
-      }
+      let recovered = try AutosaveStore.recover(from: target)
+      #expect(recovered?.document == opened)
     }
     return
   }
-  if id == 165 {
-    #expect(try DocumentIngestion.ingest(project).document == opened)
-  } else {
-    e1Known(e1OversizeComment) {
-      let reopened = try DocumentIngestion.ingest(project).document
-      #expect(reopened == opened)
-    }
-  }
+  let project = try ProjectFile.data(for: opened)
+  #expect(try DocumentIngestion.ingest(project).document == opened)
 }
-
-private let e1OversizeComment: Comment =
-  "NEW-27: a document opened from a GIF wider than 16384 pixels saves and autosaves to files this build refuses to reopen; GIFLoader admits any GIF canvas while PixelSize decoding enforces ProjectFile's 16384/2^24 limits; contract: ProjectFile.swift:99-106 and :161-178 (lossless project), AutosaveStore.swift:76-77 (lossless recovery), KEYBINDINGS.md:218-219; adjacent STUI-845"
 
 // MARK: - APNG (e1s166–e1s169)
 

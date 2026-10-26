@@ -5,6 +5,18 @@ public enum GIFLoaderError: Error, Equatable {
   case unreadable(URL)
   case decode(String)
   case empty
+
+  /// The logical screen is larger than a project file may declare
+  /// (``ProjectFile/maximumCanvasDimension`` per axis,
+  /// ``ProjectFile/maximumCanvasArea`` in all). Opening it would hand the
+  /// editor a document its own Save and autosave could write but never
+  /// read back.
+  case canvasTooLarge(width: Int, height: Int, dimensionLimit: Int, areaLimit: Int)
+
+  /// The frames times the canvas area exceed `pixelLimit`
+  /// (`GIFLoader.maximumImportedPixelCount`): the composited animation is
+  /// more than an import is allowed to hold in memory.
+  case animationTooLarge(frameCount: Int, canvasArea: Int, pixelLimit: Int)
 }
 
 /// Reads GIF bytes off disk and adapts the vendored `swift-gif` decoder
@@ -21,6 +33,12 @@ public enum GIFLoaderError: Error, Equatable {
 /// Two pieces of animation metadata survive that flattening: the per-frame
 /// delay and the loop count, both of which the decoder hands over — see
 /// ``declaredLoopCount(in:)`` for what "no loop count" means.
+///
+/// An import is bounded twice before anything is composited: the canvas
+/// must fit the project format's limits, and the frames must fit a
+/// composited-pixel budget (`checkCanvas(width:height:)`,
+/// `maximumImportedPixelCount`). A GIF outside either is refused with a
+/// ``GIFLoaderError``, which the open paths report as a malformed document.
 public enum GIFLoader {
 
   public static func load(
@@ -40,6 +58,13 @@ public enum GIFLoader {
     data: Data,
     dithering: Quantizer.Dithering = .none
   ) throws -> GIFDocument {
+    // The canvas is refused from the header, before the decoder or the
+    // compositor sizes a single buffer by it: a 13-byte header can declare
+    // a 65535 x 65535 screen, which is 17 GB per composited frame.
+    if let screen = logicalScreenSize(of: data) {
+      try checkCanvas(width: screen.width, height: screen.height)
+    }
+
     var source = ByteSource(data: data)
     let image: GIF.Image
     do {
@@ -52,6 +77,7 @@ public enum GIFLoader {
     }
 
     let size = PixelSize(width: image.size.x, height: image.size.y)
+    try checkPixelBudget(canvasArea: size.area, frameCount: image.frames.count)
 
     // Composite every frame first, honoring disposal modes — each frame
     // as the user "sees" it during playback becomes one editable frame.
@@ -101,6 +127,69 @@ public enum GIFLoader {
       // project format preserves what it is told, so that lie would be
       // saved and re-exported rather than just shown.
       loopCount: image.loopCount.map { $0 == 0 ? 0 : $0 + 1 } ?? playsOnce
+    )
+  }
+
+  // MARK: - Import limits
+
+  /// The most composited pixels — frames times canvas area — one import
+  /// may produce: 2^26, four canvases at ``ProjectFile/maximumCanvasArea``.
+  ///
+  /// Every imported frame is composited at full canvas size and kept until
+  /// the palette is chosen, at about seven bytes a pixel (an optional
+  /// color, then an optional palette index), so this bounds an import's
+  /// working set near half a gigabyte. A 256 x 256 animation may have 1024
+  /// frames; a 640 x 480 one, 218.
+  static let maximumImportedPixelCount = 1 << 26
+
+  /// Refuses a canvas the project format could not store.
+  ///
+  /// The same limits ``PixelSize/init(from:)`` applies to a project file,
+  /// applied at import so that every document the editor holds can be
+  /// saved and autosaved in a form it can reopen. The per-axis limit is
+  /// checked first, so the area is only multiplied out for two numbers no
+  /// larger than 16384.
+  static func checkCanvas(width: Int, height: Int) throws(GIFLoaderError) {
+    guard
+      width <= ProjectFile.maximumCanvasDimension,
+      height <= ProjectFile.maximumCanvasDimension,
+      width * height <= ProjectFile.maximumCanvasArea
+    else {
+      throw .canvasTooLarge(
+        width: width,
+        height: height,
+        dimensionLimit: ProjectFile.maximumCanvasDimension,
+        areaLimit: ProjectFile.maximumCanvasArea
+      )
+    }
+  }
+
+  /// Refuses an animation whose composited frames would exceed
+  /// ``maximumImportedPixelCount``.
+  static func checkPixelBudget(canvasArea: Int, frameCount: Int) throws(GIFLoaderError) {
+    let total = canvasArea.multipliedReportingOverflow(by: frameCount)
+    guard !total.overflow, total.partialValue <= maximumImportedPixelCount else {
+      throw .animationTooLarge(
+        frameCount: frameCount,
+        canvasArea: canvasArea,
+        pixelLimit: maximumImportedPixelCount
+      )
+    }
+  }
+
+  /// The logical screen size a GIF header declares, or `nil` when `data`
+  /// does not start with a complete header and screen descriptor — the
+  /// decoder reports those itself.
+  ///
+  /// The descriptor follows the six-byte signature: width, then height,
+  /// each a little-endian 16-bit integer (GIF89a §18).
+  static func logicalScreenSize(of data: Data) -> (width: Int, height: Int)? {
+    guard ProjectFile.hasGIFSignature(data) else { return nil }
+    let header = Array(data.prefix(10))
+    guard header.count == 10 else { return nil }
+    return (
+      width: Int(header[6]) | Int(header[7]) << 8,
+      height: Int(header[8]) | Int(header[9]) << 8
     )
   }
 

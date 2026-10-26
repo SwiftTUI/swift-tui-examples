@@ -132,12 +132,13 @@ public struct ProjectFile: Hashable, Sendable {
   /// Largest canvas edge a project file may declare, per axis.
   ///
   /// This is a hostile-input backstop, not a product ceiling: the
-  /// format stores arbitrary dimensions, and the editor's authoring cap
-  /// is a UI concern. The limit exists only so a header claiming
-  /// 100000 x 100000 is rejected *before* anything multiplies it out
-  /// and tries to allocate 10^10 elements. 16384 is 64x the editor's
-  /// 256-pixel authoring ceiling per axis, so it is nowhere near
-  /// becoming a de-facto ceiling; ``maximumCanvasArea`` is what
+  /// editor's authoring cap is a UI concern. The limit exists so a header
+  /// claiming 100000 x 100000 is rejected *before* anything multiplies it
+  /// out and tries to allocate 10^10 elements. GIF import applies the same
+  /// limits (`GIFLoader.checkCanvas(width:height:)`), so every document the
+  /// editor holds can be saved in a form it can read back. 16384 is 64x
+  /// the editor's 256-pixel authoring ceiling per axis, so it is nowhere
+  /// near becoming a de-facto ceiling; ``maximumCanvasArea`` is what
   /// actually bounds the allocation.
   public static let maximumCanvasDimension = 16_384
 
