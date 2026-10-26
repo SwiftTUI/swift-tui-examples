@@ -1165,7 +1165,9 @@ struct GalleryTabSwitchTests {
     "presentation lab sheet and confirmation actions stay clickable",
     .enabled(if: galleryRuntimeTestsEnabled, galleryRuntimeTestGateComment))
   func presentationLabSheetAndConfirmationActionsStayClickable() async throws {
-    let terminalSize = CellSize(width: 80, height: 24)
+    // Tall enough for the whole lab: the "Last event" readout this test waits
+    // on is row 27, and an interactive frame is clipped to its host.
+    let terminalSize = CellSize(width: 80, height: 32)
     let rootIdentity = Identity(components: [.named("GalleryPresentationLabActionClick")])
     let sheetClickCenter = try Self.centerOfText(
       "Sheet",
