@@ -32,8 +32,10 @@ git_version=$(git --version)
 RS=$(printf '\036')
 US=$(printf '\037')
 
-# NUL-terminated fields, matching GitParsers.logFormat (git expands %x00).
+# NUL-terminated fields, matching GitParsers.logFormat and
+# GitParsers.graphFormat (git expands %x00).
 log_format="%H%x00%aI%x00%aN%x00%aE%x00%P%x00%s%x00"
+graph_format="%H%x00%P%x00%s%x00"
 tag_format="%(refname:short)${US}%(objectname)${US}%(taggerdate:iso-strict)${US}%(committerdate:iso-strict)${US}%(objecttype)${RS}"
 
 work=$(mktemp -d)
@@ -113,8 +115,8 @@ record shortlog.txt \
   shortlog -s -n -e HEAD
 record for-each-ref-tags.txt \
   for-each-ref refs/tags --format="$tag_format"
-record rev-list-parents.txt \
-  rev-list --topo-order --parents --max-count=200 HEAD
+record log-graph.txt \
+  log --no-color --topo-order -z --pretty="format:${graph_format}" --max-count=200 HEAD
 record name-only.txt \
   log --no-color -z --diff-filter=AMD --name-only --pretty=format:
 
@@ -140,12 +142,12 @@ and a lightweight tag.
 | \`log-numstat.txt\` | \`log --no-color -z --pretty=format:<logFormat> --numstat\` |
 | \`shortlog.txt\` | \`shortlog -s -n -e HEAD\` |
 | \`for-each-ref-tags.txt\` | \`for-each-ref refs/tags --format=<tagFormat>\` |
-| \`rev-list-parents.txt\` | \`rev-list --topo-order --parents --max-count=200 HEAD\` |
+| \`log-graph.txt\` | \`log --no-color --topo-order -z --pretty=format:<graphFormat> --max-count=200 HEAD\` |
 | \`name-only.txt\` | \`log --no-color -z --diff-filter=AMD --name-only --pretty=format:\` |
 
-\`<logFormat>\`/\`<tagFormat>\` are the constants in \`GitParsers\`; the script
-builds them from the same bytes (\`%x00\` is expanded by git; the tag format's
-RS and US are ASCII 0x1E and 0x1F).
+\`<logFormat>\`, \`<graphFormat>\` and \`<tagFormat>\` are the constants in
+\`GitParsers\`; the script builds them from the same bytes (\`%x00\` is
+expanded by git; the tag format's RS and US are ASCII 0x1E and 0x1F).
 EOF
 
 echo "==> done."

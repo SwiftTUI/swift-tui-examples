@@ -136,18 +136,23 @@ struct GitParsersTests {
     #expect(lightweight.date == GitParsers.parseISODate("2020-01-06T09:00:00Z"))
   }
 
-  @Test("parseRevListParents records each commit's parents")
-  func parsesRevListParents() throws {
-    let raw = try loadFixture(named: "rev-list-parents.txt")
-    let rows = GitParsers.parseRevListParents(raw)
+  @Test("parseGraphRows records each commit's parents and subject from one walk")
+  func parsesGraphRows() throws {
+    let raw = try loadFixture(named: "log-graph.txt")
+    let rows = GitParsers.parseGraphRows(raw)
     #expect(rows.count == 6)
 
     // Topological order: HEAD first, root last.
     #expect(rows[0].parents.count == 1)
+    #expect(rows[0].subject == "refactor: rename the first file")
     #expect(rows.last?.parents.isEmpty == true)
+    #expect(rows.last?.subject == "feat: add the first file")
 
     let merge = try #require(rows.first { $0.parents.count == 2 })
     #expect(merge.sha == rows[0].parents[0])
+    #expect(merge.subject == "Merge branch 'side' into main")
+    // Every row carries its own subject: topology and subject share a walk.
+    #expect(rows.allSatisfy { !$0.subject.isEmpty })
   }
 
   @Test("parseChangedFileCounts ranks paths by frequency")

@@ -220,11 +220,8 @@ private func e1Windows(_ id: Int) throws {
     #expect(topological == "M\nY\nX")
     let rows = try fixture.open().revList(max: 3).commits
     #expect(rows.count == 3)
-    e1Known(
-      "NEW-8: the DAG shows an empty subject for a commit inside the topological window; revList takes subjects from a date-ordered log --max-count window; contract: GitRepo.swift:215-217 (subjects for the same window)"
-    ) {
-      #expect(rows.map(\.subject) == ["M", "Y", "X"])
-    }
+    // STUI-1340: topology and subjects come from one topological walk.
+    #expect(rows.map(\.subject) == ["M", "Y", "X"])
   } else {
     // Local-time dates without an offset, interpreted by git in the same
     // time zone the bounds are later interpreted in.
@@ -234,11 +231,8 @@ private func e1Windows(_ id: Int) throws {
     try fixture.commitAll("after", at: "2020-01-03 12:00:00", allowEmpty: true)
     let day = try #require(CalendarDay(argument: "2020-01-02")).date
     let subjects = try fixture.open().commits(since: day, until: day).map(\.subject)
-    e1Known(
-      "NEW-9: a one-day --since/--until window drops that day's commits depending on the time of day it runs; formatGitDate passes a bare YYYY-MM-DD that git's approxidate completes with the current wall-clock time; contract: Options.swift:6-31 and :83-96 (calendar-day window)"
-    ) {
-      #expect(Set(subjects) == ["early", "late"])
-    }
+    // STUI-1340: the bounds carry the day's explicit local start and end.
+    #expect(Set(subjects) == ["early", "late"])
   }
 }
 
@@ -302,11 +296,8 @@ private func e1DailyCounts() {
     commits: [commit], in: lower...upper, calendar: calendar)
   #expect(days.count == 3)
   #expect((lower...upper).contains(inside))
-  e1Known(
-    "NEW-13: the calendar heatmap drops a commit on the first day of a window that starts mid-day; dailyCommitCounts filters the commit's start-of-day against the raw lower bound; contract: DateValueAdapters.swift:7-8"
-  ) {
-    #expect(days.first?.value == 1)
-  }
+  // STUI-1340: the filter's lower bound is the start of the first day.
+  #expect(days.first?.value == 1)
 }
 
 private func e1Shortlog() {

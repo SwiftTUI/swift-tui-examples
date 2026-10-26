@@ -38,7 +38,9 @@ are a calendar year, one year, five weeks, and 30 days versus all time.
 
 `--since` and `--until` accept a `YYYY-MM-DD` calendar day. Argument parsing
 makes sure that the value has this format. An incorrect value stops the command
-instead of increasing the date window.
+instead of increasing the date window. The window covers whole days in the
+local time zone, and both ends are included: `--since D --until D` selects all
+of day D.
 
 ## Demonstrates
 

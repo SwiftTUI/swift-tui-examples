@@ -155,12 +155,7 @@ struct GitRepo: Sendable {
       "--pretty=format:\(GitParsers.logFormat)",
       "--numstat",
     ]
-    if let since {
-      args.append("--since=\(formatGitDate(since))")
-    }
-    if let until {
-      args.append("--until=\(formatGitDate(until))")
-    }
+    args += dateWindowArguments(since: since, until: until)
     if let max {
       args.append("--max-count=\(max)")
     }
@@ -181,12 +176,7 @@ struct GitRepo: Sendable {
   /// `git shortlog -s -n -e` parsed into author tallies, sorted desc by count.
   func shortlog(since: Date? = nil, until: Date? = nil) throws -> [AuthorTally] {
     var args = ["shortlog", "-s", "-n", "-e"]
-    if let since {
-      args.append("--since=\(formatGitDate(since))")
-    }
-    if let until {
-      args.append("--until=\(formatGitDate(until))")
-    }
+    args += dateWindowArguments(since: since, until: until)
     args.append("HEAD")
     let raw = try run(args)
     return GitParsers.parseShortlog(raw)
@@ -222,12 +212,7 @@ struct GitRepo: Sendable {
       "--name-only",
       "--pretty=format:",
     ]
-    if let since {
-      args.append("--since=\(formatGitDate(since))")
-    }
-    if let until {
-      args.append("--until=\(formatGitDate(until))")
-    }
+    args += dateWindowArguments(since: since, until: until)
     if let max {
       args.append("--max-count=\(max)")
     }
@@ -236,33 +221,25 @@ struct GitRepo: Sendable {
   }
 
   /// Topologically ordered commit DAG, laid out into lanes by `GraphLayout`.
+  ///
+  /// Topology and subjects come from one walk. A second, separate `log` for
+  /// the subjects would walk in date order by default, so on branchy history
+  /// its `--max-count` window holds different commits and a row's subject
+  /// goes missing.
   func revList(
     reachableFrom ref: String = "HEAD",
     max: Int = 200
   ) throws -> GraphLayout.Result {
     let raw = try run([
-      "rev-list",
-      "--topo-order",
-      "--parents",
-      "--max-count=\(max)",
-      ref,
-    ])
-    let revList = GitParsers.parseRevListParents(raw)
-    // Map sha → subject for the same window. Done in one extra call so we
-    // can decouple `rev-list --parents` (graph topology) from `log` (subject
-    // formatting), which keeps each parser focused on one shape.
-    let subjectsRaw = try run([
       "log",
       "--no-color",
-      "--pretty=format:%H\(GitParsers.fieldSeparator)%s\(GitParsers.recordSeparator)",
+      "--topo-order",
+      "-z",
+      "--pretty=format:\(GitParsers.graphFormat)",
       "--max-count=\(max)",
       ref,
     ])
-    let subjects = parseSubjects(subjectsRaw)
-    let rows = revList.map { row in
-      (sha: row.sha, parents: row.parents, subject: subjects[row.sha] ?? "")
-    }
-    return GraphLayout.layout(rows: rows)
+    return GraphLayout.layout(rows: GitParsers.parseGraphRows(raw))
   }
 
   // MARK: - Helpers
@@ -271,22 +248,31 @@ struct GitRepo: Sendable {
     try runner.run(arguments, in: workingDirectory)
   }
 
-  private func formatGitDate(_ date: Date) -> String {
+  /// `--since` / `--until` arguments for a calendar-day window.
+  ///
+  /// A bound names a calendar day: the day `CalendarDay` parsed, formatted
+  /// back the same way (ISO 8601 full date). A bare `YYYY-MM-DD` is not
+  /// enough, because git completes a date without a time with the current
+  /// wall-clock time: `--since D --until D` became a single instant, and the
+  /// window moved with the time of day the command ran. Each bound therefore
+  /// carries an explicit time, the first second of its day for `--since` and
+  /// the last for `--until`, which git reads in the local time zone. Both
+  /// ends are inclusive; commit times are whole seconds.
+  private func dateWindowArguments(since: Date?, until: Date?) -> [String] {
+    var args: [String] = []
+    if let since {
+      args.append("--since=\(calendarDay(of: since)) 00:00:00")
+    }
+    if let until {
+      args.append("--until=\(calendarDay(of: until)) 23:59:59")
+    }
+    return args
+  }
+
+  private func calendarDay(of date: Date) -> String {
     let formatter = ISO8601DateFormatter()
     formatter.formatOptions = [.withFullDate]
     return formatter.string(from: date)
-  }
-
-  private func parseSubjects(_ raw: String) -> [String: String] {
-    var map: [String: String] = [:]
-    for record in raw.components(separatedBy: GitParsers.recordSeparator) {
-      let trimmed = record.trimmingCharacters(in: .whitespacesAndNewlines)
-      guard !trimmed.isEmpty else { continue }
-      let fields = trimmed.components(separatedBy: GitParsers.fieldSeparator)
-      guard fields.count >= 2 else { continue }
-      map[fields[0]] = fields[1]
-    }
-    return map
   }
 }
 

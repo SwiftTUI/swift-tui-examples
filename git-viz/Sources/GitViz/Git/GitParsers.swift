@@ -182,20 +182,34 @@ enum GitParsers {
     return tags
   }
 
-  // MARK: - rev-list --parents
+  // MARK: - log --topo-order (DAG rows)
 
-  /// Parses `git rev-list --topo-order --parents <ref>` output. Each line is
-  /// `<sha> [<parent1> <parent2>...]`.
-  static func parseRevListParents(_ raw: String) -> [(sha: String, parents: [String])] {
-    var rows: [(String, [String])] = []
-    for line in raw.split(separator: "\n", omittingEmptySubsequences: true) {
-      let trimmed = line.trimmingCharacters(in: .whitespaces)
-      guard !trimmed.isEmpty else { continue }
-      let parts = trimmed.split(separator: " ", omittingEmptySubsequences: true)
-      guard let first = parts.first else { continue }
-      let sha = String(first)
-      let parents = parts.dropFirst().map(String.init)
-      rows.append((sha, parents))
+  /// Format string for the DAG walk: sha, parents and subject, each
+  /// NUL-terminated, so topology and subject come from one walk.
+  static let graphFormat = "%H%x00%P%x00%s%x00"
+
+  /// Parses `git log --topo-order -z --pretty=format:<graphFormat>` into
+  /// `(sha, parents, subject)` rows in walk order.
+  ///
+  /// Each commit is three NUL-terminated fields (a root commit's parents and
+  /// an empty subject are empty fields), then the NUL git puts between
+  /// commits.
+  static func parseGraphRows(_ raw: String) -> [(sha: String, parents: [String], subject: String)] {
+    var tokens = nulTokens(raw)
+    var rows: [(sha: String, parents: [String], subject: String)] = []
+    while true {
+      // Commit separators; a sha is never empty.
+      while tokens.first?.isEmpty == true { tokens.removeFirst() }
+      guard tokens.count >= 3 else { break }
+      let fields = tokens.prefix(3).map(String.init)
+      tokens.removeFirst(3)
+      rows.append(
+        (
+          sha: fields[0],
+          parents: fields[1].split(separator: " ").map(String.init),
+          subject: fields[2]
+        )
+      )
     }
     return rows
   }

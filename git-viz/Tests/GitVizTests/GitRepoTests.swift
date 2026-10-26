@@ -242,7 +242,7 @@ struct GitRepoTests {
     let runner = RecordedGitRunner([
       ["rev-parse", "--show-toplevel"]: "\(Self.repoPath)\n",
       base: "",
-      base + ["--since=2024-01-01", "--max-count=5"]: "",
+      base + ["--since=2024-01-01 00:00:00", "--max-count=5"]: "",
     ])
     let repo = try GitRepo(
       workingDirectory: URL(fileURLWithPath: Self.repoPath),
@@ -258,8 +258,56 @@ struct GitRepoTests {
     let logCalls = runner.issued.filter { $0.first == "log" }
     #expect(logCalls.count == 2)
     #expect(logCalls[0].allSatisfy { !$0.hasPrefix("--since=") })
-    #expect(logCalls[1].contains("--since=2024-01-01"))
+    #expect(logCalls[1].contains("--since=2024-01-01 00:00:00"))
     #expect(logCalls[1].contains("--max-count=5"))
+  }
+
+  @Test("a window sends explicit day edges, never a bare date git completes with the clock")
+  func windowBoundsSendExplicitDayEdges() throws {
+    let since = try #require(CalendarDay(argument: "2024-01-01")).date
+    let until = try #require(CalendarDay(argument: "2024-06-30")).date
+    let bounds = ["--since=2024-01-01 00:00:00", "--until=2024-06-30 23:59:59"]
+    let runner = RecordedGitRunner([
+      ["rev-parse", "--show-toplevel"]: "\(Self.repoPath)\n",
+      [
+        "log", "--no-color", "-z", "--pretty=format:\(GitParsers.logFormat)", "--numstat",
+      ] + bounds: "",
+      ["shortlog", "-s", "-n", "-e"] + bounds + ["HEAD"]: "",
+      [
+        "log", "--no-color", "-z", "--diff-filter=AMD", "--name-only", "--pretty=format:",
+      ] + bounds: "",
+    ])
+    let repo = try GitRepo(
+      workingDirectory: URL(fileURLWithPath: Self.repoPath),
+      runner: runner
+    )
+
+    _ = try repo.commits(since: since, until: until)
+    _ = try repo.shortlog(since: since, until: until)
+    _ = try repo.fileChangeCounts(since: since, until: until)
+
+    #expect(runner.issued.filter { $0.first != "rev-parse" }.count == 3)
+  }
+
+  @Test("a one-day window keeps exactly that day, both edges included (real git)")
+  func oneDayWindowKeepsExactlyThatDay() throws {
+    let repository = try WindowFixture()
+    defer { repository.remove() }
+    // Zone-less dates: git reads them in the local zone, as it reads the
+    // bounds, so the day is the same local day whatever the machine's zone.
+    for (subject, date) in [
+      ("before", "2020-01-01 23:59:59"), ("first", "2020-01-02 00:00:00"),
+      ("last", "2020-01-02 23:59:59"), ("after", "2020-01-03 00:00:00"),
+    ] {
+      try repository.git(["commit", "-q", "--allow-empty", "-m", subject], date: date)
+    }
+    let day = try #require(CalendarDay(argument: "2020-01-02")).date
+
+    let subjects = try GitRepo(workingDirectory: repository.url)
+      .commits(since: day, until: day)
+      .map(\.subject)
+
+    #expect(subjects == ["last", "first"])
   }
 
   @Test("an argv with no recording fails loudly rather than returning empty")
@@ -276,4 +324,57 @@ struct GitRepoTests {
       try repo.shortlog()
     }
   }
+}
+
+/// A throwaway repository for the tests that need git's own reading of a
+/// date window. No global or system configuration, pinned identities.
+private struct WindowFixture {
+  let url: URL
+
+  init() throws {
+    url = FileManager.default.temporaryDirectory
+      .appendingPathComponent("git-viz-window-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+    try git(["init", "-q", "-b", "main"])
+    try git(["config", "log.showSignature", "false"])
+  }
+
+  func remove() {
+    try? FileManager.default.removeItem(at: url)
+  }
+
+  func git(_ arguments: [String], date: String? = nil) throws {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+    process.arguments = ["git"] + arguments
+    process.currentDirectoryURL = url
+    var environment = ProcessInfo.processInfo.environment
+    for key in ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY"] {
+      environment[key] = nil
+    }
+    environment["GIT_CONFIG_GLOBAL"] = "/dev/null"
+    environment["GIT_CONFIG_NOSYSTEM"] = "1"
+    environment["GIT_AUTHOR_NAME"] = "Alice"
+    environment["GIT_AUTHOR_EMAIL"] = "a@example.com"
+    environment["GIT_COMMITTER_NAME"] = "Alice"
+    environment["GIT_COMMITTER_EMAIL"] = "a@example.com"
+    if let date {
+      environment["GIT_AUTHOR_DATE"] = date
+      environment["GIT_COMMITTER_DATE"] = date
+    }
+    process.environment = environment
+    process.standardOutput = FileHandle.nullDevice
+    process.standardError = FileHandle.nullDevice
+    try process.run()
+    process.waitUntilExit()
+    guard process.terminationStatus == 0 else {
+      throw WindowFixtureError(arguments: arguments, status: process.terminationStatus)
+    }
+  }
+}
+
+private struct WindowFixtureError: Error, CustomStringConvertible {
+  var arguments: [String]
+  var status: Int32
+  var description: String { "fixture git \(arguments) exited \(status)" }
 }

@@ -17,9 +17,9 @@ and a lightweight tag.
 | `log-numstat.txt` | `log --no-color -z --pretty=format:<logFormat> --numstat` |
 | `shortlog.txt` | `shortlog -s -n -e HEAD` |
 | `for-each-ref-tags.txt` | `for-each-ref refs/tags --format=<tagFormat>` |
-| `rev-list-parents.txt` | `rev-list --topo-order --parents --max-count=200 HEAD` |
+| `log-graph.txt` | `log --no-color --topo-order -z --pretty=format:<graphFormat> --max-count=200 HEAD` |
 | `name-only.txt` | `log --no-color -z --diff-filter=AMD --name-only --pretty=format:` |
 
-`<logFormat>`/`<tagFormat>` are the constants in `GitParsers`; the script
-builds them from the same bytes (`%x00` is expanded by git; the tag format's
-RS and US are ASCII 0x1E and 0x1F).
+`<logFormat>`, `<graphFormat>` and `<tagFormat>` are the constants in
+`GitParsers`; the script builds them from the same bytes (`%x00` is
+expanded by git; the tag format's RS and US are ASCII 0x1E and 0x1F).
