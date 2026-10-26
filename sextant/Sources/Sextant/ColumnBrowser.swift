@@ -152,7 +152,7 @@ struct ColumnBrowser: View {
           )
           // A rule down the column's own trailing cells, so this one stays inset;
           // the overlay panels below frame their content and take `.outset`.
-          .border(mutedStyle, set: BorderSet.single, placement: .inset, sides: Edge.Set.trailing)
+          .border(mutedStyle, style: .single, placement: .inset, sides: Edge.Set.trailing)
           .focusable(directory.id == model.state.activeDirectoryID)
           .focused($runtimeFocus, equals: .browser(directory.id))
         }
@@ -356,7 +356,7 @@ struct ColumnBrowser: View {
         }
       }
       .padding(.horizontal, 1)
-      .border(mutedStyle, set: .rounded, placement: .outset)
+      .border(mutedStyle, style: .rounded, placement: .outset)
       .focusable(true)
       .focused($runtimeFocus, equals: .help)
     case .palette:
@@ -398,7 +398,7 @@ struct ColumnBrowser: View {
         }
       }
       .padding(.horizontal, 1)
-      .border(mutedStyle, set: .rounded, placement: .outset)
+      .border(mutedStyle, style: .rounded, placement: .outset)
     case .search:
       VStack(alignment: .leading, spacing: 0) {
         HStack {
@@ -462,7 +462,7 @@ struct ColumnBrowser: View {
         }
       }
       .padding(.horizontal, 1)
-      .border(mutedStyle, set: .rounded, placement: .outset)
+      .border(mutedStyle, style: .rounded, placement: .outset)
     }
   }
 
