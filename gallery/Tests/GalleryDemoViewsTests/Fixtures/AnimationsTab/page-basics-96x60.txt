@@ -39,8 +39,8 @@
  expect: the ◎ marker glides between the four corners of its slot over 1.2 s
   NW    NE    SW    SE
 
+          ◎
 
-           ◎
 
 
 
