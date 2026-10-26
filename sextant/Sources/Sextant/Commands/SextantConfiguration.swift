@@ -201,36 +201,19 @@ public struct ExternalPreviewConfiguration: Codable, Equatable, Sendable {
     }
   }
 
+  /// Whether the template passes program text to an interpreter on its
+  /// command line, such as `sh -c`, `python3 -c`, `perl -e` or
+  /// `node --eval`. The interpreter can be the executable or any later
+  /// argument, which covers wrappers (`env`, `nice`, `timeout`, `xcrun`, ...)
+  /// without listing them. Every argument after it is checked, so an option
+  /// meant for a script is refused too: refusal is the safe side.
   private var executesInterpreterSource: Bool {
-    let shellNames: Set<String> = [
-      "bash", "csh", "dash", "fish", "ksh", "sh", "tcsh", "zsh",
-    ]
-    var command = URL(fileURLWithPath: executable).lastPathComponent.lowercased()
-    var commandArguments = arguments
-
-    if command == "env" {
-      guard
-        let commandIndex = commandArguments.firstIndex(where: {
-          shellNames.contains(
-            URL(fileURLWithPath: $0).lastPathComponent.lowercased()
-          )
-        })
-      else {
+    let words = [executable] + arguments
+    return words.indices.contains { index in
+      guard let interpreter = InlineSourceInterpreter(named: words[index]) else {
         return false
       }
-      command = URL(fileURLWithPath: commandArguments[commandIndex])
-        .lastPathComponent.lowercased()
-      commandArguments = Array(commandArguments.dropFirst(commandIndex + 1))
-    }
-
-    guard shellNames.contains(command) else {
-      return false
-    }
-    return commandArguments.contains { argument in
-      guard argument.hasPrefix("-"), !argument.hasPrefix("--") else {
-        return argument == "--command"
-      }
-      return argument.dropFirst().lowercased().contains("c")
+      return interpreter.receivesInlineSource(words[(index + 1)...])
     }
   }
 
@@ -268,6 +251,127 @@ public struct ExternalPreviewConfiguration: Codable, Equatable, Sendable {
       ?? [.anyFile]
     maximumByteCount =
       try container.decodeIfPresent(UInt64.self, forKey: .maximumByteCount)
+  }
+}
+
+/// A common interpreter that can take its program as a command-line
+/// argument, and the options that pass it one. README.md lists them.
+private enum InlineSourceInterpreter {
+  case shell
+  case python
+  case perl
+  case ruby
+  case javaScript
+  case deno
+  case php
+  case lua
+  case osascript
+  case powerShell
+
+  /// Recognises an executable path or bare name, ignoring case and a
+  /// version suffix (`python3.12`, `lua5.4`, `perl5.36`).
+  init?(named word: String) {
+    guard let base = word.split(separator: "/").last?.lowercased() else {
+      return nil
+    }
+    let name = String(base.reversed().drop { $0.isNumber || $0 == "." || $0 == "-" }.reversed())
+    switch name {
+    case "ash", "bash", "csh", "dash", "fish", "ksh", "mksh", "oksh", "pdksh", "posh", "rbash",
+      "sh", "tcsh", "yash", "zsh":
+      self = .shell
+    case "python", "pypy": self = .python
+    case "perl": self = .perl
+    case "ruby": self = .ruby
+    case "node", "nodejs", "bun": self = .javaScript
+    case "deno": self = .deno
+    case "php": self = .php
+    case "lua", "luajit": self = .lua
+    case "osascript": self = .osascript
+    case "pwsh", "powershell": self = .powerShell
+    default: return nil
+    }
+  }
+
+  func receivesInlineSource(_ arguments: ArraySlice<String>) -> Bool {
+    switch self {
+    case .deno:
+      // `deno eval <code>`: the subcommand is the first non-option word.
+      arguments.first { !$0.hasPrefix("-") } == "eval"
+    case .powerShell:
+      arguments.contains(where: Self.isPowerShellCommandParameter)
+    default:
+      arguments.contains(where: passesSource)
+    }
+  }
+
+  /// Single-letter options whose argument is program text.
+  private var sourceLetters: Set<Character> {
+    switch self {
+    case .shell: ["c", "C"]  // `-c`; fish's `-C` (--init-command)
+    case .python: ["c"]
+    case .perl: ["e", "E"]
+    case .ruby, .lua, .osascript: ["e"]
+    case .javaScript: ["e", "p"]  // --eval, --print
+    case .php: ["r", "B", "R", "E"]  // run, begin, per line, end
+    case .deno, .powerShell: []
+    }
+  }
+
+  /// Single-letter options that take the rest of their cluster as a value,
+  /// so the letters after them are not options (`-Xdev`, `-MJSON`, `-i.bak`).
+  private var valueLetters: Set<Character> {
+    switch self {
+    case .python: ["m", "W", "X"]
+    case .perl: ["i", "I", "m", "M", "F", "x"]
+    case .ruby: ["C", "E", "F", "I", "r", "x"]
+    case .php: ["c", "d", "f", "F", "t", "z", "S"]
+    case .lua: ["l", "j", "O", "b"]
+    case .osascript: ["l", "s"]
+    case .shell, .javaScript, .deno, .powerShell: []
+    }
+  }
+
+  /// Long options whose value is program text, matched with or without `=value`.
+  private var sourceLongOptions: Set<String> {
+    switch self {
+    case .shell: ["--command", "--init-command"]
+    case .javaScript: ["--eval", "--print"]
+    default: []
+    }
+  }
+
+  private func passesSource(_ argument: String) -> Bool {
+    if argument.hasPrefix("--") {
+      let name = argument.prefix { $0 != "=" }.lowercased()
+      return sourceLongOptions.contains(name)
+    }
+    guard argument.hasPrefix("-") else {
+      return false
+    }
+    for letter in argument.dropFirst() {
+      if sourceLetters.contains(letter) {
+        return true
+      }
+      if valueLetters.contains(letter) {
+        return false
+      }
+    }
+    return false
+  }
+
+  /// PowerShell parameters are case-insensitive, may start with `-` or `/`,
+  /// and may be abbreviated: `-c`, `-Command`, `-CommandWithArgs`, `-cwa`,
+  /// `-e`, `-ec`, `-EncodedCommand`.
+  private static func isPowerShellCommandParameter(_ argument: String) -> Bool {
+    guard let first = argument.first, first == "-" || first == "/" else {
+      return false
+    }
+    let name = argument.drop { $0 == "-" || $0 == "/" }.prefix { $0 != ":" }.lowercased()
+    guard !name.isEmpty else {
+      return false
+    }
+    return ["command", "commandwithargs", "encodedcommand"].contains { $0.hasPrefix(name) }
+      || name == "cwa" || name == "ec"
   }
 }
 

@@ -457,7 +457,7 @@ struct ColumnBrowser: View {
           .buttonStyle(.plain)
         }
         if model.state.search.wasTruncated {
-          Text("Result limit reached; refine the query.")
+          Text("Search limit reached; refine the query.")
             .foregroundStyle(.separator)
         }
       }
@@ -471,7 +471,7 @@ struct ColumnBrowser: View {
     if !paths.isEmpty {
       Text(title)
         .foregroundStyle(mutedStyle)
-      ForEach(paths, id: \.self) { path in
+      ForEach(paths, id: \.pathBytes) { path in
         Button {
           model.send(.jumpToPath(path))
         } label: {

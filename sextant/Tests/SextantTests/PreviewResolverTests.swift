@@ -186,6 +186,43 @@ struct PreviewResolverTests {
     #expect(launch.arguments == ["-s", "dark", "--", path])
   }
 
+  /// The live probe requires an executable regular file, as the editor
+  /// handoff does, and `stat` follows a symbolic link to one.
+  @Test("the live probe accepts a symbolic link to an executable file")
+  func liveProbeAcceptsLinkedExecutable() async throws {
+    let root = FileManager.default.temporaryDirectory
+      .appendingPathComponent("sextant-probe-\(UUID().uuidString)", isDirectory: true)
+    let first = root.appendingPathComponent("dirA", isDirectory: true)
+    let second = root.appendingPathComponent("dirB", isDirectory: true)
+    try FileManager.default.createDirectory(at: first, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: second, withIntermediateDirectories: false)
+    defer { try? FileManager.default.removeItem(at: root) }
+    for name in ["real", "tool"] {
+      let file = second.appendingPathComponent(name)
+      try Data("#!/bin/sh\nexit 0\n".utf8).write(to: file)
+      try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: file.path)
+    }
+    try FileManager.default.createSymbolicLink(
+      atPath: first.appendingPathComponent("tool").path,
+      withDestinationPath: "../dirB/real"
+    )
+    let adapter = PreviewAdapterDescription(
+      id: PreviewAdapterID("linked"),
+      displayName: "Linked",
+      executable: "tool",
+      isInteractive: false,
+      priority: 0,
+      arguments: { [$0.path] }
+    )
+
+    let found = await PreviewExecutableCache.live(path: "\(first.path):\(second.path)")
+      .availability(for: [adapter])["tool"]
+
+    let resolved = try #require(found.map(URL.init(fileURLWithPath:)))
+    #expect(resolved.lastPathComponent == "tool")
+    #expect(resolved.deletingLastPathComponent().lastPathComponent == "dirA")
+  }
+
   @Test("executable probes are cached once per launch PATH")
   func probeCache() async {
     let recorder = ProbeRecorder()

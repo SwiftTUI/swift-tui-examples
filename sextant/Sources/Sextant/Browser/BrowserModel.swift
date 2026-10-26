@@ -320,7 +320,7 @@ final class BrowserModel {
         return
       }
       updateState { state in
-        state.bookmarks.removeAll { $0 == path }
+        state.bookmarks.removeAll { $0.isSamePath(as: path) }
         if isBookmarked {
           state.bookmarks.append(path)
           state.status = .message("Bookmarked \(path).")
@@ -1410,7 +1410,7 @@ final class BrowserModel {
   private func recordRecent(_ url: URL) {
     let path = url.standardizedFileURL.path
     updateState { state in
-      state.recents.removeAll { $0 == path }
+      state.recents.removeAll { $0.isSamePath(as: path) }
       state.recents.insert(path, at: 0)
       state.recents = Array(state.recents.prefix(50))
     }

@@ -144,10 +144,14 @@ actor FilenameSearchCoordinator {
     var retainedCount = 0
     var requestValue: UInt64 = 0
     var wasTruncated = false
+    // Truncation means a match was left out, so reaching `maximumResults`
+    // keeps searching (within the directory budget) until one more match
+    // proves it. Exactly `maximumResults` matches are not truncated.
+    var foundMatchPastLimit = false
 
     while queueHead < queue.count,
       visited.count < budget.maximumDirectories,
-      retainedCount < budget.maximumResults,
+      !foundMatchPastLimit,
       !Task.isCancelled
     {
       let directory = queue[queueHead]
@@ -173,6 +177,10 @@ actor FilenameSearchCoordinator {
           continue
         }
         if item.name.lowercased().contains(query) {
+          guard retainedCount < budget.maximumResults else {
+            foundMatchPastLimit = true
+            break
+          }
           batch.append(
             FilenameSearchResult(
               id: item.id,
@@ -187,10 +195,6 @@ actor FilenameSearchCoordinator {
               .batch(generation: generation, results: batch)
             )
             batch.removeAll(keepingCapacity: true)
-          }
-          if retainedCount == budget.maximumResults {
-            wasTruncated = true
-            break
           }
         }
         if item.kind.isDirectoryLike,
@@ -209,7 +213,9 @@ actor FilenameSearchCoordinator {
       }
     }
 
-    if visited.count == budget.maximumDirectories, queueHead < queue.count {
+    if foundMatchPastLimit
+      || (visited.count == budget.maximumDirectories && queueHead < queue.count)
+    {
       wasTruncated = true
     }
     if !batch.isEmpty, !Task.isCancelled {

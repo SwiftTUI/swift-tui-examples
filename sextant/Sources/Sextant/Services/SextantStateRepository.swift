@@ -57,7 +57,7 @@ actor SextantStateRepository {
   func recordRecent(_ url: URL) throws {
     var state = try load()
     let path = url.standardizedFileURL.path
-    state.recents.removeAll { $0 == path }
+    state.recents.removeAll { $0.isSamePath(as: path) }
     state.recents.insert(path, at: 0)
     state.recents = Array(state.recents.prefix(50))
     try persist(state)
@@ -66,7 +66,7 @@ actor SextantStateRepository {
   func toggleBookmark(_ url: URL) throws -> Bool {
     var state = try load()
     let path = url.standardizedFileURL.path
-    if let index = state.bookmarks.firstIndex(of: path) {
+    if let index = state.bookmarks.firstIndex(where: { $0.isSamePath(as: path) }) {
       state.bookmarks.remove(at: index)
       try persist(state)
       return false
@@ -93,8 +93,22 @@ actor SextantStateRepository {
   }
 
   private func unique(_ values: [String]) -> [String] {
-    var seen: Set<String> = []
-    return values.filter { seen.insert($0).inserted }
+    var seen: Set<[UInt8]> = []
+    return values.filter { seen.insert($0.pathBytes).inserted }
+  }
+}
+
+extension String {
+  /// The path's identity as POSIX sees it: its bytes. `String` equality is
+  /// Unicode canonical equivalence, which makes the NFC and NFD spellings of
+  /// a name equal although they name two files where the filesystem keeps
+  /// bytes (Linux), so stored paths compare and hash by their UTF-8 bytes.
+  var pathBytes: [UInt8] {
+    Array(utf8)
+  }
+
+  func isSamePath(as other: String) -> Bool {
+    utf8.elementsEqual(other.utf8)
   }
 }
 

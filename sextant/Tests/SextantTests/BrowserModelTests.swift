@@ -475,6 +475,25 @@ struct BrowserModelTests {
     #expect(fixture.model.state.status == .message("Bookmarked \(first.url.path)."))
   }
 
+  /// Bookmarked paths are byte strings: the NFC and NFD spellings of a name
+  /// are two files where the filesystem keeps bytes, so neither response may
+  /// replace the other's entry.
+  @Test("bookmark responses keep byte-distinct paths apart")
+  func bookmarkResponsesKeepByteDistinctPaths() {
+    let fixture = BrowserModelFixture()
+    let composed = "/fixture/\u{E9}"
+    let decomposed = "/fixture/e\u{301}"
+
+    fixture.model.send(.bookmarkResponse(path: composed, isBookmarked: true))
+    fixture.model.send(.bookmarkResponse(path: decomposed, isBookmarked: true))
+    #expect(
+      fixture.model.state.bookmarks.map { Array($0.utf8) }
+        == [Array(composed.utf8), Array(decomposed.utf8)])
+
+    fixture.model.send(.bookmarkResponse(path: decomposed, isBookmarked: false))
+    #expect(fixture.model.state.bookmarks.map { Array($0.utf8) } == [Array(composed.utf8)])
+  }
+
   @Test("a loaded child snapshot refreshes the selected directory preview")
   func directorySummaryPreviewReceivesSnapshot() async throws {
     let fixture = BrowserModelFixture()

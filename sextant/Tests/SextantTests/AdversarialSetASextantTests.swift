@@ -151,11 +151,8 @@ private func e1Search(_ id: Int) async throws {
       search, root: root, query: id == 158 ? "needle" : "écl")
     if id == 158 {
       #expect(results.sorted() == ["needle-1", "needle-2"])
-      e1Known(
-        "NEW-24: a search with exactly the result limit of matches reports the results as truncated; reaching maximumResults sets wasTruncated without checking for further matches; contract: FilenameSearchCoordinator.swift:212-214 (truncation means work remained), ColumnBrowser.swift:459-461"
-      ) {
-        #expect(truncated == false)
-      }
+      // STUI-1345: exactly maximumResults matches are not truncated.
+      #expect(truncated == false)
     } else {
       #expect(results == ["e\u{301}clair.txt"])
     }
@@ -353,15 +350,8 @@ private func e1ExecutableSearch(_ id: Int) async throws {
     let found = await PreviewExecutableCache.live(path: path).availability(for: [adapter])["tool"]
     let resolved = found.map(URL.init(fileURLWithPath:))
     #expect(resolved?.lastPathComponent == "tool")
-    if id == 156 {
-      e1Known(
-        "NEW-23: a directory named like a preview tool earlier in PATH is chosen as its executable; PreviewExecutableCache.live accepts FileManager.isExecutableFile, which is true for searchable directories; contract: POSIX XCU 2.9.1.4 (first executable file), HandoffClient.swift:299-312"
-      ) {
-        #expect(resolved?.deletingLastPathComponent().lastPathComponent == "dirB")
-      }
-    } else {
-      #expect(resolved?.deletingLastPathComponent().lastPathComponent == "dirB")
-    }
+    // STUI-1345 (e1s156): a directory named like the tool is not an executable file.
+    #expect(resolved?.deletingLastPathComponent().lastPathComponent == "dirB")
   }
 }
 
@@ -376,12 +366,9 @@ private func e1PreviewTemplates(_ id: Int) {
     : ExternalPreviewConfiguration(
       id: "nice", displayName: "Nice", executable: "nice",
       arguments: ["sh", "-c", "cat \"$1\"", "sh", "{path}"])
-  e1Known(
-    "NEW-25: preview templates that run inline interpreter source are accepted; executesInterpreterSource recognises only eight shell basenames, directly or after env; contract: README.md:93-96, SextantConfiguration.swift:335-336"
-  ) {
-    #expect(throws: ConfigurationFailure.previewAdapterContainsShellSource(adapter.id)) {
-      _ = try SextantConfiguration(previewAdapters: [adapter]).validated()
-    }
+  // STUI-1345: interpreters other than shells, and wrappers other than env.
+  #expect(throws: ConfigurationFailure.previewAdapterContainsShellSource(adapter.id)) {
+    _ = try SextantConfiguration(previewAdapters: [adapter]).validated()
   }
 }
 
@@ -400,27 +387,12 @@ private func e1Bookmarks() async throws {
       client: .jsonFile(at: root.appendingPathComponent("state.json")))
     #expect(try await repository.toggleBookmark(composed))
     let second = try await repository.toggleBookmark(decomposed)
-    if distinct == 1 {
-      #expect(second == false)
-    } else {
-      e1Known(
-        "NEW-26: bookmarking one of two distinct NFC/NFD-named files reports the other as already bookmarked; bookmark identity is Swift String equality, which is canonical equivalence; contract: POSIX filenames are byte strings (two inodes here)"
-      ) {
-        #expect(second)
-      }
-    }
+    // STUI-1345: bookmarks are keyed by path bytes, so two files stay two.
+    #expect(second == (distinct == 2))
   }
 }
 
 // MARK: - fixtures
-
-private func e1Known(_ comment: Comment, _ body: () throws -> Void) {
-  if ProcessInfo.processInfo.environment["SWIFTTUI_E1_UNMARKED"] == "1" {
-    do { try body() } catch { Issue.record(error, comment) }
-  } else {
-    withKnownIssue(comment) { try body() }
-  }
-}
 
 private func e1Request(_ url: URL, policy: DirectoryPolicy = DirectoryPolicy()) -> DirectoryRequest
 {

@@ -286,7 +286,7 @@ private func resolveLaunchExecutable(
       fileURLWithPath: directory,
       isDirectory: true
     ).appendingPathComponent(executable).path
-    if isExecutableFile(candidate) {
+    if isExecutableRegularFile(candidate) {
       return .success(candidate)
     }
   }
@@ -296,7 +296,10 @@ private func resolveLaunchExecutable(
   )
 }
 
-private func isExecutableFile(_ path: String) -> Bool {
+/// Whether `path` names an executable regular file, following symbolic
+/// links. PATH search wants an executable *file* (POSIX XCU 2.9.1.4);
+/// `access(X_OK)` alone is also true for a searchable directory.
+func isExecutableRegularFile(_ path: String) -> Bool {
   var info = stat()
   let status = path.withCString {
     unsafe stat($0, &info)

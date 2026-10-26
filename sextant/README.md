@@ -96,7 +96,31 @@ environment variable is not set, the path is
 Configuration covers default hidden/sort/watch policy, key declarations,
 colors, editor argv, and external-preview argv templates. External templates
 must contain `{path}` as a standalone argv element and cannot execute inline
-shell source. The runtime-owned `application.quit` binding is fixed at `q` and
+shell or interpreter source. The configuration rejects a template when:
+
+- any argument contains `$(`, `${`, or a backquote; or
+- the executable, or any later argument, names one of these interpreters and a
+  later argument passes it program text:
+
+  | Interpreter | Refused options |
+  | --- | --- |
+  | `sh`, `bash`, `dash`, `zsh`, `ksh`, `mksh`, `oksh`, `pdksh`, `posh`, `ash`, `yash`, `rbash`, `csh`, `tcsh`, `fish` | an option cluster containing `c` or `C` (`-c`, `-lc`, fish `-C`), `--command`, `--init-command` |
+  | `python`, `pypy` | `-c`, also in a cluster such as `-Ic` |
+  | `perl` | `-e`, `-E`, also in a cluster such as `-ne` |
+  | `ruby`, `lua`, `luajit`, `osascript` | `-e`, also in a cluster such as `-ne` |
+  | `node`, `nodejs`, `bun` | `-e`, `-p`, `--eval`, `--print` |
+  | `php` | `-r`, `-B`, `-R`, `-E` |
+  | `deno` | the `eval` subcommand |
+  | `pwsh`, `powershell` | `-Command`, `-CommandWithArgs`, `-EncodedCommand`, and their abbreviations (`-c`, `-cwa`, `-e`, `-ec`) |
+
+  Names match case-insensitively, with any directory and any version suffix
+  (`/usr/bin/python3.12`). Because the interpreter can appear after the
+  executable, wrappers such as `env`, `nice`, `timeout`, `sudo`, `xcrun`, or
+  `busybox` do not avoid the check. An option letter whose value is the rest of
+  its cluster ends the cluster, so `python3 -Xdev`, `perl -MJSON::PP`, and
+  `php -derror_reporting=E_ALL` pass.
+
+The runtime-owned `application.quit` binding is fixed at `q` and
 Ctrl-D. The configuration rejects overrides of this binding. CLI flags
 override applicable configuration defaults.
 
