@@ -28,6 +28,10 @@ only effective options. An unsupported option produces an error.
 | `DateWindowOptions` | `--since`, `--until` | the subcommands that pass a window through to git |
 | `RankingOptions` | `--top` | the four subcommands that rank something |
 
+`--path` can name any directory in a repository's worktree, or a bare
+repository. `info` names the current branch, including a branch with no commits
+yet, or shows `detached HEAD`.
+
 `activity`, `health`, `pulse`, and `recent-vs-all` do not accept `--since` or
 `--until`. Each command has a fixed window that defines the chart. The windows
 are a calendar year, one year, five weeks, and 30 days versus all time.

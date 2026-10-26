@@ -21,7 +21,7 @@ struct GitRepoTests {
   private static func twoCommitRunner() -> RecordedGitRunner {
     RecordedGitRunner([
       ["rev-parse", "--show-toplevel"]: "\(repoPath)\n",
-      ["rev-parse", "--abbrev-ref", "HEAD"]: "main\n",
+      ["branch", "--show-current"]: "main\n",
       ["rev-list", "--count", "HEAD"]: "2\n",
       ["log", "--reverse", "--pretty=format:%aI", "--max-count", "1"]: newest,
       ["log", "--reverse", "--pretty=format:%aI"]: "\(oldest)\n\(newest)",
@@ -72,10 +72,42 @@ struct GitRepoTests {
     let info = try repo.info(maxCommitsForScannedShare: 1)
 
     #expect(info.branch == "main")
+    #expect(!info.isDetached)
+    #expect(info.headLabel == "branch main")
     #expect(info.commitCount == 2)
     #expect(info.contributorCount == 1)
     #expect(info.tagCount == 2)
     #expect(info.scannedCommitShare == 0.5)
+  }
+
+  @Test("info() says a detached HEAD is detached rather than naming a branch")
+  func infoLabelsDetachedHead() throws {
+    // `branch --show-current` prints an empty line when HEAD is detached.
+    let detached = RecordedGitRunner([
+      ["rev-parse", "--show-toplevel"]: "\(Self.repoPath)\n",
+      ["branch", "--show-current"]: "\n",
+    ])
+    let info = try GitRepo(
+      workingDirectory: URL(fileURLWithPath: Self.repoPath),
+      runner: detached
+    ).info()
+
+    #expect(info.branch == nil)
+    #expect(info.isDetached)
+    #expect(info.headLabel == "detached HEAD")
+
+    // When git cannot say at all, nothing is claimed either way.
+    let unknown = RecordedGitRunner([
+      ["rev-parse", "--show-toplevel"]: "\(Self.repoPath)\n"
+    ])
+    let unknownInfo = try GitRepo(
+      workingDirectory: URL(fileURLWithPath: Self.repoPath),
+      runner: unknown
+    ).info()
+
+    #expect(unknownInfo.branch == nil)
+    #expect(!unknownInfo.isDetached)
+    #expect(unknownInfo.headLabel == nil)
   }
 
   // MARK: - Opening a repository
@@ -92,6 +124,46 @@ struct GitRepoTests {
     )
 
     #expect(repo.workingDirectory.path == Self.repoPath)
+  }
+
+  @Test("opening keeps the toplevel verbatim, trailing space included")
+  func openingKeepsTrailingSpaceInToplevel() throws {
+    let runner = RecordedGitRunner([
+      ["rev-parse", "--show-toplevel"]: "/tmp/trail \n"
+    ])
+
+    let repo = try GitRepo(workingDirectory: URL(fileURLWithPath: "/tmp/trail "), runner: runner)
+
+    #expect(repo.workingDirectory.path == "/tmp/trail ")
+  }
+
+  @Test("opening a bare repository resolves its git directory")
+  func openingBareRepositoryUsesGitDir() throws {
+    // No recording for `--show-toplevel`: git refuses it without a worktree.
+    let runner = RecordedGitRunner([
+      ["rev-parse", "--is-bare-repository", "--absolute-git-dir"]: "true\n/srv/x.git\n"
+    ])
+
+    let repo = try GitRepo(
+      workingDirectory: URL(fileURLWithPath: "/srv/x.git/refs"), runner: runner)
+
+    #expect(repo.workingDirectory.path == "/srv/x.git")
+    #expect(
+      runner.issued == [
+        ["rev-parse", "--show-toplevel"],
+        ["rev-parse", "--is-bare-repository", "--absolute-git-dir"],
+      ])
+  }
+
+  @Test("opening the inside of a worktree's .git directory is still refused")
+  func openingInsideGitDirectoryIsStillRefused() {
+    let runner = RecordedGitRunner([
+      ["rev-parse", "--is-bare-repository", "--absolute-git-dir"]: "false\n/r/.git\n"
+    ])
+
+    #expect(throws: GitRepoError.self) {
+      try GitRepo(workingDirectory: URL(fileURLWithPath: "/r/.git"), runner: runner)
+    }
   }
 
   @Test("opening a non-repository throws notARepository")

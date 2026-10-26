@@ -138,17 +138,10 @@ private func e1RepositoryShapes(_ id: Int) throws {
     let expected = e1RealPath(repo)
     #expect(expected.hasSuffix(id == 112 ? "trail " : "a b/界"))
     let commitCount = (try? opened.commits().count) ?? -1
-    if id == 112 {
-      e1Known(
-        "NEW-5: a repository whose directory ends in a space resolves to the trimmed path and every history read fails; GitRepo.init whitespace-trims the --show-toplevel line; contract: GitRepo.swift:19-20 and :26-31 (the worktree root git reports)"
-      ) {
-        #expect(opened.workingDirectory.path == expected)
-        #expect(commitCount == 1)
-      }
-    } else {
-      #expect(opened.workingDirectory.path == expected)
-      #expect(commitCount == 1)
-    }
+    // STUI-1339: the --show-toplevel path is kept verbatim (one newline
+    // stripped), so `trail ` keeps its trailing space.
+    #expect(opened.workingDirectory.path == expected)
+    #expect(commitCount == 1)
   case 114:
     try fixture.write("x\n", to: "f.txt")
     try fixture.commitAll("one", at: "2020-01-01T00:00:00+0000")
@@ -156,12 +149,9 @@ private func e1RepositoryShapes(_ id: Int) throws {
     try fixture.git(["clone", "-q", "--bare", repo.path, bare.path])
     // Precondition from git itself: history is readable in the bare repository.
     #expect(try fixture.gitText(["log", "--format=%s"], in: bare) == "one")
-    e1Known(
-      "NEW-6: a bare repository with history is refused as not a git repository; GitRepo.init validates with rev-parse --show-toplevel, which requires a worktree; contract: GitRepo.swift:26-31 (work the way every other git command does)"
-    ) {
-      let opened = try GitRepo(workingDirectory: bare)
-      #expect(try opened.commits().count == 1)
-    }
+    // STUI-1339: a bare repository opens at its git directory.
+    let opened = try GitRepo(workingDirectory: bare)
+    #expect(try opened.commits().count == 1)
   case 115:
     try fixture.write("x\n", to: "f.txt")
     try fixture.commitAll("one", at: "2020-01-01T00:00:00+0000")
@@ -170,20 +160,17 @@ private func e1RepositoryShapes(_ id: Int) throws {
     try fixture.git(["checkout", "-q", "--detach", "HEAD~1"], in: repo)
     #expect(try fixture.gitText(["branch", "--show-current"]) == "")
     let info = try fixture.open().info()
-    e1Known(
-      "NEW-7: git-viz info labels a detached HEAD as branch HEAD and an unborn branch as no branch; the branch is read from rev-parse --abbrev-ref HEAD; contract: git-branch(1) --show-current, GitRepo.swift:103 (no branch is nil)"
-    ) {
-      #expect(info.branch == nil)
-    }
+    // STUI-1339: the branch comes from branch --show-current; detached is nil
+    // and is said explicitly.
+    #expect(info.branch == nil)
+    #expect(info.isDetached && info.headLabel == "detached HEAD")
   case 116, 117:
     let info = try fixture.open().info()
     if id == 116 {
       #expect(try fixture.gitText(["branch", "--show-current"]) == "trunk")
-      e1Known(
-        "NEW-7: git-viz info labels a detached HEAD as branch HEAD and an unborn branch as no branch; the branch is read from rev-parse --abbrev-ref HEAD; contract: git-branch(1) --show-current, GitRepo.swift:103 (no branch is nil)"
-      ) {
-        #expect(info.branch == "trunk")
-      }
+      // STUI-1339: an unborn branch is still named.
+      #expect(info.branch == "trunk")
+      #expect(!info.isDetached && info.headLabel == "branch trunk")
     } else {
       #expect(info.commitCount == 0 && info.contributorCount == 0 && info.tagCount == 0)
       #expect(info.firstCommitDate == nil && info.lastCommitDate == nil)

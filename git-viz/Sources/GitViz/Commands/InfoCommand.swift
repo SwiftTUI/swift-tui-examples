@@ -28,7 +28,7 @@ struct InfoCommand: AsyncParsableCommand {
     GitVizRunOnce.print(
       ChartCard(
         title: "Repository",
-        subtitle: info.branch.map { "branch \($0)" } ?? nil
+        subtitle: info.headLabel
       ) {
         VStack(alignment: .leading, spacing: 0) {
           LabeledContent("Path", value: repository.resolvedPath.path)
