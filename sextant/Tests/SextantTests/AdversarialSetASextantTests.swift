@@ -292,23 +292,18 @@ private func e1DisplayNames(_ id: Int) async throws {
       Issue.record("expected a directory summary")
       return
     }
-    e1Known(e1NameComment) {
-      #expect(summary.entryNames == [name])
-    }
+    // STUI-1344: a tag-sequence flag keeps its tag characters.
+    #expect(summary.entryNames == [name])
     return
   }
   let preview = await previewer.preview(item: file)
   if id == 148 {
-    e1Known(e1NameComment) {
-      #expect(preview.metadata.displayName == name)
-    }
+    // STUI-1344: a ZWJ sequence keeps its joiners.
+    #expect(preview.metadata.displayName.unicodeScalars.elementsEqual(name.unicodeScalars))
   } else {
     #expect(preview.metadata.displayName == "a\u{FFFD}b")
   }
 }
-
-private let e1NameComment: Comment =
-  "NEW-19: filenames with emoji ZWJ or tag sequences are mangled in previews; sanitizedDisplayName replaces every CharacterSet.controlCharacters scalar, which includes format (Cf) characters such as U+200D and U+E0020-E007F; contract: UTS #51 2.2.3 and 2.3, BuiltInPreviewer.swift:164-171 (control characters only)"
 
 // MARK: - editor command lexing (e1s151–e1s155)
 
@@ -317,27 +312,18 @@ private func e1Lexer(_ id: Int) throws {
   switch id {
   case 151:
     let words = try lexer.parse("edit \"C:\\temp\"")
-    e1Known(
-      "NEW-20: an editor command loses a backslash inside double quotes; the lexer treats backslash as an escape before any character in double quotes; contract: POSIX XCU 2.2.3 (special only before $ ` \" \\ newline)"
-    ) {
-      #expect(words == ["edit", "C:\\temp"])
-    }
+    // STUI-1344: inside double quotes `\t` is not an escape (XCU 2.2.3).
+    #expect(words == ["edit", "C:\\temp"])
   case 152:
     let words = try lexer.parse("code \\\n--wait")
-    e1Known(
-      "NEW-21: an editor command keeps a backslash-newline as a newline character; the unquoted escape appends the newline instead of removing the continuation; contract: POSIX XCU 2.2.1"
-    ) {
-      #expect(words == ["code", "--wait"])
-    }
+    // STUI-1344: backslash-newline is a removed continuation (XCU 2.2.1).
+    #expect(words == ["code", "--wait"])
   case 153, 154:
     let source = id == 153 ? "/Apps/My\u{A0}Editor --wait" : "エディタ\u{3000}起動"
     let words = try lexer.parse(source)
-    e1Known(
-      "NEW-22: an editor command splits words at no-break and ideographic spaces; the lexer delimits on Character.isWhitespace instead of POSIX blank; contract: POSIX XCU 2.3, XBD 7.3.1 (blank is space and tab)"
-    ) {
-      #expect(
-        words == (id == 153 ? ["/Apps/My\u{A0}Editor", "--wait"] : ["エディタ\u{3000}起動"]))
-    }
+    // STUI-1344: only space, tab and newline delimit (XCU 2.3, XBD 7.3.1).
+    #expect(
+      words == (id == 153 ? ["/Apps/My\u{A0}Editor", "--wait"] : ["エディタ\u{3000}起動"]))
   default:
     #expect(try lexer.parse("'it'\\''s' \"a\\\"b\" \"\"") == ["it's", "a\"b", ""])
   }

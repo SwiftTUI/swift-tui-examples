@@ -325,6 +325,31 @@ struct ConfigurationAndHandoffTests {
     #expect(try POSIXWordLexer().parse(source) == expected)
   }
 
+  /// POSIX XCU 2.2.1 and 2.2.3: inside double quotes a backslash escapes only
+  /// `$`, backquote, `"`, `\` and newline; backslash-newline is a line
+  /// continuation in both contexts; words split only at space, tab and newline.
+  @Test(
+    "POSIX lexer applies the shell's backslash and blank rules",
+    arguments: backslashAndBlankCases
+  )
+  func posixBackslashRules(source: String, expected: [String]) throws {
+    let words = try POSIXWordLexer().parse(source)
+    #expect(words.map { Array($0.unicodeScalars) } == expected.map { Array($0.unicodeScalars) })
+  }
+
+  private static let backslashAndBlankCases: [(String, [String])] = [
+    (
+      "\"\\$x\" \"\\`\" \"a\\\\b\" \"a\\b\" \"line\\\ncont\"",
+      ["$x", "`", "a\\b", "a\\b", "linecont"]
+    ),
+    ("a \\\n b", ["a", "b"]),
+    ("co\\\nde --wait", ["code", "--wait"]),
+    ("a\tb\nc", ["a", "b", "c"]),
+    ("'a\\b' 'c\\\nd'", ["a\\b", "c\\\nd"]),
+    ("e\\\u{301}", ["e\u{301}"]),
+    ("\u{A0}x\u{2003}y\u{3000}", ["\u{A0}x\u{2003}y\u{3000}"]),
+  ]
+
   @Test("POSIX lexer reports malformed input")
   func malformedLexer() {
     #expect(throws: POSIXWordLexer.Failure.unterminatedSingleQuote) {
