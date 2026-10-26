@@ -10,6 +10,9 @@ import Testing
 /// pinned identities and dates, and pins `core.quotePath` / `diff.renames`
 /// locally so a developer's global configuration cannot change what the
 /// runner observes. Layout and adapter cases are pure.
+///
+/// Every expectation is a plain assertion: the findings this file guarded
+/// (STUI-1338 through STUI-1341) are repaired.
 @Suite("Campaign E1 pass 2 git-viz contracts", .serialized)
 struct AdversarialSetAGitVizTests {
   @Test(arguments: Array(101...126))
@@ -42,16 +45,9 @@ private func e1NumstatAndSeparators(_ id: Int) throws {
     try fixture.git(["mv", before, after], in: repo)
     try fixture.commitAll("rename", at: "2020-01-02T00:00:00+0000")
     let rename = try #require(try fixture.open().commits().first { $0.subject == "rename" })
-    if id == 101 {
-      e1Known(
-        "NEW-1: a rename whose paths hold TAB-digit runs inflates deletions; sumNumstat splits every NUL entry on TAB, so the -z rename's path entries are parsed as counts; contract: git-diff(1) --numstat -z rename framing"
-      ) {
-        #expect(rename.deletions == 0)
-      }
-      #expect(rename.insertions == 0)
-    } else {
-      #expect(rename.insertions == 0 && rename.deletions == 0)
-    }
+    // STUI-1338: the -z rename's path entries are consumed as paths, never as
+    // counts (git-diff(1) --numstat -z rename framing).
+    #expect(rename.insertions == 0 && rename.deletions == 0)
   case 103:
     try fixture.write(Data([0x00, 0x01, 0x02, 0xFF]), to: "bin.dat")
     try fixture.commitAll("binary", at: "2020-01-01T00:00:00+0000")
@@ -78,23 +74,10 @@ private func e1NumstatAndSeparators(_ id: Int) throws {
     #expect(try fixture.gitText(["log", "-1", "--format=%s"]) == subject)
     #expect(try fixture.gitText(["log", "-1", "--format=%aN"]) == author)
     let newest = try #require(commits.first)
-    if id == 107 {
-      #expect(newest.subject == subject && newest.insertions == 1)
-      return
-    }
-    e1Known(
-      "NEW-2: a control-character subject or author shifts git-viz's fields and drops numstat; RS/US are the record and field separators and git preserves them in %s and %aN; contract: GitParsers.swift:10-12 (avoids collisions with any character in subjects or author names)"
-    ) {
-      #expect(newest.subject == subject)
-      #expect(newest.insertions == 1)
-      if id == 106 {
-        #expect(newest.authorName == author)
-        #expect(newest.authorEmail == "a@example.com")
-      }
-    }
-    if id != 106 {
-      #expect(newest.authorName == author && newest.authorEmail == "a@example.com")
-    }
+    // STUI-1338: fields are NUL-framed, so RS and US in %s or %aN stay
+    // content (GitParsers.swift logFormat).
+    #expect(newest.subject == subject && newest.insertions == 1)
+    #expect(newest.authorName == author && newest.authorEmail == "a@example.com")
   default:
     try fixture.commitAll("root", at: "2020-01-01T00:00:00+0000", allowEmpty: true)
     try fixture.git(["checkout", "-q", "-b", "side"], in: repo)
@@ -134,14 +117,9 @@ private func e1ChangedFileCounts(_ id: Int) throws {
     Set(String(decoding: listed, as: UTF8.self).split(separator: "\0").map(String.init))
       == Set(names))
   let tallies = try fixture.open().fileChangeCounts()
-  let expected = Set(names.map { FileTally(path: $0, changeCount: 1) })
-  let comment: Comment =
-    id == 110
-    ? "NEW-4: a path with a leading space is tallied as a different file; parseChangedFileCounts trims whitespace from each path line; contract: one tally per changed path (GitParsers.swift:208-210)"
-    : "NEW-3: non-ASCII and control-character paths appear C-quoted in file rankings; fileChangeCounts reads --name-only without -z, which core.quotePath escapes; contract: git-config(1) core.quotePath, GitParsers.swift:208-210"
-  e1Known(comment) {
-    #expect(Set(tallies) == expected)
-  }
+  // STUI-1338: --name-only runs under -z, so paths are neither C-quoted by
+  // core.quotePath nor trimmed; one tally per changed path.
+  #expect(Set(tallies) == Set(names.map { FileTally(path: $0, changeCount: 1) }))
 }
 
 // MARK: - repository shapes (e1s112–e1s118)
@@ -163,17 +141,10 @@ private func e1RepositoryShapes(_ id: Int) throws {
     let expected = e1RealPath(repo)
     #expect(expected.hasSuffix(id == 112 ? "trail " : "a b/界"))
     let commitCount = (try? opened.commits().count) ?? -1
-    if id == 112 {
-      e1Known(
-        "NEW-5: a repository whose directory ends in a space resolves to the trimmed path and every history read fails; GitRepo.init whitespace-trims the --show-toplevel line; contract: GitRepo.swift:19-20 and :26-31 (the worktree root git reports)"
-      ) {
-        #expect(opened.workingDirectory.path == expected)
-        #expect(commitCount == 1)
-      }
-    } else {
-      #expect(opened.workingDirectory.path == expected)
-      #expect(commitCount == 1)
-    }
+    // STUI-1339: the --show-toplevel path is kept verbatim (one newline
+    // stripped), so `trail ` keeps its trailing space.
+    #expect(opened.workingDirectory.path == expected)
+    #expect(commitCount == 1)
   case 114:
     try fixture.write("x\n", to: "f.txt")
     try fixture.commitAll("one", at: "2020-01-01T00:00:00+0000")
@@ -181,12 +152,9 @@ private func e1RepositoryShapes(_ id: Int) throws {
     try fixture.git(["clone", "-q", "--bare", repo.path, bare.path])
     // Precondition from git itself: history is readable in the bare repository.
     #expect(try fixture.gitText(["log", "--format=%s"], in: bare) == "one")
-    e1Known(
-      "NEW-6: a bare repository with history is refused as not a git repository; GitRepo.init validates with rev-parse --show-toplevel, which requires a worktree; contract: GitRepo.swift:26-31 (work the way every other git command does)"
-    ) {
-      let opened = try GitRepo(workingDirectory: bare)
-      #expect(try opened.commits().count == 1)
-    }
+    // STUI-1339: a bare repository opens at its git directory.
+    let opened = try GitRepo(workingDirectory: bare)
+    #expect(try opened.commits().count == 1)
   case 115:
     try fixture.write("x\n", to: "f.txt")
     try fixture.commitAll("one", at: "2020-01-01T00:00:00+0000")
@@ -195,20 +163,17 @@ private func e1RepositoryShapes(_ id: Int) throws {
     try fixture.git(["checkout", "-q", "--detach", "HEAD~1"], in: repo)
     #expect(try fixture.gitText(["branch", "--show-current"]) == "")
     let info = try fixture.open().info()
-    e1Known(
-      "NEW-7: git-viz info labels a detached HEAD as branch HEAD and an unborn branch as no branch; the branch is read from rev-parse --abbrev-ref HEAD; contract: git-branch(1) --show-current, GitRepo.swift:103 (no branch is nil)"
-    ) {
-      #expect(info.branch == nil)
-    }
+    // STUI-1339: the branch comes from branch --show-current; detached is nil
+    // and is said explicitly.
+    #expect(info.branch == nil)
+    #expect(info.isDetached && info.headLabel == "detached HEAD")
   case 116, 117:
     let info = try fixture.open().info()
     if id == 116 {
       #expect(try fixture.gitText(["branch", "--show-current"]) == "trunk")
-      e1Known(
-        "NEW-7: git-viz info labels a detached HEAD as branch HEAD and an unborn branch as no branch; the branch is read from rev-parse --abbrev-ref HEAD; contract: git-branch(1) --show-current, GitRepo.swift:103 (no branch is nil)"
-      ) {
-        #expect(info.branch == "trunk")
-      }
+      // STUI-1339: an unborn branch is still named.
+      #expect(info.branch == "trunk")
+      #expect(!info.isDetached && info.headLabel == "branch trunk")
     } else {
       #expect(info.commitCount == 0 && info.contributorCount == 0 && info.tagCount == 0)
       #expect(info.firstCommitDate == nil && info.lastCommitDate == nil)
@@ -258,11 +223,8 @@ private func e1Windows(_ id: Int) throws {
     #expect(topological == "M\nY\nX")
     let rows = try fixture.open().revList(max: 3).commits
     #expect(rows.count == 3)
-    e1Known(
-      "NEW-8: the DAG shows an empty subject for a commit inside the topological window; revList takes subjects from a date-ordered log --max-count window; contract: GitRepo.swift:215-217 (subjects for the same window)"
-    ) {
-      #expect(rows.map(\.subject) == ["M", "Y", "X"])
-    }
+    // STUI-1340: topology and subjects come from one topological walk.
+    #expect(rows.map(\.subject) == ["M", "Y", "X"])
   } else {
     // Local-time dates without an offset, interpreted by git in the same
     // time zone the bounds are later interpreted in.
@@ -272,11 +234,8 @@ private func e1Windows(_ id: Int) throws {
     try fixture.commitAll("after", at: "2020-01-03 12:00:00", allowEmpty: true)
     let day = try #require(CalendarDay(argument: "2020-01-02")).date
     let subjects = try fixture.open().commits(since: day, until: day).map(\.subject)
-    e1Known(
-      "NEW-9: a one-day --since/--until window drops that day's commits depending on the time of day it runs; formatGitDate passes a bare YYYY-MM-DD that git's approxidate completes with the current wall-clock time; contract: Options.swift:6-31 and :83-96 (calendar-day window)"
-    ) {
-      #expect(Set(subjects) == ["early", "late"])
-    }
+    // STUI-1340: the bounds carry the day's explicit local start and end.
+    #expect(Set(subjects) == ["early", "late"])
   }
 }
 
@@ -293,18 +252,12 @@ private func e1Layout(_ id: Int) {
       rows: rows([("m", ["a", "b", "c"]), ("a", ["r"]), ("b", ["s"]), ("c", ["r"])]))
     let c = result.commits[3]
     #expect(c.lane == 2)
-    e1Known(
-      "NEW-10: a convergence connector joins the nearest occupied lane instead of the lane holding the parent; renderConvergenceConnector picks the first non-nil lane to the left; contract: GraphLayout.swift:209-212"
-    ) {
-      #expect(c.connectorBelow == "├─┼─╯")
-    }
+    // STUI-1341: the join targets the lane waiting for the parent, by id.
+    #expect(c.connectorBelow == "├─┼─╯")
   case 122:
     let result = GraphLayout.layout(rows: rows([("m", ["a", "b"]), ("a", ["b", "x"])]))
-    e1Known(
-      "NEW-11: a merge whose first parent already has a lane draws no join line; the already-waited parent is skipped and the next parent takes the lane, so neither connector branch fires; contract: GitModels.swift:72-75 (joined lines at merges)"
-    ) {
-      #expect(result.commits[1].connectorBelow != nil)
-    }
+    // STUI-1341: every already-waited parent gets a join.
+    #expect(result.commits[1].connectorBelow != nil)
   case 123:
     let result = GraphLayout.layout(
       rows: rows(
@@ -314,11 +267,8 @@ private func e1Layout(_ id: Int) {
     let widest =
       result.commits.flatMap { [$0.glyphRow, $0.connectorBelow ?? ""] }
       .map(\.count).max() ?? 0
-    e1Known(
-      "NEW-12: an octopus merge emits a connector wider than maxLanes before the layout bails; the lane check runs before parents are appended; contract: GraphLayout.swift:23-24"
-    ) {
-      #expect(widest <= 2 * 3 - 1)
-    }
+    // STUI-1341: the lane bound is checked before a connector is emitted.
+    #expect(widest <= 2 * 3 - 1)
   default:
     let result = GraphLayout.layout(rows: rows([("m", ["a", "z"]), ("a", [])]))
     #expect(result.commits[1].glyphRow == "● │")
@@ -340,11 +290,8 @@ private func e1DailyCounts() {
     commits: [commit], in: lower...upper, calendar: calendar)
   #expect(days.count == 3)
   #expect((lower...upper).contains(inside))
-  e1Known(
-    "NEW-13: the calendar heatmap drops a commit on the first day of a window that starts mid-day; dailyCommitCounts filters the commit's start-of-day against the raw lower bound; contract: DateValueAdapters.swift:7-8"
-  ) {
-    #expect(days.first?.value == 1)
-  }
+  // STUI-1340: the filter's lower bound is the start of the first day.
+  #expect(days.first?.value == 1)
 }
 
 private func e1Shortlog() {
@@ -353,14 +300,6 @@ private func e1Shortlog() {
 }
 
 // MARK: - fixtures
-
-private func e1Known(_ comment: Comment, _ body: () throws -> Void) {
-  if ProcessInfo.processInfo.environment["SWIFTTUI_E1_UNMARKED"] == "1" {
-    do { try body() } catch { Issue.record(error, comment) }
-  } else {
-    withKnownIssue(comment) { try body() }
-  }
-}
 
 private func e1RealPath(_ url: URL) -> String {
   guard let resolved = realpath(url.path, nil) else { return url.path }

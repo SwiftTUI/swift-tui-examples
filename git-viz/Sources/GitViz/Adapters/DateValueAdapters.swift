@@ -6,20 +6,27 @@ import SwiftTUICharts
 enum DateValueAdapters {
   /// Counts commits per calendar day in `range`, producing one
   /// `DateValue` per day (filling in zeros for empty days).
+  ///
+  /// `range` is read as whole calendar days, from the lower bound's day
+  /// through the upper bound's: every commit on one of those days counts,
+  /// whatever its time of day.
   static func dailyCommitCounts(
     commits: [Commit],
     in range: ClosedRange<Date>,
     calendar: Calendar = .current
   ) -> [DateValue] {
+    // A commit is matched by its start of day, so the lower bound has to be
+    // a start of day too: a mid-day bound would drop every first-day commit.
+    let days = calendar.startOfDay(for: range.lowerBound)...range.upperBound
     var perDay: [Date: Int] = [:]
     for commit in commits {
       let day = calendar.startOfDay(for: commit.date)
-      guard range.contains(day) else { continue }
+      guard days.contains(day) else { continue }
       perDay[day, default: 0] += 1
     }
 
     var output: [DateValue] = []
-    var cursor = calendar.startOfDay(for: range.lowerBound)
+    var cursor = days.lowerBound
     let end = calendar.startOfDay(for: range.upperBound)
     while cursor <= end {
       output.append(DateValue(cursor, value: Double(perDay[cursor] ?? 0)))

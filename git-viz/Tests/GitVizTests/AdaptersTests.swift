@@ -30,6 +30,24 @@ struct AdaptersTests {
     #expect(series[2].value == 1)
   }
 
+  @Test("dailyCommitCounts counts the whole first day of a range that starts mid-day")
+  func dailyCommitCountsKeepsWholeFirstDay() {
+    let commits = [
+      sampleCommit(at: isoDate("2024-03-09T23:00:00Z"), subject: "the day before"),
+      sampleCommit(at: isoDate("2024-03-10T08:00:00Z"), subject: "first day, early"),
+      sampleCommit(at: isoDate("2024-03-10T15:00:00Z"), subject: "first day, late"),
+      sampleCommit(at: isoDate("2024-03-12T15:00:00Z"), subject: "last day"),
+    ]
+    let series = DateValueAdapters.dailyCommitCounts(
+      commits: commits,
+      in: isoDate("2024-03-10T10:00:00Z")...isoDate("2024-03-12T00:00:00Z"),
+      calendar: calendar
+    )
+    // The range is whole calendar days: the first bucket holds both first-day
+    // commits, the last bucket its commit, and the day before stays out.
+    #expect(series.map(\.value) == [2, 0, 1])
+  }
+
   @Test("hourlyCommitCounts produces exactly 24 entries")
   func hourlyAlwaysReturns24() {
     let series = DateValueAdapters.hourlyCommitCounts(commits: [])

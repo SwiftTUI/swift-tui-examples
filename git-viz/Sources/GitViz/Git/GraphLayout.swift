@@ -20,8 +20,11 @@ enum GraphLayout {
   /// - Parameters:
   ///   - rows: `(sha, parents, subject)` triples in display order
   ///     (newest first).
-  ///   - maxLanes: Bail out and stop laying out once a row would need
-  ///     more than `maxLanes` simultaneous lanes. Defaults to 12.
+  ///   - maxLanes: Bail out and stop laying out once a row — a commit's
+  ///     own row or the connector row below it — would need more than
+  ///     `maxLanes` simultaneous lanes. A commit whose row fits but whose
+  ///     connector would not is emitted without the connector. Defaults
+  ///     to 12.
   static func layout(
     rows: [(sha: String, parents: [String], subject: String)],
     maxLanes: Int = 12
@@ -52,16 +55,19 @@ enum GraphLayout {
       let commitGlyphs = renderGlyphRow(commitLane: lane, lanes: lanes)
 
       // 3. Process parents. The commit's lane is freed first; then each
-      //    parent is either reused-in-place (if some lane already waits
+      //    parent is either joined in place (if some lane already waits
       //    for it) or assigned to the commit's freed lane (first eligible
-      //    parent only) or to a brand-new lane. Skipping already-waited
+      //    parent only) or to a brand-new lane. Joining already-waited
       //    parents avoids the duplicate-lane bug where two lanes would
-      //    point at the same SHA.
+      //    point at the same SHA; each join is remembered by the lane that
+      //    holds that parent, so the connector can draw it.
       lanes[lane] = nil
       var newLanes: [Int] = []
+      var joinLanes: [Int] = []
       var commitLaneAssigned = false
       for parent in row.parents {
-        if lanes.contains(parent) {
+        if let waiting = lanes.firstIndex(of: parent) {
+          joinLanes.append(waiting)
           continue
         }
         if !commitLaneAssigned {
@@ -76,21 +82,37 @@ enum GraphLayout {
         }
       }
 
-      // 4. Decide whether to emit a connector row below this commit.
+      // 4. The connector below this commit spans every lane it touches, so
+      //    it needs the lanes as they are after its parents are placed.
+      //    When that is more than `maxLanes`, emit the commit row (which
+      //    fits) without the connector and stop.
+      if lanes.count > maxLanes {
+        bailed = true
+        result.append(
+          GraphCommit(
+            sha: row.sha,
+            parents: row.parents,
+            subject: row.subject,
+            lane: lane,
+            glyphs: commitGlyphs,
+            connectorGlyphs: nil
+          )
+        )
+        break
+      }
+
+      // 5. Emit a connector when a parent opened a lane or joined one.
       let connectorGlyphs: [GraphGlyph]?
-      if !newLanes.isEmpty {
-        connectorGlyphs = renderFanOutConnector(
-          commitLane: lane,
-          newLanes: newLanes,
-          lanes: lanes
-        )
-      } else if !commitLaneAssigned, !row.parents.isEmpty {
-        connectorGlyphs = renderConvergenceConnector(
-          fromLane: lane,
-          lanes: lanes
-        )
-      } else {
+      if newLanes.isEmpty && joinLanes.isEmpty {
         connectorGlyphs = nil
+      } else {
+        connectorGlyphs = renderConnector(
+          commitLane: lane,
+          continues: commitLaneAssigned,
+          newLanes: newLanes,
+          joinLanes: joinLanes,
+          lanes: lanes
+        )
       }
 
       result.append(
@@ -104,7 +126,7 @@ enum GraphLayout {
         )
       )
 
-      // 5. Trim trailing nil lanes so the array stays compact.
+      // 6. Trim trailing nil lanes so the array stays compact.
       while let last = lanes.last, last == nil {
         lanes.removeLast()
       }
@@ -143,33 +165,54 @@ enum GraphLayout {
     return glyphs
   }
 
-  /// Renders the fan-out connector below a merge commit. New parent lanes
-  /// can land on either side of `commitLane` depending on which free slot
-  /// the allocator picked (e.g., a left-side lane was vacated by an
-  /// earlier convergence), so this routine generalizes over LEFT, RIGHT,
-  /// or BOTH directions.
+  /// Renders the connector row below a commit whose parents opened new
+  /// lanes (a merge's fan-out) or joined lanes that already wait for them
+  /// (a convergence). One row draws both: it spans from the commit's lane to
+  /// the farthest new or joined lane on either side. New lanes can land on
+  /// either side of `commitLane` depending on which free slot the allocator
+  /// picked (e.g., a left-side lane was vacated by an earlier convergence).
+  ///
+  /// Glyphs:
+  /// - The commit's lane gets `├`, `┤` or `┼` when it continues below
+  ///   (its first fresh parent took it) and `╰`, `╯` or `┴` when it ends
+  ///   there, by whether the span reaches right, left or both ways.
+  /// - A new lane gets `╮` (right of the commit) or `╭` (left).
+  /// - A joined lane is the lane holding that parent, found by commit id:
+  ///   `┤` or `├` at the end of the span, `┼` inside it.
+  /// - Any other occupied lane inside the span is crossed with `┼`.
   ///
   /// Lane attribution for coloring:
-  /// - Endpoint glyphs are tagged with the lane index of their column.
-  /// - Crossings (`┼`) are tagged with the lane being crossed (i.e., the
-  ///   pre-existing occupant of that column), so eye-tracing follows the
-  ///   continuing lane through the crossing.
-  /// - Horizontal connector glyphs (`─`) are tagged with a "moving" lane
-  ///   — the lane being spawned — so the new branch's color visibly
-  ///   leaves the commit toward its new column.
-  private static func renderFanOutConnector(
+  /// - Endpoint and junction glyphs are tagged with their column's lane.
+  /// - Crossings (`┼`) are tagged with the lane being crossed, so
+  ///   eye-tracing follows the continuing lane through the crossing.
+  /// - Horizontal glyphs (`─`) are tagged with the moving lane: the first
+  ///   new lane when the commit spawns one, so the new branch's color
+  ///   visibly leaves the commit, otherwise the commit's own lane, so a
+  ///   join reads as that lane curving in to meet the survivor.
+  private static func renderConnector(
     commitLane: Int,
+    continues: Bool,
     newLanes: [Int],
+    joinLanes: [Int],
     lanes: [String?]
   ) -> [GraphGlyph] {
     let newLanesSet = Set(newLanes)
-    let allLeft = newLanes.allSatisfy { $0 < commitLane }
-    let allRight = newLanes.allSatisfy { $0 > commitLane }
+    let joinLanesSet = Set(joinLanes)
+    let targets = newLanes + joinLanes
+    let reachesLeft = targets.contains { $0 < commitLane }
+    let reachesRight = targets.contains { $0 > commitLane }
     let commitGlyph: Character =
-      allLeft ? "┤" : allRight ? "├" : "┼"
+      switch (continues, reachesLeft, reachesRight) {
+      case (true, true, true): "┼"
+      case (true, true, false): "┤"
+      case (true, false, _): "├"
+      case (false, true, true): "┴"
+      case (false, true, false): "╯"
+      case (false, false, _): "╰"
+      }
 
-    let leftBound = min(commitLane, newLanes.min() ?? commitLane)
-    let rightBound = max(commitLane, newLanes.max() ?? commitLane)
+    let leftBound = min(commitLane, targets.min() ?? commitLane)
+    let rightBound = max(commitLane, targets.max() ?? commitLane)
     let maxIndex = max(rightBound, lanes.count - 1)
     let movingLane = newLanes.first ?? commitLane
     var glyphs: [GraphGlyph] = []
@@ -187,6 +230,9 @@ enum GraphLayout {
         glyph = GraphGlyph(character: commitGlyph, lane: commitLane)
       } else if newLanesSet.contains(col) {
         glyph = GraphGlyph(character: (col > commitLane) ? "╮" : "╭", lane: col)
+      } else if joinLanesSet.contains(col) {
+        let ch: Character = col == leftBound ? "├" : col == rightBound ? "┤" : "┼"
+        glyph = GraphGlyph(character: ch, lane: col)
       } else if col < lanes.count, lanes[col] != nil {
         glyph = GraphGlyph(character: "┼", lane: col)
       } else {
@@ -198,75 +244,6 @@ enum GraphLayout {
         let extends = (col >= leftBound && col < rightBound)
         if extends {
           glyphs.append(GraphGlyph(character: "─", lane: movingLane))
-        } else {
-          glyphs.append(GraphGlyph(character: " ", lane: nil))
-        }
-      }
-    }
-    return glyphs
-  }
-
-  /// Renders the convergence connector below a commit whose lane just
-  /// disappeared (its only outstanding parent is already in another
-  /// lane). The disappeared lane reaches LEFT or RIGHT into the surviving
-  /// lane that holds the parent.
-  ///
-  /// Lane attribution mirrors `renderFanOutConnector`: endpoints get their
-  /// column's lane, horizontal segments and crossings get the *dying*
-  /// lane's color so the join is visible as the dying lane curving in to
-  /// meet the survivor.
-  private static func renderConvergenceConnector(
-    fromLane: Int,
-    lanes: [String?]
-  ) -> [GraphGlyph] {
-    var targetLane: Int? = nil
-    for candidate in stride(from: fromLane - 1, through: 0, by: -1) {
-      if candidate < lanes.count, lanes[candidate] != nil {
-        targetLane = candidate
-        break
-      }
-    }
-    if targetLane == nil {
-      for candidate in (fromLane + 1)..<lanes.count where lanes[candidate] != nil {
-        targetLane = candidate
-        break
-      }
-    }
-    guard let target = targetLane else {
-      return []
-    }
-
-    let leftEnd = min(target, fromLane)
-    let rightEnd = max(target, fromLane)
-    let maxIndex = max(rightEnd, lanes.count - 1)
-    let dyingLane = fromLane
-    var glyphs: [GraphGlyph] = []
-
-    for col in 0...maxIndex {
-      let glyph: GraphGlyph
-      if col < leftEnd || col > rightEnd {
-        if col < lanes.count, lanes[col] != nil {
-          glyph = GraphGlyph(character: "│", lane: col)
-        } else {
-          glyph = GraphGlyph(character: " ", lane: nil)
-        }
-      } else if col == leftEnd {
-        let ch: Character = (target < fromLane) ? "├" : "╰"
-        glyph = GraphGlyph(character: ch, lane: col)
-      } else if col == rightEnd {
-        let ch: Character = (target < fromLane) ? "╯" : "┤"
-        glyph = GraphGlyph(character: ch, lane: col)
-      } else if col < lanes.count, lanes[col] != nil {
-        glyph = GraphGlyph(character: "┼", lane: col)
-      } else {
-        glyph = GraphGlyph(character: "─", lane: dyingLane)
-      }
-      glyphs.append(glyph)
-
-      if col < maxIndex {
-        let extends = (col >= leftEnd && col < rightEnd)
-        if extends {
-          glyphs.append(GraphGlyph(character: "─", lane: dyingLane))
         } else {
           glyphs.append(GraphGlyph(character: " ", lane: nil))
         }

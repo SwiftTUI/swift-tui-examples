@@ -3,8 +3,9 @@
 # Records the test fixtures in Tests/GitVizTests/Fixtures from a real `git`.
 #
 # Builds a throwaway repository containing the shapes that actually break
-# parsers — a merge (which emits no numstat block), a rename (which emits a
-# three-token NUL entry), a unicode subject, and both annotated and
+# parsers — a merge (which emits no numstat block), a rename (whose count
+# entry has an empty path and is followed by its two paths as NUL tokens), a
+# unicode subject, and both annotated and
 # lightweight tags — then runs the exact argv `GitRepo` issues and writes the
 # raw bytes out.
 #
@@ -26,12 +27,15 @@ fi
 
 git_version=$(git --version)
 
-# ASCII record / unit separators, matching GitParsers.recordSeparator and
-# GitParsers.fieldSeparator.
+# ASCII record / unit separators of the tag format, matching
+# GitParsers.recordSeparator and GitParsers.fieldSeparator.
 RS=$(printf '\036')
 US=$(printf '\037')
 
-log_format="%H${US}%aI${US}%aN${US}%aE${US}%P${US}%s"
+# NUL-terminated fields, matching GitParsers.logFormat and
+# GitParsers.graphFormat (git expands %x00).
+log_format="%H%x00%aI%x00%aN%x00%aE%x00%P%x00%s%x00"
+graph_format="%H%x00%P%x00%s%x00"
 tag_format="%(refname:short)${US}%(objectname)${US}%(taggerdate:iso-strict)${US}%(committerdate:iso-strict)${US}%(objecttype)${RS}"
 
 work=$(mktemp -d)
@@ -84,8 +88,8 @@ GIT_AUTHOR_DATE="$merge_date" GIT_COMMITTER_DATE="$merge_date" \
   git merge -q --no-ff side -m "Merge branch 'side' into main"
 stamp_day=$((stamp_day + 1))
 
-# 5. A rename. Under -z this emits `0\t0\0<old>\0<new>\0` — three NUL tokens
-#    for one entry.
+# 5. A rename. Under -z this emits `0\t0\t\0<old>\0<new>\0`: a count entry
+#    with an empty path, then the two paths as NUL tokens of their own.
 git mv a.txt renamed.txt
 commit "refactor: rename the first file"
 
@@ -106,15 +110,15 @@ record() {
 
 echo "==> Recording fixtures into $fixtures"
 record log-numstat.txt \
-  log --no-color -z --pretty="format:${RS}${log_format}" --numstat
+  log --no-color -z --pretty="format:${log_format}" --numstat
 record shortlog.txt \
   shortlog -s -n -e HEAD
 record for-each-ref-tags.txt \
   for-each-ref refs/tags --format="$tag_format"
-record rev-list-parents.txt \
-  rev-list --topo-order --parents --max-count=200 HEAD
+record log-graph.txt \
+  log --no-color --topo-order -z --pretty="format:${graph_format}" --max-count=200 HEAD
 record name-only.txt \
-  log --no-color --diff-filter=AMD --name-only --pretty="format:${RS}"
+  log --no-color -z --diff-filter=AMD --name-only --pretty=format:
 
 # Provenance lives beside the fixtures rather than inside them, so the
 # recorded payloads stay byte-exact.
@@ -129,19 +133,21 @@ script to refresh; a diff means git's output format changed.
   (2020-01-01 onward) so recordings are reproducible.
 
 The repository deliberately contains a merge commit (emits no numstat block),
-a rename (emits a three-token NUL entry under \`-z\`), a unicode subject, two
-authors, and both an annotated and a lightweight tag.
+a rename (under \`-z\`, a count entry with an empty path followed by its two
+paths as NUL tokens), a unicode subject, two authors, and both an annotated
+and a lightweight tag.
 
 | Fixture | argv |
 | --- | --- |
-| \`log-numstat.txt\` | \`log --no-color -z --pretty=format:<RS><logFormat> --numstat\` |
+| \`log-numstat.txt\` | \`log --no-color -z --pretty=format:<logFormat> --numstat\` |
 | \`shortlog.txt\` | \`shortlog -s -n -e HEAD\` |
 | \`for-each-ref-tags.txt\` | \`for-each-ref refs/tags --format=<tagFormat>\` |
-| \`rev-list-parents.txt\` | \`rev-list --topo-order --parents --max-count=200 HEAD\` |
-| \`name-only.txt\` | \`log --no-color --diff-filter=AMD --name-only --pretty=format:<RS>\` |
+| \`log-graph.txt\` | \`log --no-color --topo-order -z --pretty=format:<graphFormat> --max-count=200 HEAD\` |
+| \`name-only.txt\` | \`log --no-color -z --diff-filter=AMD --name-only --pretty=format:\` |
 
-\`<RS>\` is ASCII 0x1E and \`<logFormat>\`/\`<tagFormat>\` are the constants in
-\`GitParsers\`; the script builds them from the same bytes.
+\`<logFormat>\`, \`<graphFormat>\` and \`<tagFormat>\` are the constants in
+\`GitParsers\`; the script builds them from the same bytes (\`%x00\` is
+expanded by git; the tag format's RS and US are ASCII 0x1E and 0x1F).
 EOF
 
 echo "==> done."

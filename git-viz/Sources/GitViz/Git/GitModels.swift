@@ -3,7 +3,11 @@ import Foundation
 /// Repository-level summary used by `git-viz info`.
 struct RepoInfo: Sendable, Hashable {
   var path: URL
+  /// The branch HEAD names — an unborn branch included — or nil when HEAD is
+  /// detached or git could not say.
   var branch: String?
+  /// HEAD is detached: it names a commit, not a branch.
+  var isDetached: Bool
   var commitCount: Int
   var contributorCount: Int
   var firstCommitDate: Date?
@@ -11,6 +15,13 @@ struct RepoInfo: Sendable, Hashable {
   var tagCount: Int
   /// `scanned / total` when `--max-commits` truncates the scan.
   var scannedCommitShare: Double
+
+  /// What HEAD is, for display: `branch <name>`, `detached HEAD`, or nil when
+  /// git could not say.
+  var headLabel: String? {
+    if let branch { return "branch \(branch)" }
+    return isDetached ? "detached HEAD" : nil
+  }
 }
 
 /// One git commit's metadata plus optional numstat tallies.

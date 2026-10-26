@@ -8,16 +8,18 @@ script to refresh; a diff means git's output format changed.
   (2020-01-01 onward) so recordings are reproducible.
 
 The repository deliberately contains a merge commit (emits no numstat block),
-a rename (emits a three-token NUL entry under `-z`), a unicode subject, two
-authors, and both an annotated and a lightweight tag.
+a rename (under `-z`, a count entry with an empty path followed by its two
+paths as NUL tokens), a unicode subject, two authors, and both an annotated
+and a lightweight tag.
 
 | Fixture | argv |
 | --- | --- |
-| `log-numstat.txt` | `log --no-color -z --pretty=format:<RS><logFormat> --numstat` |
+| `log-numstat.txt` | `log --no-color -z --pretty=format:<logFormat> --numstat` |
 | `shortlog.txt` | `shortlog -s -n -e HEAD` |
 | `for-each-ref-tags.txt` | `for-each-ref refs/tags --format=<tagFormat>` |
-| `rev-list-parents.txt` | `rev-list --topo-order --parents --max-count=200 HEAD` |
-| `name-only.txt` | `log --no-color --diff-filter=AMD --name-only --pretty=format:<RS>` |
+| `log-graph.txt` | `log --no-color --topo-order -z --pretty=format:<graphFormat> --max-count=200 HEAD` |
+| `name-only.txt` | `log --no-color -z --diff-filter=AMD --name-only --pretty=format:` |
 
-`<RS>` is ASCII 0x1E and `<logFormat>`/`<tagFormat>` are the constants in
-`GitParsers`; the script builds them from the same bytes.
+`<logFormat>`, `<graphFormat>` and `<tagFormat>` are the constants in
+`GitParsers`; the script builds them from the same bytes (`%x00` is
+expanded by git; the tag format's RS and US are ASCII 0x1E and 0x1F).

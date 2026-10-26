@@ -28,13 +28,19 @@ only effective options. An unsupported option produces an error.
 | `DateWindowOptions` | `--since`, `--until` | the subcommands that pass a window through to git |
 | `RankingOptions` | `--top` | the four subcommands that rank something |
 
+`--path` can name any directory in a repository's worktree, or a bare
+repository. `info` names the current branch, including a branch with no commits
+yet, or shows `detached HEAD`.
+
 `activity`, `health`, `pulse`, and `recent-vs-all` do not accept `--since` or
 `--until`. Each command has a fixed window that defines the chart. The windows
 are a calendar year, one year, five weeks, and 30 days versus all time.
 
 `--since` and `--until` accept a `YYYY-MM-DD` calendar day. Argument parsing
 makes sure that the value has this format. An incorrect value stops the command
-instead of increasing the date window.
+instead of increasing the date window. The window covers whole days in the
+local time zone, and both ends are included: `--since D --until D` selects all
+of day D.
 
 ## Demonstrates
 
@@ -85,8 +91,9 @@ git-viz/Scripts/record_git_fixtures.sh
 ```
 
 The script builds a temporary repository with inputs that can break parsers. It
-includes a merge without a numstat block and a rename with a three-token NUL
-entry under `-z`. It also includes a Unicode subject and both tag types. Then
+includes a merge without a numstat block and a rename, which `-z` writes as a
+count entry with an empty path followed by both paths. It also includes a
+Unicode subject and both tag types. Then
 the script runs the exact `argv` from `GitRepo`. Fixed commit dates produce
 byte-identical fixtures. A diff indicates a change in the git output format.
 The provenance record is in

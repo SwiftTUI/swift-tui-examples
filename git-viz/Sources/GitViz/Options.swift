@@ -82,16 +82,20 @@ struct ScanLimitOptions: ParsableArguments {
 
 /// The date window to restrict history to.
 ///
+/// Both ends are whole calendar days in the local time zone and are
+/// inclusive: `--since` counts from the start of its day, `--until` through
+/// the end of its day, so `--since D --until D` is all of day D.
+///
 /// Declared only by subcommands that pass it through to git. Charts whose
 /// window *is* their definition — `activity` (a calendar year), `health`
 /// (one year), `pulse` (five weeks), `recent-vs-all` (30 days versus all
 /// time) — deliberately do not accept it, because overriding the window
 /// would change what the chart means rather than what it covers.
 struct DateWindowOptions: ParsableArguments {
-  @Option(name: .long, help: "Only consider commits since this date.")
+  @Option(name: .long, help: "Only consider commits on or after this day.")
   var since: CalendarDay?
 
-  @Option(name: .long, help: "Only consider commits until this date.")
+  @Option(name: .long, help: "Only consider commits on or before this day.")
   var until: CalendarDay?
 }
 
