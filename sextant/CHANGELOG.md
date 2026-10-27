@@ -4,6 +4,42 @@ All notable Sextant changes are recorded here.
 
 ## Unreleased
 
+## 0.19.5 - 2026-10-26
+
+- A symbolic link whose target cannot be resolved no longer makes its whole
+  directory unlistable. A link loop, a link into a directory you cannot search,
+  or a link through a regular file now lists as a broken link, like a dangling
+  one. The rest of the directory lists, and recursive search continues past it
+  (STUI-1342).
+- Built-in previews validate the whole capped read and keep scalars whole.
+  Invalid UTF-8 or a NUL byte after the first 8 KiB selects the hexadecimal
+  preview. UTF-8 or UTF-16 text whose multi-byte scalar straddles byte 8192 is
+  text, not hex. A text preview cut at 256 KiB ends on a whole scalar instead of
+  U+FFFD. A UTF-32 file is binary instead of UTF-16 text full of NULs
+  (STUI-1343).
+- Preview titles and directory summaries keep emoji ZWJ sequences and
+  tag-sequence flags intact. Terminal controls, bidi controls and other
+  invisible format characters are still shown as U+FFFD (STUI-1344).
+- `VISUAL` and `EDITOR` are split with the POSIX shell's rules. Inside double
+  quotes a backslash escapes only `$`, backquote, `"`, `\` and newline, so
+  `edit "C:\temp"` keeps its backslash. Backslash-newline is a line
+  continuation. Only space, tab and newline separate words, so a no-break space
+  stays inside a path (STUI-1344).
+- An optional preview tool is found only as an executable regular file in
+  `PATH`; a directory with the tool's name is skipped (STUI-1345).
+- Recursive search reports "Search limit reached" only when a match was left
+  out or the directory budget stopped it (STUI-1345).
+- External preview templates that pass inline program text to a common
+  interpreter (`sh -c`, `python -c`, `node -e` and similar, also behind
+  wrappers such as `env` or `timeout`) are rejected. The README lists exactly
+  what is refused (STUI-1345).
+- Bookmarks and recents are keyed by the bytes of the path, so the NFC and NFD
+  spellings of a name on a byte-preserving filesystem are two bookmarks
+  (STUI-1345).
+- The overlay and column borders use `border(_:style:)` instead of the
+  deprecated `border(_:set:)`. Rendering is unchanged.
+- Update the framework and terminal-view dependencies to 0.19.5.
+
 ## 0.16.0 - 2026-10-08
 
 - External previews retain terminal capabilities and their shutdown ownership
