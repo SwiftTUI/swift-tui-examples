@@ -19,7 +19,7 @@ let package = Package(
     ),
   ],
   dependencies: [
-    .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.20.0"),
+    .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.20.1"),
     .package(path: "../../gallery"),
     .package(name: "shared-host-scenes", path: "../../SharedHostScenes"),
   ],
