@@ -167,37 +167,21 @@ final class PreviewReadinessJourneyTests: XCTestCase {
   ) {
     #if os(iOS)
       let device = XCUIDevice.shared
-      let actionableOrientation = XCTNSPredicateExpectation(
-        predicate: NSPredicate { _, _ in
-          switch device.orientation {
-          case .portrait, .portraitUpsideDown, .landscapeLeft, .landscapeRight:
-            true
-          default:
-            false
-          }
-        },
-        object: nil
-      )
-      XCTAssertEqual(XCTWaiter.wait(for: [actionableOrientation], timeout: 5), .completed)
-
-      let initialOrientation = device.orientation
-      let targetOrientation: UIDeviceOrientation
-      switch initialOrientation {
-      case .portrait, .portraitUpsideDown:
-        targetOrientation = .landscapeLeft
-      case .landscapeLeft, .landscapeRight:
-        targetOrientation = .portrait
-      default:
-        return XCTFail("device did not report a portrait or landscape orientation")
-      }
-      defer { device.orientation = initialOrientation }
-
       let window = app.windows.firstMatch
       XCTAssertTrue(window.waitForExistence(timeout: 5))
       let initialWindowFrame = window.frame
       let initialWindowIsPortrait = initialWindowFrame.height > initialWindowFrame.width
-
-      device.orientation = targetOrientation
+      // A freshly booted simulator can report .unknown even though the
+      // application already has usable geometry. Rotate the actual window.
+      let initialOrientation: UIDeviceOrientation
+      switch device.orientation {
+      case .portrait, .portraitUpsideDown, .landscapeLeft, .landscapeRight:
+        initialOrientation = device.orientation
+      default:
+        initialOrientation = initialWindowIsPortrait ? .portrait : .landscapeLeft
+      }
+      defer { device.orientation = initialOrientation }
+      device.orientation = initialWindowIsPortrait ? .landscapeLeft : .portrait
       let windowChangedOrientationClass = XCTNSPredicateExpectation(
         predicate: NSPredicate { _, _ in
           let changedFrame = window.frame
