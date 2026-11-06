@@ -20,8 +20,7 @@ Run the command from this directory. From the repository root, run
   to a terminal-cell grid. It sends resize information to SwiftTUI, so the
   layout follows the device viewport.
 - The Compose renderer paints styled cells, backgrounds, text decorations, and
-  embedded images on an Android Canvas. A transparent semantics overlay adds
-  Android accessibility. The host versioned JSON snapshot supplies all data.
+  embedded images on an Android Canvas. A transparent host view exposes virtual children to Android accessibility. The host versioned JSON snapshot supplies all data.
 - Hardware keyboard input and basic touch activation connect to SwiftTUI, so
   the gallery is interactive on the device.
 
@@ -113,9 +112,10 @@ ANDROID_HOME="$HOME/Library/Android/sdk" \
 ./gradlew :app:connectedDebugAndroidTest
 ```
 
-The automated semantics assertions verify the Android accessibility tree that
-Compose presents. They do not originate from TalkBack or another assistive
-technology. Manual TalkBack observation remains a separate device check.
+The test reads the virtual accessibility nodes published by the Android host,
+checks their roles and actions, and compares their screen bounds with the public
+Swift frame. Compose supplies the rendering surface and focused text input.
+The assertions do not originate from TalkBack or another assistive technology. Manual TalkBack observation remains a separate device check.
 
 Hardware character events reach the focused command-palette filter, but the
 current Compose text-input sink treats hardware Enter as a multiline newline

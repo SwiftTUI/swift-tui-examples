@@ -6,24 +6,18 @@ import android.util.Log
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.KeyCharacterMap
+import android.view.accessibility.AccessibilityNodeInfo
 import android.view.MotionEvent
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.toPixelMap
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.SemanticsProperties
-import androidx.compose.ui.test.SemanticsMatcher
-import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.captureToImage
-import androidx.compose.ui.test.hasClickAction
-import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isFocused
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
-import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -52,12 +46,10 @@ class AndroidPreviewReadinessJourneyTest {
     writeArtifact("initial-gallery.png", firstFrame)
     step("initial public-host frame verified")
 
-    val palette = compose.onNodeWithContentDescription(PALETTE_LABEL)
-    palette.assert(
-      SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button)
-    )
-    palette.assert(hasClickAction().not())
-    step("one-way semantic presentation verified")
+    val palette = platformNodes(PALETTE_LABEL).single()
+    assertEquals("platform Palette role", "android.widget.Button", palette.className.toString())
+    assertTrue("platform Palette advertises activation", palette.isClickable)
+    step("Android accessibility provider role and action verified")
 
     openPaletteWithTouch()
     writeArtifact("palette-open.png", hostImage())
@@ -77,10 +69,7 @@ class AndroidPreviewReadinessJourneyTest {
     writeCropArtifact("counter-before-count.png", counterBefore, counterControls.countRegion)
 
     step("dispatching increment touch")
-    val increment = compose.onAllNodes(
-      hasContentDescription(GENERIC_BUTTON_LABEL),
-      useUnmergedTree = true
-    )[counterControls.incrementIndex].fetchSemanticsNode().boundsInRoot
+    val increment = counterControls.incrementBounds
     dispatchTouchAt(increment.center, "Counter increment")
     step("increment touch dispatched")
 
@@ -105,15 +94,12 @@ class AndroidPreviewReadinessJourneyTest {
     waitForDescription(ANIMATED_IMAGE_LABEL)
     step("Images tab selected by touch after hardware filtering")
 
-    val imageSemantics = compose.onNodeWithContentDescription(ANIMATED_IMAGE_LABEL)
-    imageSemantics.assert(
-      SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Image)
-    )
-    imageSemantics.assert(hasClickAction().not())
-    val animatedImageBounds = imageSemantics.fetchSemanticsNode().boundsInRoot
+    val imageSemantics = platformNodes(ANIMATED_IMAGE_LABEL).single()
+    assertEquals("platform image role", "android.widget.ImageView", imageSemantics.className.toString())
+    assertFalse("image has no activation action", imageSemantics.isClickable)
     val publicAnimatedImage = waitForHostAccessibilityNode(ANIMATED_IMAGE_LABEL)
     assertEquals("Animated image public-frame role", "image", publicAnimatedImage.role)
-    assertPublicFrameBoundsMatchCompose(publicAnimatedImage, animatedImageBounds)
+    matchingPlatformBounds(publicAnimatedImage)
 
     val imagesFrame = hostImage()
     assertTransparentPNGComposited(imagesFrame, publicAnimatedImage)
@@ -166,9 +152,7 @@ class AndroidPreviewReadinessJourneyTest {
       right = hostBounds.left + (node.rect.x + node.rect.width) * style.cellWidthPx,
       bottom = hostBounds.top + (node.rect.y + node.rect.height) * style.cellHeightPx
     )
-    val composeBounds = compose.onNodeWithContentDescription(PALETTE_LABEL)
-      .fetchSemanticsNode().boundsInRoot
-    assertPublicFrameBoundsMatchCompose(node, composeBounds)
+    val platformBounds = matchingPlatformBounds(node)
     val decorWidth = compose.activity.window.decorView.width.toFloat()
     val decorHeight = compose.activity.window.decorView.height.toFloat()
     assertTrue(
@@ -185,10 +169,10 @@ class AndroidPreviewReadinessJourneyTest {
       abs(bounds.height - node.rect.height * style.cellHeightPx) < 0.01f
     )
     step(
-      "Palette public-frame touch root=(${composeBounds.center.x}, ${composeBounds.center.y}) " +
-        "grid=${node.rect} bounds=$composeBounds"
+      "Palette public-frame touch root=(${platformBounds.center.x}, ${platformBounds.center.y}) " +
+        "grid=${node.rect} bounds=$platformBounds"
     )
-    dispatchTouchAt(composeBounds.center, "Palette public frame")
+    dispatchTouchAt(platformBounds.center, "Palette public frame")
     waitForDescription(PALETTE_FILTER_LABEL)
   }
 
@@ -226,10 +210,7 @@ class AndroidPreviewReadinessJourneyTest {
     return matches.single()
   }
 
-  private fun assertPublicFrameBoundsMatchCompose(
-    node: SwiftTUIAccessibilityNode,
-    composeBounds: Rect
-  ) {
+  private fun matchingPlatformBounds(node: SwiftTUIAccessibilityNode): Rect {
     val snapshot = requireNotNull(AndroidGalleryTestProbe.snapshot)
     val hostBounds = compose.onNodeWithTag(
       HOST_TEST_TAG,
@@ -237,19 +218,26 @@ class AndroidPreviewReadinessJourneyTest {
     ).fetchSemanticsNode().boundsInRoot
     val offsetX = (node.rect.x * snapshot.style.cellWidthPx).roundToInt()
     val offsetY = (node.rect.y * snapshot.style.cellHeightPx).roundToInt()
-    val width = (node.rect.width * snapshot.style.cellWidthPx).roundToInt()
-    val height = (node.rect.height * snapshot.style.cellHeightPx).roundToInt()
+    val right = ((node.rect.x + node.rect.width) * snapshot.style.cellWidthPx).roundToInt()
+    val bottom = ((node.rect.y + node.rect.height) * snapshot.style.cellHeightPx).roundToInt()
     val expected = Rect(
       left = hostBounds.left + offsetX,
       top = hostBounds.top + offsetY,
-      right = hostBounds.left + offsetX + width,
-      bottom = hostBounds.top + offsetY + height
+      right = hostBounds.left + right,
+      bottom = hostBounds.top + bottom
     )
-    assertTrue(
-      "the Compose image overlay must use the public frame's exact grid-to-pixel transform; " +
-        "public=$expected Compose=$composeBounds",
-      expected == composeBounds
-    )
+    var observed: Rect? = null
+    try {
+      // The public frame and the Android accessibility tree are published
+      // separately. Wait for both to expose the same rounded cell edges.
+      compose.waitUntil(SEMANTICS_TIMEOUT_MILLIS) {
+        observed = platformNodes(requireNotNull(node.label)).singleOrNull()?.let(::boundsInRoot)
+        observed == expected
+      }
+    } catch (failure: androidx.compose.ui.test.ComposeTimeoutException) {
+      throw AssertionError("Public frame bounds $expected did not reach Android: $observed", failure)
+    }
+    return requireNotNull(observed)
   }
 
   private fun dispatchTouchAt(
@@ -271,14 +259,17 @@ class AndroidPreviewReadinessJourneyTest {
     )
 
     val instrumentation = InstrumentationRegistry.getInstrumentation()
+    val origin = IntArray(2)
+    compose.activity.window.decorView.getLocationOnScreen(origin)
+    // Instrumentation takes screen coordinates. Showing the IME can move the window.
     val downTime = SystemClock.uptimeMillis()
     fun event(action: Int, eventTime: Long): MotionEvent =
       MotionEvent.obtain(
         downTime,
         eventTime,
         action,
-        point.x,
-        point.y,
+        point.x + origin[0],
+        point.y + origin[1],
         0
       ).apply {
         source = InputDevice.SOURCE_TOUCHSCREEN
@@ -345,15 +336,12 @@ class AndroidPreviewReadinessJourneyTest {
     writeArtifact("palette-filtered-$command.png", hostImage())
     val publicCommand = waitForHostAccessibilityNode(label)
     assertEquals("filtered command public-frame role", "button", publicCommand.role)
-    val composeCommand = compose.onNodeWithContentDescription(label)
-    composeCommand.assert(
-      SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button)
-    )
-    composeCommand.assert(hasClickAction().not())
-    val composeBounds = composeCommand.fetchSemanticsNode().boundsInRoot
-    assertPublicFrameBoundsMatchCompose(publicCommand, composeBounds)
-    step("hardware-filtered $label command presented with matching public/Compose bounds")
-    dispatchTouchAt(composeBounds.center, "$label filtered palette command")
+    val platformCommand = platformNodes(label).single()
+    assertEquals("command platform role", "android.widget.Button", platformCommand.className.toString())
+    assertTrue("command advertises activation", platformCommand.isClickable)
+    val platformBounds = matchingPlatformBounds(publicCommand)
+    step("hardware-filtered $label command presented with matching public/Android bounds")
+    dispatchTouchAt(platformBounds.center, "$label filtered palette command")
   }
 
   private fun injectHardwareKey(keyCode: Int) {
@@ -375,12 +363,34 @@ class AndroidPreviewReadinessJourneyTest {
     assertTrue("hardware key-up $keyCode should inject", automation.injectInputEvent(event(KeyEvent.ACTION_UP), true))
   }
 
+  // The AAR exposes runtime semantics through Android virtual accessibility
+  // children. Compose still owns the real drawing surface and hardware IME sink.
+  private fun platformNodes(description: String): List<AccessibilityNodeInfo> {
+    val result = mutableListOf<AccessibilityNodeInfo>()
+    fun visit(node: AccessibilityNodeInfo?) {
+      if (node == null) return
+      if (node.contentDescription?.toString() == description) result.add(node)
+      for (index in 0 until node.childCount) visit(node.getChild(index))
+    }
+    visit(InstrumentationRegistry.getInstrumentation().uiAutomation.rootInActiveWindow)
+    return result
+  }
+
+  private fun boundsInRoot(node: AccessibilityNodeInfo): Rect {
+    val bounds = android.graphics.Rect()
+    node.getBoundsInScreen(bounds)
+    val origin = IntArray(2)
+    compose.activity.window.decorView.getLocationOnScreen(origin)
+    return Rect((bounds.left - origin[0]).toFloat(), (bounds.top - origin[1]).toFloat(),
+      (bounds.right - origin[0]).toFloat(), (bounds.bottom - origin[1]).toFloat())
+  }
+
   private fun waitForDescription(description: String) {
-    compose.waitUntil(SEMANTICS_TIMEOUT_MILLIS) {
-      compose.onAllNodes(
-        hasContentDescription(description),
-        useUnmergedTree = true
-      ).fetchSemanticsNodes().isNotEmpty()
+    try {
+      compose.waitUntil(SEMANTICS_TIMEOUT_MILLIS) { platformNodes(description).isNotEmpty() }
+    } catch (failure: androidx.compose.ui.test.ComposeTimeoutException) {
+      val labels = AndroidGalleryTestProbe.snapshot?.frame?.accessibilityNodes?.mapNotNull { it.label }
+      throw AssertionError("Missing Android description '$description'; Gallery frame labels=$labels", failure)
     }
   }
 
@@ -388,31 +398,27 @@ class AndroidPreviewReadinessJourneyTest {
     compose.onNodeWithTag(HOST_TEST_TAG, useUnmergedTree = true).captureToImage()
 
   private fun counterControls(): CounterControls {
-    val interactions = compose.onAllNodes(
-      hasContentDescription(GENERIC_BUTTON_LABEL),
-      useUnmergedTree = true
-    )
-    val nodes = interactions.fetchSemanticsNodes()
-    assertTrue("counter should expose its math buttons", nodes.size >= 2)
-
-    val indexed = nodes.mapIndexed { index, node -> index to node.boundsInRoot }
-    val topCenter = indexed.minOf { (_, bounds) -> bounds.center.y }
-    val topRow = indexed.filter { (_, bounds) -> abs(bounds.center.y - topCenter) < 2f }
-    assertEquals("counter should expose decrement and increment on one row", 2, topRow.size)
-    val decrement = topRow.minBy { (_, bounds) -> bounds.center.x }
-    val increment = topRow.maxBy { (_, bounds) -> bounds.center.x }
+    fun mathButton(label: String): Rect {
+      val node = waitForHostAccessibilityNode(label)
+      assertEquals("counter math control role", "button", node.role)
+      return matchingPlatformBounds(node)
+    }
+    val decrement = mathButton(" - ")
+    val increment = mathButton(" + ")
+    assertTrue("counter controls must flank the count on one row",
+      abs(decrement.center.y - increment.center.y) < 2f && decrement.right < increment.left)
     val hostBounds = compose.onNodeWithTag(
       HOST_TEST_TAG,
       useUnmergedTree = true
     ).fetchSemanticsNode().boundsInRoot
 
     return CounterControls(
-      incrementIndex = increment.first,
+      incrementBounds = increment,
       countRegion = Rect(
-        left = decrement.second.right - hostBounds.left,
-        top = maxOf(decrement.second.top, increment.second.top) - hostBounds.top,
-        right = increment.second.left - hostBounds.left,
-        bottom = minOf(decrement.second.bottom, increment.second.bottom) - hostBounds.top
+        left = decrement.right - hostBounds.left,
+        top = maxOf(decrement.top, increment.top) - hostBounds.top,
+        right = increment.left - hostBounds.left,
+        bottom = minOf(decrement.bottom, increment.bottom) - hostBounds.top
       )
     )
   }
@@ -589,7 +595,7 @@ class AndroidPreviewReadinessJourneyTest {
   }
 
   private data class CounterControls(
-    val incrementIndex: Int,
+    val incrementBounds: Rect,
     val countRegion: Rect
   )
 
@@ -598,10 +604,9 @@ class AndroidPreviewReadinessJourneyTest {
     const val TEST_LOG_TAG = "PreviewJourney"
     const val PALETTE_LABEL = "⌃K Palette"
     const val PALETTE_FILTER_LABEL = "Filter commands…"
-    const val RESET_COUNTER_LABEL = "Reset counter"
+    const val RESET_COUNTER_LABEL = "Reset"
     const val COUNTER_COMMAND_LABEL = "Counter"
     const val IMAGES_COMMAND_LABEL = "Images"
-    const val GENERIC_BUTTON_LABEL = "button"
     const val ANIMATED_IMAGE_LABEL = "Animated GIF preview of the embedded Nyan fixture"
     const val FUTURE_ZERO_GLYPH = "┏━┓\n┃┃┃\n┗━┛"
     const val FUTURE_ONE_GLYPH = "╺┓\n┃\n╺┻╸"
