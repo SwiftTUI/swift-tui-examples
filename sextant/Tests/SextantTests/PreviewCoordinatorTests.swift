@@ -393,12 +393,15 @@ struct PreviewCoordinatorTests {
       await coordinator.cancelCurrent()
     }
     try await waitUntil { await sessions.terminationStartedCount == 1 }
+    // The old session's slow timer cancels on the clock actor. Observe that
+    // acknowledgement before testing that the next selection adds no timer.
+    // A scheduler yield does not order the clock's cancellation task.
+    try await waitUntil { await clock.pendingDurations.isEmpty }
     await coordinator.select(
       generation: 2,
       launch: launch("second"),
       fallback: fallback()
     )
-    await Task.yield()
     #expect(await sessions.createdCount == 1)
     #expect(await clock.pendingDurations.isEmpty)
 
