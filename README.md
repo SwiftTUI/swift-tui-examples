@@ -5,7 +5,7 @@ shipped to every host. This repo holds runnable examples for
 [`SwiftTUI`](https://github.com/SwiftTUI/swift-tui): one directory per demo, each
 proving a specific capability, each with the exact command to run it.
 
-![Status](https://img.shields.io/badge/status-0.20.1%20pre--release-DAA520)
+![Status](https://img.shields.io/badge/status-0.21.0%20pre--release-DAA520)
 
 ## Start here
 
@@ -52,8 +52,8 @@ swiftly run swift run --package-path minimal minimal        # the smallest path
 ```
 
 Each example builds from a fresh clone with tagged HTTPS dependencies. Each
-example pins the current `0.20.1` release graph. Gallery uses matching
-`swift-tui` and `swift-tui-charts` versions. `mrkdwn` uses the independent
+example selects an explicit released dependency tuple. Gallery selects
+framework and Charts independently; identical version numbers are not required. `mrkdwn` uses the independent
 `swift-markdown` release range. No sibling source checkout is necessary.
 
 ## Roster
@@ -148,3 +148,13 @@ environment variables, and [`AGENTS.md`](AGENTS.md) for the toolchain policy.
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+## Version compatibility
+
+See the [compatibility policy](docs/COMPATIBILITY.md) for supported minor lines,
+independent dependency adoption, and experimental interfaces.
+
+`terminal-workspace` and Gallery test/inspection tooling that use unratified
+framework implementation seams remain experimental and retain exact tested
+framework selections. Ordinary Gallery application views use supported authoring
+APIs. Experimental tooling does not establish a wider dependency promise.
