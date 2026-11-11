@@ -46,15 +46,15 @@ configs:
 packages:
   # Referenced at the project level but not linked by the app target: the
   # scenes come in through TerminalApp, which depends on swift-tui itself.
-  # The reference pins the resolved version for the whole project graph, and
+  # The reference bounds the compatible versions for the project graph, and
   # the pre-tag overlay REQUIRES it to be present — materialize_pretag_overlay.sh
   # fails with "missing local swift-tui package reference" without it.
   swift-tui:
     url: https://github.com/SwiftTUI/swift-tui.git
-    exactVersion: 0.21.0
+    from: 0.21.0
   swift-tui-swiftui:
     url: https://github.com/SwiftTUI/swift-tui-swiftui.git
-    exactVersion: 0.21.0
+    from: 0.21.0
   # Local package holding the reusable SwiftTUI scenes shared with other hosts.
   TerminalApp:
     path: TerminalApp

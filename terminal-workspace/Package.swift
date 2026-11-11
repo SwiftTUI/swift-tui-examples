@@ -22,8 +22,10 @@ let package = Package(
     ),
   ],
   dependencies: [
-    .package(url: "https://github.com/SwiftTUI/swift-tui.git", exact: "0.21.0"),
-    .package(url: "https://github.com/SwiftTUI/swift-tui-terminal-view.git", exact: "0.21.0"),
+    .package(url: "https://github.com/SwiftTUI/swift-tui.git", .upToNextMajor(from: "0.21.0")),
+    .package(
+      url: "https://github.com/SwiftTUI/swift-tui-terminal-view.git", .upToNextMajor(from: "0.21.0")
+    ),
   ],
   targets: [
     // The tabbed/split-pane workspace layer, owned by this example and built
@@ -55,7 +57,8 @@ let package = Package(
     .testTarget(
       name: "TerminalWorkspaceTests",
       dependencies: [
-        "TerminalWorkspace"
+        "TerminalWorkspace",
+        .product(name: "SwiftTUITestSupport", package: "swift-tui"),
       ],
       swiftSettings: swiftSettings
     ),

@@ -15,21 +15,17 @@ PUBLIC_DEPENDENCIES = {
     "swift-tui": {
         "url": "https://github.com/SwiftTUI/swift-tui.git",
         "lower": "0.21.0",
-        "resolved": "0.21.0",
-        "revision": "8c4e7179ce6f840644e5170f84d769e7e555d281",
     }
 }
 SWIFT_TUI_CONTRACT = PUBLIC_DEPENDENCIES["swift-tui"]
 IDENTITY = "swift-tui"
 PUBLIC_URL = SWIFT_TUI_CONTRACT["url"]
 LOWER_VERSION = SWIFT_TUI_CONTRACT["lower"]
-RESOLVED_VERSION = SWIFT_TUI_CONTRACT["resolved"]
-RESOLVED_REVISION = SWIFT_TUI_CONTRACT["revision"]
 GIT_OID_PATTERN = re.compile(r"[0-9a-f]{40}")
 REMOTE_DEPENDENCY_PATTERN = re.compile(
     r"""\.package\(
         \s*url:\s*"%s"\s*,
-        \s*\.upToNextMinor\(from:\s*"%s"\)\s*
+        \s*\.upToNextMajor\(from:\s*"%s"\)\s*
     \)"""
     % (re.escape(PUBLIC_URL), re.escape(LOWER_VERSION)),
     re.VERBOSE,
@@ -70,7 +66,7 @@ def single_record(value: Any, label: str) -> dict[str, Any]:
 
 def expected_upper_bound() -> str:
     major, minor, _ = LOWER_VERSION.split(".", 2)
-    return f"{major}.{int(minor) + 1}.0"
+    return f"{int(major) + 1}.0.0"
 
 
 def validate_dump(package: dict[str, Any], overlay: pathlib.Path | None) -> None:
@@ -111,6 +107,16 @@ def validate_dump(package: dict[str, Any], overlay: pathlib.Path | None) -> None
     )
 
 
+def validate_swifttui_version(value: Any, lower: str) -> None:
+    require(
+        isinstance(value, str) and re.fullmatch(r"(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)", value) is not None,
+        "swift-tui must resolve a stable semantic version",
+    )
+    selected = tuple(map(int, value.split(".")))
+    floor = tuple(map(int, lower.split(".")))
+    require(floor <= selected < (floor[0] + 1, 0, 0), "swift-tui resolved version is outside its major-compatible range")
+
+
 def validate_lock(package_root: pathlib.Path) -> None:
     lock_path = package_root / "Package.resolved"
     require(lock_path.is_file(), "real checkout must commit csvui/Package.resolved")
@@ -127,14 +133,10 @@ def validate_lock(package_root: pathlib.Path) -> None:
     state = pin.get("state")
     require(isinstance(state, dict), "swift-tui must have resolved state")
     require("branch" not in state, "swift-tui must not resolve a branch")
-    require(state.get("version") == RESOLVED_VERSION, f"swift-tui must resolve {RESOLVED_VERSION}")
+    validate_swifttui_version(state.get("version"), LOWER_VERSION)
     revision = state.get("revision")
     require(isinstance(revision, str), "swift-tui must resolve a revision")
     require(GIT_OID_PATTERN.fullmatch(revision) is not None, "swift-tui revision must be a full Git OID")
-    require(
-        revision == RESOLVED_REVISION,
-        f"swift-tui {RESOLVED_VERSION} must resolve revision {RESOLVED_REVISION}",
-    )
 
 
 def localize_manifest(source_path: pathlib.Path, destination_path: pathlib.Path, checkout: pathlib.Path) -> None:

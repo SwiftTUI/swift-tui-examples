@@ -1,5 +1,5 @@
 import Foundation
-import SwiftTUICore
+import SwiftTUIRuntime
 import TerminalWorkspace
 import Testing
 

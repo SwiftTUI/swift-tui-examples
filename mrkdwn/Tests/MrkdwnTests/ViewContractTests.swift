@@ -1,5 +1,6 @@
 import Foundation
-@_spi(Runners) import SwiftTUI
+@_spi(Host) @_spi(Testing) import SwiftTUI
+@_spi(Testing) import SwiftTUITestSupport
 import Synchronization
 import Testing
 
@@ -209,7 +210,7 @@ struct ViewContractTests {
 
     #expect(try #require(geometry.first).height == metrics.totalHeight)
 
-    let artifacts = DefaultRenderer().render(
+    let artifacts = ViewTestRenderer().render(
       MarkdownTableView(
         table: table,
         theme: .default,
@@ -401,7 +402,7 @@ struct ViewContractTests {
   @Test("inline code paints the configured foreground and background")
   func inlineCodeTheme() {
     let theme = ViewerTheme.default
-    let artifacts = DefaultRenderer().render(
+    let artifacts = ViewTestRenderer().render(
       InlineTextView(
         runs: [InlineRun(text: "code", traits: .code)],
         theme: theme
@@ -501,7 +502,7 @@ struct ViewContractTests {
         offeredWidth: width
       ).first
     )
-    let artifacts = DefaultRenderer().render(
+    let artifacts = ViewTestRenderer().render(
       ImageBlockView(
         image: reference,
         documentURL: nil,
@@ -537,13 +538,13 @@ struct ViewContractTests {
       inputs: .init(),
       offeredWidth: width
     )
-    let htmlArtifacts = DefaultRenderer().render(
+    let htmlArtifacts = ViewTestRenderer().render(
       Text(htmlSource)
         .padding(.init(horizontal: 1, vertical: 0)),
       context: .init(identity: Identity(components: [.named("WrappedHTML")])),
       proposal: ProposedSize(width: width, height: nil)
     )
-    let unsupportedArtifacts = DefaultRenderer().render(
+    let unsupportedArtifacts = ViewTestRenderer().render(
       VStack(alignment: .leading, spacing: 0) {
         Text("Unsupported Markdown: \(unsupportedKind)")
         Text(unsupportedSource)
@@ -563,7 +564,7 @@ struct ViewContractTests {
       altText: "Architecture diagram",
       title: "System overview"
     )
-    let artifacts = DefaultRenderer().render(
+    let artifacts = ViewTestRenderer().render(
       ImageBlockView(
         image: reference,
         documentURL: URL(fileURLWithPath: "/docs/readme.md"),

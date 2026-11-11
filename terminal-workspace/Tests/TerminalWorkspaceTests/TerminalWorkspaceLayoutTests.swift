@@ -1,4 +1,4 @@
-import SwiftTUICore
+import SwiftTUIRuntime
 import TerminalWorkspace
 import Testing
 

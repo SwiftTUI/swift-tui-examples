@@ -1,5 +1,5 @@
 import Foundation
-public import SwiftTUICore
+public import SwiftTUIRuntime
 
 /// The serializable process metadata for a terminal pane.
 public struct TerminalPaneSpec: Identifiable, Hashable, Codable, Sendable {

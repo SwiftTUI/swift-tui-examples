@@ -16,8 +16,6 @@ PUBLIC_DEPENDENCIES = {
     "swift-tui": {
         "url": "https://github.com/SwiftTUI/swift-tui.git",
         "lower": "0.21.0",
-        "resolved": "0.21.0",
-        "revision": "8c4e7179ce6f840644e5170f84d769e7e555d281",
     },
     "swift-markdown": {
         "url": "https://github.com/swiftlang/swift-markdown.git",
@@ -28,6 +26,11 @@ PUBLIC_DEPENDENCIES = {
 }
 
 
+def up_to_next_major(lower: str) -> str:
+    major = int(lower.split(".", 1)[0])
+    return f"{major + 1}.0.0"
+
+
 def up_to_next_minor(lower: str) -> str:
     """The exclusive bound SwiftPM derives for `.upToNextMinor(from: lower)`.
 
@@ -35,9 +38,8 @@ def up_to_next_minor(lower: str) -> str:
     version that no release step can maintain: the org bump rewrites tokens
     equal to the *old* version, so bumping 0.4.7 to 0.5.0 would rewrite `lower`
     and leave an `upper` of "0.5.0" behind — an empty [0.5.0, 0.5.0) range that
-    fails on release day. Every entry above uses `.upToNextMinor`; an entry that
-    ever needs another spelling must make this explicit rather than restore the
-    stored field.
+    fails on release day. Third-party dependencies use `.upToNextMinor`; SwiftTUI uses
+    `.upToNextMajor`, derived separately at the call site.
     """
     major, minor, _ = lower.split(".", 2)
     return f"{major}.{int(minor) + 1}.0"
@@ -46,7 +48,7 @@ def up_to_next_minor(lower: str) -> str:
 SWIFT_TUI_REMOTE_DEPENDENCY_PATTERN = re.compile(
     r"""\.package\(
         \s*url:\s*"%s"\s*,
-        \s*\.upToNextMinor\(from:\s*"%s"\)\s*
+        \s*\.upToNextMajor\(from:\s*"%s"\)\s*
     \)"""
     % (
         re.escape(PUBLIC_DEPENDENCIES["swift-tui"]["url"]),
@@ -107,7 +109,7 @@ def validate_range(
     require(isinstance(requirement, dict), f"{identity} must have a version requirement")
     require(
         set(requirement) == {"range"},
-        f"{identity} must use only a released up-to-next-minor range",
+        f"{identity} must use only a released version range",
     )
     version_range = single_record(requirement["range"], f"{identity} version range")
     require(
@@ -167,7 +169,8 @@ def validate_dump(
             record,
             identity,
             contract["lower"],
-            up_to_next_minor(contract["lower"]),
+            (up_to_next_major(contract["lower"])
+             if identity == "swift-tui" else up_to_next_minor(contract["lower"])),
         )
 
     for identity, record in local.items():
@@ -180,6 +183,16 @@ def validate_dump(
             == overlay_checkout,
             f"{identity} overlay path must resolve to {overlay_checkout}",
         )
+
+
+def validate_swifttui_version(value: Any, lower: str) -> None:
+    require(
+        isinstance(value, str) and re.fullmatch(r"(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)", value) is not None,
+        "swift-tui must resolve a stable semantic version",
+    )
+    selected = tuple(map(int, value.split(".")))
+    floor = tuple(map(int, lower.split(".")))
+    require(floor <= selected < (floor[0] + 1, 0, 0), "swift-tui resolved version is outside its major-compatible range")
 
 
 def validate_lock(package_root: pathlib.Path) -> None:
@@ -220,6 +233,9 @@ def validate_lock(package_root: pathlib.Path) -> None:
     for identity, contract in PUBLIC_DEPENDENCIES.items():
         pin = pins_by_identity[identity]
         require(pin.get("location") == contract["url"], f"{identity} lock URL changed")
+        if identity == "swift-tui":
+            validate_swifttui_version(pin["state"].get("version"), contract["lower"])
+            continue
         require(
             pin["state"].get("version") == contract["resolved"],
             f"{identity} must resolve {contract['resolved']}",

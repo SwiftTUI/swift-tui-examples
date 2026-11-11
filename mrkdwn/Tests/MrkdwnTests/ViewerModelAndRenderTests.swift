@@ -1,6 +1,7 @@
 import Foundation
 import Observation
-@_spi(Runners) import SwiftTUI
+@_spi(Host) @_spi(Testing) import SwiftTUI
+@_spi(Testing) import SwiftTUITestSupport
 import Synchronization
 import Testing
 
@@ -410,7 +411,7 @@ struct ViewerModelAndRenderTests {
 
     var environment = EnvironmentValues()
     environment.terminalSize = CellSize(width: size.width, height: size.height)
-    let artifacts = DefaultRenderer().render(
+    let artifacts = ViewTestRenderer().render(
       MrkdwnRootView(model: model),
       context: .init(
         identity: Identity(components: [.named("MrkdwnRoot")]),
@@ -451,7 +452,7 @@ struct ViewerModelAndRenderTests {
 
     var environment = EnvironmentValues()
     environment.terminalSize = CellSize(width: size.width, height: size.height)
-    let initial = DefaultRenderer().render(
+    let initial = ViewTestRenderer().render(
       MrkdwnRootView(model: model),
       context: .init(
         identity: Identity(components: [.named("MrkdwnPresentation")]),
@@ -490,7 +491,7 @@ struct ViewerModelAndRenderTests {
     model.send(.toggleOutline)
     var wideEnvironment = EnvironmentValues()
     wideEnvironment.terminalSize = CellSize(width: wideSize.width, height: wideSize.height)
-    let wide = DefaultRenderer().render(
+    let wide = ViewTestRenderer().render(
       MrkdwnRootView(model: model),
       context: .init(
         identity: Identity(components: [.named("MrkdwnWidePresentation")]),
@@ -574,7 +575,7 @@ struct ViewerModelAndRenderTests {
     model.send(.beginSearch)
     model.send(.updateSearch("First"))
     await waitUntil { !model.state.isSearching }
-    let searching = DefaultRenderer().render(
+    let searching = ViewTestRenderer().render(
       MrkdwnRootView(model: model),
       context: .init(
         identity: Identity(components: [.named("MrkdwnPresentation")]),
@@ -594,7 +595,7 @@ struct ViewerModelAndRenderTests {
         width: toolbarSize.width,
         height: toolbarSize.height
       )
-      let toolbar = DefaultRenderer().render(
+      let toolbar = ViewTestRenderer().render(
         MrkdwnRootView(model: model),
         context: .init(
           identity: Identity(components: [.named("MrkdwnSearchToolbar")]),
@@ -765,7 +766,7 @@ struct ViewerModelAndRenderTests {
     model.updateViewport(size)
     var environment = EnvironmentValues()
     environment.terminalSize = CellSize(width: size.width, height: size.height)
-    let artifacts = DefaultRenderer().render(
+    let artifacts = ViewTestRenderer().render(
       MrkdwnRootView(model: model),
       context: .init(
         identity: Identity(components: [.named("MrkdwnAccessibility")]),

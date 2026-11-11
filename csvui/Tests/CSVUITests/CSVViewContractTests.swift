@@ -1,6 +1,7 @@
 import Foundation
 import Observation
-@_spi(Runners) import SwiftTUI
+import SwiftTUI
+@_spi(Testing) import SwiftTUITestSupport
 import Synchronization
 import Testing
 
@@ -33,15 +34,15 @@ struct CSVViewContractTests {
   func preformattedGridCellFitting() {
     let ascii = CSVGridTextLayout.fittedText(" abcdef", width: 4)
     #expect(ascii == " ab…")
-    #expect(layoutText(for: ascii, width: nil).size.width == 4)
+    #expect(ViewTestRenderer().render(Text(ascii)).rasterSurface.size.width == 4)
 
     let cjk = CSVGridTextLayout.fittedText(" 漢字", width: 4)
     #expect(cjk.contains("漢"))
-    #expect(layoutText(for: cjk, width: nil).size.width == 4)
+    #expect(ViewTestRenderer().render(Text(cjk)).rasterSurface.size.width == 4)
 
     let emoji = CSVGridTextLayout.fittedText(" 🧭x", width: 4)
     #expect(emoji.contains("🧭"))
-    #expect(layoutText(for: emoji, width: nil).size.width == 4)
+    #expect(ViewTestRenderer().render(Text(emoji)).rasterSurface.size.width == 4)
   }
 
   @Test("unified grid hit map includes headers but dispatches data cells only")
@@ -86,7 +87,7 @@ struct CSVViewContractTests {
     await model.waitForIdle()
     let presentation = model.gridPresentation()
     let layout = CSVGridTextLayout(presentation: presentation)
-    let artifacts = DefaultRenderer().render(
+    let artifacts = ViewTestRenderer().render(
       Text(layout.content),
       context: .init(identity: Identity(components: [.named("CSVRichGridStyles")])),
       proposal: ProposedSize(width: 80, height: 24)
@@ -109,7 +110,7 @@ struct CSVViewContractTests {
     func interactionCount(height: Int) throws -> Int {
       let model = CSVModel(document: try wideDocument(rows: 100, columns: 8))
       model.send(.updateViewport(CSVViewport(width: 100, height: height)))
-      return DefaultRenderer().render(
+      return ViewTestRenderer().render(
         CSVRootView(model: model),
         context: .init(identity: Identity(components: [.named("CSVConstantGraph")])),
         proposal: ProposedSize(width: 100, height: height)
@@ -288,7 +289,7 @@ struct CSVViewContractTests {
       _ model: CSVModel,
       selection: CSVGridSelectionPresentation
     ) -> RasterCell {
-      DefaultRenderer().render(
+      ViewTestRenderer().render(
         CSVRootView(model: model),
         context: .init(identity: Identity(components: [.named("CSVSelectionRestoration")])),
         proposal: ProposedSize(width: 80, height: 24)
@@ -520,7 +521,7 @@ struct CSVViewContractTests {
     let model = CSVModel(document: try wideDocument(rows: 1, columns: 1))
     model.send(.updateViewport(CSVViewport(width: 80, height: height)))
     model.send(.beginEditCell)
-    let artifacts = DefaultRenderer().render(
+    let artifacts = ViewTestRenderer().render(
       CSVRootView(model: model),
       context: .init(identity: Identity(components: [.named("CSVEditorFocusStops")])),
       proposal: ProposedSize(width: 80, height: height)
@@ -537,7 +538,7 @@ struct CSVViewContractTests {
   func renderedChrome() throws {
     let model = CSVModel(document: try wideDocument(rows: 4, columns: 4))
     model.send(.updateViewport(CSVViewport(width: 80, height: 24)))
-    let artifacts = DefaultRenderer().render(
+    let artifacts = ViewTestRenderer().render(
       CSVRootView(model: model),
       context: .init(identity: Identity(components: [.named("CSVRoot")])),
       proposal: ProposedSize(width: 80, height: 24)
@@ -556,7 +557,7 @@ struct CSVViewContractTests {
   func terminalFloor() throws {
     let model = CSVModel(document: try wideDocument(rows: 1, columns: 1))
     model.send(.updateViewport(CSVViewport(width: 39, height: 9)))
-    let artifacts = DefaultRenderer().render(
+    let artifacts = ViewTestRenderer().render(
       CSVRootView(model: model),
       context: .init(identity: Identity(components: [.named("CSVFloor")])),
       proposal: ProposedSize(width: 39, height: 9)
@@ -579,7 +580,7 @@ struct CSVViewContractTests {
       delimiter: .comma,
       hasHeaders: true
     )
-    let artifacts = DefaultRenderer().render(
+    let artifacts = ViewTestRenderer().render(
       CSVRootView(model: model),
       context: .init(identity: Identity(components: [.named("CSVLoading")])),
       proposal: ProposedSize(width: 80, height: 24)

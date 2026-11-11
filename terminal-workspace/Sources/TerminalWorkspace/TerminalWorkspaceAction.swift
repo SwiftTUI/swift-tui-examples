@@ -1,4 +1,4 @@
-public import SwiftTUICore
+public import SwiftTUIRuntime
 
 /// A workspace command intent.
 public enum TerminalWorkspaceAction: Hashable, Sendable {

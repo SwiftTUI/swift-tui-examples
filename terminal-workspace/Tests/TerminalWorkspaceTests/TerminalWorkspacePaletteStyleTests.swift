@@ -1,4 +1,5 @@
 import SwiftTUIRuntime
+@_spi(Testing) import SwiftTUITestSupport
 import Testing
 
 @testable import TerminalWorkspace
@@ -7,7 +8,7 @@ import Testing
 struct TerminalWorkspacePaletteStyleTests {
   @Test("workspace palette keeps its header, filter, descriptions, and cancel affordance")
   func composition() {
-    let snapshot = DefaultRenderer().render(
+    let snapshot = ViewTestRenderer().render(
       Panel(id: "workspace") { Text("Base") }
         .paletteCommand(name: "Split pane right", description: "Alt+V", action: {})
         .paletteCommand(name: "Close focused pane", isEnabled: false, action: {})
@@ -28,7 +29,7 @@ struct TerminalWorkspacePaletteStyleTests {
 
   @Test("workspace palette retains its empty result message")
   func emptyCommands() {
-    let snapshot = DefaultRenderer().render(
+    let snapshot = ViewTestRenderer().render(
       Panel(id: "workspace") { Text("Base") }
         .paletteSheet("Workspace commands", isPresented: .constant(true))
         .paletteStyle(TerminalWorkspacePaletteStyle()),

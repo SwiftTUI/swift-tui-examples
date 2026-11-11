@@ -1,4 +1,4 @@
-public import SwiftTUICore
+public import SwiftTUIRuntime
 
 /// The computed bounds for one terminal pane.
 public struct TerminalWorkspacePaneFrame: Hashable, Sendable {

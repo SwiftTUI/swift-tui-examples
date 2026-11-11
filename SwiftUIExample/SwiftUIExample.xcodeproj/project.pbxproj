@@ -513,16 +513,16 @@
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/SwiftTUI/swift-tui.git";
 			requirement = {
-				kind = exactVersion;
-				version = 0.21.0;
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.21.0;
 			};
 		};
 		4CF7B89AAF3BD3525777216E /* XCRemoteSwiftPackageReference "swift-tui-swiftui" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/SwiftTUI/swift-tui-swiftui.git";
 			requirement = {
-				kind = exactVersion;
-				version = 0.21.0;
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.21.0;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */

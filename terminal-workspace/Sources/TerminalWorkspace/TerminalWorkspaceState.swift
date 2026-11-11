@@ -1,4 +1,4 @@
-public import SwiftTUICore
+public import SwiftTUIRuntime
 
 /// Serializable state for a terminal workspace.
 public struct TerminalWorkspaceState: Hashable, Codable, Sendable {
