@@ -37,7 +37,7 @@ struct ManifestContractTests {
     #expect(root["version"] as? Int == 3)
     let pins = try #require(root["pins"] as? [[String: Any]])
 
-    // Versions are derived from the authored `.upToNextMinor(from:)` lower
+    // Versions are derived from the authored SwiftPM range lower
     // bounds in Package.swift rather than spelled out again here: a second
     // copy of the version drifts the moment a release bumps only one of them,
     // and the org bump tool deliberately never rewrites files under `Tests/`.
@@ -68,18 +68,44 @@ struct ManifestContractTests {
       #expect(state["revision"] as? String != nil)
       if let contract = expected[identity] {
         #expect(pin["location"] as? String == contract.location)
-        #expect(state["version"] as? String == contract.version)
+        let selectedVersion = try #require(state["version"] as? String)
+        if identity == "swift-tui" {
+          #expect(isMajorCompatible(selectedVersion, from: contract.version))
+        } else {
+          #expect(selectedVersion == contract.version)
+        }
       }
     }
   }
 
-  /// The authored `.upToNextMinor(from:)` lower bounds in `Package.swift`,
+  @Test("SwiftTUI lock updates stay within the declared major range")
+  func compatibleLockVersions() {
+    for version in ["0.21.0", "0.21.3", "0.22.1", "0.99.0"] {
+      #expect(isMajorCompatible(version, from: "0.21.0"))
+    }
+    for version in ["0.20.9", "1.0.0", "0.22.0-dev", "main", "0..21.0", "00.21.0"] {
+      #expect(!isMajorCompatible(version, from: "0.21.0"))
+    }
+  }
+
+  private func isMajorCompatible(_ selected: String, from lower: String) -> Bool {
+    guard selected.wholeMatch(of: /(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)/) != nil
+    else {
+      return false
+    }
+    let version = selected.split(separator: ".").compactMap { Int($0) }
+    let floor = lower.split(separator: ".").compactMap { Int($0) }
+    guard version.count == 3, floor.count == 3 else { return false }
+    return version[0] == floor[0] && !version.lexicographicallyPrecedes(floor)
+  }
+
+  /// The authored SwiftPM range lower bounds in `Package.swift`,
   /// keyed by dependency URL.
   private func authoredLowerBounds(at packageRoot: URL) throws -> [String: String] {
     let manifestURL = packageRoot.appendingPathComponent("Package.swift")
     let manifest = try String(contentsOf: manifestURL, encoding: .utf8)
     let declaration =
-      /\.package\(\s*url:\s*"([^"]+)"\s*,\s*\.upToNextMinor\(from:\s*"([^"]+)"\)\s*\)/
+      /\.package\(\s*url:\s*"([^"]+)"\s*,\s*\.upToNext(?:Minor|Major)\(from:\s*"([^"]+)"\)\s*\)/
     return Dictionary(
       manifest.matches(of: declaration).map { (String($0.1), String($0.2)) },
       uniquingKeysWith: { first, _ in first }
