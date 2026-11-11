@@ -8,10 +8,11 @@
 #     and swift-tui-swiftui package references from remote to local so pre-tag
 #     integration builds against sibling checkouts.
 #   * tools/bazel/version_coherence.sh and check_public_dependency_contracts.sh
-#     audit the package URLs and pinned versions.
-#   * tools/coordination/bump_version.sh stamps the release version into every
-#     tracked file that carries it — including both this spec and the
-#     generated project — so the two never drift.
+#     audit package URLs, dependency requirements and resolved versions.
+#   * tools/releases/prepare.py previews component identity changes and
+#     deliberate dependency adoptions. Compatible adoption updates native
+#     locks while retaining the qualified dependency minimum. A requirement
+#     change updates this spec and regenerates the project.
 #
 # Regenerate after editing this file, or after adding/removing/renaming a file
 # under SwiftUIExample/ (sources are enumerated at generate time, not globbed
