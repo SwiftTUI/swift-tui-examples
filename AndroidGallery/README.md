@@ -141,6 +141,9 @@ build are not device evidence.
 - `AndroidLinkActivationJourneyTest` covers a hyperlink tap on the same kind of
   emulator: one `ACTION_VIEW` intent with the exact destination, nothing for a
   press dragged off the link, and a usable app after a refused intent.
+- `AndroidFileDropJourneyTest` covers the runtime half of a file drop: a
+  `file://` paste of a file in the app's cache directory reaches a drop
+  destination, and the runtime decodes and paints the file.
 - The clipboard bridge has unit tests in `swift-tui` and `swift-tui-android`.
   No connected run in this app covers a copy or a paste.
 - No TalkBack run has verified the accessibility actions.
@@ -178,6 +181,19 @@ the journey screenshots, logcat and the tested revisions under
 `--failing-fixture` asks `AndroidJourneyVerdictFixtureTest` to fail, which
 proves that a failed test gives a red verdict. The dispatch-only `Android
 journey` workflow runs the same script; no push or pull-request gate runs it.
+
+Another journey, `AndroidFileDropJourneyTest`, covers the runtime half of a
+file drop. It activates the File Drop tab through the Android accessibility
+tree, writes a PNG into the app's cache directory, and sends that file's path
+through the public host as a bracketed paste of a percent-encoded `file://`
+URL, the form a terminal emits for a dropped file. It then checks that the
+tab's `.dropDestination` shows the exact path and that the runtime decoded and
+painted the file. The app has no route yet from an Android `content://` URI to
+such a path.
+
+`AndroidFileDropJourneyTest` also writes its screenshots where the
+connected-test task collects them:
+`app/build/outputs/connected_android_test_additional_output/`.
 
 The test reads the virtual accessibility nodes published by the Android host,
 checks their roles and actions, and compares their screen bounds with the public

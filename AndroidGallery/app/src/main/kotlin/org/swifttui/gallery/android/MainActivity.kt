@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import sh.swifttui.android.host.SwiftTUIAndroidStyle
 import sh.swifttui.android.host.SwiftTUIFrame
+import sh.swifttui.android.host.SwiftTUIHostState
 import sh.swifttui.android.host.SwiftTUIHostView
 import sh.swifttui.android.host.rememberSwiftTUIHostState
 
@@ -34,7 +35,8 @@ private fun GalleryScreen() {
   SideEffect {
     AndroidGalleryTestProbe.snapshot = AndroidGalleryTestProbe.Snapshot(
       frame = hostFrame,
-      style = hostStyle
+      style = hostStyle,
+      hostState = hostState
     )
   }
   Box(
@@ -61,7 +63,8 @@ private fun GalleryScreen() {
 internal object AndroidGalleryTestProbe {
   data class Snapshot(
     val frame: SwiftTUIFrame?,
-    val style: SwiftTUIAndroidStyle
+    val style: SwiftTUIAndroidStyle,
+    val hostState: SwiftTUIHostState
   )
 
   @Volatile
