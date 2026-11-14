@@ -28,9 +28,9 @@ Run the command from this directory. From the repository root, run
 - Hardware keys, touch taps and drags, wheel scrolling, and the soft keyboard
   reach SwiftTUI as terminal input, so the gallery is interactive on the
   device. The soft keyboard delivers committed text only.
-- `Ctrl+V` and `Shift+Insert` paste the system clipboard as a bracketed paste,
-  and text that the app copies goes to the system clipboard. A tap on a
-  hyperlink cell opens its destination through the Compose `UriHandler`.
+- `Ctrl+V` and `Shift+Insert` paste the system clipboard's text, and text that
+  the app copies goes to the system clipboard. A tap on a hyperlink cell opens
+  its destination through the Compose `UriHandler`.
 
 ## How it works
 
@@ -117,8 +117,9 @@ The host library that the app consumes provides these capabilities:
 - The converged `web-surface` wire decoder, including delta frames.
 - Committed-text input from the soft keyboard, hardware keys, touch taps and
   drags, and wheel scrolling.
-- System clipboard plumbing: paste as a bracketed paste, and copy requested by
-  the app.
+- The system clipboard in both directions, within the limits listed under
+  [Clipboard journey](#clipboard-journey): an app action copies to it, and
+  Ctrl+V or Shift+Insert pastes its text into the focused control.
 - Hyperlink taps, opened through the Compose `UriHandler`. Key activation of a
   focused link opens nothing.
 - A virtual accessibility hierarchy that sends focus, activation, adjustment,
@@ -129,6 +130,9 @@ These gaps remain:
 - IME marked-text (pre-edit) composition. Only committed text reaches the
   runtime.
 - Content URI (`content://`) imports.
+- Copy and cut from a text control, and paste into one as a single filtered
+  bracketed paste. The pinned host does neither; see
+  [Clipboard journey](#clipboard-journey).
 - `x86_64` packaging. The app is `arm64-v8a` only.
 
 The evidence differs by capability. Passing JVM tests and a successful APK
@@ -144,8 +148,13 @@ build are not device evidence.
 - `AndroidFileDropJourneyTest` covers the runtime half of a file drop: a
   `file://` paste of a file in the app's cache directory reaches a drop
   destination, and the runtime decodes and paints the file.
-- The clipboard bridge has unit tests in `swift-tui` and `swift-tui-android`.
-  No connected run in this app covers a copy or a paste.
+- `AndroidClipboardJourneyTest` covers the system clipboard on the same kind
+  of emulator. An app action's copy reaches `ClipboardManager` as the exact
+  text, written once. Ctrl+V and Shift+Insert paste Unicode and multiline text
+  into the focused field and editor. An absent clip, an empty text, a URI and
+  an Intent paste nothing. Stopping, resuming and recreating the activity
+  writes nothing to the clipboard. No connected run covers a copy or a cut
+  from a text control, or control-byte filtering of a paste into one.
 - No TalkBack run has verified the accessibility actions.
 
 ## Test
@@ -214,6 +223,50 @@ Enter in that filter reaches the runtime as Return and submits the selected
 command. The connected journey does not use Enter: it proves hardware filtering
 and repaint, then activates the exact filtered semantic command with a physical
 touch.
+
+### Clipboard journey
+
+`AndroidClipboardJourneyTest` qualifies copy and paste against the real Android
+system clipboard. From Android 10 only the focused app and the default input
+method can read the clipboard. The test runs inside the gallery's process, so
+it reads and writes `ClipboardManager` directly while the gallery has input
+focus. Its waits are bounded condition waits on the Compose test clock, which
+also drives the host's frame poll.
+
+- **Copy from an app action.** The mesh crafter's Copy Definition button, on
+  the Borders & Shapes tab, copies a 29-line Swift definition. The test
+  compares the clipboard with the exact text. It then lets the host poll
+  several more times and checks that the clip was not written again: its text
+  and its timestamp are unchanged.
+- **Paste into the focused control.** With a text field focused, and so the
+  host's invisible soft-keyboard text field holding Compose focus, Ctrl+V and
+  Shift+Insert paste Unicode text into the field. Multiline text goes into the
+  multiline editor.
+- **Clipboard content policy.** An absent clip, an empty text, a URI and an
+  Intent paste nothing. An HTML clip pastes its plain-text alternative.
+- **Lifecycle.** Stopping and resuming the activity writes nothing to the
+  clipboard; copy and paste still work afterwards. Recreating the activity
+  destroys the host and starts a new one; neither writes to the clipboard, and
+  the new host copies on request.
+
+Each run records the Android release, API level, build fingerprint, default
+input method and grid size, with screenshots of the whole screen, under
+`app/build/outputs/connected_android_test_additional_output/`.
+
+Limits at this revision, which pins `android-host` 0.22.0:
+
+- Copy Definition lies to the right of a phone-width grid, which does not
+  scroll sideways, so no touch can reach it. The test activates it through
+  the accessibility node the host publishes for it, as a screen reader does.
+- Hardware Ctrl+letter chords do not reach the runtime. Ctrl+A, Ctrl+C and
+  Ctrl+X therefore do not select, copy or cut in a text control, and an app
+  action is the only way to copy.
+- While a text control has focus, the invisible text field handles the paste
+  shortcuts itself. The text reaches the runtime as typed keys instead of one
+  bracketed paste: a line break is a Return key, and control bytes are not
+  removed. With the same focus, Ctrl+A then Ctrl+C copies that field's buffer,
+  which is what was typed since it took focus, not the focused control's text.
+- There are no native selection handles or menus, and no IME composition.
 
 ## See also
 
