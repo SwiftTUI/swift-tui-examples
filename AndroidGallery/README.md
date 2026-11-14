@@ -136,7 +136,8 @@ build are not device evidence.
 
 - The connected journey in [Test](#test) covers rendering, touch,
   hardware-key filtering, a state-changing repaint, tab retention, the virtual
-  accessibility nodes, and image alpha on an arm64 emulator. No CI job runs it.
+  accessibility nodes, and image alpha on an arm64 emulator. Only the
+  dispatch-only `Android journey` workflow runs it in CI.
 - `AndroidLinkActivationJourneyTest` covers a hyperlink tap on the same kind of
   emulator: one `ACTION_VIEW` intent with the exact destination, nothing for a
   press dragged off the link, and a usable app after a refused intent.
@@ -159,6 +160,24 @@ With an arm64 emulator or device online, run:
 ANDROID_HOME="$HOME/Library/Android/sdk" \
 ./gradlew :app:connectedDebugAndroidTest
 ```
+
+To run the same journey with a verdict and retained evidence, use the runner
+script from the repository root:
+
+```bash
+Scripts/android_connected_journey.sh                           # creates, boots and deletes a clean emulator
+Scripts/android_connected_journey.sh --serial emulator-5554    # uses a device that is already running
+```
+
+The script fails when the device, the NDK or the Swift Android SDK is missing,
+when the APK lacks the Swift host or JNI libraries, when the app crashes, when
+a test fails, or when the journey test does not execute. It bounds the
+emulator boot, the build, the test run and the cleanup. It keeps the test XML,
+the journey screenshots, logcat and the tested revisions under
+`app/build/journey-artifacts/` for a green run and a red run alike.
+`--failing-fixture` asks `AndroidJourneyVerdictFixtureTest` to fail, which
+proves that a failed test gives a red verdict. The dispatch-only `Android
+journey` workflow runs the same script; no push or pull-request gate runs it.
 
 The test reads the virtual accessibility nodes published by the Android host,
 checks their roles and actions, and compares their screen bounds with the public

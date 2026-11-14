@@ -212,25 +212,33 @@ class AndroidPreviewReadinessJourneyTest {
 
   private fun matchingPlatformBounds(node: SwiftTUIAccessibilityNode): Rect {
     val snapshot = requireNotNull(AndroidGalleryTestProbe.snapshot)
-    val hostBounds = compose.onNodeWithTag(
-      HOST_TEST_TAG,
-      useUnmergedTree = true
-    ).fetchSemanticsNode().boundsInRoot
     val offsetX = (node.rect.x * snapshot.style.cellWidthPx).roundToInt()
     val offsetY = (node.rect.y * snapshot.style.cellHeightPx).roundToInt()
     val right = ((node.rect.x + node.rect.width) * snapshot.style.cellWidthPx).roundToInt()
     val bottom = ((node.rect.y + node.rect.height) * snapshot.style.cellHeightPx).roundToInt()
-    val expected = Rect(
-      left = hostBounds.left + offsetX,
-      top = hostBounds.top + offsetY,
-      right = hostBounds.left + right,
-      bottom = hostBounds.top + bottom
-    )
+    // The host view can still be settling, for example while the soft keyboard
+    // closes. Its bounds are therefore read again on every poll: bounds read
+    // once can describe a position that the view has since left, and the
+    // comparison below would then never succeed.
+    fun expectedBounds(): Rect {
+      val hostBounds = compose.onNodeWithTag(
+        HOST_TEST_TAG,
+        useUnmergedTree = true
+      ).fetchSemanticsNode().boundsInRoot
+      return Rect(
+        left = hostBounds.left + offsetX,
+        top = hostBounds.top + offsetY,
+        right = hostBounds.left + right,
+        bottom = hostBounds.top + bottom
+      )
+    }
+    var expected = expectedBounds()
     var observed: Rect? = null
     try {
       // The public frame and the Android accessibility tree are published
       // separately. Wait for both to expose the same rounded cell edges.
       compose.waitUntil(SEMANTICS_TIMEOUT_MILLIS) {
+        expected = expectedBounds()
         observed = platformNodes(requireNotNull(node.label)).singleOrNull()?.let(::boundsInRoot)
         observed == expected
       }
@@ -369,7 +377,11 @@ class AndroidPreviewReadinessJourneyTest {
     val result = mutableListOf<AccessibilityNodeInfo>()
     fun visit(node: AccessibilityNodeInfo?) {
       if (node == null) return
-      if (node.contentDescription?.toString() == description) result.add(node)
+      // UiAutomation serves nodes from a cache. The host's virtual nodes take
+      // their screen bounds when they are created, and nothing invalidates them
+      // when the host view only moves on screen, for example while the soft
+      // keyboard closes. Refresh a match so that its bounds are current.
+      if (node.contentDescription?.toString() == description && node.refresh()) result.add(node)
       for (index in 0 until node.childCount) visit(node.getChild(index))
     }
     visit(InstrumentationRegistry.getInstrumentation().uiAutomation.rootInActiveWindow)
@@ -568,11 +580,24 @@ class AndroidPreviewReadinessJourneyTest {
     )
   }
 
-  private fun writeArtifact(name: String, image: ImageBitmap) {
-    val context = InstrumentationRegistry.getInstrumentation().targetContext
-    val directory = File(context.getExternalFilesDir(null), "preview-readiness").apply {
-      mkdirs()
+  // Gradle's connected-test task names a device directory in the
+  // `additionalTestOutputDir` argument and copies it into
+  // `build/outputs/connected_android_test_additional_output` before it removes
+  // the app. Without that argument the artifacts stay in the app's external
+  // files directory, which goes away with the app.
+  private fun artifactDirectory(): File {
+    val instrumentation = InstrumentationRegistry.getInstrumentation()
+    val additionalOutput = InstrumentationRegistry.getArguments().getString("additionalTestOutputDir")
+    val root = if (additionalOutput.isNullOrBlank()) {
+      instrumentation.targetContext.getExternalFilesDir(null)
+    } else {
+      File(additionalOutput)
     }
+    return File(root, "preview-readiness").apply { mkdirs() }
+  }
+
+  private fun writeArtifact(name: String, image: ImageBitmap) {
+    val directory = artifactDirectory()
     File(directory, name).outputStream().use { output ->
       image.asAndroidBitmap().compress(Bitmap.CompressFormat.PNG, 100, output)
     }
@@ -585,10 +610,7 @@ class AndroidPreviewReadinessJourneyTest {
     val right = rect.right.toInt().coerceIn(left + 1, source.width)
     val bottom = rect.bottom.toInt().coerceIn(top + 1, source.height)
     val crop = Bitmap.createBitmap(source, left, top, right - left, bottom - top)
-    val context = InstrumentationRegistry.getInstrumentation().targetContext
-    val directory = File(context.getExternalFilesDir(null), "preview-readiness").apply {
-      mkdirs()
-    }
+    val directory = artifactDirectory()
     File(directory, name).outputStream().use { output ->
       crop.compress(Bitmap.CompressFormat.PNG, 100, output)
     }

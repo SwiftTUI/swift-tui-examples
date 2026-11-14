@@ -1,0 +1,134 @@
+name: Android journey
+
+# Runs the AndroidGallery connected journey on an emulator and gives a verdict
+# (Scripts/android_connected_journey.sh). The script creates a clean emulator,
+# builds the app against the tagged artifacts that the committed manifests
+# name, checks that the APK carries the Swift host and JNI libraries, runs the
+# journey with bounded boot, build, test and cleanup times, and keeps the test
+# XML, screenshots, logcat and tested revisions for a green or a red run.
+#
+# Trigger policy: dispatch only. This lane is not a push, pull-request or tag
+# gate. It can become one after a remote run on the chosen runner has shown two
+# consecutive green runs and one red `failing_fixture` run. The coordination
+# root does not run it.
+#
+# Runner and ABI: the published host packages `arm64-v8a` only, so the default
+# lane needs a runner that can start a hardware-accelerated arm64 emulator.
+# That is an Apple-silicon host with the Hypervisor framework available; a
+# runner without it fails at the bounded emulator boot and leaves emulator.log.
+# `ubuntu-24.04` has KVM but is an x86_64 host. It can run only the `x86_64`
+# ABI, and the script fails at the APK payload check until the app packages
+# that ABI.
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: Runner label; it must be able to run an emulator for the chosen ABI
+        required: false
+        default: xcode-27
+        type: choice
+        options:
+          - xcode-27
+          - ubuntu-24.04
+      abi:
+        description: ABI of the emulator and of the libraries the APK must carry
+        required: false
+        default: arm64-v8a
+        type: choice
+        options:
+          - arm64-v8a
+          - x86_64
+      failing_fixture:
+        description: Ask the verdict fixture test to fail; the run must end red
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-journey-${{ github.ref }}-${{ inputs.abi }}
+  cancel-in-progress: false
+
+env:
+  SWIFTLY_VERSION: "1.1.4"
+  ANDROID_API: "36"
+  SWIFT_ANDROID_SDK_URL: "https://download.swift.org/swift-6.4.0-release/android-sdk/swift-6.4.0-RELEASE/swift-6.4.0-RELEASE_android.artifactbundle.tar.gz"
+  SWIFT_ANDROID_SDK_CHECKSUM: "21fb555122a3d801ad943d48df7ebffdd8824de61c25c180bb792d3edaee0b43"
+
+jobs:
+  journey:
+    name: Gallery journey (${{ inputs.abi }})
+    runs-on: ${{ inputs.runner }}
+    # Cold: the Swift host cross-compiles the framework once (about 10 minutes)
+    # before the journey. The script bounds each phase, so a hang costs its
+    # bound, not this cap.
+    timeout-minutes: 75
+    steps:
+      - name: Checkout examples
+        uses: actions/checkout@v7
+        with:
+          path: swift-tui-examples
+
+      - name: Set up JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Cache Swiftly toolchain
+        uses: actions/cache@v6
+        with:
+          # No restore-keys: a prefix hit from another .swift-version restores
+          # a swiftly registry with no toolchain behind it (see test.yml).
+          path: |
+            ~/.swiftly
+            ~/.local/share/swiftly
+            ~/.local/bin/swiftly
+          key: ${{ runner.os }}-swiftly-${{ env.SWIFTLY_VERSION }}-${{ hashFiles('swift-tui-examples/.swift-version') }}
+
+      - name: Install swiftly and Swift toolchain
+        shell: bash
+        run: swift-tui-examples/Scripts/install_swift_toolchain_ci.sh swift-tui-examples/.swift-version
+
+      # GitHub's Linux runners expose /dev/kvm to root only.
+      - name: Allow the runner user to use KVM
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' |
+            sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Install the Android packages and the Swift Android SDK
+        shell: bash
+        env:
+          ABI: ${{ inputs.abi }}
+        run: swift-tui-examples/Scripts/install_android_journey_tools_ci.sh "$ABI" "$ANDROID_API"
+
+      - name: Run the connected journey
+        shell: bash
+        working-directory: swift-tui-examples
+        env:
+          ABI: ${{ inputs.abi }}
+          FAILING_FIXTURE: ${{ inputs.failing_fixture }}
+        run: |
+          set -euo pipefail
+          arguments=(--abi "$ABI" --api "$ANDROID_API" --artifacts "$RUNNER_TEMP/android-journey")
+          if [ "$FAILING_FIXTURE" = "true" ]; then
+            arguments+=(--failing-fixture)
+          fi
+          Scripts/android_connected_journey.sh "${arguments[@]}"
+
+      - name: Upload the journey artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-journey-${{ inputs.abi }}
+          path: ${{ runner.temp }}/android-journey
+          if-no-files-found: error
+          retention-days: 14

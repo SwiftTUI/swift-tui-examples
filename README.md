@@ -111,7 +111,7 @@ host).
 
 ## Tests
 
-CI runs three lanes (`.github/workflows/`):
+CI runs three lanes (`.github/workflows/`) and has one dispatch-only lane:
 
 - **Framework seam** (`bun run check:linux`, every push and pull request):
   builds every package in debug and runs the suites that exercise SwiftTUI
@@ -129,6 +129,12 @@ CI runs three lanes (`.github/workflows/`):
   `Scripts/localize_siblings.sh` clones the siblings, copies this repository
   into a throwaway directory, rewrites the copy's manifests to local paths,
   and runs the gate there; the committed manifests keep their tags.
+- **Android journey** (`.github/workflows/android-journey.yml`, dispatch
+  only): `Scripts/android_connected_journey.sh` boots a clean emulator, builds
+  [AndroidGallery](AndroidGallery) against its tagged artifacts, runs the
+  connected journey, and keeps the test XML, screenshots and logcat. It is not
+  a push or pull-request gate. See the
+  [AndroidGallery README](AndroidGallery/README.md#test).
 
 To test one example, run `swiftly run swift test --package-path <example>`.
 Release-configuration builds (`bun run check:release`) run on tags and explicit

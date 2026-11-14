@@ -87,6 +87,24 @@ require_file "$repo_root/.github/actions/lane-verdict-probe/action.yml"
 require_file "$repo_root/.github/actions/lane-verdict-record/action.yml"
 require_file "$repo_root/Scripts/localize_siblings.sh"
 
+# Android journey: dispatch only, one script owns the verdict, and the
+# artifacts upload whether the run is green or red.
+journey_workflow="$repo_root/.github/workflows/android-journey.yml"
+require_file "$journey_workflow"
+require_file "$repo_root/Scripts/android_connected_journey.sh"
+require_file "$repo_root/Scripts/install_android_journey_tools_ci.sh"
+require_text "  workflow_dispatch:" "$journey_workflow"
+forbid_text "pull_request:" "$journey_workflow"
+forbid_text "  push:" "$journey_workflow"
+forbid_text "schedule:" "$journey_workflow"
+require_text "Scripts/install_android_journey_tools_ci.sh" "$journey_workflow"
+require_text "Scripts/android_connected_journey.sh" "$journey_workflow"
+require_text "        if: always()" "$journey_workflow"
+require_text "uses: actions/upload-artifact@v7" "$journey_workflow"
+require_text "if-no-files-found: error" "$journey_workflow"
+require_text 'Scripts/lib/step_watchdog.sh' "$repo_root/Scripts/android_connected_journey.sh"
+require_text 'run_logged_command' "$repo_root/Scripts/android_connected_journey.sh"
+
 # Both gate scripts must drive their steps through the shared watchdog and
 # read the same suite partition, or the lanes drift apart silently.
 for gate in check_examples.sh check_examples_focused_tests.sh; do
