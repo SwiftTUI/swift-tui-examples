@@ -92,8 +92,9 @@ preferred entry point.
 ## Status
 
 The app packages the Swift gallery host in the debug APK. It renders the
-interactive gallery on the device. The app does not yet support IME
-composition, the clipboard, or link opening. It also lacks accessibility-focus
+interactive gallery on the device. A tapped gallery link opens through Android;
+key activation of a focused link opens nothing. The app does not yet support
+IME composition or the clipboard. It also lacks accessibility-focus
 synchronization, content URI imports, and retained bitmap damage caches.
 
 ## Test
@@ -116,6 +117,15 @@ The test reads the virtual accessibility nodes published by the Android host,
 checks their roles and actions, and compares their screen bounds with the public
 Swift frame. Compose supplies the rendering surface and focused text input.
 The assertions do not originate from TalkBack or another assistive technology. Manual TalkBack observation remains a separate device check.
+
+A second journey, `AndroidLinkActivationJourneyTest`, follows a gallery `Link`
+to Android. It finds the link's hyperlink cells in the public frame, taps them,
+and checks that the host starts exactly one `ACTION_VIEW` intent carrying the
+link's exact destination. An instrumentation activity monitor stands in for the
+installed handler, so the journey observes the real intent without leaving the
+app. It then checks that a press dragged off the link starts nothing, and that
+an intent the platform refuses for lack of a handler leaves the gallery
+responding to touch.
 
 Hardware character events reach the focused command-palette filter, but the
 current Compose text-input sink treats hardware Enter as a multiline newline
