@@ -20,9 +20,17 @@ Run the command from this directory. From the repository root, run
   to a terminal-cell grid. It sends resize information to SwiftTUI, so the
   layout follows the device viewport.
 - The Compose renderer paints styled cells, backgrounds, text decorations, and
-  embedded images on an Android Canvas. A transparent host view exposes virtual children to Android accessibility. The host versioned JSON snapshot supplies all data.
-- Hardware keyboard input and basic touch activation connect to SwiftTUI, so
-  the gallery is interactive on the device.
+  embedded images into a retained bitmap. For each new frame it repaints only
+  the damaged rows. Decoded image bitmaps stay in a bounded cache.
+- A transparent host view exposes virtual children to Android accessibility.
+  Their focus, activation, adjustment, and text-edit actions go to the runtime
+  through JNI.
+- Hardware keys, touch taps and drags, wheel scrolling, and the soft keyboard
+  reach SwiftTUI as terminal input, so the gallery is interactive on the
+  device. The soft keyboard delivers committed text only.
+- `Ctrl+V` and `Shift+Insert` paste the system clipboard as a bracketed paste,
+  and text that the app copies goes to the system clipboard. A tap on a
+  hyperlink cell opens its destination through the Compose `UriHandler`.
 
 ## How it works
 
@@ -33,14 +41,21 @@ generated `jniLibs`. A small JNI shim connects Kotlin to the
 `SwiftTUIAndroidHost` C ABI.
 
 The first screen is a Compose `SwiftTUIHostView` with a native Swift host
-handle. The Android frame parser consumes a versioned JSON snapshot from
-`SwiftTUIAndroidHost`. The schema contains terminal colors, raster cells, cell
-styles, damage metadata, and image attachments. It also contains accessibility
-nodes, announcements, focus presentation, and the preferred layout size.
+handle. The host library polls that handle and decodes the shared SwiftTUI
+`web-surface` wire, the record format that the browser host also reads. A
+full-frame record carries the whole grid. A delta record replaces whole rows of
+the previous frame. A record contains terminal colors, raster rows, cell
+styles, link targets, damage metadata, and image attachments. It also contains
+the accessibility tree, announcements, focus presentation, and the preferred
+layout size. The
+[host wire contract](https://github.com/SwiftTUI/swift-tui/blob/main/docs/HOST-WIRE-CONTRACT.md)
+is the normative description.
 
 The demo package supports only `arm64-v8a`. The framework also cross-compiles
-for `x86_64-unknown-linux-android28`. This difference is a package-scope choice,
-not a framework limitation. To add an `x86_64` lane:
+for `x86_64-unknown-linux-android28`. This difference is a packaging-scope
+choice, not a framework limitation: the published host AAR and Gradle plugin
+build and stage `arm64-v8a` only. An `x86_64` lane needs these changes. All but
+the first belong to `swift-tui-android`:
 
 1. Add the ABI to `app/build.gradle.kts`.
 2. Add the ABI to the `:swift-tui-host` `Application.mk`.
@@ -92,10 +107,42 @@ preferred entry point.
 ## Status
 
 The app packages the Swift gallery host in the debug APK. It renders the
-interactive gallery on the device. A tapped gallery link opens through Android;
-key activation of a focused link opens nothing. The app does not yet support
-IME composition or the clipboard. It also lacks accessibility-focus
-synchronization, content URI imports, and retained bitmap damage caches.
+interactive gallery on the device.
+
+The host library that the app consumes provides these capabilities:
+
+- Rendering into a retained bitmap with damage-row repaints, and a bounded
+  cache of decoded image bitmaps. The decoder still rebuilds its cell objects
+  for every frame.
+- The converged `web-surface` wire decoder, including delta frames.
+- Committed-text input from the soft keyboard, hardware keys, touch taps and
+  drags, and wheel scrolling.
+- System clipboard plumbing: paste as a bracketed paste, and copy requested by
+  the app.
+- Hyperlink taps, opened through the Compose `UriHandler`. Key activation of a
+  focused link opens nothing.
+- A virtual accessibility hierarchy that sends focus, activation, adjustment,
+  and text-edit actions to the runtime.
+
+These gaps remain:
+
+- IME marked-text (pre-edit) composition. Only committed text reaches the
+  runtime.
+- Content URI (`content://`) imports.
+- `x86_64` packaging. The app is `arm64-v8a` only.
+
+The evidence differs by capability. Passing JVM tests and a successful APK
+build are not device evidence.
+
+- The connected journey in [Test](#test) covers rendering, touch,
+  hardware-key filtering, a state-changing repaint, tab retention, the virtual
+  accessibility nodes, and image alpha on an arm64 emulator. No CI job runs it.
+- `AndroidLinkActivationJourneyTest` covers a hyperlink tap on the same kind of
+  emulator: one `ACTION_VIEW` intent with the exact destination, nothing for a
+  press dragged off the link, and a usable app after a refused intent.
+- The clipboard bridge has unit tests in `swift-tui` and `swift-tui-android`.
+  No connected run in this app covers a copy or a paste.
+- No TalkBack run has verified the accessibility actions.
 
 ## Test
 
@@ -127,11 +174,11 @@ app. It then checks that a press dragged off the link starts nothing, and that
 an intent the platform refuses for lack of a handler leaves the gallery
 responding to touch.
 
-Hardware character events reach the focused command-palette filter, but the
-current Compose text-input sink treats hardware Enter as a multiline newline
-instead of forwarding it as palette submission. The connected journey records
-that preview limitation explicitly: it proves hardware filtering and repaint,
-then activates the exact filtered semantic command with a physical touch.
+Hardware character events reach the focused command-palette filter. Hardware
+Enter in that filter reaches the runtime as Return and submits the selected
+command. The connected journey does not use Enter: it proves hardware filtering
+and repaint, then activates the exact filtered semantic command with a physical
+touch.
 
 ## See also
 
