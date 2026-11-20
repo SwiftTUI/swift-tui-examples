@@ -315,11 +315,11 @@ internal class GalleryJourneyDriver(
     val result = mutableListOf<AccessibilityNodeInfo>()
     fun visit(node: AccessibilityNodeInfo?) {
       if (node == null) return
-      // UiAutomation serves nodes from a cache. The host's virtual nodes take
-      // their screen bounds when they are created, and nothing invalidates them
-      // when the host view only moves on screen, for example while the soft
-      // keyboard closes. Refresh a match so that its state is current; a node
-      // that no longer exists does not refresh and is left out.
+      // The default app still consumes android-host 0.22.0, which leaves cached
+      // virtual-node bounds stale when the host moves without a runtime frame.
+      // STUI-1536 fixes invalidation in the host source; retain this workaround
+      // until the app adopts a released AAR containing that fix. The host's
+      // device regression reads fresh bounds without refreshing nodes.
       if (node.contentDescription?.toString() == description && node.refresh()) result.add(node)
       for (index in 0 until node.childCount) visit(node.getChild(index))
     }
