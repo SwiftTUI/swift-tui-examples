@@ -31,7 +31,7 @@ proves, or jump straight to a package in [By product](#by-product).
 
 ## Prerequisites
 
-- **Swift 6.4.x** (`.swift-version` pins 6.4.0).
+- **Swift 6.4.x** (`.swift-version` pins 6.4.3).
 - Commands below use **[`swiftly`](https://www.swift.org/swiftly/)** so every example builds
   against the repository pinned toolchain. If Swift 6.4.x is active through
   Xcode 27 or `PATH`, remove the `swiftly run` prefix. Then run the bare
