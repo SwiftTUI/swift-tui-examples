@@ -16,7 +16,9 @@ set -euo pipefail
 
 script_name=install_android_journey_tools_ci
 ndk_version="30.0.16248370"
-swift_sdk_artifact="swift-6.4.0-RELEASE_android"
+repo_root="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
+android_swift_version="$(tr -d '[:space:]' < "$repo_root/.swift-version")"
+swift_sdk_artifact="swift-${android_swift_version}-RELEASE_android"
 
 fail() {
   printf '[%s] %s\n' "$script_name" "$1" >&2
@@ -78,7 +80,7 @@ if [ ! -d "$bundle" ]; then
   [ -n "${SWIFT_ANDROID_SDK_URL:-}" ] || fail "SWIFT_ANDROID_SDK_URL is not set"
   [ -n "${SWIFT_ANDROID_SDK_CHECKSUM:-}" ] || fail "SWIFT_ANDROID_SDK_CHECKSUM is not set"
   printf '[%s] installing the Swift Android SDK\n' "$script_name"
-  "$swiftly_bin" run +6.4.0 swift sdk install "$SWIFT_ANDROID_SDK_URL" --checksum "$SWIFT_ANDROID_SDK_CHECKSUM"
+  "$swiftly_bin" run "+$android_swift_version" swift sdk install "$SWIFT_ANDROID_SDK_URL" --checksum "$SWIFT_ANDROID_SDK_CHECKSUM"
 fi
 [ -d "$bundle" ] || fail "the Swift Android SDK is not at $bundle after installation"
 

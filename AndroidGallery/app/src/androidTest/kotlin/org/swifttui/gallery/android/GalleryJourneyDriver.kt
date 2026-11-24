@@ -315,7 +315,7 @@ internal class GalleryJourneyDriver(
     val result = mutableListOf<AccessibilityNodeInfo>()
     fun visit(node: AccessibilityNodeInfo?) {
       if (node == null) return
-      // The default app still consumes android-host 0.22.0, which leaves cached
+      // The default app still consumes android-host 0.22.1, which leaves cached
       // virtual-node bounds stale when the host moves without a runtime frame.
       // STUI-1536 fixes invalidation in the host source; retain this workaround
       // until the app adopts a released AAR containing that fix. The host's

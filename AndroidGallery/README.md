@@ -67,22 +67,22 @@ the first belong to `swift-tui-android`:
 Prerequisites:
 
 - Install Android Studio and Android SDK Platform 37.1.
-- Install Swift 6.4.0 through `swiftly`.
-- Install the Swift Android SDK bundle `swift-6.4.0-RELEASE_android`.
+- Install Swift 6.4.3 for the published Android Gradle plugin through `swiftly`.
+- Install the Swift Android SDK bundle `swift-6.4.3-RELEASE_android`.
 - Install Android NDK `30.0.16248370` through Android Studio's SDK Manager.
   The build uses it from the Android SDK directory by default; set
   `ANDROID_NDK_HOME` to use another installation.
 
-After installing the 6.4.0 Swift Android SDK, materialize its `ndk-sysroot` once:
+After installing the 6.4.3 Swift Android SDK, materialize its `ndk-sysroot` once:
 
 ```bash
 ANDROID_NDK_HOME="$HOME/Library/Android/sdk/ndk/30.0.16248370" \
-"$HOME/Library/org.swift.swiftpm/swift-sdks/swift-6.4.0-RELEASE_android.artifactbundle/swift-android/scripts/setup-android-sdk.sh"
+"$HOME/Library/org.swift.swiftpm/swift-sdks/swift-6.4.3-RELEASE_android.artifactbundle/swift-android/scripts/setup-android-sdk.sh"
 ```
 
 The Gradle build creates the `app/build/swift-sdks` search path before it calls
 SwiftPM. This path contains only the configured
-`swift-6.4.0-RELEASE_android` bundle. If the bundle is not in the default
+`swift-6.4.3-RELEASE_android` bundle. If the bundle is not in the default
 SwiftPM SDK directory, set
 `SWIFT_ANDROID_SDK_BUNDLE` to the `.artifactbundle` path.
 
@@ -96,13 +96,17 @@ If the SDK and NDK are not on the default paths, use this command:
 JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" \
 ANDROID_HOME="$HOME/Library/Android/sdk" \
 ANDROID_NDK_HOME="$HOME/Library/Android/sdk/ndk/30.0.16248370" \
-SWIFT_ANDROID_SDK_BUNDLE="$HOME/Library/org.swift.swiftpm/swift-sdks/swift-6.4.0-RELEASE_android.artifactbundle" \
-SWIFT_ANDROID_ROOT="$HOME/Library/org.swift.swiftpm/swift-sdks/swift-6.4.0-RELEASE_android.artifactbundle/swift-android" \
+SWIFT_ANDROID_SDK_BUNDLE="$HOME/Library/org.swift.swiftpm/swift-sdks/swift-6.4.3-RELEASE_android.artifactbundle" \
+SWIFT_ANDROID_ROOT="$HOME/Library/org.swift.swiftpm/swift-sdks/swift-6.4.3-RELEASE_android.artifactbundle/swift-android" \
 gradle :app:assembleDebug
 ```
 
 The Gradle wrapper is committed, so `./gradlew :app:assembleDebug` is the
 preferred entry point.
+
+When upgrading an app previously built with Swift 6.4.0, run `./gradlew
+:app:clean` once before building with 6.4.3. This removes the old SDK link from
+the app’s generated SwiftPM search directory.
 
 ## Status
 
@@ -253,7 +257,7 @@ Each run records the Android release, API level, build fingerprint, default
 input method and grid size, with screenshots of the whole screen, under
 `app/build/outputs/connected_android_test_additional_output/`.
 
-Limits at this revision, which pins `android-host` 0.22.0:
+Limits at this revision, which pins `android-host` 0.22.1:
 
 - Copy Definition lies to the right of a phone-width grid, which does not
   scroll sideways, so no touch can reach it. The test activates it through
