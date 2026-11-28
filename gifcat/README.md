@@ -27,7 +27,7 @@ swiftly run swift run --package-path gifcat gifcat first.gif second.gif third.gi
   combines with other views.
 - The example preserves argument order when it tiles multiple animated inputs.
   It uses row-major order, decoded image sizes, and one terminal cell between
-  images.
+  images. A GIF that fails to decode shows its filename and error in its own tile.
 
 ## App layout
 

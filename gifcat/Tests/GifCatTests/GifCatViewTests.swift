@@ -159,6 +159,20 @@ struct GifCatViewTests {
     #expect(result.renderedFrames >= 2)
   }
 
+  @Test("a failed GIF displays its filename alongside succeeding images")
+  func decodeFailureIsLocalToOneTile() throws {
+    let root = try temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: root) }
+    try Data("unfinished".utf8).write(to: root.appendingPathComponent("bad.gif"))
+    try Data(Self.singlePixelGIF).write(to: root.appendingPathComponent("good"))
+    let items = GifCatInput.items(paths: ["bad.gif", "good"], currentDirectory: root.path)
+    let output = render(GifCatView(items: items), width: 80, height: 8).rasterSurface
+    #expect(items[0].decodingError != nil)
+    #expect(items[1].animation != nil)
+    #expect(output.lines.joined().contains("failed: bad.gif"))
+    #expect(output.imageAttachments.count == 1)
+  }
+
   @Test("missing GIF paths render a compact diagnostic")
   func missingGIFPathsRenderACompactDiagnostic() {
     let item = GifCatItem(

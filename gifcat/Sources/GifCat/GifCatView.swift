@@ -8,6 +8,7 @@ public struct GifCatItem: Equatable, Hashable, Identifiable, Sendable {
   public var path: String
   public var exists: Bool
   public var animation: AnimatedImageSequence?
+  var decodingError: String?
 
   public init(
     id: Int,
@@ -41,14 +42,25 @@ public enum GifCatInput {
     paths.enumerated().map { offset, rawPath in
       let path = normalizedPath(rawPath, currentDirectory: currentDirectory)
       let exists = FileManager.default.fileExists(atPath: path)
-      return GifCatItem(
-        id: offset,
-        originalPath: rawPath,
-        path: path,
-        exists: exists,
-        animation: exists ? try? AnimatedGIF.decode(contentsOf: path) : nil
-      )
+      var item = GifCatItem(id: offset, originalPath: rawPath, path: path, exists: exists)
+      let url = URL(fileURLWithPath: path)
+      guard exists, isGIF(url) else { return item }
+      do {
+        item.animation = try AnimatedGIF.decode(contentsOf: path)
+      } catch {
+        item.decodingError = String(describing: error)
+      }
+      return item
     }
+  }
+
+  /// A GIF can have any filename. Other image formats keep their static-image fallback.
+  private static func isGIF(_ url: URL) -> Bool {
+    if url.pathExtension.lowercased() == "gif" { return true }
+    guard let file = try? FileHandle(forReadingFrom: url) else { return false }
+    defer { try? file.close() }
+    guard let signature = try? file.read(upToCount: 6) else { return false }
+    return signature.elementsEqual("GIF87a".utf8) || signature.elementsEqual("GIF89a".utf8)
   }
 
   public static func loadItems(
@@ -161,6 +173,11 @@ public struct GifCatView: View {
   ) -> some View {
     if let animation = item.animation {
       AnimatedImage(animation)
+    } else if let error = item.decodingError {
+      Text("failed: \(item.displayName) — \(error)")
+        .foregroundStyle(.muted)
+        .lineLimit(1)
+        .truncationMode(.tail)
     } else if item.exists {
       Image(path: item.path)
     } else {
